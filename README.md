@@ -15,7 +15,7 @@
   </p>
   <p>
     <a href="https://github.com/b-bot/Stackarr">
-      <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/b-bot/Stackarr?style=social" />
+      <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/b-bot/Stackarr?style=social&cacheSeconds=3600" />
     </a>
   </p>
 </div>
