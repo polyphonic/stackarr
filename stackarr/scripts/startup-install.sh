@@ -1,0 +1,66 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$ROOT_DIR/lib/common.sh"
+
+ACTION="${1:-install}"
+QUIET=false
+[[ "${2:-}" == "--quiet" ]] && QUIET=true
+
+load_env
+STACKARR_BIN="$(find_stackarr_bin || true)"
+[[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
+PLIST_DIR="$HOME/Library/LaunchAgents"
+PLIST_PATH="$PLIST_DIR/com.stackarr.stack.plist"
+LAUNCH_DOMAIN="gui/$(id -u)"
+ensure_dir "$PLIST_DIR"
+ensure_dir "$LOG_ROOT/launchd"
+
+unload_agent() {
+    launchctl bootout "$LAUNCH_DOMAIN" "$PLIST_PATH" 2>/dev/null || launchctl unload "$PLIST_PATH" 2>/dev/null || true
+}
+
+load_agent() {
+    launchctl bootstrap "$LAUNCH_DOMAIN" "$PLIST_PATH" 2>/dev/null || launchctl load "$PLIST_PATH"
+    launchctl enable "$LAUNCH_DOMAIN/com.stackarr.stack" 2>/dev/null || true
+    launchctl kickstart -k "$LAUNCH_DOMAIN/com.stackarr.stack" 2>/dev/null || true
+}
+
+if [[ "$ACTION" == "uninstall" ]]; then
+    unload_agent
+    rm -f "$PLIST_PATH"
+    $QUIET || ok "Removed startup agent"
+    exit 0
+fi
+
+cat > "$PLIST_PATH" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.stackarr.stack</string>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>WorkingDirectory</key>
+  <string>$APP_ROOT</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$STACKARR_BIN</string>
+    <string>up</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>$LOG_ROOT/launchd/start-stack.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>$LOG_ROOT/launchd/start-stack.err.log</string>
+</dict>
+</plist>
+EOF
+
+unload_agent
+load_agent
+$QUIET || ok "Installed startup agent"

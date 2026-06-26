@@ -1,0 +1,3 @@
+{
+  "pages": ["backups", "telemetry", "database", "updates", "image-cleanup", "docker-hub", "troubleshooting"]
+}

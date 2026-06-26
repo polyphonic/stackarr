@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "stackarr": {
+      "command": "stackarr",
+      "args": ["mcp", "serve"],
+      "timeout": 120,
+      "connect_timeout": 30,
+      "sampling": { "enabled": false }
+    }
+  }
+}

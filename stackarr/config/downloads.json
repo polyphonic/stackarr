@@ -1,0 +1,76 @@
+{
+  "transmission": {
+    "ratioLimit": 0,
+    "idleSeedingMinutes": 15,
+    "startPausedEnabled": false,
+    "queueing": {
+      "downloadQueueEnabled": true,
+      "downloadQueueSize": 5,
+      "seedQueueEnabled": false,
+      "seedQueueSize": 3,
+      "queueStalledEnabled": true,
+      "queueStalledMinutes": 60
+    },
+    "network": {
+      "listenPort": 51413,
+      "portForwardingEnabled": false,
+      "randomPort": false
+    },
+    "paths": {
+      "useIncompleteDir": true,
+      "watchDirEnabled": false
+    },
+    "blocklist": {
+      "enabled": true,
+      "sourceUrl": "https://raw.githubusercontent.com/Naunter/BT_BlockLists/master/bt_blocklists.gz"
+    }
+  },
+  "qbittorrent": {
+    "ratioLimit": 0,
+    "ratioLimitAction": "pause",
+    "maxSeedingMinutes": 240,
+    "maxInactiveSeedingMinutes": 15,
+    "startPausedEnabled": false,
+    "queueing": {
+      "enabled": true,
+      "maxActiveDownloads": 5,
+      "maxActiveTorrents": 5,
+      "maxActiveUploads": 3,
+      "slowTorrentsDontCount": false,
+      "slowTorrentDownloadRateKiB": 2,
+      "slowTorrentUploadRateKiB": 2,
+      "slowTorrentInactiveMinutes": 60
+    },
+    "network": {
+      "listenPort": 6881,
+      "useUPnP": false,
+      "randomPort": false
+    },
+    "paths": {
+      "useTempPath": true,
+      "useCategoryPathsInManualMode": true
+    },
+    "ipFilter": {
+      "enabled": true,
+      "sourceUrl": "https://raw.githubusercontent.com/Naunter/BT_BlockLists/master/bt_blocklists.gz",
+      "path": "/config/qBittorrent/ipfilter.p2p",
+      "applyToTrackers": false
+    }
+  },
+  "servarr": {
+    "transmission": {
+      "removeCompletedDownloads": true,
+      "removeFailedDownloads": true
+    },
+    "qbittorrent": {
+      "removeCompletedDownloads": true,
+      "removeFailedDownloads": true,
+      "contentLayout": "default",
+      "initialState": "start",
+      "sequentialOrder": false,
+      "firstAndLastFirst": false,
+      "recentPriority": 0,
+      "olderPriority": 0
+    }
+  }
+}

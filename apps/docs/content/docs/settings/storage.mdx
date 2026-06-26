@@ -1,0 +1,17 @@
+---
+title: Settings Storage
+---
+
+# Settings Storage
+
+Stackarr uses a split similar to the arr apps' app-data approach.
+
+| Location | Purpose |
+| --- | --- |
+| Stackarr runtime database | Saved setup, paths, ports, install modes, UI, connection choices, tasks, notifications, and agent/audit activity. SQLite is the default; shared Postgres is available through advanced setup as `stackarr-main` plus `stackarr-log`. |
+| `stackarr/config/stackarr.db` | Default SQLite store and bootstrap/fallback copy for installs that later move Stackarr settings to Postgres. |
+| `stackarr/config/*.json` | Versioned naming, download, and request presets. |
+
+Cloudflare token state files exist so background agents can run outside the dashboard process. Dashboard-saved Cloudflare tokens are still the source of truth when present; Cloudflare tunnel commands use the saved setting first, then refresh the state file for launchd.
+
+The Docker image never bakes local config, database files, logs, state, or token files into the image.

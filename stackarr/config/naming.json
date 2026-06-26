@@ -1,0 +1,50 @@
+{
+  "radarr": {
+    "renameMovies": true,
+    "replaceIllegalCharacters": true,
+    "colonReplacementFormat": "smart",
+    "movieFolderFormat": "{Movie Title} ({Release Year}){ {edition-{Movie Edition}}}",
+    "standardMovieFormat": "{Movie Title} ({Release Year}){ {edition-{Movie Edition}}} [{Quality Full}.{MediaInfo VideoCodec}.{MediaInfo AudioCodec}.{MediaInfo AudioChannels}]"
+  },
+  "sonarr": {
+    "renameEpisodes": true,
+    "replaceIllegalCharacters": true,
+    "colonReplacementFormat": 4,
+    "customColonReplacementFormat": "",
+    "multiEpisodeStyle": 5,
+    "seriesFolderFormat": "{Series Title} ({Series Year})",
+    "seasonFolderFormat": "Season {season:00}",
+    "specialsFolderFormat": "Specials",
+    "standardEpisodeFormat": "{Series Title} ({Series Year}) - S{season:00}E{episode:00} - {Episode Title} [{Quality Full}.{MediaInfo VideoCodec}.{MediaInfo AudioCodec}.{MediaInfo AudioChannels}]",
+    "dailyEpisodeFormat": "{Series Title} ({Series Year}) - {Air-Date} - {Episode Title} [{Quality Full}.{MediaInfo VideoCodec}.{MediaInfo AudioCodec}.{MediaInfo AudioChannels}]",
+    "animeEpisodeFormat": "{Series Title} ({Series Year}) - S{season:00}E{episode:00} - {Episode Title} [{Quality Full}.{MediaInfo VideoCodec}.{MediaInfo AudioCodec}.{MediaInfo AudioChannels}]"
+  },
+  "tinymediamanager": {
+    "movies": {
+      "movieDataSource": [
+        "/media/Movies"
+      ],
+      "movieScraper": "tmdb",
+      "movieConnector": "KODI",
+      "renameAfterScrape": false,
+      "renamerCleanupUnwanted": true,
+      "renamerColonReplacement": "-",
+      "renamerPathname": "${title} (${year})${if edition} {edition-${edition}}${end}",
+      "renamerFilename": "${title} (${year})${if edition} {edition-${edition}}${end} [${,mediaSource,.}${,videoFormat,}.${,videoCodec,;upper}.${,audioCodec,}.${,audioChannelsDot,}]"
+    },
+    "tvShows": {
+      "tvShowDataSource": [
+        "/media/TV Shows"
+      ],
+      "scraper": "tvdb",
+      "tvShowConnector": "XBMC",
+      "renameAfterScrape": false,
+      "renamerCleanupUnwanted": true,
+      "renamerColonReplacement": " ",
+      "renamerTvShowFoldername": "${showTitle} (${showYear})",
+      "renamerSeasonFoldername": "Season ${seasonNr2}",
+      "renamerMultiEpisodeStyle": "RANGE",
+      "renamerFilename": "${showTitle} (${showYear}) - S${seasonNr2}E${episodeNr2} - ${title} [${,mediaSource,.}${,videoFormat,}.${,videoCodec,;upper}.${,audioCodec,}.${,audioChannelsDot,}]"
+    }
+  }
+}

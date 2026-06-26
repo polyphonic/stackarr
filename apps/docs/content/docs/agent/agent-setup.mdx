@@ -1,0 +1,45 @@
+---
+title: Agent Setup
+---
+
+# Agent Setup
+
+Agent setup uses the same setup model as the UI: inspect defaults, dry-run, then apply only after confirmation.
+
+Stackarr ships an agent skill at `skills/stackarr/SKILL.md`. Include that folder in installer payloads and agent-skill directories so local agents know the safe setup flow.
+
+## Fast Start
+
+1. Install Stackarr.
+2. Add `stackarr mcp serve` to the agent's MCP configuration.
+3. Ask the agent to read the setup profile and dry-run recommended defaults.
+4. Review the plan.
+5. Approve the apply step.
+
+## Recommended Flow
+
+1. Call `stackarr_get_setup_profile`.
+2. If the user wants defaults, use the profile defaults and dry-run.
+3. If choices are needed, ask only material multiple-choice questions: database mode, media server mode, torrent client, public access mode, backup mode, and paths.
+4. Call `stackarr_setup_media_server` with `dryRun: true`.
+5. Review the saved configuration patch and command sequence.
+6. Apply with `dryRun: false` and `confirmSetup: true`.
+7. Verify with `stackarr_get_system_status`, `stackarr_get_tasks`, and service health checks.
+
+## Question Style
+
+Ask step-based multiple-choice questions only when they change the install:
+
+- database: app defaults/SQLite, or shared Postgres
+- media server: native Plex, Docker Jellyfin, both, or neither
+- torrent client: Transmission or qBittorrent
+- access: local only, LAN, Cloudflare Tunnel, or Portless
+- backups: lite or full, backup folder, and retention count
+
+When the user says to use defaults, do not walk them through every option. Dry-run with defaults, show the planned changes, then ask for approval.
+
+## Do Not
+
+- Expose the MCP server publicly.
+- Run stop/update/restart actions while the user needs Plex/Jellyfin online.
+- Ask for every default when Stackarr has a safe local default.

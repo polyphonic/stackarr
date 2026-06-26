@@ -1,0 +1,63 @@
+---
+title: Release Safety
+---
+
+# Release Safety
+
+Stackarr is designed to be published from source, but release repos must be created from tracked project files only.
+
+Do not make a public repo by copying the whole working folder from Finder or a file manager. Local development can contain ignored runtime data next to the source tree.
+
+## Safe Export
+
+After the intended source is committed, export tracked files from that commit, then initialize the public repo from the export:
+
+```bash
+git status --short
+git archive --format=tar --output=/tmp/stackarr-source.tar HEAD
+mkdir /tmp/stackarr-public
+tar -xf /tmp/stackarr-source.tar -C /tmp/stackarr-public
+cd /tmp/stackarr-public
+git init
+git add .
+git status --short
+```
+
+Review the status output before the first commit.
+
+## Never Publish
+
+These are intentionally ignored and must stay out of public source:
+
+- `.env`
+- `.hermes/`
+- `.stackarr/`
+- `.turbo/`
+- `.pnpm-store/`
+- `node_modules/`
+- `.next/`
+- `apps/**/.next/`
+- `stackarr/config/*.db`
+- `stackarr/config/*.secret`
+- `stackarr/state/`
+- `distribution/*/dist/`
+- any generated logs, caches, local SQLite files, or backup archives
+
+## Leak Scan
+
+Run a targeted scan before publishing:
+
+```bash
+rg -n "YOUR_NAME|YOUR_DOMAIN|/Users/|/Volumes/|CloudDocs|Mobile Documents|Vault|api[_-]?key|token|secret|password" .
+find . -maxdepth 4 \( -name ".env" -o -name "*.db" -o -name "*.secret" -o -name "*.sqlite" -o -name "*.sqlite3" \) -print
+```
+
+The scan can produce false positives for documented placeholder names. Real hostnames, local paths, secrets, and personal usernames should be removed or moved behind runtime configuration.
+
+## Public Defaults
+
+Tracked defaults should be portable:
+
+- use app-local folders such as `APP_ROOT/media`, `APP_ROOT/downloads`, and `APP_ROOT/backups`
+- use placeholders such as `<GLOBAL_ADMIN_PASSWORD>` in docs
+- keep user-specific values in onboarding, settings, environment variables, or ignored runtime state

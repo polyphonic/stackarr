@@ -1,0 +1,38 @@
+---
+title: Project Layout
+---
+
+# Project Layout
+
+```text
+apps/frontend      Stackarr local dashboard and /api/v1 API
+apps/docs          Single Fumadocs deployment app serving landing + docs
+packages/core      Shared config, runtime settings, commands, health, tasks
+packages/ui        Shared HeroUI/Nucleo UI primitives
+packages/cli       Executable package wrapper
+packages/mcp       Local stdio MCP server for trusted agents
+packages/agent-plugins Hermes/OpenClaw plugin templates
+packages/integration-tests Test workspace
+distribution       Release packaging
+skills             Agent setup and maintenance instructions
+stackarr           Scripts, presets, hooks, and compose stack
+bin/stackarr       CLI entrypoint used by queued commands
+Logo               Root logo assets used by docs and packaged installers
+```
+
+## Runtime Boundary
+
+The Docker image contains only:
+
+- `apps/frontend`
+- `packages/ui`
+- `packages/core`
+- `packages/cli`
+- `packages/mcp`
+- `packages/agent-plugins`
+- `skills`
+- `bin`
+- `stackarr`
+- `Logo`
+
+It does not contain the public docs app. That app is intended for deployment; the Stackarr dashboard and managed services stay local.

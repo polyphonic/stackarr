@@ -1,0 +1,19 @@
+---
+title: Image Cleanup
+---
+
+# Image Cleanup
+
+Stackarr includes a maintenance compose service that removes dangling old image layers after successful updates.
+
+```bash
+docker compose -f stackarr/docker-compose.yml --profile maintenance run --rm image-cleanup
+```
+
+It runs:
+
+```bash
+docker image prune -f --filter dangling=true
+```
+
+This does not remove named images still referenced by containers.

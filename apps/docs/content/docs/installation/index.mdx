@@ -1,0 +1,70 @@
+---
+title: Installation
+---
+
+# Installation
+
+Stackarr follows the arr app pattern: run a long-lived local service, open the browser UI, configure through the UI/API, and keep service actions queued.
+
+## Recommended: Agent-Guided Setup
+
+The smoothest install path is to install Stackarr, connect its local MCP server to a trusted agent, then let the agent walk through setup with you.
+
+1. Install Stackarr with a native package or Docker.
+2. Start the dashboard once and keep the Stackarr CLI available.
+3. Add the local MCP server to Claude, Codex, Hermes, OpenClaw, or another MCP-capable client:
+
+```json
+{
+  "mcpServers": {
+    "stackarr": {
+      "command": "stackarr",
+      "args": ["mcp", "serve"],
+      "timeout": 120
+    }
+  }
+}
+```
+
+4. Ask the agent: "Set up Stackarr with the recommended defaults, show me the dry-run, then wait for approval."
+5. Approve the plan only after the agent shows the folders, services, database mode, backup settings, and public-access choices.
+
+The same setup model is available through the browser UI and CLI, so you are not locked into an agent. The agent path simply gives Claude, Codex, and similar tools a typed local interface instead of asking them to edit config files directly.
+
+## Native Packages
+
+Stackarr now builds native package artifacts next to Docker:
+
+| Target | Artifact | Notes |
+| --- | --- | --- |
+| macOS | `.app` archive | Desktop app wrapper plus `stackarr` CLI helper. |
+| Linux | `.tar.gz` | Includes `install.sh` and a systemd unit using `/opt/Stackarr` and `/var/lib/stackarr`. |
+| Windows | `.zip` plus Inno Setup project | Produces an `.exe` installer on Windows builders with Inno Setup 6. Docker remains the supported alpha backend for stack actions. |
+
+```bash
+pnpm package:native
+```
+
+Release builds should provide an official Node.js runtime through `STACKARR_NODE_RUNTIME_DIR` so native archives are self-contained. Developer builds can fall back to Node.js 20 or newer on the host.
+
+macOS is the only platform currently exercised by the maintainer. Linux and Windows packages are intentionally shipped during alpha so testers can validate paths, service behavior, Docker integration, and OS-specific edge cases before they are marked stable.
+
+## Alpha Tags
+
+```bash
+docker pull polyphonic/stackarr:alpha
+docker pull polyphonic/stackarr:0.3.0-alpha.1
+```
+
+Do not use `latest` until Stackarr has a stable release channel.
+
+## Ports
+
+| App | Default Port |
+| --- | --- |
+| Stackarr dashboard/API | `7777` |
+| Docs app local dev | `3000` |
+
+Stackarr uses `7777` as the memorable local dashboard default. It avoids the common ports already used by Plex, Jellyfin, Transmission, qBittorrent, Seerr, and the Arr apps. Set `STACKARR_WEB_PORT` if the host already uses that port.
+
+The public docs app is not part of the Stackarr runtime container.

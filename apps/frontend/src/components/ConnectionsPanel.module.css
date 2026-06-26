@@ -1,0 +1,263 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+  color: var(--textColor);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: var(--purple-500);
+  outline: 0;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.header h3,
+.header span {
+  display: block;
+  margin: 0;
+}
+
+.header h3 {
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.header span {
+  color: var(--mutedTextColor);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.card p {
+  margin: 0;
+  color: var(--textColor);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.addButton,
+.secondaryButton,
+.iconButton {
+  min-height: 34px;
+  border: 1px solid var(--purple-500);
+  border-radius: 4px;
+  background: var(--purple-600);
+  color: var(--accent-foreground);
+  cursor: pointer;
+  font: inherit;
+  padding: 0 12px;
+}
+
+.secondaryButton,
+.iconButton {
+  border-color: var(--borderColor);
+  background: var(--panelBackground);
+  color: var(--textColor);
+}
+
+.iconButton {
+  width: 34px;
+  padding: 0;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--backdrop);
+}
+
+.modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(980px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid var(--borderColor);
+  border-radius: 6px;
+  background: var(--pageBackground);
+  box-shadow: var(--modal-shadow);
+}
+
+.modalHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid var(--borderColor);
+}
+
+.modalHeader h3,
+.modalHeader span,
+.formTitle h4,
+.formTitle p {
+  margin: 0;
+}
+
+.modalHeader h3,
+.formTitle h4 {
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.modalHeader span,
+.formTitle p,
+.saveNote,
+.errorNote {
+  color: var(--mutedTextColor);
+  font-size: 13px;
+}
+
+.modalBody {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  height: min(620px, calc(100vh - 142px));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.schemaList {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  border-right: 1px solid var(--borderColor);
+}
+
+.schemaButton {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textColor);
+  cursor: pointer;
+  font: inherit;
+  padding: 6px;
+  text-align: left;
+}
+
+.schemaButton > span:first-child {
+  justify-self: center;
+}
+
+.schemaButton:hover,
+.schemaActive {
+  border-color: var(--purple-300);
+  background: var(--highlight-bg);
+}
+
+.formPane {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.formTitle {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.formTitle > span:first-child {
+  justify-self: center;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+}
+
+.form label > span {
+  color: var(--mutedTextColor);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.form input,
+.form select {
+  min-height: 36px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+  color: var(--textColor);
+  font: inherit;
+  padding: 0 10px;
+}
+
+.form input[type="checkbox"] {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.errorNote {
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .modalBody,
+  .formTitle {
+    grid-template-columns: 1fr;
+  }
+
+  .schemaList {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--borderColor);
+  }
+}

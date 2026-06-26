@@ -1,0 +1,724 @@
+import { execFile } from 'node:child_process';
+import * as nodeCrypto from 'node:crypto';
+import { promisify } from 'node:util';
+import { defaultStackarrAppRoot, type InstallMode, type StackarrEnv, type TorrentClient, writeEnvConfig } from '../env';
+import { portablePasswordValidationError } from '../passwordPolicy';
+import { repoRoot, stackarrBin } from '../paths';
+import {
+  type MediaProfilePreset,
+  type MusicProfilePreset,
+  mediaProfileNameFromPreset,
+  mediaProfilePresetOptions,
+  musicProfileNameFromPreset,
+  musicProfilePresetOptions,
+  normalizeMediaProfilePreset,
+  normalizeMusicProfilePreset
+} from '../profilePresets';
+import { redactSecrets } from '../safety/redaction';
+import { writeSettings } from '../settings';
+
+const execFileAsync = promisify(execFile);
+
+export type MediaServerSetupInput = {
+  databaseMode?: 'app-default' | 'postgres';
+  torrentClient?: TorrentClient;
+  mediaRoot?: string;
+  musicRoot?: string;
+  downloadsRoot?: string;
+  backupRoot?: string;
+  backupRetentionCount?: number;
+  plexInstallMode?: InstallMode;
+  jellyfinInstallMode?: InstallMode;
+  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books'>;
+  requestManagers?: Array<'seerr' | 'pulsarr'>;
+  enabledServices?: Array<
+    'bazarr' | 'tinymediamanager' | 'lidarr' | 'bookorbit' | 'recyclarr' | 'flaresolverr' | 'tidarr'
+  >;
+  enableMovies?: boolean;
+  enableTvShows?: boolean;
+  enable4kServarr?: boolean;
+  enableBazarr?: boolean;
+  enableLidarr?: boolean;
+  enableBookOrbit?: boolean;
+  enableTinyMediaManager?: boolean;
+  enableRecyclarr?: boolean;
+  enableFlaresolverr?: boolean;
+  enableTidarr?: boolean;
+  movieProfilePreset?: MediaProfilePreset;
+  movie4kProfilePreset?: MediaProfilePreset;
+  tvProfilePreset?: MediaProfilePreset;
+  tv4kProfilePreset?: MediaProfilePreset;
+  musicProfilePreset?: MusicProfilePreset;
+  movieDefaultProfile?: string;
+  movie4kDefaultProfile?: string;
+  tvDefaultProfile?: string;
+  tv4kDefaultProfile?: string;
+  musicDefaultProfile?: string;
+  enableRequestManagement?: boolean;
+  enableSeerr?: boolean;
+  configureSeerr?: boolean;
+  enablePulsarr?: boolean;
+  globalUsername?: string;
+  globalPassword?: string;
+  globalEmail?: string;
+  seerrBindIp?: string;
+  transmissionBindIp?: string;
+  qbittorrentBindIp?: string;
+  webPort?: number;
+  installStartup?: boolean;
+  installBackup?: boolean;
+  installUpdates?: boolean;
+  agentPluginIntegrations?: Array<'hermes' | 'openclaw'>;
+  startStack?: boolean;
+  configureServices?: boolean;
+  applyPresets?: boolean;
+  openBrowser?: boolean;
+  dryRun?: boolean;
+  confirmSetup?: boolean;
+};
+
+type ResolvedMediaServerSetupInput = Required<
+  Omit<MediaServerSetupInput, 'confirmSetup' | 'dryRun' | 'enabledMediaTypes' | 'requestManagers' | 'enabledServices'>
+> & {
+  namingScheme: string;
+  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books'>;
+  requestManagers?: Array<'seerr' | 'pulsarr'>;
+  enabledServices?: Array<
+    'bazarr' | 'tinymediamanager' | 'lidarr' | 'bookorbit' | 'recyclarr' | 'flaresolverr' | 'tidarr'
+  >;
+};
+
+export const stackarrDefaultWebPort = 7777;
+const setupDefaultAppRoot = defaultStackarrAppRoot();
+
+export const opinionatedSetupDefaults = {
+  torrentClient: 'transmission' as TorrentClient,
+  mediaRoot: `${setupDefaultAppRoot}/media`,
+  musicRoot: `${setupDefaultAppRoot}/media/Music`,
+  downloadsRoot: `${setupDefaultAppRoot}/downloads`,
+  backupRoot: `${setupDefaultAppRoot}/backups`,
+  backupRetentionCount: 52,
+  databaseMode: 'app-default' as const,
+  plexInstallMode: 'native' as InstallMode,
+  jellyfinInstallMode: 'disabled' as InstallMode,
+  enabledMediaTypes: ['movies', 'tv', 'music'] as Array<'movies' | 'tv' | 'music' | 'books'>,
+  enableMovies: true,
+  enableTvShows: true,
+  enable4kServarr: false,
+  enableBazarr: true,
+  enableLidarr: true,
+  enableBookOrbit: false,
+  enableTinyMediaManager: true,
+  enableRecyclarr: true,
+  enableFlaresolverr: true,
+  enableTidarr: true,
+  movieProfilePreset: 'lite' as MediaProfilePreset,
+  movie4kProfilePreset: 'lite' as MediaProfilePreset,
+  tvProfilePreset: 'lite' as MediaProfilePreset,
+  tv4kProfilePreset: 'lite' as MediaProfilePreset,
+  musicProfilePreset: 'lossless' as MusicProfilePreset,
+  movieDefaultProfile: 'HD Lite',
+  movie4kDefaultProfile: '4K Lite',
+  tvDefaultProfile: 'HD Lite',
+  tv4kDefaultProfile: '4K Lite',
+  musicDefaultProfile: 'Lossless',
+  enableRequestManagement: true,
+  enableSeerr: false,
+  configureSeerr: false,
+  enablePulsarr: true,
+  globalUsername: 'admin',
+  globalPassword: '',
+  globalEmail: '',
+  seerrBindIp: '0.0.0.0',
+  transmissionBindIp: '127.0.0.1',
+  qbittorrentBindIp: '127.0.0.1',
+  webPort: stackarrDefaultWebPort,
+  installStartup: true,
+  installBackup: true,
+  installUpdates: false,
+  agentPluginIntegrations: [] as Array<'hermes' | 'openclaw'>,
+  startStack: true,
+  configureServices: true,
+  applyPresets: true,
+  openBrowser: true,
+  namingScheme: 'Plex recommended naming preset managed by stackarr/config/naming.json'
+};
+
+export function getMediaServerSetupProfileAction() {
+  return {
+    summary:
+      'Opinionated full Stackarr media-server setup. The onboarding entry point supports fresh setup, restore from backup, or migration from a current stack.',
+    onboardingModes: [
+      {
+        id: 'fresh',
+        label: 'Set up from scratch',
+        runTool: 'stackarr_setup_media_server'
+      },
+      {
+        id: 'restore',
+        label: 'Restore from backup',
+        runTool: 'stackarr_restore_backup'
+      },
+      {
+        id: 'migrate',
+        label: 'Migrate current stack',
+        runTool: 'stackarr_migrate_current_stack'
+      }
+    ],
+    browser: {
+      defaultPort: stackarrDefaultWebPort,
+      localUrl: `http://127.0.0.1:${stackarrDefaultWebPort}`
+    },
+    questions: [
+      {
+        id: 'torrentClient',
+        prompt: 'Which torrent client should Stackarr use?',
+        type: 'choice',
+        choices: ['transmission', 'qbittorrent'],
+        default: opinionatedSetupDefaults.torrentClient
+      },
+      {
+        id: 'mediaRoot',
+        prompt: 'Where should the media library live?',
+        type: 'path',
+        default: opinionatedSetupDefaults.mediaRoot
+      },
+      {
+        id: 'musicRoot',
+        prompt: 'Where should the Lidarr music library live?',
+        type: 'path',
+        default: opinionatedSetupDefaults.musicRoot
+      },
+      {
+        id: 'downloadsRoot',
+        prompt: 'Where should downloads live?',
+        type: 'path',
+        default: opinionatedSetupDefaults.downloadsRoot
+      },
+      {
+        id: 'backupRetentionCount',
+        prompt: 'How many latest backup archives should the installed Plex backup service retain?',
+        type: 'number',
+        default: opinionatedSetupDefaults.backupRetentionCount
+      },
+      {
+        id: 'installBackup',
+        prompt:
+          'Should Stackarr install and run the scheduled backup service? Turn this off if backups should be disabled.',
+        type: 'boolean',
+        default: opinionatedSetupDefaults.installBackup
+      },
+      {
+        id: 'databaseMode',
+        prompt:
+          'Advanced: which database mode should supported apps use? App-default keeps each app on its native/SQLite default unless an enabled service requires Postgres; postgres switches supported apps to the shared Postgres container.',
+        type: 'choice',
+        choices: ['app-default', 'postgres'],
+        default: opinionatedSetupDefaults.databaseMode
+      },
+      {
+        id: 'plexInstallMode',
+        prompt:
+          'How should Plex be handled? Use docker for a fully managed Docker install; native expects the desktop app to already be installed and signed in.',
+        type: 'choice',
+        choices: ['docker', 'native', 'disabled'],
+        default: opinionatedSetupDefaults.plexInstallMode
+      },
+      {
+        id: 'jellyfinInstallMode',
+        prompt: 'How should Jellyfin be handled?',
+        type: 'choice',
+        choices: ['disabled', 'docker', 'native'],
+        default: opinionatedSetupDefaults.jellyfinInstallMode
+      },
+      {
+        id: 'enabledMediaTypes',
+        prompt: 'Which libraries should Stackarr set up?',
+        type: 'multi-choice',
+        choices: ['movies', 'tv', 'music', 'books'],
+        default: ['movies', 'tv', 'music']
+      },
+      {
+        id: 'enable4kServarr',
+        prompt: 'Run separate Radarr and Sonarr 4K instances for UHD requests?',
+        type: 'boolean',
+        default: opinionatedSetupDefaults.enable4kServarr
+      },
+      {
+        id: 'enableRequestManagement',
+        prompt: 'Do you want media request management?',
+        type: 'boolean',
+        default: opinionatedSetupDefaults.enableRequestManagement
+      },
+      {
+        id: 'requestManagers',
+        prompt:
+          'Which request managers should Stackarr enable? Pulsarr is the default for Plex watchlists; Seerr is optional and useful for Jellyfin or portal-style requests.',
+        type: 'multi-choice',
+        choices: ['seerr', 'pulsarr'],
+        default: ['pulsarr']
+      },
+      {
+        id: 'configureSeerr',
+        prompt: 'Wire Seerr to Radarr/Sonarr automatically?',
+        type: 'boolean',
+        default: opinionatedSetupDefaults.configureSeerr
+      },
+      {
+        id: 'enabledServices',
+        prompt:
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Recyclarr manages profiles, FlareSolverr helps indexers, and Tidarr helps Tidal workflows.',
+        type: 'multi-choice',
+        choices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'bookorbit'],
+        default: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr']
+      },
+      {
+        id: 'movieProfilePreset',
+        prompt: 'Which movie profile preset should Radarr use by default?',
+        type: 'choice',
+        choices: [...mediaProfilePresetOptions],
+        default: opinionatedSetupDefaults.movieProfilePreset
+      },
+      {
+        id: 'tvProfilePreset',
+        prompt: 'Which TV profile preset should Sonarr use by default?',
+        type: 'choice',
+        choices: [...mediaProfilePresetOptions],
+        default: opinionatedSetupDefaults.tvProfilePreset
+      },
+      {
+        id: 'musicProfilePreset',
+        prompt: 'Which music profile preset should Lidarr use by default?',
+        type: 'choice',
+        choices: [...musicProfilePresetOptions],
+        default: opinionatedSetupDefaults.musicProfilePreset
+      },
+      {
+        id: 'agentPluginIntegrations',
+        prompt:
+          'Install local agent integrations now? Stackarr can configure Hermes and/or prepare an OpenClaw MCP bundle that points at this Stackarr executable.',
+        type: 'multi-choice',
+        choices: ['hermes', 'openclaw'],
+        default: []
+      },
+      {
+        id: 'globalUsername',
+        prompt: 'What shared admin username should Stackarr use for service first-run setup?',
+        type: 'text',
+        default: opinionatedSetupDefaults.globalUsername
+      },
+      {
+        id: 'globalPassword',
+        prompt: 'What shared admin password should Stackarr use for service first-run setup?',
+        type: 'password',
+        default: ''
+      },
+      {
+        id: 'globalEmail',
+        prompt:
+          'Admin email for services that require email. Leave blank if Plex is installed and signed in so Stackarr can discover the Plex account email.',
+        type: 'email',
+        default: ''
+      }
+    ],
+    defaults: opinionatedSetupDefaults,
+    runTool: 'stackarr_setup_media_server'
+  };
+}
+
+export async function setupMediaServerAction(input: MediaServerSetupInput = {}) {
+  const mediaTypePatch = input.enabledMediaTypes
+    ? {
+        enableMovies: input.enabledMediaTypes.includes('movies'),
+        enableTvShows: input.enabledMediaTypes.includes('tv'),
+        enableLidarr: input.enabledMediaTypes.includes('music'),
+        enableBookOrbit: input.enabledMediaTypes.includes('books')
+      }
+    : {};
+  const requestManagerPatch = input.requestManagers
+    ? {
+        enableSeerr: input.requestManagers.includes('seerr'),
+        enablePulsarr: input.requestManagers.includes('pulsarr')
+      }
+    : {};
+  const servicesPatch = input.enabledServices
+    ? {
+        enableBazarr: input.enabledServices.includes('bazarr'),
+        enableTinyMediaManager: input.enabledServices.includes('tinymediamanager'),
+        enableLidarr: input.enabledServices.includes('lidarr'),
+        enableBookOrbit: input.enabledServices.includes('bookorbit'),
+        enableRecyclarr: input.enabledServices.includes('recyclarr'),
+        enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
+        enableTidarr: input.enabledServices.includes('tidarr')
+      }
+    : {};
+  const merged = {
+    ...opinionatedSetupDefaults,
+    ...mediaTypePatch,
+    ...requestManagerPatch,
+    ...servicesPatch,
+    ...input,
+    agentPluginIntegrations: input.agentPluginIntegrations ?? opinionatedSetupDefaults.agentPluginIntegrations
+  };
+  merged.movieProfilePreset = normalizeMediaProfilePreset(merged.movieProfilePreset);
+  merged.movie4kProfilePreset = normalizeMediaProfilePreset(merged.movie4kProfilePreset);
+  merged.tvProfilePreset = normalizeMediaProfilePreset(merged.tvProfilePreset);
+  merged.tv4kProfilePreset = normalizeMediaProfilePreset(merged.tv4kProfilePreset);
+  merged.musicProfilePreset = normalizeMusicProfilePreset(merged.musicProfilePreset);
+  if (input.movieDefaultProfile === undefined)
+    merged.movieDefaultProfile = mediaProfileNameFromPreset(merged.movieProfilePreset, 'hd');
+  if (input.movie4kDefaultProfile === undefined)
+    merged.movie4kDefaultProfile = mediaProfileNameFromPreset(merged.movie4kProfilePreset, '4k');
+  if (input.tvDefaultProfile === undefined)
+    merged.tvDefaultProfile = mediaProfileNameFromPreset(merged.tvProfilePreset, 'hd');
+  if (input.tv4kDefaultProfile === undefined)
+    merged.tv4kDefaultProfile = mediaProfileNameFromPreset(merged.tv4kProfilePreset, '4k');
+  if (input.musicDefaultProfile === undefined)
+    merged.musicDefaultProfile = musicProfileNameFromPreset(merged.musicProfilePreset);
+  if (input.musicRoot === undefined) merged.musicRoot = `${merged.mediaRoot}/Music`;
+  const jellyfinEnabled = merged.jellyfinInstallMode !== 'disabled';
+  if (!merged.enableRequestManagement) {
+    merged.enableSeerr = false;
+    merged.enablePulsarr = false;
+  } else if (jellyfinEnabled) {
+    merged.enablePulsarr = false;
+    if (input.enableSeerr === undefined) {
+      merged.enableSeerr = true;
+    }
+  }
+  const dryRun = input.dryRun !== false;
+  const commands = buildSetupCommands(merged);
+  const envPatch = buildSetupEnv(merged);
+  const plan = {
+    dryRun,
+    requiresConfirmation: !dryRun,
+    config: redactSecrets(envPatch),
+    commands,
+    browser: {
+      defaultPort: merged.webPort,
+      localUrl: `http://127.0.0.1:${merged.webPort}`,
+      openBrowser: merged.openBrowser
+    },
+    notes: [
+      'Asks which libraries to set up: Movies (Radarr), TV shows (Sonarr), Music (Lidarr), and Books (BookOrbit).',
+      'Uses repo-managed naming, download, and request presets.',
+      'Radarr and Sonarr size/profile presets are written into the generated Recyclarr configs; Lidarr profiles are applied through Lidarr because Recyclarr does not manage Lidarr.',
+      'Naming preset follows Plex-friendly naming conventions via stackarr/config/naming.json.',
+      merged.plexInstallMode === 'docker'
+        ? 'Plex Docker mode starts Plex with the stack; complete Plex claim/sign-in before Plex-dependent automations need a Plex account.'
+        : 'Plex native mode expects the desktop Plex Media Server to already be installed and signed in; install the desktop version first if desired.',
+      'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.'
+    ]
+  };
+  const passwordValidationError = portablePasswordValidationError(merged.globalPassword, 'Global password');
+  if (passwordValidationError) {
+    return {
+      accepted: false,
+      plan,
+      error: passwordValidationError
+    };
+  }
+
+  if (dryRun) {
+    return {
+      accepted: false,
+      plan,
+      nextStep:
+        'Call stackarr_setup_media_server with dryRun: false and confirmSetup: true to write config and run setup.'
+    };
+  }
+
+  if (input.confirmSetup !== true) {
+    return {
+      accepted: false,
+      plan,
+      error:
+        'Full setup requires confirmSetup: true because it writes Stackarr runtime config and can download/start/configure services.'
+    };
+  }
+
+  writeEnvConfig(envPatch);
+  writeSettings({
+    setup: { onboardingComplete: true, installMode: 'fresh' },
+    profiles: {
+      movieProfilePreset: merged.movieProfilePreset,
+      movie4kProfilePreset: merged.movie4kProfilePreset,
+      tvProfilePreset: merged.tvProfilePreset,
+      tv4kProfilePreset: merged.tv4kProfilePreset,
+      musicProfilePreset: merged.musicProfilePreset,
+      movieDefault: merged.movieDefaultProfile,
+      movie4kDefault: merged.movie4kDefaultProfile,
+      tvDefault: merged.tvDefaultProfile,
+      tv4kDefault: merged.tv4kDefaultProfile,
+      musicDefault: merged.musicDefaultProfile,
+      preferSeparateHd4kInstances: merged.enable4kServarr
+    }
+  });
+
+  const results = [];
+  for (const command of commands) {
+    const startedAt = new Date().toISOString();
+    try {
+      const executable = command.executable === 'open' ? '/usr/bin/open' : stackarrBin;
+      const { stdout, stderr } = await execFileAsync(executable, command.args, {
+        cwd: repoRoot,
+        timeout: command.timeoutMs,
+        env: { ...process.env, STACKARR_RUN_SOURCE: 'mcp-setup' }
+      });
+      results.push({ ...command, startedAt, endedAt: new Date().toISOString(), status: 'completed', stdout, stderr });
+    } catch (error) {
+      results.push({
+        ...command,
+        startedAt,
+        endedAt: new Date().toISOString(),
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return { accepted: true, completed: false, plan, results };
+    }
+  }
+
+  return { accepted: true, completed: true, plan, results };
+}
+
+function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
+  const databasePassword = input.globalPassword || nodeCrypto.randomBytes(24).toString('hex');
+  const postgresMode = input.databaseMode === 'postgres';
+  const env: StackarrEnv = {
+    MEDIA_ROOT: input.mediaRoot,
+    MUSIC_ROOT: input.musicRoot,
+    DOWNLOADS_ROOT: input.downloadsRoot,
+    BACKUP_ROOT: input.backupRoot,
+    ENABLE_BACKUP: String(input.installBackup),
+    BACKUP_SCHEDULE: 'weekly',
+    BACKUP_WEEKDAY: 'Sun',
+    BACKUP_RETENTION_COUNT: String(input.backupRetentionCount),
+    STACKARR_DATABASE_MODE: input.databaseMode,
+    UPDATE_TIME: '04:30',
+    UPDATE_WEEKDAY: 'Sun',
+    PLEX_INSTALL_MODE: input.plexInstallMode,
+    JELLYFIN_INSTALL_MODE: input.jellyfinInstallMode,
+    ENABLE_MOVIES: String(input.enableMovies),
+    ENABLE_TV_SHOWS: String(input.enableTvShows),
+    ENABLE_4K_SERVARR: String(input.enable4kServarr),
+    ENABLE_BAZARR: String(input.enableBazarr),
+    ENABLE_LIDARR: String(input.enableLidarr),
+    ENABLE_BOOKORBIT: String(input.enableBookOrbit),
+    ENABLE_TINYMEDIAMANAGER: String(input.enableTinyMediaManager),
+    ENABLE_RECYCLARR: String(input.enableRecyclarr),
+    ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
+    ENABLE_TIDARR: String(input.enableTidarr),
+    STACKARR_MOVIE_PROFILE_PRESET: input.movieProfilePreset,
+    STACKARR_TV_PROFILE_PRESET: input.tvProfilePreset,
+    STACKARR_MUSIC_PROFILE_PRESET: input.musicProfilePreset,
+    STACKARR_MOVIE_DEFAULT_PROFILE: input.movieDefaultProfile,
+    STACKARR_TV_DEFAULT_PROFILE: input.tvDefaultProfile,
+    STACKARR_MUSIC_DEFAULT_PROFILE: input.musicDefaultProfile,
+    ENABLE_SEERR: String(input.enableSeerr),
+    STACKARR_CONFIGURE_SEERR: String(input.configureSeerr),
+    ENABLE_PULSARR: String(input.enablePulsarr),
+    USERNAME: input.globalUsername,
+    PASSWORD: input.globalPassword || databasePassword,
+    USER_EMAIL: input.globalEmail,
+    PREFERRED_TORRENT_CLIENT: input.torrentClient,
+    SEERR_BIND_IP: input.seerrBindIp,
+    TRANSMISSION_BIND_IP: input.transmissionBindIp,
+    QBITTORRENT_BIND_IP: input.qbittorrentBindIp,
+    STACKARR_WEB_ENABLED: 'true',
+    STACKARR_IMAGE: 'polyphonic/stackarr:alpha',
+    STACKARR_BIND_IP: '127.0.0.1',
+    STACKARR_WEB_PORT: String(input.webPort),
+    BOOKORBIT_BIND_IP: '127.0.0.1',
+    BOOKORBIT_WEB_PORT: '7582',
+    BOOKORBIT_CONTAINER_PORT: '7582',
+    BOOKORBIT_URL: 'http://127.0.0.1:7582',
+    BOOKORBIT_APP_URL: 'http://127.0.0.1:7582',
+    BOOKORBIT_CLIENT_URL: 'http://127.0.0.1:7582',
+    BOOKS_ROOT: `${input.mediaRoot}/Books`,
+    DATABASE_IMAGE: 'pgvector/pgvector:pg18-trixie',
+    DATABASE_BIND_IP: '127.0.0.1',
+    DATABASE_HOST_PORT: '5433',
+    DATABASE_NAME: 'postgres',
+    DATABASE_SUPERUSER: 'postgres',
+    DATABASE_SUPERUSER_PASSWORD: databasePassword,
+    STACKARR_POSTGRES_DATABASE: 'stackarr-main',
+    STACKARR_POSTGRES_MAIN_DATABASE: 'stackarr-main',
+    STACKARR_POSTGRES_LOG_DATABASE: 'stackarr-log',
+    STACKARR_POSTGRES_USER: 'stackarr',
+    STACKARR_POSTGRES_PASSWORD: databasePassword,
+    STACKARR_DATABASE_URL: postgresMode
+      ? `postgres://stackarr:${encodeURIComponent(databasePassword)}@database:5432/stackarr-main`
+      : '',
+    STACKARR_LOG_DATABASE_URL: postgresMode
+      ? `postgres://stackarr:${encodeURIComponent(databasePassword)}@database:5432/stackarr-log`
+      : '',
+    BOOKORBIT_POSTGRES_DATABASE: 'bookorbit',
+    BOOKORBIT_POSTGRES_USER: 'bookorbit',
+    BOOKORBIT_POSTGRES_PASSWORD: databasePassword,
+    BOOKORBIT_DATABASE_URL: `postgres://bookorbit:${encodeURIComponent(databasePassword)}@database:5432/bookorbit`,
+    SEERR_DB_TYPE: 'postgres',
+    SEERR_POSTGRES_DATABASE: 'seerr',
+    SEERR_POSTGRES_USER: 'seerr',
+    SEERR_POSTGRES_PASSWORD: databasePassword,
+    PULSARR_DB_TYPE: postgresMode ? 'postgres' : 'sqlite',
+    PULSARR_DB_PATH: '/app/data/db/pulsarr.db',
+    PULSARR_DB_HOST: postgresMode ? 'database' : '',
+    PULSARR_DB_PORT: postgresMode ? '5432' : '',
+    PULSARR_DB_NAME: postgresMode ? 'pulsarr' : '',
+    PULSARR_DB_USER: postgresMode ? 'pulsarr' : '',
+    PULSARR_DB_PASSWORD: postgresMode ? databasePassword : '',
+    PULSARR_POSTGRES_DATABASE: 'pulsarr',
+    PULSARR_POSTGRES_USER: 'pulsarr',
+    PULSARR_POSTGRES_PASSWORD: databasePassword,
+    BAZARR_POSTGRES_ENABLED: String(postgresMode),
+    BAZARR_POSTGRES_HOST: postgresMode ? 'database' : '',
+    BAZARR_POSTGRES_PORT: postgresMode ? '5432' : '',
+    BAZARR_POSTGRES_DATABASE: 'bazarr',
+    BAZARR_POSTGRES_USER: 'bazarr',
+    BAZARR_POSTGRES_PASSWORD: databasePassword,
+    PROWLARR_POSTGRES_HOST: postgresMode ? 'database' : '',
+    PROWLARR_POSTGRES_PORT: postgresMode ? '5432' : '',
+    PROWLARR_POSTGRES_MAIN_DATABASE: 'prowlarr-main',
+    PROWLARR_POSTGRES_LOG_DATABASE: 'prowlarr-log',
+    PROWLARR_POSTGRES_USER: 'prowlarr',
+    PROWLARR_POSTGRES_PASSWORD: databasePassword,
+    RADARR_POSTGRES_HOST: postgresMode ? 'database' : '',
+    RADARR_POSTGRES_PORT: postgresMode ? '5432' : '',
+    RADARR_POSTGRES_MAIN_DATABASE: 'radarr-main',
+    RADARR_POSTGRES_LOG_DATABASE: 'radarr-log',
+    RADARR_POSTGRES_USER: 'radarr',
+    RADARR_POSTGRES_PASSWORD: databasePassword,
+    RADARR4K_POSTGRES_HOST: postgresMode ? 'database' : '',
+    RADARR4K_POSTGRES_PORT: postgresMode ? '5432' : '',
+    RADARR4K_POSTGRES_MAIN_DATABASE: 'radarr4k-main',
+    RADARR4K_POSTGRES_LOG_DATABASE: 'radarr4k-log',
+    RADARR4K_POSTGRES_USER: 'radarr4k',
+    RADARR4K_POSTGRES_PASSWORD: databasePassword,
+    SONARR_POSTGRES_HOST: postgresMode ? 'database' : '',
+    SONARR_POSTGRES_PORT: postgresMode ? '5432' : '',
+    SONARR_POSTGRES_MAIN_DATABASE: 'sonarr-main',
+    SONARR_POSTGRES_LOG_DATABASE: 'sonarr-log',
+    SONARR_POSTGRES_USER: 'sonarr',
+    SONARR_POSTGRES_PASSWORD: databasePassword,
+    SONARR4K_POSTGRES_HOST: postgresMode ? 'database' : '',
+    SONARR4K_POSTGRES_PORT: postgresMode ? '5432' : '',
+    SONARR4K_POSTGRES_MAIN_DATABASE: 'sonarr4k-main',
+    SONARR4K_POSTGRES_LOG_DATABASE: 'sonarr4k-log',
+    SONARR4K_POSTGRES_USER: 'sonarr4k',
+    SONARR4K_POSTGRES_PASSWORD: databasePassword,
+    LIDARR_POSTGRES_HOST: postgresMode ? 'database' : '',
+    LIDARR_POSTGRES_PORT: postgresMode ? '5432' : '',
+    LIDARR_POSTGRES_MAIN_DATABASE: 'lidarr-main',
+    LIDARR_POSTGRES_LOG_DATABASE: 'lidarr-log',
+    LIDARR_POSTGRES_USER: 'lidarr',
+    LIDARR_POSTGRES_PASSWORD: databasePassword
+  };
+
+  if (input.enable4kServarr) {
+    env.STACKARR_MOVIE_4K_PROFILE_PRESET = input.movie4kProfilePreset;
+    env.STACKARR_TV_4K_PROFILE_PRESET = input.tv4kProfilePreset;
+    env.STACKARR_MOVIE_4K_DEFAULT_PROFILE = input.movie4kDefaultProfile;
+    env.STACKARR_TV_4K_DEFAULT_PROFILE = input.tv4kDefaultProfile;
+  } else {
+    env.STACKARR_MOVIE_4K_PROFILE_PRESET = '';
+    env.STACKARR_TV_4K_PROFILE_PRESET = '';
+    env.STACKARR_MOVIE_4K_DEFAULT_PROFILE = '';
+    env.STACKARR_TV_4K_DEFAULT_PROFILE = '';
+    env.RADARR4K_API_KEY = '';
+    env.SONARR4K_API_KEY = '';
+  }
+
+  if (input.enableBookOrbit) {
+    if (!env.BOOKORBIT_JWT_SECRET) env.BOOKORBIT_JWT_SECRET = nodeCrypto.randomBytes(32).toString('hex');
+    if (!env.BOOKORBIT_SETUP_TOKEN) env.BOOKORBIT_SETUP_TOKEN = input.globalPassword;
+  }
+
+  return env;
+}
+
+function buildSetupCommands(input: ResolvedMediaServerSetupInput) {
+  const commands: Array<{
+    name: string;
+    args: string[];
+    timeoutMs: number;
+    description: string;
+    executable?: 'stackarr' | 'open';
+  }> = [];
+  if (input.startStack)
+    commands.push({
+      name: 'stackarr up',
+      args: ['up'],
+      timeoutMs: 30 * 60 * 1000,
+      description: 'Download images if needed and start Docker-managed services.'
+    });
+  if (input.configureServices)
+    commands.push({
+      name: 'stackarr configure',
+      args: ['configure'],
+      timeoutMs: 30 * 60 * 1000,
+      description: 'Wire Arr apps, download client, Prowlarr, request managers, and presets.'
+    });
+  if (input.applyPresets) {
+    commands.push({
+      name: 'stackarr naming apply',
+      args: ['naming', 'apply', '--wait'],
+      timeoutMs: 10 * 60 * 1000,
+      description: 'Apply Plex-friendly naming scheme.'
+    });
+    commands.push({
+      name: 'stackarr downloads apply',
+      args: ['downloads', 'apply'],
+      timeoutMs: 10 * 60 * 1000,
+      description: 'Apply opinionated download categories/paths.'
+    });
+    if (input.enableSeerr && input.configureSeerr) {
+      commands.push({
+        name: 'stackarr requests apply',
+        args: ['requests', 'apply'],
+        timeoutMs: 10 * 60 * 1000,
+        description: 'Apply request-manager defaults.'
+      });
+    }
+  }
+  if (input.installStartup)
+    commands.push({
+      name: 'stackarr startup install',
+      args: ['startup', 'install'],
+      timeoutMs: 5 * 60 * 1000,
+      description: 'Install login startup agent.'
+    });
+  if (input.installBackup)
+    commands.push({
+      name: 'stackarr backup install',
+      args: ['backup', 'install'],
+      timeoutMs: 5 * 60 * 1000,
+      description: 'Install scheduled backup agent.'
+    });
+  if (input.installUpdates)
+    commands.push({
+      name: 'stackarr update install',
+      args: ['update', 'install'],
+      timeoutMs: 5 * 60 * 1000,
+      description: 'Install scheduled update agent.'
+    });
+  for (const plugin of input.agentPluginIntegrations ?? []) {
+    commands.push({
+      name: `stackarr plugins install ${plugin}`,
+      args: ['plugins', 'install', plugin],
+      timeoutMs: 5 * 60 * 1000,
+      description:
+        plugin === 'hermes'
+          ? 'Install and enable the Hermes Stackarr plugin when Hermes is available.'
+          : 'Prepare an OpenClaw-compatible MCP plugin bundle for this Stackarr install.'
+    });
+  }
+  if (input.openBrowser)
+    commands.push({
+      name: 'open browser',
+      executable: 'open',
+      args: [`http://127.0.0.1:${input.webPort}`],
+      timeoutMs: 60 * 1000,
+      description: 'Open Stackarr in the browser at the default port.'
+    });
+  return commands;
+}

@@ -1,0 +1,22 @@
+---
+title: Webhooks
+---
+
+# Webhooks
+
+Webhooks are configured through Settings > Connect or `/api/v1/notification`.
+
+## Events
+
+- `Test`
+- `Health`
+- `HealthRestored`
+- `StackStart`
+- `StackStop`
+- `Configure`
+- `Backup`
+- `Update`
+- `ServiceStateChange`
+- `SetupComplete`
+
+Payloads should include the event name, timestamp, Stackarr version, public URL when configured, and redacted context.

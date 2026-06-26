@@ -1,0 +1,21 @@
+---
+title: Security
+---
+
+# Security
+
+## Secrets
+
+Docker builds exclude SQLite DBs, logs, state, Cloudflare token-looking files, API-token-looking files, and any accidental local config/secret files from the build context.
+
+## API
+
+Mutating API calls require `X-Api-Key` when `STACKARR_API_KEY` exists.
+
+## Public Access
+
+Keep Stackarr local until auth is configured. The default dashboard binding is local-only; only advanced Docker deployments should override the bind address explicitly.
+
+## MCP
+
+The MCP server is local stdio only. Do not expose it over the public internet.

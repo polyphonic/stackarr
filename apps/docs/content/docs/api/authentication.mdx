@@ -1,0 +1,19 @@
+---
+title: Authentication
+---
+
+# Authentication
+
+Stackarr follows the arr convention of API-key auth.
+
+```http
+X-Api-Key: your-stackarr-api-key
+```
+
+The key is stored in Stackarr configuration. Advanced Docker deployments may provide it as:
+
+```dotenv
+STACKARR_API_KEY=...
+```
+
+Browser actions prompt once and store the key locally for subsequent requests. Secrets are redacted in config summaries, logs, API responses, and MCP activity where possible.

@@ -1,0 +1,18 @@
+import { plexGet, plexPut, type WatchAnalyticsProvider } from '../clients/plex';
+
+export const getPlexServerStatusAction = () => plexGet('identity');
+export const getPlexLibrariesAction = () => plexGet('library/sections');
+export const getPlexSessionsAction = () => plexGet('status/sessions');
+export const getRecentlyAddedAction = (input: { limit?: number } = {}) =>
+  plexGet('library/recentlyAdded', { 'X-Plex-Container-Size': input.limit ?? 25 });
+export const getRecentlyWatchedAction = (input: { limit?: number } = {}) =>
+  plexGet('status/sessions/history/all', { 'X-Plex-Container-Size': input.limit ?? 25 });
+export const getPlexWatchSummaryAction = async (input: { provider?: WatchAnalyticsProvider } = {}) => ({
+  provider: input.provider ?? 'plex',
+  sessions: await getPlexSessionsAction(),
+  recentlyWatched: await getRecentlyWatchedAction({ limit: 10 })
+});
+export const scanPlexLibraryAction = (input: { sectionId: string | number }) =>
+  plexGet(`library/sections/${input.sectionId}/refresh`);
+export const refreshPlexMetadataAction = (input: { ratingKey: string | number }) =>
+  plexPut(`library/metadata/${input.ratingKey}/refresh`);

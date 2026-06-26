@@ -1,0 +1,431 @@
+import { randomUUID } from 'node:crypto';
+import os from 'node:os';
+import { readEnv } from '../env';
+import { getServices } from '../services';
+import { readSettings, type StackarrSettings, writeSettings } from '../settings';
+
+const telemetrySchemaVersion = 1;
+const stackarrAppVersion = '0.3.0-alpha.1';
+const defaultSendTimeoutMs = 10_000;
+
+export type TelemetryUpdateInput = {
+  enabled?: boolean;
+  endpoint?: string;
+  channel?: string;
+  confirmTelemetry?: boolean;
+};
+
+export type TelemetrySendInput = {
+  dryRun?: boolean;
+  force?: boolean;
+};
+
+export type TelemetryPayload = {
+  schemaVersion: number;
+  eventId: string;
+  eventName: 'stackarr.heartbeat';
+  generatedAt: string;
+  install: {
+    id: string;
+    channel: string;
+    appVersion: string;
+    osFamily: 'macos' | 'linux' | 'windows' | 'other';
+    arch: string;
+  };
+  setup: {
+    onboardingComplete: boolean;
+    installMode: StackarrSettings['setup']['installMode'];
+    databaseMode: 'postgres' | 'app-default';
+  };
+  services: {
+    enabled: string[];
+    dockerManaged: string[];
+    nativeManaged: string[];
+    mediaServers: {
+      plex: 'disabled' | 'native' | 'docker';
+      jellyfin: 'disabled' | 'native' | 'docker';
+    };
+  };
+  backups: {
+    enabled: boolean;
+    schedule: string;
+    retentionBucket: string;
+    plexBackupMode: 'lite' | 'full' | 'custom';
+  };
+  counts: {
+    enabledServices: number;
+    configuredServices: number;
+    disabledServices: number;
+  };
+};
+
+export function getTelemetryStatusAction() {
+  const settings = readSettings();
+  const featureEnabled = telemetryFeatureEnabled();
+  const endpoint = normalizeTelemetryEndpoint(settings.telemetry.endpoint);
+
+  return {
+    featureEnabled,
+    enabled: settings.telemetry.enabled,
+    endpoint,
+    endpointConfigured: Boolean(endpoint),
+    channel: settings.telemetry.channel,
+    installId: settings.telemetry.installId ? 'configured' : 'not-generated',
+    lastSentAt: settings.telemetry.lastSentAt,
+    payloadPreview: buildTelemetryPayload({ persistInstallId: false })
+  };
+}
+
+export function updateTelemetryConfigAction(input: TelemetryUpdateInput) {
+  const current = readSettings();
+  const featureEnabled = telemetryFeatureEnabled();
+  const nextEndpoint =
+    input.endpoint !== undefined ? normalizeTelemetryEndpoint(input.endpoint) : current.telemetry.endpoint;
+  const nextEnabled = input.enabled ?? current.telemetry.enabled;
+
+  if (nextEnabled && !featureEnabled) {
+    return {
+      accepted: false,
+      error: 'Telemetry is feature-gated in this build.'
+    };
+  }
+
+  if (nextEndpoint) {
+    const endpointError = validateTelemetryEndpoint(nextEndpoint);
+    if (endpointError) {
+      return { accepted: false, error: endpointError };
+    }
+  }
+
+  if (nextEnabled && !nextEndpoint) {
+    return {
+      accepted: false,
+      error: 'Telemetry endpoint is required before telemetry can be enabled.'
+    };
+  }
+
+  if (nextEnabled && !input.confirmTelemetry) {
+    return {
+      accepted: false,
+      confirmationRequired: true,
+      preview: buildTelemetryPayload({ persistInstallId: false }),
+      nextStep: 'Call again with confirmTelemetry: true after reviewing the payload preview.'
+    };
+  }
+
+  const installId = nextEnabled ? current.telemetry.installId || randomUUID() : current.telemetry.installId;
+  const settings = writeSettings({
+    telemetry: {
+      enabled: nextEnabled,
+      endpoint: nextEndpoint,
+      channel: normalizeTelemetryChannel(input.channel ?? current.telemetry.channel),
+      installId
+    }
+  });
+
+  return {
+    accepted: true,
+    telemetry: publicTelemetrySettings(settings)
+  };
+}
+
+export function previewTelemetryPayloadAction() {
+  return {
+    accepted: false,
+    payload: buildTelemetryPayload({ persistInstallId: false }),
+    notes: [
+      'This preview excludes host paths, hostnames, usernames, media titles, request names, API keys, and tokens.',
+      'The install id is a random pseudonymous id used for active-install counts after telemetry is enabled.'
+    ]
+  };
+}
+
+export async function sendTelemetryAction(input: TelemetrySendInput = {}) {
+  const dryRun = input.dryRun !== false;
+  const settings = readSettings();
+  const featureEnabled = telemetryFeatureEnabled();
+  const endpoint = normalizeTelemetryEndpoint(settings.telemetry.endpoint);
+  const payload = buildTelemetryPayload({ persistInstallId: !dryRun });
+
+  if (!featureEnabled) {
+    return {
+      accepted: false,
+      payload,
+      error: 'Telemetry is feature-gated in this build.'
+    };
+  }
+
+  if (dryRun) {
+    return {
+      accepted: false,
+      endpoint,
+      payload,
+      nextStep:
+        'Call stackarr_send_telemetry with dryRun: false after telemetry is enabled and the payload is reviewed.'
+    };
+  }
+
+  if (!settings.telemetry.enabled && !input.force) {
+    return {
+      accepted: false,
+      payload,
+      error: 'Telemetry is disabled.'
+    };
+  }
+
+  if (!endpoint) {
+    return {
+      accepted: false,
+      payload,
+      error: 'Telemetry endpoint is not configured.'
+    };
+  }
+
+  const endpointError = validateTelemetryEndpoint(endpoint);
+  if (endpointError) {
+    return {
+      accepted: false,
+      payload,
+      error: endpointError
+    };
+  }
+
+  const response = await postTelemetry(endpoint, payload, readEnv().STACKARR_TELEMETRY_INGEST_KEY);
+  const sentAt = new Date().toISOString();
+  writeSettings({ telemetry: { lastSentAt: sentAt } });
+
+  return {
+    accepted: true,
+    completed: true,
+    endpoint,
+    status: response.status,
+    sentAt
+  };
+}
+
+export async function maybeSendTelemetryHeartbeatAction() {
+  const settings = readSettings();
+
+  if (!telemetryFeatureEnabled()) {
+    return { accepted: false, skipped: true, reason: 'feature-gated' };
+  }
+
+  if (!settings.telemetry.enabled) {
+    return { accepted: false, skipped: true, reason: 'telemetry-disabled' };
+  }
+
+  if (!settings.telemetry.endpoint) {
+    return { accepted: false, skipped: true, reason: 'endpoint-not-configured' };
+  }
+
+  if (!shouldSendHeartbeat(settings.telemetry.lastSentAt)) {
+    return { accepted: false, skipped: true, reason: 'recently-sent' };
+  }
+
+  try {
+    return await sendTelemetryAction({ dryRun: false });
+  } catch (error) {
+    return {
+      accepted: false,
+      skipped: false,
+      reason: 'send-failed',
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+export function buildTelemetryPayload(options: { persistInstallId?: boolean } = {}): TelemetryPayload {
+  const settings = readSettings();
+  const env = readEnv();
+  const installId =
+    settings.telemetry.installId || (options.persistInstallId ? persistTelemetryInstallId() : 'not-generated');
+  const services = getServices();
+  const enabledServices = services
+    .filter((service) => service.mode !== 'disabled')
+    .map((service) => service.name)
+    .sort();
+
+  return {
+    schemaVersion: telemetrySchemaVersion,
+    eventId: randomUUID(),
+    eventName: 'stackarr.heartbeat',
+    generatedAt: new Date().toISOString(),
+    install: {
+      id: installId,
+      channel: settings.telemetry.channel || 'stable',
+      appVersion: stackarrAppVersion,
+      osFamily: osFamily(),
+      arch: os.arch()
+    },
+    setup: {
+      onboardingComplete: settings.setup.onboardingComplete,
+      installMode: settings.setup.installMode,
+      databaseMode: env.STACKARR_DATABASE_MODE === 'postgres' ? 'postgres' : 'app-default'
+    },
+    services: {
+      enabled: enabledServices,
+      dockerManaged: services
+        .filter((service) => service.mode === 'docker')
+        .map((service) => service.name)
+        .sort(),
+      nativeManaged: services
+        .filter((service) => service.mode === 'native')
+        .map((service) => service.name)
+        .sort(),
+      mediaServers: {
+        plex: mediaServerMode(env.PLEX_INSTALL_MODE),
+        jellyfin: mediaServerMode(env.JELLYFIN_INSTALL_MODE)
+      }
+    },
+    backups: {
+      enabled: envFlag(env.ENABLE_BACKUP, true),
+      schedule: normalizeBackupSchedule(env.BACKUP_SCHEDULE),
+      retentionBucket: retentionBucket(env.BACKUP_RETENTION_COUNT),
+      plexBackupMode: plexBackupMode(env.PLEX_BACKUP_MODE)
+    },
+    counts: {
+      enabledServices: enabledServices.length,
+      configuredServices: services.filter((service) => service.status === 'configured').length,
+      disabledServices: services.filter((service) => service.status === 'disabled').length
+    }
+  };
+}
+
+function persistTelemetryInstallId() {
+  const current = readSettings();
+  if (current.telemetry.installId) {
+    return current.telemetry.installId;
+  }
+
+  const installId = randomUUID();
+  writeSettings({ telemetry: { installId } });
+  return installId;
+}
+
+function publicTelemetrySettings(settings: StackarrSettings) {
+  return {
+    enabled: settings.telemetry.enabled,
+    endpoint: settings.telemetry.endpoint,
+    channel: settings.telemetry.channel,
+    installId: settings.telemetry.installId ? 'configured' : 'not-generated',
+    lastSentAt: settings.telemetry.lastSentAt
+  };
+}
+
+async function postTelemetry(endpoint: string, payload: TelemetryPayload, ingestKey = '') {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), defaultSendTimeoutMs);
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'X-Stackarr-Telemetry-Schema': String(telemetrySchemaVersion)
+  });
+
+  if (ingestKey) {
+    headers.set('Authorization', `Bearer ${ingestKey}`);
+  }
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Telemetry endpoint returned HTTP ${response.status}`);
+    }
+
+    return { status: response.status };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeTelemetryEndpoint(value: string | undefined) {
+  return String(value ?? '').trim();
+}
+
+function normalizeTelemetryChannel(value: string | undefined) {
+  const channel = String(value ?? '').trim();
+  return channel || 'stable';
+}
+
+function validateTelemetryEndpoint(endpoint: string) {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return 'Telemetry endpoint must be a valid URL.';
+  }
+
+  if (url.protocol === 'https:') {
+    return undefined;
+  }
+
+  if (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) {
+    return undefined;
+  }
+
+  return 'Telemetry endpoint must use HTTPS, except for localhost development.';
+}
+
+function osFamily(): TelemetryPayload['install']['osFamily'] {
+  switch (os.platform()) {
+    case 'darwin':
+      return 'macos';
+    case 'linux':
+      return 'linux';
+    case 'win32':
+      return 'windows';
+    default:
+      return 'other';
+  }
+}
+
+function mediaServerMode(value: string | undefined): 'disabled' | 'native' | 'docker' {
+  return value === 'docker' || value === 'native' ? value : 'disabled';
+}
+
+function normalizeBackupSchedule(value: string | undefined) {
+  const schedule = String(value ?? '').toLowerCase();
+  return ['daily', 'weekly', 'monthly', 'disabled'].includes(schedule) ? schedule : 'custom';
+}
+
+function retentionBucket(value: string | undefined) {
+  const count = Number(value);
+  if (!Number.isFinite(count) || count <= 0) return 'unknown';
+  if (count <= 4) return '1-4';
+  if (count <= 12) return '5-12';
+  if (count <= 52) return '13-52';
+  return '53+';
+}
+
+function plexBackupMode(value: string | undefined): 'lite' | 'full' | 'custom' {
+  return value === 'full' || value === 'lite' ? value : 'custom';
+}
+
+function envFlag(value: string | undefined, fallback: boolean) {
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+
+  return /^(1|true|yes|on)$/i.test(value);
+}
+
+function telemetryFeatureEnabled() {
+  return envFlag(readEnv().STACKARR_TELEMETRY_FEATURE_ENABLED, false);
+}
+
+function shouldSendHeartbeat(lastSentAt: string) {
+  if (!lastSentAt) {
+    return true;
+  }
+
+  const lastSentMs = Date.parse(lastSentAt);
+  if (!Number.isFinite(lastSentMs)) {
+    return true;
+  }
+
+  return Date.now() - lastSentMs >= 24 * 60 * 60 * 1000;
+}

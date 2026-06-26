@@ -1,0 +1,23 @@
+.logo,
+.fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+
+.logo img {
+  display: block;
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.fallback {
+  color: var(--purple-700);
+  font-size: 11px;
+  font-weight: 700;
+}

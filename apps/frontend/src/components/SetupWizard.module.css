@@ -1,0 +1,255 @@
+.wizard {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 20px;
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+}
+
+.steps li {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--borderColor);
+  color: var(--mutedTextColor);
+}
+
+.steps li:last-child {
+  border-bottom: 0;
+}
+
+.active {
+  border-left: 4px solid var(--purple-600);
+  color: var(--textColor) !important;
+}
+
+.done {
+  color: var(--success) !important;
+}
+
+.panel {
+  min-height: 360px;
+  padding: 20px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 22px;
+  font-weight: 300;
+}
+
+.form {
+  display: grid;
+  max-width: 760px;
+  gap: 14px;
+}
+
+.form label,
+.checks label {
+  display: grid;
+  gap: 6px;
+  color: var(--mutedTextColor);
+}
+
+.form input,
+.form select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  color: var(--textColor);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.segmented button {
+  min-width: 150px;
+  min-height: 38px;
+  border: 0;
+  border-right: 1px solid var(--borderColor);
+  background: var(--panelBackground);
+}
+
+.segmented button:last-child {
+  border-right: 0;
+}
+
+.segmented .selected {
+  background: var(--purple-600);
+  color: var(--accent-foreground);
+}
+
+.checks {
+  display: grid;
+  gap: 12px;
+}
+
+.requestManagement {
+  display: grid;
+  gap: 14px;
+}
+
+.modeStack,
+.restorePanel {
+  display: grid;
+  gap: 16px;
+}
+
+.modeChoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.restorePanel {
+  max-width: 760px;
+}
+
+.restorePanel label {
+  display: grid;
+  gap: 6px;
+  color: var(--mutedTextColor);
+}
+
+.restorePanel input[type="file"] {
+  min-height: 40px;
+  padding: 8px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  color: var(--textColor);
+  background: var(--inputBackground);
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planOutput {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+  white-space: pre-wrap;
+}
+
+.requestToggle {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+}
+
+.requestToggle strong {
+  color: var(--textColor);
+  font-weight: 400;
+}
+
+.serviceChoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.serviceChoice {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+}
+
+.serviceChoice input {
+  margin-top: 3px;
+}
+
+.serviceChoice strong,
+.serviceChoice small {
+  display: block;
+}
+
+.serviceChoice strong {
+  color: var(--textColor);
+  font-weight: 400;
+}
+
+.serviceChoice small {
+  margin-top: 5px;
+  color: var(--mutedTextColor);
+  line-height: 1.4;
+}
+
+.checks label {
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+}
+
+.review {
+  overflow: auto;
+  padding: 14px;
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.footer {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.footer button,
+.actionRow button,
+.primary {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+}
+
+.primary {
+  border-color: var(--purple-700);
+  background: var(--purple-600);
+  color: var(--accent-foreground);
+}
+
+.message {
+  color: var(--purple-700);
+}
+
+@media (max-width: 900px) {
+  .wizard {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    grid-column: auto;
+  }
+}

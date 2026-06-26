@@ -1,0 +1,25 @@
+---
+title: Setup Wizard
+---
+
+# Setup Wizard
+
+The setup wizard replaces `stackarr init` as the preferred onboarding path.
+
+## Steps
+
+1. **Welcome:** choose set up from scratch, restore from backup, or migrate a current stack.
+2. **Storage Paths:** set media, downloads, app config, state, logs, and backup roots.
+3. **Media Servers:** choose Plex and Jellyfin independently as disabled, native, or Docker.
+4. **Media Requests:** choose whether to enable Pulsarr and/or Seerr.
+5. **Stack Services:** choose Arr services and companion services.
+6. **Account:** set shared first-run admin credentials.
+7. **Database:** choose app-default databases or shared Postgres.
+8. **Torrent Client:** choose Transmission or qBittorrent.
+9. **Automation:** choose startup, backup, and update agents.
+10. **Agent Plugins:** optionally install local agent integrations.
+11. **Presets:** review profile presets.
+12. **Review:** inspect the saved setup choices.
+13. **Run Setup:** save or apply through UI, API, or trusted agent.
+
+The wizard writes allowlisted settings only. Secrets are redacted in browser responses.

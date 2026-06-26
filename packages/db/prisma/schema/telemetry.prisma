@@ -1,0 +1,33 @@
+model TelemetryInstallation {
+  installId        String           @id @map("install_id")
+  firstSeenAt      DateTime         @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime         @default(now()) @map("last_seen_at")
+  channel          String
+  appVersion       String           @map("app_version")
+  osFamily         String           @map("os_family")
+  arch             String
+  setupInstallMode String           @map("setup_install_mode")
+  databaseMode     String           @map("database_mode")
+  enabledServices  Json             @map("enabled_services")
+  mediaServers     Json             @map("media_servers")
+  backups          Json
+  counts           Json
+  events           TelemetryEvent[]
+
+  @@map("telemetry_installations")
+}
+
+model TelemetryEvent {
+  id            String                @id
+  installId     String                @map("install_id")
+  schemaVersion Int                   @map("schema_version")
+  eventName     String                @map("event_name")
+  generatedAt   DateTime              @map("generated_at")
+  receivedAt    DateTime              @default(now()) @map("received_at")
+  payload       Json
+  installation  TelemetryInstallation @relation(fields: [installId], references: [installId], onDelete: Cascade)
+
+  @@index([installId])
+  @@index([receivedAt])
+  @@map("telemetry_events")
+}

@@ -1,0 +1,39 @@
+---
+title: Docker Install
+---
+
+# Docker Install
+
+Use Docker when Stackarr should run beside the services it manages.
+
+```bash
+docker run -d \
+  --name stackarr \
+  --restart unless-stopped \
+  -p 7777:7777 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD:/stackarr-workspace" \
+  -e STACKARR_REPO_ROOT=/stackarr-workspace \
+  -e STACKARR_DATABASE_FILE=/stackarr-workspace/stackarr/config/stackarr.db \
+  polyphonic/stackarr:alpha
+```
+
+## Why Mount the Docker Socket?
+
+Stackarr needs access to Docker so it can start, stop, inspect, and update the services you choose during setup.
+
+Keep the dashboard bound to localhost until authentication and public access are configured.
+
+## Portless Host Approval
+
+Docker can queue Portless setup, but clean `https://*.stackarr` names need a normal host Terminal password prompt for port `443`, certificate trust, and `/etc/hosts`.
+
+```bash
+stackarr portless install
+```
+
+Source checkouts can use `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`.
+
+## Image Contents
+
+The image contains the local dashboard and maintenance tools. Runtime data stays in your mounted Stackarr folder, and the build context excludes local databases, logs, state, tokens, and the public docs app.

@@ -1,0 +1,24 @@
+---
+title: Agent Tools
+---
+
+# Agent Tools
+
+Representative tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `stackarr_get_setup_profile` | Return recommended setup questions and defaults. |
+| `stackarr_setup_media_server` | Dry-run or apply the setup plan. |
+| `stackarr_get_system_status` | Read current Stackarr/system status. |
+| `stackarr_get_recent_activity` | Read recorded agent activity. |
+| `stackarr_get_tasks` | Read queued, running, and recent Stackarr tasks with progress. |
+| `stackarr_start_stack` / `stackarr_stop_stack` | Start or stop the managed stack. Stop actions require care. |
+| `stackarr_run_backup` / `stackarr_get_backup_status` | Run and inspect backups. |
+| `stackarr_restore_backup` | Restore a backup with explicit dangerous-action confirmation. |
+| `stackarr_migrate_current_stack` | Dry-run or apply migration from supported existing local stack services. |
+| `stackarr_get_telemetry_status` / `stackarr_preview_telemetry_payload` | Inspect opt-in telemetry state and the exact sanitized payload before anything is sent. |
+| `stackarr_update_telemetry_config` / `stackarr_send_telemetry` | Admin/debug telemetry tools. Configure or send first-party telemetry after explicit consent; send defaults to dry-run. |
+| `stackarr_update_cloudflare_routes` | Map public hostnames to Stackarr-managed services. |
+
+Tools should return `implemented: false` rather than pretending success when a safe adapter does not exist yet.

@@ -1,0 +1,18 @@
+{
+  "name": "@stackarr/integration-tests",
+  "version": "0.3.0-alpha.1",
+  "dependencies": {
+    "@stackarr/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  },
+  "private": true,
+  "scripts": {
+    "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}

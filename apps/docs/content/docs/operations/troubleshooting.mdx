@@ -1,0 +1,36 @@
+---
+title: Troubleshooting
+---
+
+# Troubleshooting
+
+## Port Already In Use
+
+Change `STACKARR_WEB_PORT` or remove the old Stackarr container.
+
+```bash
+docker compose -f stackarr/docker-compose.yml --profile stackarr up -d --remove-orphans stackarr
+```
+
+## Docker Commands Fail Inside Stackarr
+
+Confirm these mounts exist:
+
+```text
+/var/run/docker.sock:/var/run/docker.sock
+..:/stackarr-workspace
+```
+
+## Native Plex Is Not Detected
+
+Confirm Plex has been launched once and that the configured path points at the app data directory.
+
+## Public URL Works Before Auth
+
+Set:
+
+```dotenv
+STACKARR_BIND_IP=127.0.0.1
+```
+
+Then configure General authentication before exposing Stackarr.
