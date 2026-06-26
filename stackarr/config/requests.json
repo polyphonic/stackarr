@@ -1,0 +1,24 @@
+{
+  "seerr": {
+    "global": {
+      "hideAvailable": false,
+      "hideBlocklisted": false,
+      "partialRequestsEnabled": true,
+      "enableSpecialEpisodes": false
+    },
+    "movies": {
+      "defaultService": "HD Lite",
+      "default4kService": "4K Lite",
+      "minimumAvailability": "inCinemas",
+      "syncEnabled": true,
+      "preventSearch": false
+    },
+    "tv": {
+      "defaultService": "HD Lite",
+      "default4kService": "4K Lite",
+      "enableSeasonFolders": true,
+      "syncEnabled": true,
+      "preventSearch": false
+    }
+  }
+}

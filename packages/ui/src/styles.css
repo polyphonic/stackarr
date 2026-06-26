@@ -1,0 +1,106 @@
+@import "@heroui/styles";
+
+/* Shared Stackarr HeroUI theme: compact Arr surface. */
+:root {
+  --background: var(--bg, #f6f8fb);
+  --foreground: var(--text, #172033);
+  --surface: var(--panel-bg, #ffffff);
+  --surface-foreground: var(--foreground);
+  --surface-secondary: var(--toolbar-bg, #ffffff);
+  --surface-secondary-foreground: var(--foreground);
+  --surface-tertiary: var(--input-bg, #f3f6fa);
+  --surface-tertiary-foreground: var(--foreground);
+  --overlay: var(--panel-bg, #ffffff);
+  --overlay-foreground: var(--foreground);
+  --default: var(--input-bg, #f3f6fa);
+  --default-foreground: var(--foreground);
+  --default-hover: var(--row-hover-bg, #e7ecf3);
+  --accent-foreground: #fff;
+  --accent-soft: var(--badge-accent-bg, color-mix(in srgb, var(--accent, #6d5bd0) 12%, transparent));
+  --accent-soft-foreground: var(--badge-accent-text, #4338a5);
+  --accent-soft-hover: var(--accent-soft);
+  --heroui-primary-300: 252 95% 85%;
+  --heroui-primary: 262 83% 58%;
+  --heroui-default-200: 226 18% 72%;
+  --heroui-default-500: 226 14% 43%;
+  --heroui-default-700: 222 18% 18%;
+  --field-background: var(--input-bg, #f3f6fa);
+  --field-foreground: var(--foreground);
+  --field-border: var(--border, #d7dee8);
+  --backdrop: var(--scrim-bg, rgba(22, 30, 45, 0.34));
+  --radius: 0.5rem;
+  --nc-gradient-1-color-1: hsl(var(--heroui-primary-300));
+  --nc-gradient-1-color-2: hsl(var(--heroui-primary));
+  --nc-gradient-2-color-1: color-mix(in srgb, hsl(var(--heroui-default-200)) 60%, transparent);
+  --nc-gradient-2-color-2: color-mix(in srgb, hsl(var(--heroui-default-500)) 60%, transparent);
+  --nc-light: hsl(var(--heroui-default-700));
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding-inline: 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.stackarr-glass-icon {
+  color: hsl(var(--heroui-primary));
+  flex: 0 0 auto;
+}
+
+.button--primary {
+  --button-bg: var(--button-primary-bg, var(--purple-600, #5c4abe));
+  --button-bg-hover: var(--button-primary-hover, var(--purple-500, #6d5bd0));
+  --button-bg-pressed: var(--button-primary-pressed, var(--purple-700, #4338a5));
+  --button-fg: var(--accent-foreground, #fff);
+  box-shadow: var(--button-primary-shadow, 0 1px 0 rgb(255 255 255 / 12%) inset);
+}
+
+.button--secondary,
+.button--tertiary {
+  --button-bg: var(--button-secondary-bg, var(--input-bg, #f3f6fa));
+  --button-bg-hover: var(--button-secondary-hover, var(--default-hover, #e7ecf3));
+  --button-bg-pressed: var(--button-secondary-pressed, var(--row-hover-bg, #f0f4fa));
+  --button-fg: var(--text, #172033);
+  border-color: var(--border, #d7dee8);
+}
+
+.button--outline,
+.button--ghost {
+  --button-bg: transparent;
+  --button-bg-hover: var(--button-ghost-hover, var(--row-hover-bg, #f0f4fa));
+  --button-bg-pressed: var(--button-ghost-pressed, var(--input-bg, #f3f6fa));
+  --button-fg: var(--text, #172033);
+}
+
+.button--danger {
+  --button-bg: var(--danger, #ef4444);
+  --button-bg-hover: var(--button-danger-hover, #b91c1c);
+  --button-bg-pressed: var(--button-danger-pressed, #991b1b);
+  --button-fg: var(--accent-foreground, #fff);
+}
+
+.modal__backdrop--opaque,
+.modal__backdrop--blur {
+  background: var(--backdrop);
+}
+
+.modal__dialog {
+  border: 1px solid var(--border, #d7dee8);
+  border-radius: 6px;
+  background: var(--overlay);
+  color: var(--text, #172033);
+  box-shadow: var(--modal-shadow, 0 24px 90px rgb(22 30 45 / 16%));
+}
+
+.modal__heading {
+  color: var(--text, #172033);
+}

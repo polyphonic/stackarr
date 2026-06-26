@@ -1,0 +1,209 @@
+#!/bin/bash
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    TARGET="$(readlink "$SOURCE")"
+    if [[ "$TARGET" == /* ]]; then
+        SOURCE="$TARGET"
+    else
+        SOURCE="$DIR/$TARGET"
+    fi
+done
+ROOT_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$ROOT_DIR/lib/common.sh"
+
+cmd="${1:-help}"
+
+case "$cmd" in
+    init)
+        shift
+        exec "$ROOT_DIR/scripts/init.sh" "$@"
+        ;;
+    up)
+        shift
+        exec "$ROOT_DIR/scripts/up.sh" "$@"
+        ;;
+    down)
+        shift
+        load_env
+        ensure_docker_runtime
+        exec docker compose -f "$ROOT_DIR/docker-compose.yml" down "$@"
+        ;;
+    configure)
+        shift
+        exec "$ROOT_DIR/scripts/configure.sh" "$@"
+        ;;
+    migrate)
+        shift || true
+        exec "$ROOT_DIR/scripts/migrate.sh" "$@"
+        ;;
+    telemetry)
+        shift || true
+        load_env
+        export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}"
+        exec node "$ROOT_DIR/scripts/telemetry.cjs" "$@"
+        ;;
+    naming)
+        shift || true
+        exec "$ROOT_DIR/scripts/naming.sh" "$@"
+        ;;
+    downloads)
+        shift || true
+        exec "$ROOT_DIR/scripts/downloads.sh" "$@"
+        ;;
+    database)
+        shift || true
+        exec "$ROOT_DIR/scripts/database.sh" "$@"
+        ;;
+    bookorbit)
+        shift || true
+        exec "$ROOT_DIR/scripts/bookorbit.sh" "$@"
+        ;;
+    requests)
+        shift || true
+        exec "$ROOT_DIR/scripts/requests.sh" "$@"
+        ;;
+    doctor)
+        shift
+        exec "$ROOT_DIR/scripts/doctor.sh" "$@"
+        ;;
+    plex-check)
+        shift
+        exec "$ROOT_DIR/scripts/plex-check.sh" "$@"
+        ;;
+    portless)
+        shift || true
+        exec "$ROOT_DIR/scripts/portless.sh" "$@"
+        ;;
+    db-info)
+        shift
+        exec "$ROOT_DIR/scripts/db-info.sh" "$@"
+        ;;
+    logs)
+        shift
+        load_env
+        ensure_docker_runtime
+        exec docker compose -f "$ROOT_DIR/docker-compose.yml" logs -f "$@"
+        ;;
+    cloudflare)
+        shift || true
+        exec "$ROOT_DIR/scripts/cloudflare.sh" "$@"
+        ;;
+    startup)
+        shift || true
+        sub="${1:-help}"
+        case "$sub" in
+            install|uninstall)
+                shift || true
+                exec "$ROOT_DIR/scripts/startup-install.sh" "$sub" "$@"
+                ;;
+            *)
+                fail "Usage: stackarr startup install|uninstall"
+                ;;
+        esac
+        ;;
+    backup)
+        shift || true
+        sub="${1:-help}"
+        case "$sub" in
+            install|uninstall)
+                shift || true
+                exec "$ROOT_DIR/scripts/backup-install.sh" "$sub" "$@"
+                ;;
+            run)
+                shift || true
+                exec "$ROOT_DIR/scripts/backup-run.sh" "$@"
+                ;;
+            restore)
+                shift || true
+                exec "$ROOT_DIR/scripts/restore.sh" "$@"
+                ;;
+            *)
+                fail "Usage: stackarr backup install|uninstall|run|restore <archive>"
+                ;;
+        esac
+        ;;
+    mcp)
+        shift || true
+        sub="${1:-serve}"
+        case "$sub" in
+            serve)
+                shift || true
+                export STACKARR_REPO_ROOT="$REPO_ROOT"
+                export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+                exec node "$REPO_ROOT/packages/mcp/dist/index.js" "$@"
+                ;;
+            *)
+                fail "Usage: stackarr mcp serve"
+                ;;
+        esac
+        ;;
+    plugins)
+        shift || true
+        exec "$ROOT_DIR/scripts/plugins.sh" "$@"
+        ;;
+    update)
+        shift || true
+        sub="${1:-help}"
+        case "$sub" in
+            run)
+                shift || true
+                exec "$ROOT_DIR/scripts/update-run.sh" "$@"
+                ;;
+            install|uninstall)
+                shift || true
+                exec "$ROOT_DIR/scripts/update-install.sh" "$sub" "$@"
+                ;;
+            *)
+                fail "Usage: stackarr update run|install|uninstall"
+                ;;
+        esac
+        ;;
+    permissions)
+        shift || true
+        sub="${1:-audit}"
+        case "$sub" in
+            audit|fix)
+                shift || true
+                exec "$ROOT_DIR/scripts/permissions.sh" "$sub" "$@"
+                ;;
+            *)
+                fail "Usage: stackarr permissions audit|fix"
+                ;;
+        esac
+        ;;
+    help|--help|-h|"")
+        cat <<'EOF'
+Stackarr commands:
+  stackarr init
+  stackarr up
+  stackarr down
+  stackarr configure
+  stackarr migrate plan|run
+  stackarr telemetry status|preview|enable|disable|send
+  stackarr naming apply|prestart
+  stackarr downloads apply
+  stackarr database ensure|status
+  stackarr requests apply|clear
+  stackarr doctor
+  stackarr plex-check
+  stackarr portless apply|install|status|uninstall
+  stackarr cloudflare install|start|stop|status|delete|uninstall
+  stackarr startup install|uninstall
+  stackarr backup install|uninstall|run
+  stackarr backup restore <archive>
+  stackarr mcp serve
+  stackarr plugins install|export [hermes|openclaw|all]
+  stackarr update run|install|uninstall
+  stackarr permissions audit|fix
+  stackarr db-info
+  stackarr logs
+EOF
+        ;;
+    *)
+        fail "Unknown command: $cmd"
+        ;;
+esac

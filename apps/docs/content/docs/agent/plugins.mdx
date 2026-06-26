@@ -1,0 +1,59 @@
+---
+title: Agent Plugins
+description: Install Stackarr's local agent plugin bundles for MCP-capable tools.
+---
+
+# Agent Plugins
+
+Stackarr ships local plugin bundles that point agents at the same MCP server:
+
+- `packages/agent-plugins/hermes/stackarr`
+- `packages/agent-plugins/openclaw/stackarr`
+- `skills/stackarr/SKILL.md`
+
+The plugins are convenience wrappers. The important part is still the local MCP command:
+
+```bash
+stackarr mcp serve
+```
+
+## Preferred Install
+
+Use Stackarr's plugin installer when available:
+
+```bash
+stackarr plugins install hermes
+stackarr plugins install openclaw
+```
+
+The installer copies the plugin bundle to the target agent runtime and rewrites the plugin config so it calls the current Stackarr executable.
+
+## Manual MCP Config
+
+Any MCP-capable client can use the server directly:
+
+```json
+{
+  "mcpServers": {
+    "stackarr": {
+      "command": "stackarr",
+      "args": ["mcp", "serve"],
+      "timeout": 120,
+      "connect_timeout": 30
+    }
+  }
+}
+```
+
+## What Agents Can Do
+
+Agents can:
+
+- read setup defaults and run setup dry-runs
+- start, stop, and inspect managed services
+- run backups and read backup progress
+- inspect disk usage and service health
+- manage Cloudflare routes when configured
+- troubleshoot download clients, indexers, Plex, and Arr services
+
+Destructive or disruptive tools require explicit confirmation fields. Agents should show the user the planned changes before applying setup, restore, stop, update, route, or repair actions.

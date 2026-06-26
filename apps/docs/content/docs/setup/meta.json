@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "restore-and-migrate",
+    "storage-paths",
+    "media-servers",
+    "torrent-client",
+    "network-access",
+    "presets",
+    "run-setup"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@stackarr/db",
+  "version": "0.3.0-alpha.1",
+  "sideEffects": false,
+  "dependencies": {
+    "@neondatabase/serverless": "1.1.0",
+    "@prisma/adapter-neon": "7.8.0",
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "@prisma/client-runtime-utils": "7.8.0",
+    "@t3-oss/env-nextjs": "^0.13.11",
+    "pg": "8.20.0",
+    "ws": "8.20.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/pg": "8.15.6",
+    "@types/ws": "8.18.1",
+    "prisma": "7.8.0",
+    "typescript": "^6.0.3"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./env": "./src/env.ts",
+    "./generated": "./prisma/generated/client.ts"
+  },
+  "private": true,
+  "scripts": {
+    "build": "prisma generate --no-hints",
+    "generate": "prisma format && prisma generate --no-hints",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}

@@ -1,0 +1,146 @@
+---
+title: Telemetry
+---
+
+# Telemetry
+
+Stackarr telemetry is first-party, opt-in, and designed for product direction rather than behavioral tracking.
+
+Telemetry is disabled by default. When enabled, Stackarr sends a small heartbeat payload to the configured `STACKARR_TELEMETRY_ENDPOINT`. Local development may use `http://localhost`; production endpoints must use HTTPS.
+
+Stackarr's hosted docs app includes the first-party collector:
+
+```text
+POST https://stackarr.example.com/api/telemetry/events
+```
+
+Use your real docs/product domain in place of `stackarr.example.com`. Do not point installed Stackarr apps at GTM, browser analytics SDKs, or third-party product analytics from inside the self-hosted app.
+
+## Feature Gates
+
+Telemetry is currently feature-gated off.
+
+For shipped Stackarr installs, keep:
+
+```text
+STACKARR_TELEMETRY_FEATURE_ENABLED=false
+STACKARR_TELEMETRY_ENABLED=false
+STACKARR_TELEMETRY_ENDPOINT=
+STACKARR_TELEMETRY_INGEST_KEY=
+```
+
+With the feature gate off, Stackarr hides the user permission control, hides telemetry env vars from Advanced settings, rejects enable/send attempts, and skips the heartbeat route.
+
+When the hosted collector is ready, ship:
+
+```text
+STACKARR_TELEMETRY_FEATURE_ENABLED=true
+STACKARR_TELEMETRY_ENDPOINT=https://stackarr.example.com/api/telemetry/events
+STACKARR_TELEMETRY_CHANNEL=stable
+STACKARR_TELEMETRY_INGEST_KEY=<write-only ingest secret>
+```
+
+## What It Sends
+
+The payload includes:
+
+- a random pseudonymous install id
+- Stackarr version and release channel
+- operating system family and CPU architecture
+- onboarding mode: fresh, restore, migrate, or unknown
+- database mode: app-default or Postgres
+- enabled service names and management modes
+- Plex/Jellyfin mode only: disabled, native, or Docker
+- backup status shape: enabled, schedule, retention bucket, and lite/full mode
+- counts of enabled, configured, and disabled services
+
+## What It Never Sends
+
+Telemetry must not include:
+
+- hostnames, domains, IP addresses, or public tunnel routes
+- usernames, email addresses, API keys, tokens, passwords, cookies, or secrets
+- media titles, request names, torrent names, indexer names, or watch history
+- absolute paths such as media, downloads, backup, Plex, or Jellyfin paths
+- logs, stack traces with local paths, database dumps, or backup archives
+
+## Agent Workflow
+
+Normal users opt in from Stackarr settings. Agents and CLI users should preview first:
+
+```text
+stackarr_preview_telemetry_payload
+```
+
+Then configure telemetry only after explicit consent:
+
+```json
+{
+  "enabled": true,
+  "endpoint": "https://stackarr.example.com/api/telemetry/events",
+  "channel": "stable",
+  "confirmTelemetry": true
+}
+```
+
+The send tool also defaults to dry-run:
+
+```json
+{
+  "dryRun": true
+}
+```
+
+The local CLI follows the same pattern:
+
+```bash
+bin/stackarr telemetry preview
+bin/stackarr telemetry enable --endpoint https://stackarr.example.com/api/telemetry/events --channel stable --yes
+bin/stackarr telemetry send --yes
+```
+
+## Collector Contract
+
+The docs app collector accepts `POST` JSON at `/api/telemetry/events`. It requires either:
+
+```text
+Authorization: Bearer <STACKARR_TELEMETRY_INGEST_KEY>
+```
+
+or:
+
+```text
+X-Stackarr-Telemetry-Key: <STACKARR_TELEMETRY_INGEST_KEY>
+```
+
+Configure the same `STACKARR_TELEMETRY_INGEST_KEY` in the hosted docs app and in distributed Stackarr runtime configuration. The key is a write-only ingest secret; it is not a user account token.
+
+The docs app collector is also gated. In Vercel, leave these unset until you are ready to collect telemetry. When ready, set:
+
+```text
+STACKARR_TELEMETRY_COLLECTOR_ENABLED=true
+STACKARR_TELEMETRY_INGEST_KEY=<write-only ingest secret>
+STACKARR_CLOUD_DATABASE_URL=<Neon pooled connection string>
+DIRECT_URL=<Neon direct connection string for migrations>
+NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED=true
+```
+
+`STACKARR_CLOUD_DATABASE_URL` or `DATABASE_URL` is required only when `STACKARR_TELEMETRY_COLLECTOR_ENABLED=true`. This lets the docs app deploy before Neon is configured.
+
+The collector stores data through the `@stackarr/db` Prisma package, which is prepared for future user accounts and currently contains:
+
+- `users` and `accounts` tables for future hosted-account work
+- `telemetry_installations` for the latest anonymous install state
+- `telemetry_events` for idempotent raw heartbeat events
+
+For hosted deployment, provide a Neon Postgres URL and run Prisma migrations:
+
+```bash
+STACKARR_CLOUD_DATABASE_URL=postgresql://... pnpm --filter @stackarr/db migrate:deploy
+```
+
+Use `DIRECT_URL` when your deployment separates pooled runtime connections from direct migration connections.
+
+The collector should require TLS, rate-limit by install id and IP, store only the sanitized payload, and retain raw events for a short window before rolling up into daily aggregates.
+
+Store daily aggregates such as active installs, OS split, service adoption, setup mode, database mode, backup mode, and error buckets. Avoid storing request bodies indefinitely once aggregates are produced.

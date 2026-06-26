@@ -1,0 +1,42 @@
+{
+  "name": "stackarr",
+  "description": "Arr-style media stack control plane for Docker-compatible hosts.",
+  "version": "0.3.0-alpha.1",
+  "license": "GPL-3.0-only",
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
+    "syncpack": "^15.3.2",
+    "turbo": "^2.9.18"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "dev": "turbo run dev --filter=@stackarr/frontend",
+    "dev:docs": "turbo run dev --filter=@stackarr/docs",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "package:all": "distribution/package.sh all",
+    "package:linux": "turbo run package --filter=@stackarr/distribution-linux",
+    "package:macos": "turbo run package --filter=@stackarr/distribution-macos",
+    "package:native": "distribution/package.sh all",
+    "package:windows": "turbo run package --filter=@stackarr/distribution-windows",
+    "stackarr": "bin/stackarr",
+    "stackarr:help": "bin/stackarr help",
+    "syncpack:fix": "syncpack fix",
+    "syncpack:format": "syncpack format",
+    "syncpack:format:check": "syncpack format --check",
+    "syncpack:lint": "syncpack lint",
+    "syncpack:list": "syncpack list",
+    "syncpack:update": "syncpack update",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "update": "syncpack update && syncpack fix && syncpack format && syncpack lint && pnpm install"
+  }
+}

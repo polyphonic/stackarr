@@ -1,0 +1,31 @@
+---
+title: UI Settings
+---
+
+# UI Settings
+
+UI settings control presentation:
+
+- Theme.
+- Refresh interval.
+- Service link mode.
+- Portless URL scheme.
+- Portless host suffix.
+- Advanced setting visibility.
+
+## Themes
+
+Choose `light`, `dark`, or `system`. Stackarr applies the preference across the dashboard, stack cards, settings forms, and service links so screenshots and docs should always use the matching theme asset.
+
+<ThemeCompare
+  lightSrc="/screenshots/stackarr-dashboard-light.png"
+  darkSrc="/screenshots/stackarr-dashboard-dark.png"
+  alt="Stackarr dashboard homepage"
+  caption="Drag the handle to compare the dashboard homepage in light and dark mode."
+/>
+
+## Service Links
+
+Set service links to `portless` to use local names such as `https://app.stackarr` and `https://plex.stackarr`. When Stackarr is running in Docker, the app queues the setup task and asks the user to open Terminal and run `stackarr portless install`, because clean `.stackarr` names require host access for port `443`, certificate trust, and `/etc/hosts`. Source checkouts can use `bin/stackarr portless install`.
+
+These settings live in SQLite because they are app preferences, not bootstrap values needed before the app starts.

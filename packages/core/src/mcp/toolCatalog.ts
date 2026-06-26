@@ -1,0 +1,886 @@
+import type { ToolCatalogEntry } from './types';
+
+export const stackarrToolCatalog: ToolCatalogEntry[] = [
+  {
+    name: 'stackarr_get_setup_profile',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return the opinionated Stackarr setup questions, defaults, and browser port.'
+  },
+  {
+    name: 'stackarr_setup_media_server',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description:
+      'Write Stackarr setup config and optionally run the full download/start/configure media-server workflow.'
+  },
+  {
+    name: 'stackarr_get_system_status',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Summarize Stackarr system status.'
+  },
+  {
+    name: 'stackarr_list_services',
+    category: 'services',
+    scopes: ['services:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List configured Stackarr services.'
+  },
+  {
+    name: 'stackarr_get_service_status',
+    category: 'services',
+    scopes: ['services:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get static/service connectivity status for one service.'
+  },
+  {
+    name: 'stackarr_list_service_configs',
+    category: 'services',
+    scopes: ['services:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List configurable service cards and fields exposed by Stackarr.'
+  },
+  {
+    name: 'stackarr_get_service_config',
+    category: 'services',
+    scopes: ['services:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read UI-editable Stackarr configuration for one service.'
+  },
+  {
+    name: 'stackarr_update_service_config',
+    category: 'services',
+    scopes: ['services:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Update one service configuration using the same field ids exposed in the Stackarr UI.'
+  },
+  {
+    name: 'stackarr_get_container_overview',
+    category: 'containers',
+    scopes: ['containers:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List Docker containers, volumes, images, and networks visible to Stackarr.'
+  },
+  {
+    name: 'stackarr_manage_container_resource',
+    category: 'containers',
+    scopes: ['containers:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start, stop, restart, remove, or prune Docker resources for Stackarr media-server management.'
+  },
+  {
+    name: 'stackarr_get_disk_usage',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read disk usage for configured roots.'
+  },
+  {
+    name: 'stackarr_get_stack_config_summary',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return redacted Stackarr configuration summary.'
+  },
+  {
+    name: 'stackarr_update_stack_config',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Update DB-backed Stackarr runtime configuration values by managed env key.'
+  },
+  {
+    name: 'stackarr_get_telemetry_status',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read opt-in telemetry status and a sanitized heartbeat payload preview.'
+  },
+  {
+    name: 'stackarr_update_telemetry_config',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Enable, disable, or configure first-party telemetry after explicit consent.'
+  },
+  {
+    name: 'stackarr_preview_telemetry_payload',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Preview the exact sanitized telemetry heartbeat payload without sending it.'
+  },
+  {
+    name: 'stackarr_send_telemetry',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Send the opt-in telemetry heartbeat to the configured first-party endpoint.'
+  },
+  {
+    name: 'stackarr_get_cloudflare_routes',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return configured Cloudflare tunnel public hostname routes.'
+  },
+  {
+    name: 'stackarr_update_cloudflare_routes',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Update Cloudflare tunnel hostname routes for Stackarr services.'
+  },
+  {
+    name: 'stackarr_get_recent_activity',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return recent agent activity records.'
+  },
+  {
+    name: 'stackarr_get_tasks',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return queued, running, and recent Stackarr command tasks with progress output.'
+  },
+  {
+    name: 'stackarr_start_stack',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start the Docker-managed Stackarr stack.'
+  },
+  {
+    name: 'stackarr_stop_stack',
+    category: 'stack',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Stop the Docker-managed Stackarr stack.'
+  },
+  {
+    name: 'stackarr_restart_service',
+    category: 'services',
+    scopes: ['services:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Restart an individual Docker-managed service.'
+  },
+  {
+    name: 'stackarr_run_update',
+    category: 'stack',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run Stackarr update workflow.'
+  },
+  {
+    name: 'stackarr_run_doctor',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Run Stackarr doctor diagnostics.'
+  },
+  {
+    name: 'stackarr_run_permissions_audit',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Run permissions audit.'
+  },
+  {
+    name: 'stackarr_run_permissions_fix',
+    category: 'health',
+    scopes: ['health:write'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run permissions fix workflow.'
+  },
+  {
+    name: 'stackarr_search_series',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search Sonarr series by term.'
+  },
+  {
+    name: 'stackarr_add_series',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Add a series to Sonarr.'
+  },
+  {
+    name: 'stackarr_monitor_series',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Monitor a Sonarr series.'
+  },
+  {
+    name: 'stackarr_unmonitor_series',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Unmonitor a Sonarr series.'
+  },
+  {
+    name: 'stackarr_search_movie',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search Radarr movies by term.'
+  },
+  {
+    name: 'stackarr_add_movie',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Add a movie to Radarr.'
+  },
+  {
+    name: 'stackarr_monitor_movie',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Monitor a Radarr movie.'
+  },
+  {
+    name: 'stackarr_unmonitor_movie',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Unmonitor a Radarr movie.'
+  },
+  {
+    name: 'stackarr_get_series_status',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get a Sonarr series status.'
+  },
+  {
+    name: 'stackarr_get_movie_status',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get a Radarr movie status.'
+  },
+  {
+    name: 'stackarr_get_missing_episodes',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List missing Sonarr episodes.'
+  },
+  {
+    name: 'stackarr_get_wanted_movies',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List wanted Radarr movies.'
+  },
+  {
+    name: 'stackarr_get_arr_queue',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get Sonarr/Radarr queue.'
+  },
+  {
+    name: 'stackarr_trigger_arr_search',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Trigger an Arr search command.'
+  },
+  {
+    name: 'stackarr_refresh_arr_item',
+    category: 'arr',
+    scopes: ['arr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Refresh a series/movie in Arr.'
+  },
+  {
+    name: 'stackarr_search_releases',
+    category: 'releases',
+    scopes: ['releases:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search Prowlarr releases.'
+  },
+  {
+    name: 'stackarr_get_indexer_status',
+    category: 'releases',
+    scopes: ['releases:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get Prowlarr indexer status.'
+  },
+  {
+    name: 'stackarr_test_indexers',
+    category: 'releases',
+    scopes: ['releases:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test configured Prowlarr indexers.'
+  },
+  {
+    name: 'stackarr_add_release_to_downloader',
+    category: 'releases',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Send a Prowlarr release to downloader.'
+  },
+  {
+    name: 'stackarr_get_download_queue',
+    category: 'downloads',
+    scopes: ['downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get downloader queue.'
+  },
+  {
+    name: 'stackarr_get_download_history',
+    category: 'downloads',
+    scopes: ['downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get downloader history.'
+  },
+  {
+    name: 'stackarr_get_stalled_downloads',
+    category: 'downloads',
+    scopes: ['downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List stalled downloads.'
+  },
+  {
+    name: 'stackarr_add_magnet',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Add a magnet link to downloader.'
+  },
+  {
+    name: 'stackarr_add_torrent_url',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Add torrent URL to downloader.'
+  },
+  {
+    name: 'stackarr_pause_download',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Pause a download.'
+  },
+  {
+    name: 'stackarr_resume_download',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Resume a download.'
+  },
+  {
+    name: 'stackarr_remove_download',
+    category: 'downloads',
+    scopes: ['downloads:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Remove a download, optionally deleting data.'
+  },
+  {
+    name: 'stackarr_set_download_priority',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Set download priority.'
+  },
+  {
+    name: 'stackarr_get_streamrip_config',
+    category: 'downloads',
+    scopes: ['downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read redacted Streamrip configuration.'
+  },
+  {
+    name: 'stackarr_update_streamrip_config',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Update Streamrip configuration fields.'
+  },
+  {
+    name: 'stackarr_test_streamrip',
+    category: 'downloads',
+    scopes: ['downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Check the Streamrip CLI installation.'
+  },
+  {
+    name: 'stackarr_start_streamrip_download',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start a Streamrip URL download job.'
+  },
+  {
+    name: 'stackarr_start_streamrip_search_download',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Search a Streamrip source and download the first matching result.'
+  },
+  {
+    name: 'stackarr_list_streamrip_jobs',
+    category: 'downloads',
+    scopes: ['downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List recent Streamrip jobs.'
+  },
+  {
+    name: 'stackarr_cancel_streamrip_job',
+    category: 'downloads',
+    scopes: ['downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Cancel a running Streamrip job.'
+  },
+  {
+    name: 'stackarr_list_lidarr_streamrip_albums',
+    category: 'downloads',
+    scopes: ['arr:read', 'downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List Lidarr albums prepared for Streamrip downloading.'
+  },
+  {
+    name: 'stackarr_prepare_lidarr_streamrip_album',
+    category: 'downloads',
+    scopes: ['arr:read', 'downloads:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Prepare a Lidarr album for Streamrip by returning metadata and a source-search query.'
+  },
+  {
+    name: 'stackarr_download_lidarr_album_with_streamrip',
+    category: 'downloads',
+    scopes: ['arr:read', 'downloads:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Download a Lidarr album with Streamrip via explicit URL or source search.'
+  },
+  {
+    name: 'stackarr_get_plex_server_status',
+    category: 'plex',
+    scopes: ['plex:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read Plex server status via Plex API.'
+  },
+  {
+    name: 'stackarr_get_plex_libraries',
+    category: 'plex',
+    scopes: ['plex:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List Plex libraries.'
+  },
+  {
+    name: 'stackarr_get_plex_sessions',
+    category: 'plex',
+    scopes: ['plex:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List active Plex sessions.'
+  },
+  {
+    name: 'stackarr_get_recently_added',
+    category: 'plex',
+    scopes: ['plex:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List recently added Plex items.'
+  },
+  {
+    name: 'stackarr_get_recently_watched',
+    category: 'plex',
+    scopes: ['plex:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List recently watched Plex items where available.'
+  },
+  {
+    name: 'stackarr_get_plex_watch_summary',
+    category: 'plex',
+    scopes: ['plex:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Summarize Plex watch activity via Plex API.'
+  },
+  {
+    name: 'stackarr_scan_plex_library',
+    category: 'plex',
+    scopes: ['plex:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Trigger a Plex library scan.'
+  },
+  {
+    name: 'stackarr_refresh_plex_metadata',
+    category: 'plex',
+    scopes: ['plex:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Refresh Plex metadata.'
+  },
+  {
+    name: 'stackarr_get_requests',
+    category: 'seerr',
+    scopes: ['seerr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List Seerr requests.'
+  },
+  {
+    name: 'stackarr_create_request',
+    category: 'seerr',
+    scopes: ['seerr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Create a Seerr request.'
+  },
+  {
+    name: 'stackarr_approve_request',
+    category: 'seerr',
+    scopes: ['seerr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Approve a Seerr request.'
+  },
+  {
+    name: 'stackarr_decline_request',
+    category: 'seerr',
+    scopes: ['seerr:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Decline a Seerr request.'
+  },
+  {
+    name: 'stackarr_get_request_status',
+    category: 'seerr',
+    scopes: ['seerr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get one Seerr request status.'
+  },
+  {
+    name: 'stackarr_run_backup',
+    category: 'backups',
+    scopes: ['backups:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run Stackarr backup.'
+  },
+  {
+    name: 'stackarr_list_backups',
+    category: 'backups',
+    scopes: ['backups:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List backup artifacts.'
+  },
+  {
+    name: 'stackarr_validate_backup',
+    category: 'backups',
+    scopes: ['backups:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Validate a backup artifact.'
+  },
+  {
+    name: 'stackarr_get_backup_status',
+    category: 'backups',
+    scopes: ['backups:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read backup status.'
+  },
+  {
+    name: 'stackarr_restore_backup',
+    category: 'backups',
+    scopes: ['backups:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Restore from backup.'
+  },
+  {
+    name: 'stackarr_migrate_current_stack',
+    category: 'stack',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Plan or run migration from an existing local media stack into Stackarr.'
+  },
+  {
+    name: 'stackarr_check_service_databases',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Check service SQLite databases.'
+  },
+  {
+    name: 'stackarr_validate_sqlite_db',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Validate a SQLite database.'
+  },
+  {
+    name: 'stackarr_restore_service_database_from_backup',
+    category: 'backups',
+    scopes: ['backups:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Restore service database from backup.'
+  },
+  {
+    name: 'stackarr_diagnose_service',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Diagnose a service.'
+  },
+  {
+    name: 'stackarr_test_service_api',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test a service API.'
+  },
+  {
+    name: 'stackarr_test_service_connectivity',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test service network connectivity.'
+  },
+  {
+    name: 'stackarr_test_arr_to_downloader',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test Arr to downloader configuration.'
+  },
+  {
+    name: 'stackarr_test_prowlarr_to_arr',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test Prowlarr to Arr integration.'
+  },
+  {
+    name: 'stackarr_test_seerr_to_arr',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test Seerr to Arr integration.'
+  },
+  {
+    name: 'stackarr_test_plex_identity',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Test Plex identity.'
+  },
+  {
+    name: 'stackarr_get_common_issues',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return common issue hints.'
+  },
+  {
+    name: 'stackarr_apply_safe_fix',
+    category: 'health',
+    scopes: ['health:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Apply an enumerated safe fix.'
+  }
+];
+
+export function getToolCatalog() {
+  return stackarrToolCatalog;
+}
+
+export function getToolCatalogEntry(name: string) {
+  return stackarrToolCatalog.find((entry) => entry.name === name);
+}

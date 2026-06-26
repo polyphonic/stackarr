@@ -1,0 +1,156 @@
+name: Platform test or bug report
+description: Report a platform-specific install, packaging, Docker, NAS, or runtime issue.
+title: "[platform]: "
+labels:
+  - needs-triage
+  - platform-test
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Stackarr. macOS is currently the maintainer-tested path, so Linux, Windows, NAS, and unusual Docker reports are especially useful when they include exact platform and runtime details.
+
+  - type: dropdown
+    id: report-type
+    attributes:
+      label: Report type
+      options:
+        - Install failed
+        - App starts but dashboard is broken
+        - Docker or container management issue
+        - Service wiring or configuration issue
+        - Backup, restore, startup, or update issue
+        - Packaging issue
+        - Documentation mismatch
+        - Successful platform test
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: platform
+    attributes:
+      label: Platform
+      description: Select every platform layer involved.
+      options:
+        - label: macOS
+        - label: Linux
+        - label: Windows
+        - label: NAS appliance
+        - label: Docker Desktop
+        - label: Docker Engine / Compose
+        - label: Podman or another Docker-compatible runtime
+        - label: Other
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS, distribution, or NAS firmware
+      description: Include the exact version where possible.
+      placeholder: "Ubuntu 24.04, Windows 11 24H2, Synology DSM 7.2, TrueNAS SCALE 24.10"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: CPU architecture
+      options:
+        - x64 / amd64
+        - arm64 / aarch64
+        - armv7
+        - Other or unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-target
+    attributes:
+      label: Install target
+      options:
+        - Docker image
+        - Docker Compose
+        - macOS app archive
+        - Linux tar/systemd package
+        - Windows zip/installer
+        - Source checkout
+        - NAS container app/package manager
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: runtime-details
+    attributes:
+      label: Runtime details
+      description: Include Docker/Compose version, Node version, NAS model, filesystem/share type, and whether the Docker socket is available.
+      placeholder: |
+        Docker version:
+        Compose version:
+        Node version:
+        NAS model:
+        Filesystem/share:
+        Docker socket access:
+    validations:
+      required: true
+
+  - type: input
+    id: stackarr-version
+    attributes:
+      label: Stackarr version or commit
+      placeholder: "0.3.0-alpha.1, Docker tag alpha, or git commit SHA"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce or test
+      description: List exact commands, package names, UI steps, and paths using generic placeholders for secrets.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      placeholder: "What did you expect Stackarr to do?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      placeholder: "What happened instead?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and diagnostics
+      description: Paste relevant logs, command output, screenshots, or `stackarr doctor` output. Redact tokens, passwords, hostnames, public IPs, and private paths if needed.
+      render: shell
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: For successful platform tests, note what worked and what still needs manual steps.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed secrets, API keys, passwords, public IPs, and private hostnames from this report.
+          required: true
+        - label: I included the platform, architecture, install target, and runtime details above.
+          required: true

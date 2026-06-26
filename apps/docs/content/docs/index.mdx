@@ -1,0 +1,79 @@
+---
+title: Stackarr Quick Start
+---
+
+<div className="stackarrHero">
+
+# Stackarr Quick Start
+
+Stackarr helps you set up and maintain a private home media server stack from one dashboard. Use it to connect requests, downloads, libraries, books, backups, and optional remote access without configuring every app from scratch.
+
+<div className="calloutWarning"><strong>Alpha release:</strong> keep Stackarr bound to <code>127.0.0.1</code> until authentication, Cloudflare, and public URL settings are configured. Avoid stop, update, and restart actions while Plex or Jellyfin must stay uninterrupted.</div>
+
+<div className="calloutInfo"><strong>Using Stackarr or watching the alpha?</strong> Please <a href="https://github.com/b-bot/Stackarr" target="_blank" rel="noreferrer">star b-bot/Stackarr on GitHub</a>. Stars help other self-hosters discover the project; watching releases, sharing these docs, and opening focused issues help too.</div>
+
+</div>
+
+<figure className="docsScreenshot">
+  <span className="themeShot">
+    <img className="themeShotLight" src="/screenshots/stackarr-dashboard-light.png" alt="Stackarr dashboard in light mode showing service status, resource gauges, storage, and configured services" />
+    <img className="themeShotDark" src="/screenshots/stackarr-dashboard-dark.png" alt="" aria-hidden="true" />
+  </span>
+  <figcaption>The dashboard opens with setup readiness, service status, resources, storage, and direct links into the managed apps.</figcaption>
+</figure>
+
+## Supported Install Targets
+
+| Target | Use When |
+| --- | --- |
+| macOS source/app archive | Plex or Jellyfin already runs natively and you want Stackarr to monitor/configure around it. |
+| Linux archive + systemd installer | You want the classic arr app layout with app files in `/opt/Stackarr` and data in `/var/lib/stackarr`. |
+| Windows package + Inno installer | You want to test the native dashboard package while Docker remains the supported Windows alpha backend. |
+| Docker compose service | You want Stackarr and the managed services to start together. |
+
+## Fast Path
+
+```bash
+docker pull polyphonic/stackarr:alpha
+docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr
+```
+
+Open `http://127.0.0.1:7777/setup`.
+
+## What Stackarr Manages
+
+<div className="serviceGrid">
+  {[
+    { name: 'Sonarr', logo: 'sonarr' },
+    { name: 'Radarr', logo: 'radarr' },
+    { name: 'Lidarr', logo: 'lidarr' },
+    { name: 'Prowlarr', logo: 'prowlarr' },
+    { name: 'Bazarr', logo: 'bazarr' },
+    { name: 'BookOrbit', logo: 'bookorbit' },
+    { name: 'Pulsarr', logo: 'pulsarr' },
+    { name: 'Plex', logo: 'plex' },
+    { name: 'Jellyfin', logo: 'jellyfin' },
+    { name: 'Seerr', logo: 'overseerr' },
+    { name: 'Transmission', logo: 'transmission' },
+    { name: 'qBittorrent', logo: 'qbittorrent' },
+    { name: 'TinyMediaManager', logo: 'tinymediamanager' },
+    { name: 'Recyclarr', logo: 'recyclarr' },
+    { name: 'FlareSolverr', logo: 'flaresolverr' },
+    { name: 'Tidarr', logo: 'tidal' },
+    { name: 'Cloudflare', logo: 'cloudflare' },
+    { name: 'Postgres', logo: 'postgres' }
+  ].map(service => (
+    <div className="serviceTile" key={service.name}>
+      <img alt="" src={`/logos/${service.logo}.svg`} />
+      <span>{service.name}</span>
+    </div>
+  ))}
+</div>
+
+Stackarr manages the stack around your media server. Plex and Jellyfin can be disabled, native, or Docker independently, so native macOS hardware transcoding remains available.
+
+## Docs Map
+
+- [Getting Started](/docs/getting-started) covers requirements and first decisions.
+- [Installation](/docs/installation) covers macOS and Docker install paths.
+- [Setup](/docs/setup) covers the onboarding wizard and native-vs-Docker media-server choices.

@@ -1,0 +1,65 @@
+.container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-fd-background) 86%, var(--color-fd-foreground) 14%);
+  color: var(--color-fd-foreground);
+  padding: 0.25rem 0.68rem 0.25rem 0.35rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  border-color: color-mix(in srgb, var(--stack-accent) 55%, var(--color-fd-border));
+}
+
+.track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 1.8rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-fd-foreground) 16%, transparent);
+}
+
+.dot {
+  position: absolute;
+  left: 0.18rem;
+  width: 0.66rem;
+  height: 0.66rem;
+  border-radius: 999px;
+  background: var(--stack-accent);
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.light {
+  transform: translateX(0);
+  background: var(--stack-blue);
+}
+
+.system {
+  transform: translateX(0.38rem);
+}
+
+.dark {
+  transform: translateX(0.76rem);
+}
+
+.label {
+  min-width: 3.25rem;
+  text-align: left;
+}

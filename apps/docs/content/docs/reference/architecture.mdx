@@ -1,0 +1,20 @@
+---
+title: Architecture
+---
+
+# Architecture
+
+Stackarr is a monorepo:
+
+```text
+apps/frontend      Local dashboard and /api/v1
+apps/docs          Deployable Fumadocs docs and landing site
+packages/core      Shared models, config, settings, tasks, health
+packages/ui        Shared HeroUI/Nucleo UI primitives
+packages/mcp       Local stdio MCP server
+distribution       Release packaging
+stackarr           Scripts, presets, compose stack
+bin/stackarr       CLI entrypoint
+```
+
+The frontend reads mounted workspace state and queues commands through shared core actions and the `bin/stackarr` executable boundary.

@@ -1,0 +1,80 @@
+---
+title: MCP Server
+---
+
+# MCP Server
+
+Stackarr includes a local stdio MCP server for trusted agents. It is the preferred automation surface for setup and maintenance because every action goes through Stackarr's typed tools, audit trail, validation, and confirmation checks.
+
+The server exposes setup, status, backup, Docker-resource, Cloudflare-route, media-library, download-client, request, Plex, and diagnostic tools. It should be treated as a privileged local maintenance interface because those tools can change running services.
+
+## Install Path
+
+For packaged installs, prefer the CLI entrypoint:
+
+```bash
+stackarr mcp serve
+```
+
+For source installs:
+
+```bash
+pnpm --filter @stackarr/mcp build
+node packages/mcp/dist/index.js
+```
+
+## Claude or Codex MCP Config
+
+Use this shape in MCP-capable desktop clients, replacing the command only if your install path is different:
+
+```json
+{
+  "mcpServers": {
+    "stackarr": {
+      "command": "stackarr",
+      "args": ["mcp", "serve"],
+      "timeout": 120,
+      "connect_timeout": 30
+    }
+  }
+}
+```
+
+After connecting it, ask:
+
+```text
+Use Stackarr MCP to inspect the setup profile, dry-run the recommended setup, then show me the plan before applying it.
+```
+
+## Hermes and OpenClaw
+
+```yaml
+mcp_servers:
+  stackarr:
+    command: "stackarr"
+    args: ["mcp", "serve"]
+    timeout: 120
+    connect_timeout: 30
+    sampling:
+      enabled: false
+```
+
+Stackarr also ships plugin bundles for Hermes and OpenClaw-style runtimes. See [Agent Plugins](/docs/agent/plugins).
+
+## Discovery
+
+The docs site publishes machine-readable discovery files for agents:
+
+- `/.well-known/mcp/server-card.json`
+- `/.well-known/agent-skills/index.json`
+- `/auth.md`
+- `/llms.txt`
+- `/llms-full.txt`
+
+These describe the public docs and local MCP server. They do not expose your local Stackarr install.
+
+## Security Model
+
+The MCP server is local stdio only. Do not put it behind HTTP, Cloudflare Tunnel, Portless, or a public remote bridge.
+
+Agents should use the MCP tools as the primary maintenance surface. If a low-level app change is not represented by a Stackarr tool yet, prefer documenting the missing adapter over quietly editing a downstream app config file.

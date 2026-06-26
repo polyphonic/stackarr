@@ -1,0 +1,17 @@
+---
+title: SQLite
+---
+
+# SQLite
+
+By default, Stackarr stores app preferences in SQLite:
+
+```text
+stackarr/config/stackarr.db
+```
+
+This includes UI preferences, host settings, public exposure intent, Connect definitions, notification settings, task history, and agent activity when SQLite mode is active.
+
+Advanced setup can move Stackarr runtime state to the shared Postgres `database` container. In that mode Stackarr uses `stackarr-main` for settings, tasks, and notifications, and `stackarr-log` for agent/audit activity. `stackarr/config/stackarr.db` remains a bootstrap/fallback source for startup and recovery.
+
+Legacy bootstrap files are gone from the normal path. Setup and Settings write runtime configuration to the active Stackarr runtime database; Docker Compose variables are reserved for advanced container/bootstrap overrides.

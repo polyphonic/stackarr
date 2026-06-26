@@ -1,0 +1,30 @@
+---
+title: Commands
+---
+
+# Commands
+
+Commands are queued as tasks so you can start setup, backup, update, and maintenance actions from the dashboard or API.
+
+## Examples
+
+```json
+{
+  "name": "StackConfigure"
+}
+```
+
+Common command names:
+
+- `StackStart`
+- `StackStop`
+- `StackConfigure`
+- `ApplyNamingPreset`
+- `ApplyDownloadsPreset`
+- `ApplyRequestsPreset`
+- `Backup`
+- `Update`
+- `PlexCheck`
+- `PermissionsAudit`
+
+Do not call stop/update/restart commands during active media-server use unless downtime is acceptable.

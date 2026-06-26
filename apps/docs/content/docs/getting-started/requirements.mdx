@@ -1,0 +1,40 @@
+---
+title: Requirements
+---
+
+# Requirements
+
+## Host
+
+- macOS is the primary supported host for this alpha.
+- A Docker-compatible runtime is required for Docker-managed services.
+- Node.js 20 or newer is required when running from source.
+- `pnpm` is managed through Corepack.
+
+## Install Shape
+
+Stackarr should be used as either:
+
+- a normal app install, configured through the setup wizard and Settings; or
+- a Docker/container deployment, where Compose-specific variables are for advanced users only.
+
+Normal users do not create or populate configuration files. Source checkouts and existing installs use the setup wizard and Settings screens, which save Stackarr configuration for them.
+
+The Docker image mounts the workspace at `/stackarr-workspace` for Compose files, presets, state, and the runtime settings fallback file.
+
+## Optional Native Apps
+
+Native mode is supported for media servers that already exist outside Docker:
+
+| App | Default macOS Path |
+| --- | --- |
+| Plex | `~/Library/Application Support/Plex Media Server` |
+| Jellyfin | `~/.local/share/jellyfin` or a custom path |
+
+Native mode lets Stackarr monitor and configure around the app. It does not move or reinstall the media-server data.
+
+## Network
+
+Keep the dashboard private while configuring. The default dashboard binding is local-only on port `7777`.
+
+Only expose Stackarr after General authentication and public URL settings are configured.

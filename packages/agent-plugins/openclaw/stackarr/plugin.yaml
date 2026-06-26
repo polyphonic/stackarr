@@ -1,0 +1,16 @@
+name: stackarr
+version: 0.1.0
+description: Stackarr local MCP integration for OpenClaw-compatible agents.
+author: Stackarr
+transport: mcp-stdio
+mcp:
+  command: stackarr
+  args:
+    - mcp
+    - serve
+  timeout: 120
+  connect_timeout: 30
+safety:
+  local_only: true
+  expose_publicly: false
+  dangerous_actions_require_confirmation: true

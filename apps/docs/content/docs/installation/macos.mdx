@@ -1,0 +1,50 @@
+---
+title: macOS Install
+---
+
+# macOS Install
+
+Use macOS when Plex or Jellyfin already run natively and you want Stackarr to monitor and configure the rest of the stack around them.
+
+## Source Install
+
+```bash
+git clone https://github.com/b-bot/Stackarr.git
+cd Stackarr
+corepack enable
+pnpm install
+pnpm build
+STACKARR_WEB_PORT=7777 pnpm dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:7777/setup
+```
+
+## App Archives
+
+Alpha macOS archives are generated separately for Apple Silicon and Intel:
+
+```bash
+pnpm package:macos
+```
+
+The package script builds the Next.js standalone frontend and wraps it in a macOS app archive.
+
+App archives include a `stackarr` helper next to `Stackarr.app` for Terminal tasks that need a password prompt, such as Portless:
+
+```bash
+./stackarr portless install
+```
+
+If `Stackarr.app` has been moved to Applications without the helper, use the bundled command directly:
+
+```bash
+/Applications/Stackarr.app/Contents/MacOS/stackarr portless install
+```
+
+## Native Media Servers
+
+Choose `native` during setup when Plex or Jellyfin already exists on the Mac. Stackarr will not move media-server data unless you explicitly choose a Docker install mode.

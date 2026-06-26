@@ -1,0 +1,20 @@
+---
+title: Storage Paths
+---
+
+# Storage Paths
+
+Stackarr separates media, downloads, config, state, logs, and backups.
+
+| Variable | Purpose |
+| --- | --- |
+| `MEDIA_ROOT` | Movie and TV media library root. |
+| `MUSIC_ROOT` | Exact Lidarr music library root mounted as `/music`. |
+| `DOWNLOADS_ROOT` | Completed/incomplete/download-client folders. |
+| `APP_ROOT` | Stackarr application config root. |
+| `CONFIG_ROOT` | Service configuration directories. |
+| `STATE_ROOT` | Runtime state and generated files. |
+| `LOG_ROOT` | Stackarr and helper logs. |
+| `BACKUP_ROOT` | Backup archives. |
+
+Keep downloads outside the media library. This helps hardlink/import behavior and avoids Plex/Jellyfin scanning incomplete files.

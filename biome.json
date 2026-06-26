@@ -1,0 +1,66 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/.next/**",
+      "!**/.turbo/**",
+      "!**/dist/**",
+      "!**/next-env.d.ts",
+      "!**/node_modules/**",
+      "!packages/db/prisma/generated/**",
+      "!**/*.svg",
+      "!coverage/**",
+      "!stackarr/config/**",
+      "!stackarr/state/**",
+      "!tmp/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "none"
+    },
+    "globals": ["Buffer", "CustomEvent", "process"]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "useExhaustiveDependencies": "off"
+      },
+      "suspicious": {
+        "noConsole": "off",
+        "noExplicitAny": "off",
+        "noUnknownAtRules": "off"
+      },
+      "style": {
+        "useImportType": "off",
+        "useNamingConvention": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.{ts,tsx,js,jsx}"],
+      "javascript": {
+        "globals": ["test"]
+      }
+    }
+  ]
+}

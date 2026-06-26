@@ -1,0 +1,13 @@
+---
+title: Safety Model
+---
+
+# Safety Model
+
+- No generic shell tool.
+- No generic Docker exec tool.
+- Read-only tools for status, health, services, Arr apps, downloads, Plex, Seerr, backups, and logs.
+- Write tools use typed Stackarr action wrappers.
+- Dangerous tools require explicit confirmation flags such as `confirmDangerous: true`.
+- Download deletion requires confirmation when data would be removed.
+- Secrets are redacted from summaries, errors, and activity logs where possible.

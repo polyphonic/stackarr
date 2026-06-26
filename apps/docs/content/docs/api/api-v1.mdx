@@ -1,0 +1,26 @@
+---
+title: API v1
+---
+
+# API v1
+
+Stackarr exposes its own public endpoints under `/api/v1`.
+
+Stackarr starts at `/api/v1` because this is its first public API. Downstream Servarr apps keep their own API versions; Stackarr does not rewrite those routes.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/system/status` | Runtime and configured-state summary. |
+| `GET` | `/api/v1/health` | Health warnings and blocking issues. |
+| `GET` | `/api/v1/diskspace` | Disk-space records for configured roots. |
+| `GET` | `/api/v1/task` | Queued and historical task state. |
+| `POST` | `/api/v1/command` | Queue a command. |
+| `GET` | `/api/v1/command/:id` | Inspect one queued command. |
+| `GET` | `/api/v1/backup` | Backup records. |
+| `GET` | `/api/v1/log/file` | Log file records. |
+| `GET/PUT` | `/api/v1/config/host` | Host, auth, URL, API key state. |
+| `GET/PUT` | `/api/v1/config/stackarr` | Stackarr saved configuration and settings. |
+| `GET/POST` | `/api/v1/notification` | Connect notification definitions. |
+| `GET` | `/api/v1/notification/schema` | Notification schema. |
+
+Mutating endpoints require `X-Api-Key` when `STACKARR_API_KEY` exists.

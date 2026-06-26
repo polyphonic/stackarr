@@ -1,0 +1,27 @@
+{
+  "name": "@stackarr/mcp",
+  "version": "0.3.0-alpha.1",
+  "bin": {
+    "stackarr-mcp": "dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@stackarr/core": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  },
+  "main": "dist/index.js",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --log-level=warning",
+    "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/index.ts",
+    "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}

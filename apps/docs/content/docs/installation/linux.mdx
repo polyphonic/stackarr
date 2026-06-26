@@ -1,0 +1,43 @@
+---
+title: Linux Install
+---
+
+# Linux Install
+
+Linux packages follow the familiar arr application layout: immutable app files in `/opt/Stackarr`, mutable runtime data in `/var/lib/stackarr`, and a long-running `stackarr.service` unit.
+
+Linux native packages are alpha and need tester feedback. The package shape follows established arr application conventions, but path permissions, Docker socket access, systemd behavior, and host media mounts still need validation across distributions.
+
+## Build
+
+```bash
+pnpm package:linux
+```
+
+Artifacts are written to:
+
+```text
+distribution/linux/dist
+```
+
+## Install
+
+Extract the target archive, then run the installer as root:
+
+```bash
+tar -xzf Stackarr-linux-x64-0.3.0-alpha.1.tar.gz
+cd Stackarr-linux-x64-0.3.0-alpha.1
+sudo ./install.sh
+```
+
+The generated service starts Stackarr with:
+
+```text
+/opt/Stackarr/StackarrServer -nobrowser -data=/var/lib/stackarr
+```
+
+Open `http://127.0.0.1:7777/setup` after the service starts.
+
+## Runtime
+
+Release archives should include an official Node.js runtime in `runtime/node`. Developer archives can use Node.js 20 or newer from the host.

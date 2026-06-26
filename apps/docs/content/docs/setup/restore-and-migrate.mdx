@@ -1,0 +1,55 @@
+---
+title: Restore and Migrate
+---
+
+# Restore and Migrate
+
+The first setup screen offers three paths:
+
+- **Set Up From Scratch:** save new Stackarr paths, services, credentials, automation, and presets.
+- **Restore From Backup:** upload a Stackarr backup archive and queue a guarded restore.
+- **Migrate Current Stack:** scan for supported existing services and copy their config/database state into Stackarr.
+
+## Restore From Backup
+
+Stackarr scheduled backups are written as `.tar.gz` archives. The restore workflow also accepts `.tgz` and `.zip` archives so users can restore backups that were repackaged by other tools.
+
+Onboarding restore queues:
+
+```bash
+stackarr backup restore /path/to/archive.tar.gz --yes --force-config --mark-onboarding-complete
+```
+
+The app adds explicit restore/skip flags for shared Postgres, native Plex config, and native macOS Plex preferences based on the selected checkboxes.
+
+Use shared Postgres restore when the archive contains `database/*.dump` and the new install should replace matching Stackarr-managed databases. Leave native Plex options off unless restoring onto the same host or a carefully prepared replacement host.
+
+## Migrate Current Stack
+
+Migration has a dry-run plan first:
+
+```bash
+stackarr migrate plan
+```
+
+To point Stackarr at a conventional folder layout instead of Docker discovery:
+
+```bash
+stackarr migrate plan --source-root /absolute/path/to/existing-stack
+```
+
+Confirmed migration copies supported service config directories into Stackarr and marks onboarding complete:
+
+```bash
+stackarr migrate run --yes
+```
+
+By default, Docker-discovered source containers are stopped while copying and restarted afterward. This keeps SQLite-backed apps such as Radarr, Sonarr, Lidarr, Prowlarr, and Bazarr from being copied mid-write. Use `--no-stop-source` only after stopping services yourself or accepting the risk of inconsistent live database files.
+
+Supported migration targets include Radarr, Radarr 4K, Sonarr, Sonarr 4K, Prowlarr, Lidarr, Bazarr, Seerr/Overseerr/Jellyseerr, Pulsarr, Transmission, qBittorrent, Plex, Jellyfin, TinyMediaManager, Recyclarr, Tidarr, and BookOrbit.
+
+## Cross-Host Restores
+
+Docker-managed service config is the most portable part of a backup or migration. Moving between macOS and Linux can work for Docker-managed Arr apps, download clients, request managers, and Stackarr runtime settings when the media/download paths are equivalent or updated after restore.
+
+Native or external media servers are different. Native Plex, native Jellyfin, OS login agents, host certificates, hostnames, hardware transcoding devices, and absolute host paths are tied to the original machine and operating system. Restore those pieces only on the same OS and a matching host layout, or migrate them manually after Stackarr is running.

@@ -1,0 +1,26 @@
+{
+  "name": "@stackarr/frontend",
+  "version": "0.3.0-alpha.1",
+  "dependencies": {
+    "@stackarr/core": "workspace:*",
+    "@stackarr/ui": "workspace:*",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "4.3.1",
+    "typescript": "^6.0.3"
+  },
+  "private": true,
+  "scripts": {
+    "build": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next build",
+    "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next dev -p 7777",
+    "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next start -p 7777",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}

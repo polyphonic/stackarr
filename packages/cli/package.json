@@ -1,0 +1,9 @@
+{
+  "name": "@stackarr/cli",
+  "version": "0.3.0-alpha.1",
+  "bin": {
+    "stackarr": "./bin/stackarr"
+  },
+  "private": true,
+  "type": "module"
+}

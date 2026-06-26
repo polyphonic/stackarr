@@ -1,0 +1,3 @@
+{
+  "pages": ["index", "macos", "linux", "windows", "docker-compose", "docker", "vercel-apps"]
+}

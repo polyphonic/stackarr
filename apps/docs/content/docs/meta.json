@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "installation",
+    "setup",
+    "features",
+    "settings",
+    "api",
+    "agent",
+    "operations",
+    "reference"
+  ]
+}

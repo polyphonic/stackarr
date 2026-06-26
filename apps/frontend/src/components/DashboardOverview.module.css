@@ -1,0 +1,151 @@
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.gauges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.gauge,
+.sparkline {
+  min-height: 140px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  text-align: center;
+}
+
+.gauge svg {
+  width: 100%;
+  height: 80px;
+}
+
+.track {
+  fill: none;
+  stroke: var(--track-bg);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.gauge strong {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gauge span,
+.sparkline span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.sparkline svg {
+  width: 100%;
+  height: 82px;
+  margin-top: 12px;
+}
+
+.disks {
+  display: grid;
+  gap: 12px;
+}
+
+.diskRow {
+  display: grid;
+  gap: 6px;
+}
+
+.diskRow strong,
+.diskRow span {
+  display: block;
+}
+
+.diskRow strong {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.diskRow span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--track-bg);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), var(--warning) 68%, var(--danger));
+  transition: width 0.2s;
+}
+
+.sparklineLine {
+  stroke: var(--accent);
+}
+
+.serviceMap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.serviceCard {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+}
+
+.serviceCard > span:first-child {
+  justify-self: center;
+}
+
+.serviceCard strong,
+.serviceCard span {
+  display: block;
+}
+
+.serviceCard strong {
+  text-transform: capitalize;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.serviceCard span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 1000px) {
+  .dashboardGrid,
+  .gauges {
+    grid-template-columns: 1fr;
+  }
+}

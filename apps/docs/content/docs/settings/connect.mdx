@@ -1,0 +1,32 @@
+---
+title: Connect Settings
+---
+
+# Connect Settings
+
+Connect stores explicit integrations between Stackarr and other app APIs.
+
+## What Counts as Connect?
+
+- Stackarr calls another app API.
+- Stackarr writes or validates another app's integration config.
+- Stackarr sends webhook notifications.
+
+## What Does Not Count?
+
+- A service simply existing in the stack.
+- A container being managed by Docker Compose.
+- A dashboard card for monitoring.
+
+## Examples
+
+- Cloudflare tunnel/public URL integration.
+- Seerr public URL and routing integration.
+- TinyMediaManager naming integration.
+- Generic webhook notification targets.
+
+Cloudflare tunnel routes are the public app exposure model. The route list maps each public hostname to a Stackarr service such as Pulsarr or BookOrbit.
+
+Cloudflare API and tunnel tokens saved in the dashboard take precedence over older state files when Stackarr runs Cloudflare tunnel commands. Those commands refresh the state files so background agents continue with the current token.
+
+Use the dashboard's Rotate tunnel token action after rotating the Cloudflare API token if you also need to invalidate an existing cloudflared connector credential.

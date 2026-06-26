@@ -1,0 +1,24 @@
+.subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--borderColor);
+}
+
+.item,
+.active {
+  min-height: 38px;
+  padding: 10px 12px 8px;
+  border-bottom: 3px solid transparent;
+  color: var(--mutedTextColor);
+}
+
+.item:hover {
+  color: var(--textColor);
+}
+
+.active {
+  border-bottom-color: var(--purple-600);
+  color: var(--purple-700);
+}

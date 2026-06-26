@@ -1,0 +1,166 @@
+.editor {
+  display: grid;
+  gap: 16px;
+}
+
+.formGrid {
+  display: grid;
+  max-width: 900px;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+}
+
+.field span,
+.check span {
+  color: var(--mutedTextColor);
+}
+
+.field input,
+.field select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.actionRow {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+}
+
+.actionRow span {
+  color: var(--mutedTextColor);
+}
+
+.actionRow button {
+  justify-self: start;
+}
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inlineActions button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.routeEditor {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 10px 20px;
+}
+
+.routeHeader {
+  display: contents;
+}
+
+.routeHeader span {
+  color: var(--mutedTextColor);
+}
+
+.routeHeader button {
+  justify-self: start;
+}
+
+.routeEditor p {
+  grid-column: 2;
+  margin: 0;
+  color: var(--mutedTextColor);
+}
+
+.routeRow {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(140px, 0.6fr) auto;
+  gap: 8px;
+}
+
+.routeRow input,
+.routeRow select {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.routeEditor button,
+.routeRow button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.note {
+  max-width: 780px;
+  padding: 14px;
+  border-left: 4px solid var(--purple-600);
+  background: var(--panelBackground);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.footer button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--purple-700);
+  border-radius: 4px;
+  background: var(--purple-600);
+  color: var(--accent-foreground);
+}
+
+.error {
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .field,
+  .actionRow,
+  .routeEditor {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .routeEditor p,
+  .routeRow {
+    grid-column: auto;
+  }
+
+  .routeRow {
+    grid-template-columns: 1fr;
+  }
+}

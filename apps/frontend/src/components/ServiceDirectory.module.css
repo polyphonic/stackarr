@@ -1,0 +1,322 @@
+.directory {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-height: 122px;
+  padding: 14px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: var(--purple-500);
+}
+
+.stretchedLink {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 4px;
+}
+
+.stretchedLink:focus-visible {
+  outline: 2px solid var(--purple-500);
+  outline-offset: 2px;
+}
+
+.disabled {
+  cursor: default;
+  opacity: 0.74;
+}
+
+.logoCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  pointer-events: none;
+}
+
+.cardBody {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.cardTitle {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cardBadges {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.cardTitle strong {
+  display: block;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.cardBadges > span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.cardBody p {
+  margin: 0;
+  color: var(--mutedTextColor);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cardBody span {
+  overflow-wrap: anywhere;
+  color: var(--mutedTextColor);
+  font-size: 12px;
+}
+
+.configButton,
+.starButton,
+.closeButton,
+.modalFooter button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.cardActions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.configButton {
+  width: 34px;
+  padding: 0;
+  color: var(--purple-700);
+}
+
+.starButton {
+  width: 34px;
+  padding: 0;
+  color: var(--mutedTextColor);
+}
+
+.starButton:hover:not(:disabled),
+.starred {
+  border-color: var(--favorite-star-border);
+  color: var(--favorite-star);
+}
+
+.starButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--backdrop);
+}
+
+.modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(980px, 100%);
+  max-height: min(860px, calc(100vh - 48px));
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--panelBackground);
+  box-shadow: var(--modal-shadow);
+}
+
+.modalHeader,
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--borderColor);
+}
+
+.modalHeader h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 400;
+}
+
+.modalHeader p {
+  margin: 5px 0 0;
+  color: var(--mutedTextColor);
+}
+
+.closeButton {
+  width: 34px;
+  font-size: 18px;
+}
+
+.modalBody {
+  display: grid;
+  gap: 16px;
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.group {
+  display: grid;
+  gap: 10px;
+}
+
+.group h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.group p {
+  margin: 0;
+  color: var(--mutedTextColor);
+}
+
+.fields {
+  display: grid;
+  gap: 12px;
+}
+
+.field,
+.jsonField {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.jsonField {
+  align-items: start;
+}
+
+.field span,
+.jsonField span,
+.check span {
+  color: var(--mutedTextColor);
+}
+
+.field input,
+.field select,
+.jsonField textarea {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.field input,
+.field select {
+  padding: 0 10px;
+}
+
+.jsonField textarea {
+  min-height: 180px;
+  padding: 10px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.field small,
+.jsonField small,
+.check small {
+  grid-column: 2;
+  color: var(--mutedTextColor);
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.check small {
+  grid-column: 2;
+}
+
+.modalFooter {
+  border-top: 1px solid var(--borderColor);
+  border-bottom: 0;
+  justify-content: flex-end;
+}
+
+.modalFooter button {
+  min-width: 86px;
+  padding: 0 14px;
+}
+
+.primary {
+  border-color: var(--purple-700) !important;
+  background: var(--purple-600) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.error {
+  margin-right: auto;
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .overlay {
+    align-items: stretch;
+    padding: 10px;
+  }
+
+  .modal {
+    max-height: calc(100vh - 20px);
+  }
+
+  .field,
+  .jsonField {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .field small,
+  .jsonField small {
+    grid-column: auto;
+  }
+}

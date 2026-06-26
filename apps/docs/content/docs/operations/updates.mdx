@@ -1,0 +1,30 @@
+---
+title: Updates
+---
+
+# Updates
+
+Stackarr alpha images are tagged as:
+
+```bash
+docker pull polyphonic/stackarr:alpha
+docker pull polyphonic/stackarr:0.3.0-alpha.1
+```
+
+Use `alpha` as the moving prerelease channel and the semver tag for repeatable installs.
+
+## Compose Update
+
+```bash
+bin/stackarr update run
+```
+
+The Stackarr updater is an all-stack Docker image refresh for the active Compose profiles. It pulls current images, recreates the enabled services together, reapplies naming/download/request integration settings, and then runs the maintenance image cleanup.
+
+Install the scheduled updater with:
+
+```bash
+bin/stackarr update install
+```
+
+The default scheduled update window is Sunday at `04:30`. Native Plex is not updated by Stackarr; keep Plex on its own native update schedule and set `UPDATE_WEEKDAY`/`UPDATE_TIME` to the same maintenance window when you want the Docker stack to move with it.
