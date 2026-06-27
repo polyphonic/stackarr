@@ -1,4 +1,6 @@
-import { icons } from '@stackarr/ui';
+'use client';
+
+import { icons, Link } from '@stackarr/ui';
 import { githubRepo, githubUrl } from '~/lib/site';
 
 const DownloadIcon = icons.download;
@@ -8,7 +10,7 @@ const StarIcon = icons.star;
 export function LandingActions() {
   return (
     <div className="actions">
-      <a
+      <Link
         className="heroButton primary"
         data-analytics-interest="github_star"
         data-analytics-interest-group="oss"
@@ -22,8 +24,8 @@ export function LandingActions() {
       >
         <StarIcon aria-hidden="true" size={18} />
         Star on GitHub
-      </a>
-      <a
+      </Link>
+      <Link
         className="heroButton secondary"
         data-analytics-interest="install_docs"
         data-analytics-interest-group="install"
@@ -35,8 +37,8 @@ export function LandingActions() {
       >
         <RocketIcon aria-hidden="true" size={18} />
         Start Building
-      </a>
-      <a
+      </Link>
+      <Link
         className="heroButton secondary"
         data-analytics-interest="download_section"
         data-analytics-interest-group="install"
@@ -48,7 +50,7 @@ export function LandingActions() {
       >
         <DownloadIcon aria-hidden="true" size={18} />
         Get Stackarr
-      </a>
+      </Link>
     </div>
   );
 }

@@ -1,32 +1,13 @@
 import { icons } from '@stackarr/ui';
+import { serviceIntegrations } from '~/lib/service-integrations';
 import { absoluteUrl, githubRepo, githubUrl, siteDescription, siteName } from '~/lib/site';
 import { LandingActions } from './LandingActions';
+import { LandingCodeBlock } from './LandingCodeBlock';
 
 const BoxIcon = icons.container;
 const BackupIcon = icons.backup;
 const CloudIcon = icons.cloud;
 const StarIcon = icons.star;
-
-const services = [
-  { name: 'Sonarr', logo: 'sonarr' },
-  { name: 'Radarr', logo: 'radarr' },
-  { name: 'Lidarr', logo: 'lidarr' },
-  { name: 'Prowlarr', logo: 'prowlarr' },
-  { name: 'Bazarr', logo: 'bazarr' },
-  { name: 'Seerr', logo: 'overseerr' },
-  { name: 'Jellyfin', logo: 'jellyfin' },
-  { name: 'Docker', logo: 'docker' },
-  { name: 'qBittorrent', logo: 'qbittorrent' },
-  { name: 'Transmission', logo: 'transmission' },
-  { name: 'Plex', logo: 'plex' },
-  { name: 'Pulsarr', logo: 'pulsarr' },
-  { name: 'BookOrbit', logo: 'bookorbit' },
-  { name: 'TinyMediaManager', logo: 'tinymediamanager' },
-  { name: 'Recyclarr', logo: 'recyclarr' },
-  { name: 'FlareSolverr', logo: 'flaresolverr' },
-  { name: 'Postgres', logo: 'postgres' },
-  { name: 'Cloudflare', logo: 'cloudflare' }
-];
 
 const features = [
   {
@@ -154,11 +135,15 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="serviceMap" aria-label="Managed services">
-            {services.map((service, index) => (
-              <span key={service.name} style={{ animationDelay: `${120 + index * 38}ms` }}>
+            {serviceIntegrations.map((service, index) => (
+              <a
+                href={`/docs/integrations/${service.slug}`}
+                key={service.name}
+                style={{ animationDelay: `${120 + index * 38}ms` }}
+              >
                 <img alt="" src={`/logos/${service.logo}.svg`} />
                 <strong>{service.name}</strong>
-              </span>
+              </a>
             ))}
           </div>
         </div>
@@ -202,15 +187,15 @@ export default function LandingPage() {
               Pair Stackarr with a trusted coding agent and let it handle the repetitive setup work with your choices in
               the loop.
             </p>
-            <pre>{`stackarr mcp serve
-stackarr plugins install hermes`}</pre>
+            <LandingCodeBlock>{`stackarr mcp serve
+stackarr plugins install hermes`}</LandingCodeBlock>
             <p>Built for local MCP clients including Codex, Claude, Hermes, and OpenClaw-style agents.</p>
           </article>
           <article>
             <h3>Docker stack</h3>
             <p>Spin up Stackarr with its managed services when you want the full home media stack in one launch.</p>
-            <pre>{`docker pull polyphonic/stackarr:alpha
-docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr`}</pre>
+            <LandingCodeBlock>{`docker pull polyphonic/stackarr:alpha
+docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr`}</LandingCodeBlock>
           </article>
         </div>
       </section>
