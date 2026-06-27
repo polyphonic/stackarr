@@ -88,6 +88,7 @@ body {
 }
 
 .landingPage {
+  overflow-x: clip;
   min-height: 100vh;
   background: var(--stack-bg-deep);
   color: var(--stack-ink);
@@ -215,13 +216,16 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: fit-content;
   min-height: 48px;
+  max-width: 100%;
   gap: 10px;
   border: 1px solid var(--stack-line-strong);
   border-radius: 4px;
   padding: 0 18px;
   font-size: 15px;
   font-weight: 750;
+  white-space: normal;
   transition:
     border-color 160ms ease,
     background 160ms ease,
@@ -254,12 +258,14 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  min-width: 0;
 }
-.landingPage .serviceMap span {
+.landingPage .serviceMap a {
   display: grid;
   grid-template-rows: 50px auto;
   align-items: center;
   justify-items: center;
+  min-width: 0;
   min-height: 98px;
   gap: 8px;
   place-items: center;
@@ -273,7 +279,7 @@ body {
     transform 160ms ease,
     box-shadow 160ms ease;
 }
-.landingPage .serviceMap span:hover {
+.landingPage .serviceMap a:hover {
   border-color: color-mix(in srgb, var(--stack-accent) 58%, var(--stack-line));
   box-shadow: 0 16px 40px color-mix(in srgb, var(--stack-bg-deep) 58%, transparent);
   transform: translateY(-2px);
@@ -313,11 +319,13 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  min-width: 0;
 }
 .landingPage .featureGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .landingPage article {
+  min-width: 0;
   border: 1px solid var(--stack-line);
   border-radius: 4px;
   background: var(--stack-panel);
@@ -333,13 +341,28 @@ body {
 .landingPage p {
   color: var(--stack-muted);
 }
-.landingPage pre {
+.landingPage .landingCodeSurface {
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--stack-line);
   border-radius: 4px;
   background: var(--stack-code-bg);
   color: var(--stack-code-text);
+}
+.landingPage pre {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0;
   padding: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+}
+.landingPage pre code {
+  display: block;
+  min-width: max-content;
+  color: inherit;
+  font: inherit;
 }
 .landingPage .featureGrid article {
   min-height: 190px;
@@ -592,7 +615,6 @@ body {
   max-width: 1180px;
   margin: 32px auto 0;
   padding: 28px;
-  border-top: 1px solid var(--stack-line);
   color: var(--stack-muted);
   font-size: 14px;
 }
@@ -626,7 +648,7 @@ body {
     animation-delay: 250ms;
   }
 
-  .landingPage .serviceMap span {
+  .landingPage .serviceMap a {
     animation: stackTileIn 520ms ease both;
   }
 
@@ -673,10 +695,13 @@ body {
     padding: 22px;
   }
   .landingPage .nav {
+    flex-wrap: wrap;
     align-items: flex-start;
+    gap: 16px;
     margin-bottom: 42px;
   }
   .landingPage .navLinks {
+    flex-wrap: wrap;
     gap: 12px;
   }
   .landingPage .heroGrid,
@@ -696,6 +721,64 @@ body {
   .landingPage .lede {
     font-size: 18px;
   }
+  .landingPage pre {
+    padding: 12px;
+    font-size: 12px;
+  }
+}
+
+.integrationPage {
+  max-width: 760px;
+}
+
+.integrationHero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.integrationHero img {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: contain;
+}
+
+.integrationHero p {
+  margin: 0 0 6px;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.integrationHero h1 {
+  margin: 0;
+}
+
+.integrationHero span {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-fd-muted-foreground);
+}
+
+.integrationLead {
+  color: var(--color-fd-muted-foreground);
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+
+.integrationStackarr {
+  border: 1px solid var(--color-fd-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-fd-primary) 8%, var(--color-fd-card));
+  padding: 18px;
+}
+
+.integrationStackarr h2 {
+  margin-top: 0;
 }
 
 /* Keep some old docs styles if any custom in mdx */

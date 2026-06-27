@@ -28,7 +28,9 @@ import {
 import type { ComponentType, SVGProps } from 'react';
 
 export { Button } from '@heroui/react/button';
+export { Link } from '@heroui/react/link';
 export { Modal } from '@heroui/react/modal';
+export { Surface } from '@heroui/react/surface';
 
 export type GlassIconProps = SVGProps<SVGSVGElement> & {
   size?: number | string;

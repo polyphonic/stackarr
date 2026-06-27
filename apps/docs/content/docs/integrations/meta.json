@@ -1,0 +1,24 @@
+{
+  "title": "Integrations",
+  "pages": [
+    "index",
+    "sonarr",
+    "radarr",
+    "lidarr",
+    "prowlarr",
+    "bazarr",
+    "seerr",
+    "jellyfin",
+    "docker",
+    "qbittorrent",
+    "transmission",
+    "plex",
+    "pulsarr",
+    "bookorbit",
+    "tinymediamanager",
+    "recyclarr",
+    "flaresolverr",
+    "postgres",
+    "cloudflare"
+  ]
+}
