@@ -30,15 +30,17 @@ FROM node:22-alpine3.20 AS runner
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Stackarr" \
-      org.opencontainers.image.description="Arr-style alpha control plane for a macOS and Docker media server stack." \
+      org.opencontainers.image.description="[Stackarr](https://stackarr.app/) is an Arr-style alpha control plane for a macOS and Docker media server stack." \
       org.opencontainers.image.version="0.3.0-alpha.1" \
+      org.opencontainers.image.authors="Stackarr contributors" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.vendor="Polyphonic" \
       org.opencontainers.image.source="https://github.com/b-bot/Stackarr" \
-      org.opencontainers.image.documentation="https://github.com/b-bot/Stackarr/blob/production/docs/install.md" \
-      org.opencontainers.image.url="https://github.com/b-bot/Stackarr" \
-      org.opencontainers.image.logo="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" \
-      org.opencontainers.image.icon="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" \
-      com.stackarr.icon="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" \
+      org.opencontainers.image.documentation="https://stackarr.app/docs/installation/docker" \
+      org.opencontainers.image.url="https://hub.docker.com/r/polyphonic/stackarr" \
+      org.opencontainers.image.logo="https://stackarr.app/icon-512.png" \
+      org.opencontainers.image.icon="https://stackarr.app/icon-512.png" \
+      com.stackarr.icon="https://stackarr.app/icon-512.png" \
       maintainer="polyphonic"
 
 ENV NODE_ENV=production \

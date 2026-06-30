@@ -5,9 +5,12 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const iconUrl = 'https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png';
+const iconUrl = 'https://stackarr.app/icon-512.png';
+const productDescription =
+  '[Stackarr](https://stackarr.app/) is an Arr-style alpha control plane for a macOS and Docker media server stack.';
+const imageUrl = 'https://hub.docker.com/r/polyphonic/stackarr';
 const staleStackarrUrls =
-  /https:\/\/github\.com\/stackarr\/stackarr|https:\/\/raw\.githubusercontent\.com\/stackarr\/stackarr|https:\/\/raw\.githubusercontent\.com\/b-bot\/Stackarr\/main/i;
+  /https:\/\/github\.com\/stackarr\/stackarr|https:\/\/raw\.githubusercontent\.com\/stackarr\/stackarr|https:\/\/raw\.githubusercontent\.com\/b-bot\/Stackarr\/main|https:\/\/raw\.githubusercontent\.com\/b-bot\/Stackarr\/production\/Logo\/stackarr-512\.png/i;
 
 test('release metadata points at the public Stackarr logo URL', async () => {
   const files = [
@@ -22,7 +25,10 @@ test('release metadata points at the public Stackarr logo URL', async () => {
     assert.doesNotMatch(content, staleStackarrUrls, `${file} should not point at stale Stackarr URLs`);
   }
 
-  assert.match(await readFile(path.join(repoRoot, 'Dockerfile'), 'utf8'), new RegExp(escapeRegExp(iconUrl)));
+  const dockerfile = await readFile(path.join(repoRoot, 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, new RegExp(escapeRegExp(productDescription)));
+  assert.match(dockerfile, new RegExp(escapeRegExp(imageUrl)));
+  assert.match(dockerfile, new RegExp(escapeRegExp(iconUrl)));
   assert.match(
     await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8'),
     new RegExp(escapeRegExp(iconUrl))
