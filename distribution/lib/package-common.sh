@@ -61,6 +61,24 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${STACKARR_DATA_DIR:-$HOME/.stackarr}"
 OPEN_BROWSER=1
 
+if [[ -x "$APP_DIR/runtime/node/bin/node" ]]; then
+  PATH="$APP_DIR/runtime/node/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+  export PATH
+fi
+
+open_dashboard() {
+  local url="$1"
+  if [[ "$OPEN_BROWSER" != "1" ]]; then
+    return 0
+  fi
+
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url"
+  fi
+}
+
 for arg in "$@"; do
   case "$arg" in
     -data=*)
@@ -76,6 +94,8 @@ for arg in "$@"; do
       ;;
     *)
       export STACKARR_REPO_ROOT="$APP_DIR"
+      export STACKARR_DATA_DIR="$DATA_DIR"
+      export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$DATA_DIR/config/stackarr.db}"
       exec "$APP_DIR/bin/stackarr" "$@"
       ;;
   esac
@@ -99,19 +119,23 @@ export NEXT_TELEMETRY_DISABLED=1
 export NODE_OPTIONS="${NODE_OPTIONS:---disable-warning=ExperimentalWarning}"
 export HOSTNAME="${STACKARR_BIND_HOST:-127.0.0.1}"
 export PORT="${STACKARR_WEB_PORT:-7777}"
+DASHBOARD_URL="http://127.0.0.1:${PORT}"
 
 mkdir -p "$DATA_DIR/config"
 cd "$APP_DIR"
 
+if [[ "$OPEN_BROWSER" == "1" ]] && command -v curl >/dev/null 2>&1; then
+  if curl -fsS --max-time 2 "$DASHBOARD_URL/api/v1/health" >/dev/null 2>&1 ||
+    curl -fsS --max-time 2 "$DASHBOARD_URL" >/dev/null 2>&1; then
+    open_dashboard "$DASHBOARD_URL"
+    exit 0
+  fi
+fi
+
 if [[ "$OPEN_BROWSER" == "1" ]]; then
   (
     sleep 2
-    url="http://127.0.0.1:${PORT}"
-    if command -v open >/dev/null 2>&1; then
-      open "$url"
-    elif command -v xdg-open >/dev/null 2>&1; then
-      xdg-open "$url"
-    fi
+    open_dashboard "$DASHBOARD_URL"
   ) >/dev/null 2>&1 &
 fi
 
@@ -119,12 +143,23 @@ exec "$NODE_BIN" apps/frontend/server.js
 LAUNCHER
   chmod +x "$app_dir/StackarrServer"
 
-  cat >"$app_dir/stackarr-cli" <<'CLI'
+cat >"$app_dir/stackarr-cli" <<'CLI'
 #!/usr/bin/env bash
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export STACKARR_REPO_ROOT="$APP_DIR"
+if [[ -x "$APP_DIR/runtime/node/bin/node" ]]; then
+  PATH="$APP_DIR/runtime/node/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+  export PATH
+fi
+if [[ -n "${STACKARR_APP_BUNDLE:-}" ]]; then
+  export STACKARR_CLI_BIN="${STACKARR_CLI_BIN:-$STACKARR_APP_BUNDLE/Contents/MacOS/Stackarr}"
+  export STACKARR_DATA_DIR="${STACKARR_DATA_DIR:-$HOME/Library/Application Support/Stackarr}"
+else
+  export STACKARR_DATA_DIR="${STACKARR_DATA_DIR:-$HOME/.stackarr}"
+fi
+export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$STACKARR_DATA_DIR/config/stackarr.db}"
 exec "$APP_DIR/bin/stackarr" "$@"
 CLI
   chmod +x "$app_dir/stackarr-cli"

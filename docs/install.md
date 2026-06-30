@@ -56,6 +56,14 @@ docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr
 
 The Docker socket mount is intentionally explicit. It allows Stackarr to queue arr-style commands that control the local compose stack. Keep `STACKARR_BIND_IP` on `127.0.0.1` until authentication, Cloudflare, and public URL settings are configured.
 
+Choose media, music, downloads, and backup folders during setup. On macOS, share those selected folders with Docker Desktop or OrbStack, then run **System > Status > Audit permissions** or:
+
+```bash
+docker exec stackarr /app/bin/stackarr permissions audit
+```
+
+The audit checks Stackarr and running service containers through their actual bind mounts. Scheduled backups and optional scheduled updates run from the Stackarr container, so the Docker install does not require Watchtower, Portainer, or host launch agents for those jobs.
+
 ### Portless service names
 
 The dashboard can switch service links to Portless aliases, but a Dockerized Stackarr app cannot install host launch agents, bind host port `443`, trust certificates, or edit `/etc/hosts` by itself.
@@ -68,7 +76,7 @@ stackarr portless install
 
 Run that command from Terminal after enabling `portless` in **Settings > UI > Service Link Mode**. Approve the macOS admin prompts so names like `https://app.stackarr`, `https://plex.stackarr`, and `https://sonarr4k.stackarr` resolve without a port suffix.
 
-Installing Portless globally first is optional. If it already exists, Stackarr reuses it; otherwise the host command installs Portless with npm before registering Stackarr aliases. Source checkouts can run `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`; if the app has been moved to Applications, the bundled helper is `/Applications/Stackarr.app/Contents/MacOS/stackarr`.
+Installing Portless globally first is optional. If it already exists, Stackarr reuses it; otherwise the host command installs Portless with npm before registering Stackarr aliases. Source checkouts can run `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`; if the app has been moved to Applications, the bundled helper is `/Applications/Stackarr.app/Contents/MacOS/Stackarr`.
 
 If the dashboard shows the Portless task as blocked, it is waiting for this host approval step. Open normal Terminal, run the command above, and enter the Mac password there.
 

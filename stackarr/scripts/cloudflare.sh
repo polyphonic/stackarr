@@ -930,6 +930,10 @@ create_plist() {
   <string>$LAUNCH_LABEL</string>
   <key>ProcessType</key>
   <string>Background</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
+  </array>
   <key>WorkingDirectory</key>
   <string>$APP_ROOT</string>
   <key>ProgramArguments</key>
@@ -978,7 +982,7 @@ restart_seerr_if_needed() {
 
     if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
         load_env
-        docker compose -f "$ROOT_DIR/docker-compose.yml" up -d seerr >/dev/null
+        stackarr_compose up -d seerr >/dev/null
         if [[ "${SEERR_BIND_IP:-}" == "127.0.0.1" ]]; then
             ok "Restarted Seerr with localhost-only binding"
         else

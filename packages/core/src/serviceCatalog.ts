@@ -378,7 +378,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         'BACKUP_STAGING_ROOT',
         'Optional scratch folder for building archives. Blank uses Backup Root/.stackarr-staging.'
       ),
-      envText('backupTime', 'Backup Time', 'BACKUP_TIME', 'Local time in HH:MM used by the installed LaunchAgent.'),
+      envText('backupTime', 'Backup Time', 'BACKUP_TIME', 'Local time in HH:MM used by Stackarr automation.'),
       envSelect(
         'backupSchedule',
         'Backup Schedule',
@@ -403,7 +403,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         'backupRetentionCount',
         'Backup Archives to Keep',
         'BACKUP_RETENTION_COUNT',
-        'Number of latest backup archives the installed backup service keeps after each run.'
+        'Number of latest backup archives Stackarr keeps after each run.'
       ),
       envSelect(
         'plexBackupMode',
@@ -411,6 +411,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         'PLEX_BACKUP_MODE',
         ['lite', 'full'],
         'lite keeps restore-critical databases and config while excluding rebuildable Plex data, logs, caches, internal backups, runtime files, and Arr cover art; full also keeps regenerated assets.'
+      ),
+      envCheckbox(
+        'enableScheduledUpdates',
+        'Enable Scheduled Updates',
+        'ENABLE_SCHEDULED_UPDATES',
+        'When on, Stackarr runs the scheduled update workflow at the configured update window.'
       ),
       envText('updateTime', 'Update Time', 'UPDATE_TIME'),
       envText('updateWeekday', 'Update Weekday', 'UPDATE_WEEKDAY')

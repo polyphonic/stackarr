@@ -111,6 +111,13 @@
   letter-spacing: 0.3px;
 }
 
+.table :global(.pathValue) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

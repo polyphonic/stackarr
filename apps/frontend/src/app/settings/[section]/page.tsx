@@ -14,6 +14,7 @@ const titles: Record<string, string> = {
   indexers: 'Indexers',
   connect: 'Connect',
   metadata: 'Metadata',
+  security: 'Security',
   general: 'General',
   ui: 'UI'
 };
@@ -136,7 +137,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
             </p>
           </Panel>
         )}
-        {['indexers', 'metadata', 'general', 'ui'].includes(section) && (
+        {['indexers', 'metadata', 'security', 'general', 'ui'].includes(section) && (
           <Panel title={title}>
             <SettingsEditor section={section} env={safeEnv} settings={settings} />
           </Panel>

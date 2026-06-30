@@ -68,6 +68,18 @@ export const managedEnvDefaults: StackarrEnv = {
   USERNAME: 'admin',
   PASSWORD: '',
   USER_EMAIL: '',
+  TRANSMISSION_PASSWORD: '',
+  QBITTORRENT_PASSWORD: '',
+  RADARR_PASSWORD: '',
+  RADARR4K_PASSWORD: '',
+  SONARR_PASSWORD: '',
+  SONARR4K_PASSWORD: '',
+  PROWLARR_PASSWORD: '',
+  LIDARR_PASSWORD: '',
+  BAZARR_PASSWORD: '',
+  PULSARR_PASSWORD: '',
+  BOOKORBIT_PASSWORD: '',
+  TINYMEDIAMANAGER_PASSWORD: '',
   PREFERRED_TORRENT_CLIENT: 'transmission',
 
   DOWNLOAD_INCOMPLETE_NAME: 'incomplete',
@@ -129,6 +141,7 @@ export const managedEnvDefaults: StackarrEnv = {
   BACKUP_SCHEDULE: 'weekly',
   BACKUP_WEEKDAY: 'Sun',
   BACKUP_RETENTION_COUNT: '52',
+  ENABLE_SCHEDULED_UPDATES: 'false',
   UPDATE_TIME: '04:30',
   UPDATE_WEEKDAY: 'Sun',
   PLEX_BACKUP_MODE: 'lite',
@@ -255,6 +268,20 @@ export const managedEnvDefaults: StackarrEnv = {
 };
 
 const secretKeys = ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY'];
+const accessPasswordKeys = [
+  'TRANSMISSION_PASSWORD',
+  'QBITTORRENT_PASSWORD',
+  'PROWLARR_PASSWORD',
+  'RADARR_PASSWORD',
+  'RADARR4K_PASSWORD',
+  'SONARR_PASSWORD',
+  'SONARR4K_PASSWORD',
+  'LIDARR_PASSWORD',
+  'BAZARR_PASSWORD',
+  'PULSARR_PASSWORD',
+  'BOOKORBIT_PASSWORD',
+  'TINYMEDIAMANAGER_PASSWORD'
+];
 
 export const editableEnvKeys = Object.keys(managedEnvDefaults);
 
@@ -339,6 +366,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
     merged.STACKARR_DATABASE_MODE = 'postgres';
   }
   merged.STACKARR_DATABASE_MODE = normalizeDatabaseMode(merged.STACKARR_DATABASE_MODE);
+  applyAccessPasswordDefaults(merged);
   const databasePassword = merged.DATABASE_SUPERUSER_PASSWORD || merged.PASSWORD || '';
   merged.STACKARR_POSTGRES_MAIN_DATABASE =
     merged.STACKARR_POSTGRES_MAIN_DATABASE || merged.STACKARR_POSTGRES_DATABASE || 'stackarr-main';
@@ -373,6 +401,16 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyDatabaseModeDefaults(merged, databasePassword);
 
   return merged;
+}
+
+function applyAccessPasswordDefaults(env: StackarrEnv) {
+  if (!env.PASSWORD) {
+    return;
+  }
+
+  for (const key of accessPasswordKeys) {
+    env[key] = env[key] || env.PASSWORD;
+  }
 }
 
 function dropDeprecatedCloudflareHostnameKeys(env: StackarrEnv) {
@@ -554,7 +592,14 @@ function isContainerFallbackPath(value: string) {
 }
 
 export function isSecretKey(key: string): boolean {
-  return secretKeys.some((fragment) => key.toUpperCase().includes(fragment));
+  const normalized = key.toUpperCase();
+
+  return (
+    secretKeys.some((fragment) => normalized.includes(fragment)) ||
+    normalized === 'DATABASE_URL' ||
+    normalized.endsWith('_DATABASE_URL') ||
+    normalized.endsWith('_DB_URL')
+  );
 }
 
 function redactSecretValue(value: string) {

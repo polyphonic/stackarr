@@ -33,12 +33,12 @@ LABEL org.opencontainers.image.title="Stackarr" \
       org.opencontainers.image.description="Arr-style alpha control plane for a macOS and Docker media server stack." \
       org.opencontainers.image.version="0.3.0-alpha.1" \
       org.opencontainers.image.vendor="Polyphonic" \
-      org.opencontainers.image.source="https://github.com/stackarr/stackarr" \
-      org.opencontainers.image.documentation="https://github.com/stackarr/stackarr/blob/main/docs/install.md" \
-      org.opencontainers.image.url="https://github.com/stackarr/stackarr" \
-      org.opencontainers.image.logo="https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png" \
-      org.opencontainers.image.icon="https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png" \
-      com.stackarr.icon="https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png" \
+      org.opencontainers.image.source="https://github.com/b-bot/Stackarr" \
+      org.opencontainers.image.documentation="https://github.com/b-bot/Stackarr/blob/production/docs/install.md" \
+      org.opencontainers.image.url="https://github.com/b-bot/Stackarr" \
+      org.opencontainers.image.logo="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" \
+      org.opencontainers.image.icon="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" \
+      com.stackarr.icon="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" \
       maintainer="polyphonic"
 
 ENV NODE_ENV=production \
@@ -75,4 +75,4 @@ COPY --from=builder /app/skills ./skills
 
 EXPOSE 7777
 
-CMD ["node", "apps/frontend/server.js"]
+CMD ["bash", "stackarr/scripts/container-entrypoint.sh"]

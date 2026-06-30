@@ -7,41 +7,79 @@ const scriptRoot = path.resolve(__dirname, '..');
 const composePath = path.join(scriptRoot, 'docker-compose.yml');
 
 function readSetting(key) {
+  const sqliteValue = readSqliteSetting(key);
   const postgresValue = withPostgres(() => readPostgresSetting(key));
+
+  if (sqliteValue !== undefined) {
+    if (process.env.STACKARR_DATABASE_URL && postgresValue !== sqliteValue) {
+      withPostgres(() => writePostgresRawSetting(key, sqliteValue));
+    }
+    return sqliteValue;
+  }
+
   if (postgresValue !== undefined) {
-    if (key === 'stackarr.runtimeConfig') {
-      const sqliteValue = readSqliteSetting(key);
-      if (sqliteValue !== undefined && sqliteValue !== postgresValue) {
-        withPostgres(() => writePostgresRawSetting(key, sqliteValue));
-        return sqliteValue;
-      }
+    try {
+      writeSqliteRawSetting(key, postgresValue);
+    } catch {
+      // Keep reads available during recovery even if the bootstrap DB is not writable yet.
     }
     return postgresValue;
   }
 
-  return readSqliteSetting(key);
+  return undefined;
 }
 
 function writeSettings(patch) {
-  const wrotePostgres = Boolean(withPostgres(() => writePostgresSettings(patch)));
   writeSqliteSettings(patch);
+  const sqliteValue = readSqliteSetting('stackarr.runtimeConfig');
+  const wrotePostgres = Boolean(
+    sqliteValue !== undefined && withPostgres(() => writePostgresRawSetting('stackarr.runtimeConfig', sqliteValue))
+  );
 
   if (wrotePostgres) {
-    return 'postgres+sqlite';
+    return 'sqlite+postgres';
   }
 
   return 'sqlite';
 }
 
 function writeRawSetting(key, value) {
-  const wrotePostgres = Boolean(withPostgres(() => writePostgresRawSetting(key, value)));
   writeSqliteRawSetting(key, value);
+  const wrotePostgres = Boolean(withPostgres(() => writePostgresRawSetting(key, value)));
+
+  if (wrotePostgres) {
+    return 'sqlite+postgres';
+  }
+
+  return 'sqlite';
+}
+
+function upsertTask(task) {
+  const wrotePostgres = Boolean(withPostgres(() => upsertPostgresTask(task)));
+  upsertSqliteTask(task);
+  pruneTasks();
 
   if (wrotePostgres) {
     return 'postgres+sqlite';
   }
 
   return 'sqlite';
+}
+
+function patchTask(id, patch) {
+  const wrotePostgres = Boolean(withPostgres(() => patchPostgresTask(id, patch)));
+  patchSqliteTask(id, patch);
+  pruneTasks();
+
+  if (wrotePostgres) {
+    return 'postgres+sqlite';
+  }
+
+  return 'sqlite';
+}
+
+function appendTaskOutput(id, output) {
+  return patchTask(id, { appendOutput: output });
 }
 
 function migrateFromSqlite(sqlitePath) {
@@ -181,16 +219,151 @@ function writeSqliteRawSetting(key, value) {
   }
 }
 
+function upsertSqliteTask(task) {
+  const dbPath = process.env.STACKARR_DATABASE_FILE;
+  if (!dbPath) {
+    throw new Error('STACKARR_DATABASE_FILE is required');
+  }
+
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  try {
+    ensureSqliteTaskSchema(db);
+    db.prepare(`
+      insert into tasks (
+        id,
+        command_name,
+        command_label,
+        status,
+        queued_at,
+        started_at,
+        ended_at,
+        exit_code,
+        output,
+        error,
+        updated_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      on conflict(id) do update set
+        command_name = excluded.command_name,
+        command_label = excluded.command_label,
+        status = excluded.status,
+        queued_at = excluded.queued_at,
+        started_at = excluded.started_at,
+        ended_at = excluded.ended_at,
+        exit_code = excluded.exit_code,
+        output = excluded.output,
+        error = excluded.error,
+        updated_at = excluded.updated_at
+    `).run(
+      task.id,
+      task.commandName,
+      task.commandLabel,
+      task.status,
+      task.queuedAt,
+      task.startedAt ?? null,
+      task.endedAt ?? null,
+      task.exitCode ?? null,
+      task.output ?? null,
+      task.error ?? null
+    );
+  } finally {
+    db.close();
+  }
+}
+
+function patchSqliteTask(id, patch) {
+  const dbPath = process.env.STACKARR_DATABASE_FILE;
+  if (!dbPath) {
+    throw new Error('STACKARR_DATABASE_FILE is required');
+  }
+
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  try {
+    ensureSqliteTaskSchema(db);
+    const sets = [];
+    const values = [];
+    const fields = {
+      commandName: 'command_name',
+      commandLabel: 'command_label',
+      status: 'status',
+      queuedAt: 'queued_at',
+      startedAt: 'started_at',
+      endedAt: 'ended_at',
+      exitCode: 'exit_code',
+      output: 'output',
+      error: 'error'
+    };
+
+    for (const [key, column] of Object.entries(fields)) {
+      if (Object.prototype.hasOwnProperty.call(patch, key)) {
+        sets.push(`${column} = ?`);
+        values.push(patch[key] ?? null);
+      }
+    }
+
+    if (patch.appendOutput !== undefined) {
+      sets.push("output = coalesce(output, '') || ?");
+      values.push(patch.appendOutput);
+    }
+
+    if (sets.length === 0) {
+      return;
+    }
+
+    sets.push("updated_at = datetime('now')");
+    values.push(id);
+    db.prepare(`update tasks set ${sets.join(', ')} where id = ?`).run(...values);
+  } finally {
+    db.close();
+  }
+}
+
+function ensureSqliteTaskSchema(db) {
+  db.exec(`
+    create table if not exists tasks (
+      id text primary key,
+      command_name text not null,
+      command_label text not null,
+      status text not null,
+      queued_at text not null,
+      started_at text,
+      ended_at text,
+      exit_code integer,
+      output text,
+      error text,
+      created_at text not null default (datetime('now')),
+      updated_at text not null default (datetime('now'))
+    );
+
+    create index if not exists tasks_queued_at_idx on tasks(queued_at);
+  `);
+}
+
+function pruneSqliteTasks(limit = 100) {
+  const dbPath = process.env.STACKARR_DATABASE_FILE;
+  if (!dbPath || !fs.existsSync(dbPath)) {
+    return;
+  }
+
+  const db = new DatabaseSync(dbPath);
+  try {
+    ensureSqliteTaskSchema(db);
+    db.prepare(`
+      delete from tasks
+      where id not in (
+        select id from tasks order by queued_at desc limit ?
+      )
+    `).run(limit);
+  } finally {
+    db.close();
+  }
+}
+
 function readPostgresSetting(key) {
   ensurePostgresSchema();
   return runPsql(`select value from app_settings where key = ${sqlLiteral(key)};`);
-}
-
-function writePostgresSettings(patch) {
-  ensurePostgresSchema();
-  const current = JSON.parse(readPostgresSetting('stackarr.runtimeConfig') || '{}');
-  writePostgresRawSetting('stackarr.runtimeConfig', JSON.stringify({ ...current, ...patch }));
-  return true;
 }
 
 function writePostgresRawSetting(key, value) {
@@ -264,10 +437,126 @@ function ensurePostgresSchema() {
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
+
+      create table if not exists tasks (
+        id text primary key,
+        command_name text not null,
+        command_label text not null,
+        status text not null,
+        queued_at timestamptz not null,
+        started_at timestamptz,
+        ended_at timestamptz,
+        exit_code integer,
+        output text,
+        error text,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+
+      create index if not exists tasks_queued_at_idx on tasks(queued_at);
     `,
     {},
     false
   );
+}
+
+function upsertPostgresTask(task) {
+  ensurePostgresSchema();
+  runPsql(
+    `
+      insert into tasks (
+        id,
+        command_name,
+        command_label,
+        status,
+        queued_at,
+        started_at,
+        ended_at,
+        exit_code,
+        output,
+        error,
+        updated_at
+      )
+      values (
+        ${sqlLiteral(task.id)},
+        ${sqlLiteral(task.commandName)},
+        ${sqlLiteral(task.commandLabel)},
+        ${sqlLiteral(task.status)},
+        ${sqlLiteral(task.queuedAt)}::timestamptz,
+        ${sqlNullableTimestamp(task.startedAt)},
+        ${sqlNullableTimestamp(task.endedAt)},
+        ${sqlNullableInteger(task.exitCode)},
+        ${sqlNullableText(task.output)},
+        ${sqlNullableText(task.error)},
+        now()
+      )
+      on conflict (id) do update set
+        command_name = excluded.command_name,
+        command_label = excluded.command_label,
+        status = excluded.status,
+        queued_at = excluded.queued_at,
+        started_at = excluded.started_at,
+        ended_at = excluded.ended_at,
+        exit_code = excluded.exit_code,
+        output = excluded.output,
+        error = excluded.error,
+        updated_at = excluded.updated_at;
+    `,
+    {},
+    false
+  );
+}
+
+function patchPostgresTask(id, patch) {
+  ensurePostgresSchema();
+  const sets = [];
+  const fields = {
+    commandName: ['command_name', sqlNullableText],
+    commandLabel: ['command_label', sqlNullableText],
+    status: ['status', sqlNullableText],
+    queuedAt: ['queued_at', sqlNullableTimestamp],
+    startedAt: ['started_at', sqlNullableTimestamp],
+    endedAt: ['ended_at', sqlNullableTimestamp],
+    exitCode: ['exit_code', sqlNullableInteger],
+    output: ['output', sqlNullableText],
+    error: ['error', sqlNullableText]
+  };
+
+  for (const [key, [column, formatter]] of Object.entries(fields)) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      sets.push(`${column} = ${formatter(patch[key])}`);
+    }
+  }
+
+  if (patch.appendOutput !== undefined) {
+    sets.push(`output = coalesce(output, '') || ${sqlLiteral(patch.appendOutput)}`);
+  }
+
+  if (sets.length === 0) {
+    return;
+  }
+
+  sets.push('updated_at = now()');
+  runPsql(`update tasks set ${sets.join(', ')} where id = ${sqlLiteral(id)};`, {}, false);
+}
+
+function prunePostgresTasks(limit = 100) {
+  ensurePostgresSchema();
+  runPsql(
+    `
+      delete from tasks
+      where id not in (
+        select id from tasks order by queued_at desc limit ${Number.parseInt(String(limit), 10) || 100}
+      );
+    `,
+    {},
+    false
+  );
+}
+
+function pruneTasks() {
+  withPostgres(() => prunePostgresTasks());
+  pruneSqliteTasks();
 }
 
 function withPostgres(callback) {
@@ -337,6 +626,19 @@ function sqlLiteral(value) {
   return `'${String(value ?? '').replace(/'/g, "''")}'`;
 }
 
+function sqlNullableText(value) {
+  return value === null || value === undefined ? 'null' : sqlLiteral(value);
+}
+
+function sqlNullableTimestamp(value) {
+  return value === null || value === undefined ? 'null' : `${sqlLiteral(value)}::timestamptz`;
+}
+
+function sqlNullableInteger(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? String(Math.trunc(number)) : 'null';
+}
+
 function parsePostgresUrl() {
   const raw = process.env.STACKARR_DATABASE_URL;
   if (!raw) {
@@ -355,9 +657,12 @@ function parsePostgresUrl() {
 }
 
 module.exports = {
+  appendTaskOutput,
   migrateFromSqlite,
+  patchTask,
   readSetting,
   readSqliteRows,
+  upsertTask,
   writeRawSetting,
   writeSettings
 };

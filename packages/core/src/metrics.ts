@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import { readEnv } from './env';
-import { composePath, repoRoot } from './paths';
+import { composePath, composeProjectDir, composeProjectName, repoRoot } from './paths';
 import { getServices } from './services';
 import { readTasks } from './tasks';
 
@@ -78,13 +78,29 @@ export function getStackMetrics(paths: string[] = []): StackMetrics {
 
 function readDockerRunningCount() {
   try {
-    const output = execFileSync('docker', ['compose', '-f', composePath, 'ps', '--status', 'running', '--services'], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      env: { ...process.env, ...readEnv() },
-      timeout: 2500,
-      stdio: ['ignore', 'pipe', 'ignore']
-    });
+    const output = execFileSync(
+      'docker',
+      [
+        'compose',
+        '--project-name',
+        composeProjectName,
+        '--project-directory',
+        composeProjectDir,
+        '-f',
+        composePath,
+        'ps',
+        '--status',
+        'running',
+        '--services'
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: { ...process.env, ...readEnv() },
+        timeout: 2500,
+        stdio: ['ignore', 'pipe', 'ignore']
+      }
+    );
 
     return output.split(/\r?\n/).filter(Boolean).length;
   } catch {

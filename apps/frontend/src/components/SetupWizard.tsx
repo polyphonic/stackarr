@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { stackarrFetch } from './clientApi';
 import { PathInput } from './PathPicker';
 import styles from './SetupWizard.module.css';
+import { TaskProgressView, useLiveTasks } from './TaskProgress';
 
 type SetupMode = 'fresh' | 'restore' | 'migrate';
 
@@ -127,11 +128,15 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const [migrateStopSourceContainers, setMigrateStopSourceContainers] = useState(true);
   const [migratePlan, setMigratePlan] = useState('');
   const [migrateMessage, setMigrateMessage] = useState('');
+  const [setupTaskId, setSetupTaskId] = useState('');
+  const [setupBusy, setSetupBusy] = useState(false);
   const current = steps[step];
   const jellyfinEnabled = state.jellyfinInstallMode !== 'disabled';
   const effectiveEnableSeerr = state.enableRequestManagement && state.enableSeerr;
   const effectiveEnablePulsarr = state.enableRequestManagement && !jellyfinEnabled && state.enablePulsarr;
-  const passwordValidationMessage = validatePortablePassword(state.globalPassword);
+  const passwordValidationMessage = validateRequiredPortablePassword(state.globalPassword);
+  const liveTasks = useLiveTasks([], { limit: 10 });
+  const setupTask = setupTaskId ? liveTasks.find((task) => task.id === setupTaskId) : undefined;
 
   const setupConfig = useMemo(() => {
     const config: Record<string, string> = {
@@ -139,10 +144,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       MUSIC_ROOT: state.musicRoot,
       DOWNLOADS_ROOT: state.downloadsRoot,
       BACKUP_ROOT: state.backupRoot,
+      ENABLE_BACKUP: String(state.installBackup),
       BACKUP_TIME: '02:00',
       BACKUP_SCHEDULE: 'weekly',
       BACKUP_WEEKDAY: 'Sun',
       BACKUP_RETENTION_COUNT: '52',
+      ENABLE_SCHEDULED_UPDATES: String(state.installUpdates),
       UPDATE_TIME: '04:30',
       UPDATE_WEEKDAY: 'Sun',
       PLEX_INSTALL_MODE: state.plexInstallMode,
@@ -174,6 +181,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       SEERR_BIND_IP: state.seerrBindIp,
       TRANSMISSION_BIND_IP: state.transmissionBindIp,
       QBITTORRENT_BIND_IP: state.qbittorrentBindIp,
+      STACKARR_WEB_ENABLED: 'true',
+      STACKARR_BIND_IP: '127.0.0.1',
       STACKARR_WEB_PORT: state.webPort,
       BOOKORBIT_BIND_IP: '127.0.0.1',
       BOOKORBIT_WEB_PORT: '7582',
@@ -249,9 +258,9 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ['Music profile', musicProfileName(state.musicProfilePreset)],
       ['Database mode', state.databaseMode === 'postgres' ? 'Shared Postgres' : 'App defaults'],
       ['Torrent client', state.preferredTorrentClient],
-      ['Startup', state.installStartup ? 'Install login startup agent' : 'Manual start'],
+      ['Startup', state.installStartup ? 'Enable startup automation' : 'Manual start'],
       ['Backup automation', state.installBackup ? 'Install weekly Sunday backups' : 'Disabled'],
-      ['Updates', state.installUpdates ? 'Install weekly update agent' : 'Manual updates'],
+      ['Updates', state.installUpdates ? 'Enable weekly update automation' : 'Manual updates'],
       ['Agent plugins', agentPluginIntegrations.length ? agentPluginIntegrations.join(', ') : 'None']
     ],
     [state, agentPluginIntegrations]
@@ -261,21 +270,27 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     setState((currentState) => ({ ...currentState, [key]: value }));
   }
 
-  async function saveSetup() {
+  async function saveSetup({
+    loadingMessage = 'Saving setup choices...',
+    successMessage = 'Setup choices saved.'
+  }: {
+    loadingMessage?: string;
+    successMessage?: string;
+  } = {}) {
     if (passwordValidationMessage) {
       setMessage(passwordValidationMessage);
       toast.error(passwordValidationMessage);
-      return;
+      return false;
     }
 
-    setMessage('Saving setup choices...');
-    const toastId = toast.loading('Saving setup choices...');
+    setMessage(loadingMessage);
+    const toastId = toast.loading(loadingMessage);
     const response = await stackarrFetch('/api/v1/config/stackarr', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         config: setupConfig,
-        settings: { setup: { onboardingComplete: true, agentPluginIntegrations } }
+        settings: { setup: { onboardingComplete: true, installMode: 'fresh' } }
       })
     });
 
@@ -284,12 +299,59 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       const errorMessage = typeof body.error === 'string' ? body.error : 'Setup save failed.';
       setMessage(errorMessage);
       toast.error(errorMessage, { id: toastId });
+      return false;
+    }
+
+    setMessage(successMessage);
+    toast.success(successMessage, { id: toastId });
+    return true;
+  }
+
+  async function startSetup() {
+    setSetupBusy(true);
+    setSetupTaskId('');
+
+    const saved = await saveSetup({
+      loadingMessage: 'Saving setup choices...',
+      successMessage: 'Setup choices saved. Starting Stackarr setup...'
+    });
+
+    if (!saved) {
+      setSetupBusy(false);
       return;
     }
 
-    const nextMessage = 'Setup choices saved. Queue stack commands from System when ready.';
+    setMessage('Queueing initial setup...');
+    const toastId = toast.loading('Queueing initial setup...');
+    const response = await stackarrFetch('/api/v1/onboarding/fresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        confirmed: true,
+        configureSeerr: effectiveEnableSeerr && state.configureSeerr,
+        installStartup: state.installStartup,
+        installBackup: state.installBackup,
+        installUpdates: state.installUpdates,
+        agentPluginIntegrations
+      })
+    });
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage = typeof body.message === 'string' ? body.message : 'Initial setup could not be queued.';
+      setMessage(errorMessage);
+      toast.error(errorMessage, { id: toastId });
+      setSetupBusy(false);
+      return;
+    }
+
+    const nextTaskId = typeof body.id === 'string' ? body.id : '';
+    const nextMessage =
+      'Initial setup queued. Stackarr will download images, start containers, and configure services.';
+    setSetupTaskId(nextTaskId);
     setMessage(nextMessage);
     toast.success(nextMessage, { id: toastId });
+    setSetupBusy(false);
   }
 
   async function restoreBackup() {
@@ -715,7 +777,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 checked={state.installStartup}
                 onChange={(event) => update('installStartup', event.target.checked)}
               />{' '}
-              Login startup agent
+              Startup automation
             </label>
             <label>
               <input
@@ -723,7 +785,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 checked={state.installBackup}
                 onChange={(event) => update('installBackup', event.target.checked)}
               />{' '}
-              Weekly backup agent
+              Weekly backup automation
             </label>
             <label>
               <input
@@ -731,7 +793,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 checked={state.installUpdates}
                 onChange={(event) => update('installUpdates', event.target.checked)}
               />{' '}
-              Weekly update agent
+              Weekly update automation
             </label>
           </div>
         )}
@@ -829,16 +891,26 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           </dl>
         )}
         {current === 'Run Setup' && (
-          <div>
+          <div className={styles.runSetup}>
             <p>
-              Save the setup choices now. You can run setup from System, or let an agent call{' '}
-              <code>stackarr_setup_media_server</code> to save settings, download, start, configure, apply presets, and
-              open Stackarr on the default port.
+              Start setup to save these choices, download any missing Docker images, start the managed containers,
+              configure service credentials, and apply Stackarr presets.
             </p>
-            <button className={styles.primary} onClick={saveSetup} type="button">
-              Save Setup
-            </button>
+            <div className={styles.actionRow}>
+              <button className={styles.primary} disabled={setupBusy} onClick={startSetup} type="button">
+                {setupBusy ? 'Starting...' : 'Start Setup'}
+              </button>
+              <button disabled={setupBusy} onClick={() => void saveSetup()} type="button">
+                Save Only
+              </button>
+            </div>
             {message && <p className={styles.message}>{message}</p>}
+            {setupTask && (
+              <div className={styles.setupProgress}>
+                <TaskProgressView task={setupTask} />
+                {setupTask.output && <pre className={styles.planOutput}>{setupTask.output}</pre>}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -893,9 +965,9 @@ function musicProfileName(preset: string) {
   return preset === 'lossy' ? 'Lossy 256+' : 'Lossless';
 }
 
-function validatePortablePassword(password: string) {
+function validateRequiredPortablePassword(password: string) {
   if (!password) {
-    return '';
+    return 'Global password is required before Stackarr can configure managed services.';
   }
 
   if (password.length < portablePasswordMinimumLength) {

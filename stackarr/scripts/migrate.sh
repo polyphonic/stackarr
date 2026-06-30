@@ -458,9 +458,9 @@ with open(sys.argv[2], "w", encoding="utf-8") as handle:
     json.dump(patch, handle)
 PY
 
-    STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}" node "$ROOT_DIR/scripts/runtime-config-write.cjs" "$patch_file"
-    STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}" node "$ROOT_DIR/scripts/runtime-config-write.cjs" "$api_patch_file"
-    STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}" node "$ROOT_DIR/scripts/json-setting-patch.cjs" \
+    STACKARR_DATABASE_FILE="$(default_stackarr_database_file)" node "$ROOT_DIR/scripts/runtime-config-write.cjs" "$patch_file"
+    STACKARR_DATABASE_FILE="$(default_stackarr_database_file)" node "$ROOT_DIR/scripts/runtime-config-write.cjs" "$api_patch_file"
+    STACKARR_DATABASE_FILE="$(default_stackarr_database_file)" node "$ROOT_DIR/scripts/json-setting-patch.cjs" \
         stackarr.settings '{"setup":{"onboardingComplete":true,"installMode":"migrate"}}'
     rm -f "$patch_file" "$api_patch_file"
 

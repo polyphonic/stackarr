@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 DOWNLOADS_CONFIG_FILE="${STACKARR_DOWNLOADS_CONFIG_FILE:-$ROOT_DIR/config/downloads.json}"
+: "${TRANSMISSION_PASSWORD:=${PASSWORD:-}}"
+: "${QBITTORRENT_PASSWORD:=${PASSWORD:-}}"
 RADARR_URL=""
 RADARR_4K_URL=""
 SONARR_URL=""
@@ -41,7 +43,7 @@ require_downloads_config() {
 extract_qbittorrent_temp_password() {
     local output
 
-    output="$(docker compose -f "$ROOT_DIR/docker-compose.yml" logs --no-color qbittorrent 2>/dev/null || true)"
+    output="$(stackarr_compose logs --no-color qbittorrent 2>/dev/null || true)"
     python3 - "$output" <<'PY'
 import re
 import sys
@@ -129,6 +131,7 @@ patch_servarr_download_handling() {
     local config_url="$2"
     local api_key="$3"
     local wait_for_ready="$4"
+    local enabled="${5:-true}"
     local current payload
 
     [[ -n "$api_key" ]] || {
@@ -145,13 +148,14 @@ patch_servarr_download_handling() {
         return 1
     }
 
-    payload="$(python3 - "$current" <<'PY'
+    payload="$(python3 - "$current" "$enabled" <<'PY'
 import json
 import sys
 
 data = json.loads(sys.argv[1])
+enabled = sys.argv[2].lower() == "true"
 
-data["enableCompletedDownloadHandling"] = True
+data["enableCompletedDownloadHandling"] = enabled
 data.setdefault("downloadClientWorkingFolders", "_UNPACK_|_FAILED_")
 data.setdefault("autoRedownloadFailed", False)
 data.setdefault("autoRedownloadFailedFromInteractiveSearch", False)
@@ -186,7 +190,7 @@ transmission_preferences_payload() {
     local desired_incomplete="$2"
     local desired_watch="$3"
 
-    python3 - "$DOWNLOADS_CONFIG_FILE" "$desired_complete" "$desired_incomplete" "$desired_watch" "$USERNAME" "$PASSWORD" "${TRANSMISSION_TORRENT_PORT:-6881}" <<'PY'
+    python3 - "$DOWNLOADS_CONFIG_FILE" "$desired_complete" "$desired_incomplete" "$desired_watch" "$USERNAME" "$TRANSMISSION_PASSWORD" "${TRANSMISSION_TORRENT_PORT:-6881}" <<'PY'
 import json
 import sys
 
@@ -292,14 +296,14 @@ PY
 }
 
 transmission_container_credentials_match() {
-    docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+    stackarr_compose exec -T \
         -e STACKARR_EXPECTED_USERNAME="$USERNAME" \
-        -e STACKARR_EXPECTED_PASSWORD="$PASSWORD" \
+        -e STACKARR_EXPECTED_PASSWORD="$TRANSMISSION_PASSWORD" \
         transmission sh -lc 'test "${USER:-}" = "$STACKARR_EXPECTED_USERNAME" && test "${PASS:-}" = "$STACKARR_EXPECTED_PASSWORD"' >/dev/null 2>&1
 }
 
 recreate_transmission_container() {
-    docker compose -f "$ROOT_DIR/docker-compose.yml" up -d --force-recreate transmission >/dev/null || {
+    stackarr_compose up -d --force-recreate transmission >/dev/null || {
         warn "Transmission could not be recreated with the current Stackarr credentials"
         return 1
     }
@@ -348,7 +352,7 @@ apply_transmission_preset() {
     status="$(transmission_settings_status "$settings_file" "$payload")"
 
     if [[ "$status" == "changed" ]] || ! transmission_container_credentials_match; then
-        docker compose -f "$ROOT_DIR/docker-compose.yml" stop transmission >/dev/null || {
+        stackarr_compose stop transmission >/dev/null || {
             warn "Transmission could not be stopped before updating settings"
             return 1
         }
@@ -455,7 +459,7 @@ qbittorrent_preferences_payload() {
     local desired_complete="$1"
     local desired_incomplete="$2"
 
-    python3 - "$DOWNLOADS_CONFIG_FILE" "$desired_complete" "$desired_incomplete" "$USERNAME" "$PASSWORD" "${QBITTORRENT_TORRENT_PORT:-6881}" <<'PY'
+    python3 - "$DOWNLOADS_CONFIG_FILE" "$desired_complete" "$desired_incomplete" "$USERNAME" "$QBITTORRENT_PASSWORD" "${QBITTORRENT_TORRENT_PORT:-6881}" <<'PY'
 import json
 import sys
 
@@ -542,7 +546,7 @@ apply_qbittorrent_preset() {
     sync_qbittorrent_ip_filter || true
 
     cookie_file="$(mktemp)"
-    if ! qbittorrent_login "$USERNAME" "$PASSWORD" "$cookie_file"; then
+    if ! qbittorrent_login "$USERNAME" "$QBITTORRENT_PASSWORD" "$cookie_file"; then
         bootstrap_password="$(extract_qbittorrent_temp_password || true)"
         if [[ -z "$bootstrap_password" ]]; then
             rm -f "$cookie_file"
@@ -570,7 +574,7 @@ apply_qbittorrent_preset() {
 
     rm -f "$cookie_file"
     cookie_file="$(mktemp)"
-    if ! qbittorrent_login "$USERNAME" "$PASSWORD" "$cookie_file"; then
+    if ! qbittorrent_login "$USERNAME" "$QBITTORRENT_PASSWORD" "$cookie_file"; then
         rm -f "$cookie_file"
         warn "qBittorrent did not accept the configured shared credentials"
         return 1
@@ -651,7 +655,7 @@ build_servarr_qbittorrent_create_payload() {
     local category_value="$5"
     local priority="$6"
 
-    python3 - "$DOWNLOADS_CONFIG_FILE" "$category_field" "$imported_category_field" "$recent_priority_field" "$older_priority_field" "$category_value" "$priority" "$USERNAME" "$PASSWORD" "${QBITTORRENT_WEBUI_PORT:-8081}" <<'PY'
+    python3 - "$DOWNLOADS_CONFIG_FILE" "$category_field" "$imported_category_field" "$recent_priority_field" "$older_priority_field" "$category_value" "$priority" "$USERNAME" "$QBITTORRENT_PASSWORD" "${QBITTORRENT_WEBUI_PORT:-8081}" <<'PY'
 import json
 import sys
 
@@ -717,7 +721,7 @@ build_servarr_transmission_client_payload() {
     local category_value="$3"
     local priority="$4"
 
-    python3 - "$DOWNLOADS_CONFIG_FILE" "$current_json" "$category_field" "$category_value" "$USERNAME" "$PASSWORD" "$priority" <<'PY'
+    python3 - "$DOWNLOADS_CONFIG_FILE" "$current_json" "$category_field" "$category_value" "$USERNAME" "$TRANSMISSION_PASSWORD" "$priority" <<'PY'
 import json
 import sys
 
@@ -761,7 +765,7 @@ build_servarr_transmission_create_payload() {
     local category_value="$2"
     local priority="$3"
 
-    python3 - "$DOWNLOADS_CONFIG_FILE" "$category_field" "$category_value" "$USERNAME" "$PASSWORD" "$priority" <<'PY'
+    python3 - "$DOWNLOADS_CONFIG_FILE" "$category_field" "$category_value" "$USERNAME" "$TRANSMISSION_PASSWORD" "$priority" <<'PY'
 import json
 import sys
 
@@ -910,7 +914,7 @@ apply_servarr_qbittorrent_presets() {
     patch_servarr_qbittorrent_client "Lidarr qBittorrent client preset" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_URL/api/v1/downloadclient" "$lidarr_key" "musicCategory" "$LIDARR_CATEGORY" "musicImportedCategory" "recentMusicPriority" "olderMusicPriority" "$wait_for_ready" || true
     patch_servarr_download_handling "Radarr completed download handling" "$RADARR_URL/api/v3/config/downloadclient" "$radarr_key" "$wait_for_ready" || true
     patch_servarr_download_handling "Sonarr completed download handling" "$SONARR_URL/api/v3/config/downloadclient" "$sonarr_key" "$wait_for_ready" || true
-    patch_servarr_download_handling "Lidarr completed download handling" "$LIDARR_URL/api/v1/config/downloadclient" "$lidarr_key" "$wait_for_ready" || true
+    patch_servarr_download_handling "Lidarr completed download handling disabled" "$LIDARR_URL/api/v1/config/downloadclient" "$lidarr_key" "$wait_for_ready" false || true
     if optional_service_enabled radarr4k; then
         radarr4k_key="$(parse_api_key_xml "$CONFIG_ROOT/radarr4k/config.xml" || true)"
         patch_servarr_qbittorrent_client "Radarr 4K qBittorrent client preset" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_URL/api/v3/downloadclient" "$radarr4k_key" "movieCategory" "$RADARR_4K_CATEGORY" "movieImportedCategory" "recentMoviePriority" "olderMoviePriority" "$wait_for_ready" || true
@@ -995,7 +999,7 @@ apply_servarr_transmission_presets() {
     patch_servarr_transmission_client "Lidarr Transmission client preset" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_URL/api/v1/downloadclient" "$lidarr_key" "musicCategory" "$LIDARR_CATEGORY" "$wait_for_ready" || true
     patch_servarr_download_handling "Radarr completed download handling" "$RADARR_URL/api/v3/config/downloadclient" "$radarr_key" "$wait_for_ready" || true
     patch_servarr_download_handling "Sonarr completed download handling" "$SONARR_URL/api/v3/config/downloadclient" "$sonarr_key" "$wait_for_ready" || true
-    patch_servarr_download_handling "Lidarr completed download handling" "$LIDARR_URL/api/v1/config/downloadclient" "$lidarr_key" "$wait_for_ready" || true
+    patch_servarr_download_handling "Lidarr completed download handling disabled" "$LIDARR_URL/api/v1/config/downloadclient" "$lidarr_key" "$wait_for_ready" false || true
     if optional_service_enabled radarr4k; then
         radarr4k_key="$(parse_api_key_xml "$CONFIG_ROOT/radarr4k/config.xml" || true)"
         patch_servarr_transmission_client "Radarr 4K Transmission client preset" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_URL/api/v3/downloadclient" "$radarr4k_key" "movieCategory" "$RADARR_4K_CATEGORY" "$wait_for_ready" || true

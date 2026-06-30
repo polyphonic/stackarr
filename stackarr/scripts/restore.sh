@@ -166,7 +166,7 @@ RESTORE_ROOT="$(find_restore_root)"
 [[ -n "$RESTORE_ROOT" ]] || fail "Could not unpack restore archive"
 RESTORE_MANIFEST="$RESTORE_ROOT/manifest.txt"
 RESTORE_PLEX_BACKUP_MODE="full"
-DB_FILE="${STACKARR_DATABASE_FILE:-$ROOT_DIR/config/stackarr.db}"
+DB_FILE="${STACKARR_DATABASE_FILE:-$(default_stackarr_database_file)}"
 
 if [[ -f "$RESTORE_MANIFEST" ]]; then
     RESTORE_PLEX_BACKUP_MODE="$(sed -n 's/^plex_backup_mode=//p' "$RESTORE_MANIFEST" | head -1)"
@@ -183,10 +183,10 @@ fi
 load_env
 write_compose_env_file
 
-if command -v docker >/dev/null 2>&1 && docker compose -f "$ROOT_DIR/docker-compose.yml" ps -q >/dev/null 2>&1; then
+if command -v docker >/dev/null 2>&1 && stackarr_compose ps -q >/dev/null 2>&1; then
     if confirm_restore "Stop the Stackarr stack before restoring files" yes; then
         ensure_docker_runtime
-        docker compose -f "$ROOT_DIR/docker-compose.yml" down || true
+        stackarr_compose down || true
     fi
 fi
 
@@ -211,7 +211,7 @@ restore_file() {
 }
 
 postgres_exec() {
-    docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+    stackarr_compose exec -T \
         -e PGPASSWORD="$DATABASE_SUPERUSER_PASSWORD" \
         database "$@"
 }
@@ -364,7 +364,7 @@ restore_postgres_databases() {
     fi
 
     ensure_docker_runtime
-    docker compose -f "$ROOT_DIR/docker-compose.yml" --profile database up -d database
+    stackarr_compose --profile database up -d database
 
     for dump in "${dumps[@]}"; do
         db_name="$(basename "$dump" .dump)"

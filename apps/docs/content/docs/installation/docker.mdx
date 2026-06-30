@@ -24,6 +24,22 @@ Stackarr needs access to Docker so it can start, stop, inspect, and update the s
 
 Keep the dashboard bound to localhost until authentication and public access are configured.
 
+## Folder Access
+
+Choose media, music, downloads, and backup folders during setup. On macOS, grant Docker Desktop or OrbStack access to those selected folders in the Docker app settings.
+
+Stackarr verifies access through the same bind mounts the services use. Run it from **System > Status > Audit permissions**, or from the container:
+
+```bash
+docker exec stackarr /app/bin/stackarr permissions audit
+```
+
+The audit checks Stackarr's own config, log, download, and backup mounts, then checks running service mounts such as Radarr `/movies`, Sonarr `/tv`, Transmission or qBittorrent `/downloads`, and Lidarr `/music`.
+
+## Built-In Automation
+
+The Stackarr image includes the scheduler and maintenance helpers. Weekly backups and optional weekly updates run from the Stackarr container when enabled, so Docker installs do not require Watchtower, Portainer, or host launch agents.
+
 ## Portless Host Approval
 
 Docker can queue Portless setup, but clean `https://*.stackarr` names need a normal host Terminal password prompt for port `443`, certificate trust, and `/etc/hosts`.

@@ -23,7 +23,7 @@ Docker Hub's public docs say the repository overview is edited from the Hub UI, 
 
 ## Repository Logo
 
-Dockerfile labels and files inside the image do not set the Docker Hub page logo. For personal accounts, the visible page icon generally comes from the Docker Hub namespace/account avatar, or the default cube when no applicable avatar/logo is configured.
+Dockerfile labels and files inside the image do not set the Docker Hub page logo. For personal accounts, the visible page icon generally comes from the Docker Hub namespace/account avatar, or the default cube when no applicable avatar/logo is configured. Local Docker UIs may still read OCI labels from the image or Compose service, so keep those labels pointed at a public, versioned logo URL.
 
 Docker documents per-repository logo upload for Docker-Sponsored Open Source organizations. If Stackarr becomes eligible for DSOS, upload `Logo/stackarr-512.png` as the repository logo.
 
@@ -34,7 +34,7 @@ Docker documents per-repository logo upload for Docker-Sponsored Open Source org
 
 ```md
 <p align="center">
-  <img src="https://raw.githubusercontent.com/b-bot/stackarr/main/Logo/stackarr-512.png" width="120" alt="Stackarr logo" />
+  <img src="https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png" width="120" alt="Stackarr logo" />
 </p>
 ```
 

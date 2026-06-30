@@ -32,6 +32,13 @@ pnpm package:macos
 ```
 
 The package script builds the Next.js standalone frontend and wraps it in a macOS app archive.
+Extract the matching archive, then move `Stackarr.app` to `/Applications`.
+
+Opening `Stackarr.app` opens the dashboard in your browser. If the dashboard is already running, the app uses the existing server; otherwise it starts the bundled local server first:
+
+```text
+http://127.0.0.1:7777
+```
 
 App archives include a `stackarr` helper next to `Stackarr.app` for Terminal tasks that need a password prompt, such as Portless:
 
@@ -42,8 +49,22 @@ App archives include a `stackarr` helper next to `Stackarr.app` for Terminal tas
 If `Stackarr.app` has been moved to Applications without the helper, use the bundled command directly:
 
 ```bash
-/Applications/Stackarr.app/Contents/MacOS/stackarr portless install
+/Applications/Stackarr.app/Contents/MacOS/Stackarr portless install
 ```
+
+For native startup, update, backup, and tunnel background jobs, run install commands from the app-bundled helper after moving the app to Applications:
+
+```bash
+/Applications/Stackarr.app/Contents/MacOS/Stackarr startup install
+/Applications/Stackarr.app/Contents/MacOS/Stackarr backup install
+/Applications/Stackarr.app/Contents/MacOS/Stackarr update install
+```
+
+Those LaunchAgents are associated with the `Stackarr.app` bundle in macOS Login Items and Background Activity. If the backup root lives on an external drive, grant the needed file access to `Stackarr.app`.
+
+Docker installs do not need a shell privacy exception. Choose media, downloads, and backup folders during setup, share those folders with Docker Desktop or OrbStack, then run **System > Status > Audit permissions** so Stackarr checks the actual bind mounts.
+
+Alpha builds are ad-hoc signed for local testing. Public release builds should be signed with a Developer ID certificate and notarized so macOS shows Stackarr as an identified developer app.
 
 ## Native Media Servers
 

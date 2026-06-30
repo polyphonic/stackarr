@@ -45,7 +45,7 @@ export function queueStackarrCommandAction(input: { command: CommandName; args?:
 
   const child = spawn(stackarrBin, [...definition.args, ...(input.args ?? [])], {
     cwd: repoRoot,
-    env: { ...process.env, STACKARR_RUN_SOURCE: 'mcp' },
+    env: { ...process.env, STACKARR_RUN_SOURCE: 'mcp', STACKARR_TASK_ID: task.id },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 

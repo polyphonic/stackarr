@@ -149,8 +149,8 @@ restart_tmm_if_running() {
         return 0
     fi
 
-    if docker compose -f "$ROOT_DIR/docker-compose.yml" ps --status running --services 2>/dev/null | grep -Fxq "tinymediamanager"; then
-        docker compose -f "$ROOT_DIR/docker-compose.yml" restart tinymediamanager >/dev/null 2>&1 || {
+    if stackarr_compose ps --status running --services 2>/dev/null | grep -Fxq "tinymediamanager"; then
+        stackarr_compose restart tinymediamanager >/dev/null 2>&1 || {
             warn "TinyMediaManager restart failed after preset sync"
             return 1
         }

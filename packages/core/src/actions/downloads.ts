@@ -237,8 +237,8 @@ async function transmissionRpc<T = unknown>(
 
 function transmissionHeaders() {
   const env = readEnv();
-  const username = env.TRANSMISSION_USERNAME ?? env.USERNAME;
-  const password = env.TRANSMISSION_PASSWORD ?? env.PASSWORD;
+  const username = env.TRANSMISSION_USERNAME || env.USERNAME;
+  const password = env.TRANSMISSION_PASSWORD || env.PASSWORD;
   return {
     accept: 'application/json',
     'content-type': 'application/json',
@@ -285,8 +285,8 @@ async function qbittorrentPost(path: string, params: Record<string, string | num
 
 async function qbittorrentAuth(): Promise<{ headers: Record<string, string> }> {
   const env = readEnv();
-  const username = env.QBITTORRENT_USERNAME ?? env.USERNAME;
-  const password = env.QBITTORRENT_PASSWORD ?? env.PASSWORD;
+  const username = env.QBITTORRENT_USERNAME || env.USERNAME;
+  const password = env.QBITTORRENT_PASSWORD || env.PASSWORD;
   if (!username || !password) return { headers: {} };
 
   const response = await fetch(`${qbittorrentBaseUrl()}/api/v2/auth/login`, {

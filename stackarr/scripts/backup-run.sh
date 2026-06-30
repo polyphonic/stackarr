@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/common.sh
@@ -7,20 +7,118 @@ source "$ROOT_DIR/lib/common.sh"
 
 load_env
 
+TASK_LOGGER="$ROOT_DIR/scripts/task-log.cjs"
+BACKUP_TASK_ID="${STACKARR_TASK_ID:-}"
+BACKUP_TASK_OWNED=false
+BACKUP_TASK_FINALIZED=false
+TMP_DIR=""
+
+run_task_logger() {
+    command -v node >/dev/null 2>&1 || return 1
+    [[ -f "$TASK_LOGGER" ]] || return 1
+    NODE_NO_WARNINGS=1 node "$TASK_LOGGER" "$@"
+}
+
+backup_task_label() {
+    case "${STACKARR_RUN_SOURCE:-}" in
+        scheduled|launchd)
+            printf 'Scheduled backup\n'
+            ;;
+        *)
+            printf 'Run backup\n'
+            ;;
+    esac
+}
+
+backup_task_append() {
+    local message="$1"
+
+    [[ "$BACKUP_TASK_OWNED" == true ]] || return 0
+    [[ -n "$BACKUP_TASK_ID" ]] || return 0
+    run_task_logger append "$BACKUP_TASK_ID" "$message"$'\n' >/dev/null 2>&1 || true
+}
+
+backup_task_start() {
+    local label output task_id
+
+    [[ -z "$BACKUP_TASK_ID" ]] || return 0
+    label="$(backup_task_label)"
+    output="$(date '+%Y-%m-%d %H:%M:%S') backup attempt started"$'\n'
+    task_id="$(run_task_logger create --label "$label" --output "$output" 2>/dev/null || true)"
+    [[ -n "$task_id" ]] || return 0
+
+    BACKUP_TASK_ID="$task_id"
+    BACKUP_TASK_OWNED=true
+    export STACKARR_TASK_ID="$task_id"
+}
+
+backup_task_finish() {
+    local exit_code="$1"
+    local status message
+
+    [[ "$BACKUP_TASK_OWNED" == true ]] || return 0
+    [[ "$BACKUP_TASK_FINALIZED" == false ]] || return 0
+    [[ -n "$BACKUP_TASK_ID" ]] || return 0
+    BACKUP_TASK_FINALIZED=true
+
+    if [[ "$exit_code" -eq 0 ]]; then
+        status="completed"
+    else
+        status="failed"
+    fi
+
+    message="$(date '+%Y-%m-%d %H:%M:%S') backup $status with exit code $exit_code"$'\n'
+    run_task_logger update "$BACKUP_TASK_ID" \
+        --status "$status" \
+        --exit-code "$exit_code" \
+        --ended-now \
+        --append-output "$message" >/dev/null 2>&1 || true
+}
+
+backup_task_error() {
+    local exit_code="$1"
+
+    backup_task_append "$(date '+%Y-%m-%d %H:%M:%S') backup failed before completion"
+    return "$exit_code"
+}
+
+task_ensure_dir() {
+    local label="$1"
+    local target="$2"
+    local error_file message
+
+    error_file="$(mktemp)"
+    if mkdir -p "$target" 2>"$error_file"; then
+        rm -f "$error_file"
+        return 0
+    fi
+
+    message="$(cat "$error_file" 2>/dev/null || true)"
+    rm -f "$error_file"
+    backup_task_append "$(date '+%Y-%m-%d %H:%M:%S') could not access $label: $message"
+    fail "Could not access $label: $message"
+}
+
+backup_task_start
+trap 'backup_task_finish "$?"' EXIT
+trap 'backup_task_error "$?"' ERR
+
 if [[ "$(lowercase "${ENABLE_BACKUP:-true}")" =~ ^(0|false|no|off|disabled)$ ]]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') backup skipped: scheduled backups disabled in Stackarr config"
+    skipped_message="$(date '+%Y-%m-%d %H:%M:%S') backup skipped: scheduled backups disabled in Stackarr config"
+    echo "$skipped_message"
+    backup_task_append "$skipped_message"
     exit 0
 fi
 
-ensure_dir "$BACKUP_ROOT"
-ensure_dir "$LOG_ROOT"
+task_ensure_dir "backup root" "$BACKUP_ROOT"
+task_ensure_dir "log root" "$LOG_ROOT"
 
 if [[ -d "$PLEX_CONFIG_PATH" ]] && is_subpath "$BACKUP_ROOT" "$PLEX_CONFIG_PATH"; then
     fail "BACKUP_ROOT must live outside the Plex Media Server data directory"
 fi
 
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
-ensure_dir "$BACKUP_STAGING_ROOT"
+task_ensure_dir "backup staging root" "$BACKUP_STAGING_ROOT"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 TMP_DIR="$(mktemp -d "$BACKUP_STAGING_ROOT/stackarr-backup.XXXXXX")"
@@ -112,14 +210,22 @@ FULL_PLEX_EXCLUDES=(
 )
 
 cleanup() {
-    rm -rf "$TMP_DIR"
+    local exit_code="$?"
+    if [[ -n "${TMP_DIR:-}" ]]; then
+        rm -rf "$TMP_DIR"
+    fi
+    backup_task_finish "$exit_code"
+    return "$exit_code"
 }
 trap cleanup EXIT
 
 progress() {
     local percent="$1"
     shift
-    printf 'PROGRESS %s %s\n' "$percent" "$*"
+    local message
+    message="$(printf 'PROGRESS %s %s' "$percent" "$*")"
+    printf '%s\n' "$message"
+    backup_task_append "$message"
 }
 
 path_size() {
@@ -258,7 +364,8 @@ copy_plex_collection_artwork() {
 }
 
 copy_stackarr_runtime_config() {
-    local db_file="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}"
+    local db_file
+    db_file="$(default_stackarr_database_file)"
 
     [[ -f "$db_file" ]] || return 0
     mkdir -p "$STAGING/stackarr"
@@ -267,14 +374,14 @@ copy_stackarr_runtime_config() {
 
 database_service_running() {
     command -v docker >/dev/null 2>&1 || return 1
-    docker compose -f "$ROOT_DIR/docker-compose.yml" ps --services --status running 2>/dev/null | grep -qx 'database'
+    stackarr_compose ps --services --status running 2>/dev/null | grep -qx 'database'
 }
 
 dump_postgres_database() {
     local db_name="$1"
     local output_file="$2"
 
-    docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+    stackarr_compose exec -T \
         -e PGPASSWORD="$DATABASE_SUPERUSER_PASSWORD" \
         database pg_dump \
         -U "${DATABASE_SUPERUSER:-postgres}" \
@@ -301,14 +408,14 @@ dump_postgres_databases() {
 
     mkdir -p "$dump_root"
 
-    docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+    stackarr_compose exec -T \
         -e PGPASSWORD="$DATABASE_SUPERUSER_PASSWORD" \
         database pg_dumpall \
         -U "${DATABASE_SUPERUSER:-postgres}" \
         --globals-only < /dev/null > "$dump_root/globals.sql"
 
     db_names="$(
-        docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+        stackarr_compose exec -T \
             -e PGPASSWORD="$DATABASE_SUPERUSER_PASSWORD" \
             database psql \
             -U "${DATABASE_SUPERUSER:-postgres}" \
@@ -389,7 +496,7 @@ prune_old_backups() {
     rm -f "$listed_file" "$next_index_file"
 
     if (( failed > 0 )); then
-        fail "Backup completed, but $failed old backup(s) could not be deleted. Grant Full Disk Access to the scheduled Stackarr backup command if BACKUP_ROOT is in iCloud Drive."
+        fail "Backup completed, but $failed old backup(s) could not be deleted. Verify the backup folder is writable through the Stackarr runtime mount and adjust host folder access if needed."
     fi
 }
 

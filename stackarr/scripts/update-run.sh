@@ -18,17 +18,17 @@ while IFS= read -r profile_arg; do
 done < <(compose_profile_args)
 
 ok "Pulling latest images for Stackarr services"
-docker compose -f "$ROOT_DIR/docker-compose.yml" "${profile_args[@]}" pull
+stackarr_compose "${profile_args[@]}" pull
 
 "$ROOT_DIR/scripts/naming.sh" prestart || true
-docker compose -f "$ROOT_DIR/docker-compose.yml" "${profile_args[@]}" up -d --remove-orphans
-docker compose -f "$ROOT_DIR/docker-compose.yml" --profile database rm -f -s database-init >/dev/null 2>&1 || true
+stackarr_compose "${profile_args[@]}" up -d --remove-orphans
+stackarr_compose --profile database rm -f -s database-init >/dev/null 2>&1 || true
 refresh_stackarr_web_storage_mounts "${profile_args[@]}"
 remove_inactive_torrent_client_container
 "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
 "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
 "$ROOT_DIR/scripts/requests.sh" apply --wait || true
-if docker compose -f "$ROOT_DIR/docker-compose.yml" --profile maintenance run --rm image-cleanup; then
+if stackarr_compose --profile maintenance run --rm image-cleanup; then
     ok "Dangling Docker images cleaned"
 else
     warn "Dangling Docker image cleanup failed; run 'docker image prune -f --filter dangling=true' manually if disk usage grows"

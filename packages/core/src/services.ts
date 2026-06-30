@@ -114,7 +114,7 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
   },
   backup: {
     displayName: 'Plex Backup Service',
-    description: 'LaunchAgent-backed Stackarr backup service for Plex and stack configuration archives.'
+    description: 'Stackarr-managed backup automation for Plex and stack configuration archives.'
   }
 };
 
