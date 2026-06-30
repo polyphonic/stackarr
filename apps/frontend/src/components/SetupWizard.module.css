@@ -150,6 +150,13 @@
   white-space: pre-wrap;
 }
 
+.runSetup,
+.setupProgress {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+
 .requestToggle {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);

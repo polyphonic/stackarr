@@ -10,6 +10,17 @@ QUIET=false
 [[ "${2:-}" == "--quiet" ]] && QUIET=true
 
 load_env
+
+if stackarr_runtime_is_container; then
+    if [[ "$ACTION" == "uninstall" ]]; then
+        $QUIET || ok "Docker startup is controlled by the container restart policy"
+    else
+        $QUIET || ok "Docker startup is controlled by restart: unless-stopped"
+        $QUIET || warn "Enable Docker Desktop, OrbStack, or your Docker daemon at login if the host should start Stackarr after reboot."
+    fi
+    exit 0
+fi
+
 STACKARR_BIN="$(find_stackarr_bin || true)"
 [[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
 PLIST_DIR="$HOME/Library/LaunchAgents"
@@ -44,6 +55,10 @@ cat > "$PLIST_PATH" <<EOF
   <string>com.stackarr.stack</string>
   <key>ProcessType</key>
   <string>Background</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
+  </array>
   <key>WorkingDirectory</key>
   <string>$APP_ROOT</string>
   <key>ProgramArguments</key>

@@ -10,6 +10,30 @@ QUIET=false
 [[ "${2:-}" == "--quiet" ]] && QUIET=true
 
 load_env
+
+if stackarr_runtime_is_container; then
+    case "$ACTION" in
+        uninstall)
+            set_env_value ENABLE_SCHEDULED_UPDATES false
+            $QUIET || ok "Disabled update automation"
+            exit 0
+            ;;
+        install)
+            [[ "${UPDATE_TIME:-04:30}" =~ ^([01][0-9]|2[0-3]):([0-5][0-9])$ ]] || fail "UPDATE_TIME must be HH:MM"
+            case "$(lowercase "${UPDATE_WEEKDAY:-Sun}")" in
+                sun|sunday|0|7|mon|monday|1|tue|tues|tuesday|2|wed|wednesday|3|thu|thur|thurs|thursday|4|fri|friday|5|sat|saturday|6)
+                    ;;
+                *)
+                    fail "UPDATE_WEEKDAY must be a weekday name or number"
+                    ;;
+            esac
+            set_env_value ENABLE_SCHEDULED_UPDATES true
+            $QUIET || ok "Enabled update automation in the Stackarr container"
+            exit 0
+            ;;
+    esac
+fi
+
 STACKARR_BIN="$(find_stackarr_bin || true)"
 [[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
 PLIST_DIR="$HOME/Library/LaunchAgents"
@@ -77,6 +101,10 @@ cat > "$PLIST_PATH" <<EOF
   <string>com.stackarr.update</string>
   <key>ProcessType</key>
   <string>Background</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
+  </array>
   <key>WorkingDirectory</key>
   <string>$APP_ROOT</string>
   <key>ProgramArguments</key>

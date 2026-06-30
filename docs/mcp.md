@@ -45,7 +45,7 @@ The setup tool defaults to `dryRun: true`, returning the exact saved-configurati
 }
 ```
 
-Execution writes Stackarr config, downloads/starts the stack via `stackarr up`, runs `stackarr configure`, applies Plex-friendly naming/download/request presets, optionally installs launchd automation, optionally installs selected agent plugins with `stackarr plugins install <runtime>`, and opens the browser at `http://127.0.0.1:7777`.
+Execution writes Stackarr config, downloads/starts the stack via `stackarr up`, runs `stackarr configure`, applies Plex-friendly naming/download/request presets, optionally enables automation, optionally installs selected agent plugins with `stackarr plugins install <runtime>`, and opens the browser at `http://127.0.0.1:7777`.
 
 ## Plugin configuration
 

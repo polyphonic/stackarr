@@ -1,7 +1,18 @@
-import { commandRegistry, getStackMetrics, getSystemStatus, readEnv, readTasks } from '@stackarr/core';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  commandRegistry,
+  getStackMetrics,
+  getSystemStatus,
+  readEnv,
+  readTasks,
+  type StackarrTask
+} from '@stackarr/core';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { CommandButton } from '../../../components/CommandButton';
 import { SubNav } from '../../../components/SubNav';
+import { TaskProgressView } from '../../../components/TaskProgress';
 import { ActionGrid, Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +32,8 @@ const navItems = Object.entries(titles).map(([slug, label]) => ({
   label
 }));
 
+type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'purple';
+
 export default async function SystemSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const status = getSystemStatus();
   const env = readEnv();
@@ -32,6 +45,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
   ]);
   const tasks = readTasks();
   const { section } = await params;
+  const backupStatus = getBackupStatus(env, tasks);
 
   return (
     <>
@@ -143,13 +157,91 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
           </>
         )}
         {section === 'backup' && (
-          <Panel title="Backup">
-            <ActionGrid>
-              <CommandButton name="Backup" label={commandRegistry.Backup.label} />
-              <CommandButton name="BackupInstall" label={commandRegistry.BackupInstall.label} />
-              <CommandButton name="BackupUninstall" label={commandRegistry.BackupUninstall.label} />
-            </ActionGrid>
-          </Panel>
+          <>
+            <Grid>
+              <Stat label="Schedule" value={backupStatus.scheduleLabel} tone={backupStatus.enabled ? 'good' : 'warn'} />
+              <Stat label="Automation" value={backupStatus.agentLabel} tone={backupStatus.agentTone} />
+              <Stat label="Last Attempt" value={backupStatus.lastAttemptLabel} tone={backupStatus.lastAttemptTone} />
+              <Stat
+                label="Latest Archive"
+                value={backupStatus.latestArchiveLabel}
+                tone={backupStatus.latestArchiveTone}
+              />
+            </Grid>
+            <Panel title="Backup Actions">
+              <ActionGrid>
+                <CommandButton name="Backup" label={commandRegistry.Backup.label} />
+                <CommandButton name="BackupInstall" label={commandRegistry.BackupInstall.label} />
+                <CommandButton name="BackupPermissions" label={commandRegistry.BackupPermissions.label} />
+                <CommandButton name="BackupUninstall" label={commandRegistry.BackupUninstall.label} />
+              </ActionGrid>
+            </Panel>
+            <Panel title="Automation">
+              <Table>
+                <tbody>
+                  <tr>
+                    <th>Backup Root</th>
+                    <td className="pathValue">{backupStatus.backupRoot}</td>
+                  </tr>
+                  <tr>
+                    <th>Mount Access</th>
+                    <td>
+                      <Badge tone={backupStatus.accessTone}>{backupStatus.accessLabel}</Badge>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Access Target</th>
+                    <td className="pathValue">{backupStatus.permissionTarget}</td>
+                  </tr>
+                  <tr>
+                    <th>Run Target</th>
+                    <td className="pathValue">{backupStatus.launchTarget}</td>
+                  </tr>
+                </tbody>
+              </Table>
+            </Panel>
+            <Panel title="Latest Backup Attempt">
+              {backupStatus.latestTask ? (
+                <Table>
+                  <tbody>
+                    <tr>
+                      <th>Task</th>
+                      <td>{backupStatus.latestTask.commandLabel}</td>
+                    </tr>
+                    <tr>
+                      <th>Status</th>
+                      <td>
+                        <Badge tone={taskTone(backupStatus.latestTask)}>{backupStatus.latestTask.status}</Badge>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Progress</th>
+                      <td>
+                        <TaskProgressView task={backupStatus.latestTask} />
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Queued</th>
+                      <td>{backupStatus.latestTask.queuedAt}</td>
+                    </tr>
+                    <tr>
+                      <th>Finished</th>
+                      <td>{backupStatus.latestTask.endedAt ?? '-'}</td>
+                    </tr>
+                  </tbody>
+                </Table>
+              ) : (
+                <Table>
+                  <tbody>
+                    <tr>
+                      <th>Status</th>
+                      <td>No backup attempt has been recorded yet.</td>
+                    </tr>
+                  </tbody>
+                </Table>
+              )}
+            </Panel>
+          </>
         )}
         {section === 'updates' && (
           <Panel title="Updates">
@@ -232,4 +324,150 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
       </PageBody>
     </>
   );
+}
+
+function getBackupStatus(env: ReturnType<typeof readEnv>, tasks: StackarrTask[]) {
+  const enabled = !String(env.ENABLE_BACKUP ?? 'true').match(/^(0|false|no|off|disabled)$/i);
+  const schedule = String(env.BACKUP_SCHEDULE ?? 'weekly').toLowerCase();
+  const time = env.BACKUP_TIME ?? '02:00';
+  const weekday = env.BACKUP_WEEKDAY ?? 'Sun';
+  const backupRoot = env.BACKUP_ROOT ?? '';
+  const dockerRuntime = process.env.STACKARR_RUNTIME === 'docker';
+  const stateRoot = env.STATE_ROOT ?? '';
+  const helperApp = stateRoot ? path.join(stateRoot, 'launchd', 'Stackarr Backup Agent.app') : '';
+  const helperBin = helperApp ? path.join(helperApp, 'Contents', 'MacOS', 'stackarr-backup-agent') : '';
+  const stateLaunchAgentPath = stateRoot ? path.join(stateRoot, 'launchd', 'com.stackarr.backup.plist') : '';
+  const hostLaunchAgentPath =
+    process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.stackarr.backup.plist')
+      : '';
+  const launchAgentPath = existingPath(hostLaunchAgentPath) ?? existingPath(stateLaunchAgentPath) ?? '';
+  const launchAgentText = safeReadFile(launchAgentPath);
+  const launchProgram = firstLaunchProgram(launchAgentText);
+  const launchProgramApp = launchProgram ? appBundleForExecutable(launchProgram) : undefined;
+  const permissionTarget = launchProgramApp ?? (helperBin && launchAgentText.includes(helperBin) ? helperApp : '');
+  const helperInstalled = Boolean(helperBin && fs.existsSync(helperBin));
+  const agentInstalled = Boolean(launchAgentText);
+  const usesHelper = Boolean(launchProgramApp) || (helperInstalled && launchAgentText.includes(helperBin));
+  const latestTask = tasks.find((task) => task.commandName === 'Backup');
+  const latestArchive = latestBackupArchive(backupRoot);
+  const externalRoot = backupRoot.startsWith('/Volumes/');
+  const latestOutput = latestTask?.output ?? '';
+  const accessDenied =
+    /operation not permitted|could not access backup root|could not access backup staging root/i.test(latestOutput);
+
+  if (dockerRuntime) {
+    return {
+      enabled,
+      backupRoot: backupRoot || 'Not configured',
+      scheduleLabel: enabled ? (schedule === 'daily' ? `Daily ${time}` : `${weekday} ${time}`) : 'Disabled',
+      agentLabel: enabled ? 'Container' : 'Disabled',
+      agentTone: enabled ? 'good' : 'warn',
+      accessLabel: accessDenied ? 'Needs Access' : 'Audit Mounts',
+      accessTone: accessDenied ? 'bad' : 'warn',
+      permissionTarget: 'Docker/OrbStack shared folders',
+      launchTarget: 'Stackarr container scheduler',
+      lastAttemptLabel: latestTask ? latestTask.status : 'None',
+      lastAttemptTone: latestTask ? taskTone(latestTask) : 'neutral',
+      latestArchiveLabel: latestArchive ? `${latestArchive.name} (${formatBytes(latestArchive.size)})` : 'None',
+      latestArchiveTone: latestArchive ? 'good' : 'neutral',
+      latestTask
+    } as const;
+  }
+
+  return {
+    enabled,
+    backupRoot: backupRoot || 'Not configured',
+    scheduleLabel: enabled ? (schedule === 'daily' ? `Daily ${time}` : `${weekday} ${time}`) : 'Disabled',
+    agentLabel: agentInstalled ? (usesHelper ? 'Installed' : 'Legacy') : 'Missing',
+    agentTone: agentInstalled ? (usesHelper ? 'good' : 'warn') : 'bad',
+    accessLabel: accessDenied
+      ? 'Needs Access'
+      : externalRoot
+        ? usesHelper
+          ? 'Review Access'
+          : 'Install Agent'
+        : 'Ready',
+    accessTone: accessDenied || (externalRoot && !usesHelper) ? 'bad' : externalRoot ? 'warn' : 'good',
+    permissionTarget: permissionTarget || helperApp || 'Enable backup automation',
+    launchTarget: launchProgram || (agentInstalled ? 'Legacy stackarr command' : 'No launch agent installed'),
+    lastAttemptLabel: latestTask ? latestTask.status : 'None',
+    lastAttemptTone: latestTask ? taskTone(latestTask) : 'neutral',
+    latestArchiveLabel: latestArchive ? `${latestArchive.name} (${formatBytes(latestArchive.size)})` : 'None',
+    latestArchiveTone: latestArchive ? 'good' : 'neutral',
+    latestTask
+  } as const;
+}
+
+function taskTone(task: StackarrTask): Tone {
+  if (task.status === 'failed') return 'bad';
+  if (task.status === 'blocked') return 'warn';
+  if (task.status === 'completed') return 'good';
+  return 'purple';
+}
+
+function latestBackupArchive(root: string | undefined) {
+  if (!root || !fs.existsSync(root)) {
+    return undefined;
+  }
+
+  try {
+    return fs
+      .readdirSync(root)
+      .filter((name) => /^stackarr-backup-.+\.tar\.gz$/.test(name))
+      .map((name) => {
+        const archivePath = path.join(root, name);
+        const stat = fs.statSync(archivePath);
+        return { name, mtime: stat.mtimeMs, size: stat.size };
+      })
+      .sort((a, b) => b.mtime - a.mtime)[0];
+  } catch {
+    return undefined;
+  }
+}
+
+function safeReadFile(filePath: string) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return '';
+  }
+
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+function existingPath(filePath: string) {
+  return filePath && fs.existsSync(filePath) ? filePath : undefined;
+}
+
+function firstLaunchProgram(plistText: string) {
+  return plistText.match(/<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]+)<\/string>/s)?.[1];
+}
+
+function appBundleForExecutable(filePath: string) {
+  const marker = '.app/Contents/MacOS/';
+  const index = filePath.indexOf(marker);
+  if (index === -1) {
+    return undefined;
+  }
+
+  return `${filePath.slice(0, index)}.app`;
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value >= 10 || unitIndex === 0 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
 }

@@ -116,15 +116,20 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       HOSTNAME: 0.0.0.0
       PORT: ${STACKARR_WEB_PORT:-7777}
+      TZ: ${TIMEZONE:-Etc/UTC}
       STACKARR_WEB_PORT: ${STACKARR_WEB_PORT:-7777}
       STACKARR_REPO_ROOT: /stackarr-workspace
-      STACKARR_DATABASE_FILE: /stackarr-workspace/stackarr/config/stackarr.db
+      STACKARR_DATABASE_FILE: ${STACKARR_DATABASE_FILE:-/stackarr-workspace/stackarr/config/stackarr.db}
       STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
       STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
+      STACKARR_COMPOSE_PROJECT_NAME: ${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}
+      STACKARR_COMPOSE_PROJECT_DIR: ${STATE_ROOT:-./.stackarr/state}/compose
+      STACKARR_COMPOSE_FILE: ${STATE_ROOT:-./.stackarr/state}/compose/docker-compose.yml
       STACKARR_POSTGRES_DATABASE: ${STACKARR_POSTGRES_DATABASE:-stackarr-main}
       STACKARR_POSTGRES_MAIN_DATABASE: ${STACKARR_POSTGRES_MAIN_DATABASE:-stackarr-main}
       STACKARR_POSTGRES_LOG_DATABASE: ${STACKARR_POSTGRES_LOG_DATABASE:-stackarr-log}
       STACKARR_RUNTIME: docker
+      STACKARR_SCHEDULER_ENABLED: ${STACKARR_SCHEDULER_ENABLED:-true}
       STREAMRIP_STATE_ROOT: /stackarr-state/streamrip
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
@@ -145,12 +150,12 @@ services:
     labels:
       org.opencontainers.image.title: Stackarr
       org.opencontainers.image.description: Arr-style alpha control plane for a macOS and Docker media server stack.
-      org.opencontainers.image.logo: https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png
-      org.opencontainers.image.icon: https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png
-      com.stackarr.icon: https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png
+      org.opencontainers.image.logo: https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png
+      org.opencontainers.image.icon: https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png
+      com.stackarr.icon: https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png
       homepage.name: Stackarr
       homepage.description: Media stack control plane
-      homepage.icon: https://raw.githubusercontent.com/stackarr/stackarr/main/Logo/stackarr-512.png
+      homepage.icon: https://raw.githubusercontent.com/b-bot/Stackarr/production/Logo/stackarr-512.png
       homepage.href: http://127.0.0.1:${STACKARR_WEB_PORT:-7777}
     restart: unless-stopped
 
@@ -164,7 +169,7 @@ services:
       PGID: ${PGID:-1000}
       TZ: ${TIMEZONE:-Etc/UTC}
       USER: ${USERNAME:-admin}
-      PASS: ${PASSWORD:-stackarr}
+      PASS: ${TRANSMISSION_PASSWORD:-${PASSWORD:-stackarr}}
       TRANSMISSION_DOWNLOAD_DIR: /downloads/${DOWNLOAD_COMPLETE_NAME:-complete}
       TRANSMISSION_INCOMPLETE_DIR: /downloads/${DOWNLOAD_INCOMPLETE_NAME:-incomplete}
       TRANSMISSION_INCOMPLETE_DIR_ENABLED: "true"
@@ -381,7 +386,7 @@ services:
     environment:
       USER_ID: ${PUID:-1000}
       GROUP_ID: ${PGID:-1000}
-      PASSWORD: ${PASSWORD:-stackarr}
+      PASSWORD: ${TINYMEDIAMANAGER_PASSWORD:-${PASSWORD:-stackarr}}
       TZ: ${TIMEZONE:-Etc/UTC}
       ALLOW_DIRECT_VNC: "true"
       LC_ALL: en_US.UTF-8
@@ -542,7 +547,7 @@ services:
       - 1.0.0.1
     volumes:
       - "${APP_ROOT:-./.stackarr}/config/lidarr:/config"
-      - "${MUSIC_ROOT:-./.stackarr/media/Music}:/music"
+      - "${MUSIC_ROOT:-./.stackarr/media/Music}:/music:ro"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
       - "8686:8686"

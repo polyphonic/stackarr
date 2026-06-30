@@ -8,6 +8,8 @@ Backups capture Stackarr configuration, presets, hooks, and relevant state.
 
 The default scheduled backup is weekly on Sunday at `02:00` and keeps the latest 52 archives. Tune `BACKUP_RETENTION_COUNT` down for smaller installs.
 
+In Docker installs, scheduled backups run from the Stackarr container. If backups target an external disk on macOS, share the chosen folder with Docker Desktop or OrbStack and verify it from **System > Status > Audit permissions**.
+
 Backup staging defaults to `.stackarr-staging` inside `BACKUP_ROOT`, so the temporary uncompressed copy stays on the backup volume instead of the system temp disk. Set `BACKUP_STAGING_ROOT` only when you need a separate scratch volume.
 
 When the shared Postgres `database` container is required, each backup must include `database/globals.sql` plus custom-format dumps for the non-template app databases Stackarr manages. If that database container is unavailable, the backup fails instead of producing an incomplete archive. App-local config under `CONFIG_ROOT` is still captured for services that keep SQLite or other runtime files there.

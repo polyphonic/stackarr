@@ -1,10 +1,11 @@
 'use client';
 
 import type { StackarrEnv, StackarrSettings } from '@stackarr/core';
+import { Button, icons } from '@stackarr/ui';
 import { applyStackarrDocumentTheme } from '@stackarr/ui/theme-provider';
 import { toast } from '@stackarr/ui/toast';
 import type React from 'react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { stackarrFetch } from './clientApi';
 import { PathInput } from './PathPicker';
 import styles from './SettingsEditor.module.css';
@@ -20,10 +21,136 @@ type CloudflareRoute = {
   service: string;
 };
 
+type SelectOption = string | { value: string; label: string };
+type SecurityCredentialType = 'access' | 'database';
+type SecurityServiceTarget = {
+  id: string;
+  label: string;
+  description: string;
+  accessKeys?: string[];
+  databaseKeys?: string[];
+};
+
 const storageEnvKeys = ['MEDIA_ROOT', 'MUSIC_ROOT', 'DOWNLOADS_ROOT', 'BACKUP_ROOT'] as const;
 const mediaProfilePresetOptions = ['lite', 'balanced'];
 const musicProfilePresetOptions = ['lossless', 'lossy'];
 const themeOptions: Array<StackarrSettings['ui']['theme']> = ['light', 'dark', 'system'];
+const globalDatabasePasswordKeys = [
+  'DATABASE_SUPERUSER_PASSWORD',
+  'STACKARR_POSTGRES_PASSWORD',
+  'BOOKORBIT_POSTGRES_PASSWORD',
+  'SEERR_POSTGRES_PASSWORD',
+  'PULSARR_POSTGRES_PASSWORD',
+  'BAZARR_POSTGRES_PASSWORD',
+  'PROWLARR_POSTGRES_PASSWORD',
+  'RADARR_POSTGRES_PASSWORD',
+  'RADARR4K_POSTGRES_PASSWORD',
+  'SONARR_POSTGRES_PASSWORD',
+  'SONARR4K_POSTGRES_PASSWORD',
+  'LIDARR_POSTGRES_PASSWORD'
+];
+const globalPasswordKeys = ['PASSWORD', ...globalDatabasePasswordKeys];
+const securityServices: SecurityServiceTarget[] = [
+  {
+    id: 'radarr',
+    label: 'Radarr',
+    description: 'Movie app UI password and its Postgres role.',
+    accessKeys: ['RADARR_PASSWORD'],
+    databaseKeys: ['RADARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'radarr4k',
+    label: 'Radarr 4K',
+    description: '4K movie app UI password and its Postgres role.',
+    accessKeys: ['RADARR4K_PASSWORD'],
+    databaseKeys: ['RADARR4K_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'sonarr',
+    label: 'Sonarr',
+    description: 'TV app UI password and its Postgres role.',
+    accessKeys: ['SONARR_PASSWORD'],
+    databaseKeys: ['SONARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'sonarr4k',
+    label: 'Sonarr 4K',
+    description: '4K TV app UI password and its Postgres role.',
+    accessKeys: ['SONARR4K_PASSWORD'],
+    databaseKeys: ['SONARR4K_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'prowlarr',
+    label: 'Prowlarr',
+    description: 'Indexer app UI password and its Postgres role.',
+    accessKeys: ['PROWLARR_PASSWORD'],
+    databaseKeys: ['PROWLARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'lidarr',
+    label: 'Lidarr',
+    description: 'Music app UI password and its Postgres role.',
+    accessKeys: ['LIDARR_PASSWORD'],
+    databaseKeys: ['LIDARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'bazarr',
+    label: 'Bazarr',
+    description: 'Subtitle app UI password and its Postgres role.',
+    accessKeys: ['BAZARR_PASSWORD'],
+    databaseKeys: ['BAZARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'transmission',
+    label: 'Transmission',
+    description: 'Torrent client RPC and web UI password.',
+    accessKeys: ['TRANSMISSION_PASSWORD']
+  },
+  {
+    id: 'qbittorrent',
+    label: 'qBittorrent',
+    description: 'Torrent client web UI password.',
+    accessKeys: ['QBITTORRENT_PASSWORD']
+  },
+  {
+    id: 'tinymediamanager',
+    label: 'TinyMediaManager',
+    description: 'TinyMediaManager web/VNC password.',
+    accessKeys: ['TINYMEDIAMANAGER_PASSWORD']
+  },
+  {
+    id: 'bookorbit',
+    label: 'BookOrbit',
+    description: 'BookOrbit admin password and its Postgres role.',
+    accessKeys: ['BOOKORBIT_PASSWORD'],
+    databaseKeys: ['BOOKORBIT_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'pulsarr',
+    label: 'Pulsarr',
+    description: 'Pulsarr admin password and its Postgres role.',
+    accessKeys: ['PULSARR_PASSWORD'],
+    databaseKeys: ['PULSARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'seerr',
+    label: 'Seerr',
+    description: 'Seerr Postgres role password.',
+    databaseKeys: ['SEERR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'stackarr-postgres',
+    label: 'Stackarr Postgres',
+    description: 'Stackarr application database role password.',
+    databaseKeys: ['STACKARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'postgres-superuser',
+    label: 'Postgres superuser',
+    description: 'Shared Postgres superuser password.',
+    databaseKeys: ['DATABASE_SUPERUSER_PASSWORD']
+  }
+];
 const cloudflareServiceOptions = [
   'pulsarr',
   'bookorbit',
@@ -43,6 +170,9 @@ const cloudflareServiceOptions = [
 const portablePasswordPattern = /^[A-Za-z0-9._-]+$/;
 const portablePasswordDescription = 'letters, numbers, dot, underscore, and hyphen';
 const portablePasswordMinimumLength = 8;
+const EyeIcon = icons.eye;
+const KeyIcon = icons.key;
+const LockIcon = icons.lock;
 
 function mediaProfileName(preset: string, resolution: 'hd' | '4k') {
   if (preset === 'balanced') {
@@ -62,6 +192,16 @@ export function SettingsEditor({ section, env, settings }: Props) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [rotateState, setRotateState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
   const [cloudflareApplyState, setCloudflareApplyState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
+  const [securityState, setSecurityState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
+  const [generalCurrentPassword, setGeneralCurrentPassword] = useState('');
+  const [globalCurrentPassword, setGlobalCurrentPassword] = useState('');
+  const [globalPassword, setGlobalPassword] = useState('');
+  const [globalPasswordConfirm, setGlobalPasswordConfirm] = useState('');
+  const [securityServiceId, setSecurityServiceId] = useState('');
+  const [securityCredentialType, setSecurityCredentialType] = useState<SecurityCredentialType>('access');
+  const [serviceCurrentPassword, setServiceCurrentPassword] = useState('');
+  const [servicePassword, setServicePassword] = useState('');
+  const [servicePasswordConfirm, setServicePasswordConfirm] = useState('');
   const [message, setMessage] = useState('');
 
   function envValue(key: string) {
@@ -112,7 +252,16 @@ export function SettingsEditor({ section, env, settings }: Props) {
     .filter((key) => telemetryFeatureEnabled || !key.startsWith('STACKARR_TELEMETRY_'))
     .sort();
   const passwordValidationMessage = firstPortablePasswordValidationError(draftEnv, env);
+  const protectedEnvPasswordChanged = protectedEnvChangeRequiresCurrentPassword(draftEnv, env);
   const cloudflareRoutes = parseCloudflareRoutes(envValue('CLOUDFLARE_TUNNEL_ROUTES'));
+  const selectedSecurityService = securityServices.find((service) => service.id === securityServiceId);
+  const selectedSecurityCredentialOptions = selectedSecurityService
+    ? securityCredentialOptions(selectedSecurityService)
+    : [];
+  const selectedSecurityKeys =
+    selectedSecurityService && securityCredentialType === 'database'
+      ? (selectedSecurityService.databaseKeys ?? [])
+      : (selectedSecurityService?.accessKeys ?? []);
 
   function updateSettings<T extends keyof StackarrSettings, K extends keyof StackarrSettings[T]>(
     group: T,
@@ -132,11 +281,19 @@ export function SettingsEditor({ section, env, settings }: Props) {
     }));
   }
 
-  async function saveConfig() {
+  async function saveConfig(
+    config: StackarrEnv = draftEnv,
+    nextSettings: StackarrSettings = draftSettings,
+    currentPassword?: string
+  ) {
     const response = await stackarrFetch('/api/v1/config/stackarr', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config: draftEnv, settings: draftSettings })
+      body: JSON.stringify({
+        config,
+        settings: nextSettings,
+        ...(currentPassword !== undefined ? { currentPassword } : {})
+      })
     });
     const body = await response.json().catch(() => ({}));
 
@@ -151,14 +308,29 @@ export function SettingsEditor({ section, env, settings }: Props) {
       return;
     }
 
+    const currentPasswordValidation = protectedEnvPasswordChanged
+      ? currentAdminPasswordError(generalCurrentPassword, true)
+      : '';
+    if (currentPasswordValidation) {
+      setState('error');
+      setMessage(currentPasswordValidation);
+      toast.error(currentPasswordValidation);
+      return;
+    }
+
     setState('saving');
     setMessage('');
     const toastId = toast.loading('Saving settings...');
     const storageChanged = storageEnvKeys.some((key) => envValue(key) !== (env[key] ?? ''));
-    const { response, body } = await saveConfig();
+    const { response, body } = await saveConfig(
+      draftEnv,
+      draftSettings,
+      protectedEnvPasswordChanged ? generalCurrentPassword : undefined
+    );
 
     setState(response.ok ? 'saved' : 'error');
     if (response.ok) {
+      setGeneralCurrentPassword('');
       if (storageChanged) {
         const applyResponse = await stackarrFetch('/api/v1/command', {
           method: 'POST',
@@ -257,6 +429,104 @@ export function SettingsEditor({ section, env, settings }: Props) {
       : 'Saved, but Cloudflare route apply failed to queue.';
     setMessage(nextMessage);
     toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
+  }
+
+  async function applyGlobalPassword() {
+    const validation =
+      currentAdminPasswordError(globalCurrentPassword, true) ||
+      passwordConfirmationError('Global password', globalPassword, globalPasswordConfirm) ||
+      (!globalPassword ? 'Global password is required.' : '');
+    if (validation) {
+      setSecurityState('error');
+      setMessage(validation);
+      toast.error(validation);
+      return;
+    }
+
+    const nextEnv = applyPasswordPatch(draftEnv, globalPasswordKeys, globalPassword);
+    if (nextEnv.PULSARR_DB_TYPE === 'postgres') {
+      nextEnv.PULSARR_DB_PASSWORD = globalPassword;
+    }
+
+    await saveSecurityPasswordChange(nextEnv, 'Global password saved.', globalCurrentPassword);
+    setGlobalCurrentPassword('');
+    setGlobalPassword('');
+    setGlobalPasswordConfirm('');
+  }
+
+  async function applyServicePassword() {
+    if (!selectedSecurityService || selectedSecurityKeys.length === 0) {
+      const validation = 'Choose a service and credential type first.';
+      setSecurityState('error');
+      setMessage(validation);
+      toast.error(validation);
+      return;
+    }
+
+    const validation =
+      currentAdminPasswordError(serviceCurrentPassword, true) ||
+      passwordConfirmationError(`${selectedSecurityService.label} password`, servicePassword, servicePasswordConfirm) ||
+      (!servicePassword ? `${selectedSecurityService.label} password is required.` : '');
+    if (validation) {
+      setSecurityState('error');
+      setMessage(validation);
+      toast.error(validation);
+      return;
+    }
+
+    const nextEnv = applyPasswordPatch(draftEnv, selectedSecurityKeys, servicePassword);
+    if (selectedSecurityKeys.includes('PULSARR_POSTGRES_PASSWORD') && nextEnv.PULSARR_DB_TYPE === 'postgres') {
+      nextEnv.PULSARR_DB_PASSWORD = servicePassword;
+    }
+
+    await saveSecurityPasswordChange(
+      nextEnv,
+      `${selectedSecurityService.label} password saved.`,
+      serviceCurrentPassword
+    );
+    setServiceCurrentPassword('');
+    setServicePassword('');
+    setServicePasswordConfirm('');
+  }
+
+  async function saveSecurityPasswordChange(nextEnv: StackarrEnv, savedMessage: string, currentPassword: string) {
+    setSecurityState('saving');
+    setMessage('');
+    const toastId = toast.loading('Saving security settings...');
+    const { response, body } = await saveConfig(nextEnv, draftSettings, currentPassword);
+
+    if (!response.ok) {
+      setSecurityState('error');
+      const errorMessage = typeof body.error === 'string' ? body.error : 'Security settings failed to save.';
+      setMessage(errorMessage);
+      toast.error(errorMessage, { id: toastId });
+      return;
+    }
+
+    setDraftEnv(nextEnv);
+    const applyResponse = await stackarrFetch('/api/v1/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'SecurityApply', confirmed: true })
+    });
+
+    setSecurityState(applyResponse.ok ? 'queued' : 'error');
+    const nextMessage = applyResponse.ok
+      ? `${savedMessage} Security apply queued.`
+      : `${savedMessage} Security apply failed to queue.`;
+    setMessage(nextMessage);
+    toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
+  }
+
+  function updateSecurityService(value: string) {
+    const service = securityServices.find((item) => item.id === value);
+    const nextCredentialType = service ? (service.accessKeys?.length ? 'access' : 'database') : 'access';
+
+    setSecurityServiceId(value);
+    setSecurityCredentialType(nextCredentialType);
+    setServiceCurrentPassword('');
+    setServicePassword('');
+    setServicePasswordConfirm('');
   }
 
   function updateCloudflareRoutes(routes: CloudflareRoute[]) {
@@ -725,6 +995,132 @@ export function SettingsEditor({ section, env, settings }: Props) {
         </FormGrid>
       )}
 
+      {section === 'security' && (
+        <div className={styles.securityLayout}>
+          <section className={styles.securitySection}>
+            <div className={styles.securityHeading}>
+              <span className={styles.securityIcon}>
+                <LockIcon size={16} />
+              </span>
+              <div>
+                <h3>Global Admin Password</h3>
+                <p>
+                  Updates the shared app password and all managed Postgres role passwords. Individual service access
+                  overrides keep their own password.
+                </p>
+              </div>
+            </div>
+            <FormGrid>
+              <Password
+                label="Current Admin Password"
+                value={globalCurrentPassword}
+                autoComplete="current-password"
+                error={currentAdminPasswordError(globalCurrentPassword)}
+                onChange={setGlobalCurrentPassword}
+              />
+              <Password
+                label="New Global Password"
+                value={globalPassword}
+                autoComplete="new-password"
+                error={passwordConfirmationError('Global password', globalPassword, globalPasswordConfirm)}
+                onChange={setGlobalPassword}
+              />
+              <Password
+                label="Confirm Global Password"
+                value={globalPasswordConfirm}
+                autoComplete="new-password"
+                onChange={setGlobalPasswordConfirm}
+              />
+              <div className={styles.actionRow}>
+                <span>Apply Global Change</span>
+                <Button isDisabled={securityState === 'saving'} onPress={applyGlobalPassword}>
+                  <KeyIcon size={15} />
+                  {securityState === 'saving' ? 'Saving...' : securityState === 'queued' ? 'Queued' : 'Update password'}
+                </Button>
+              </div>
+            </FormGrid>
+          </section>
+
+          <section className={styles.securitySection}>
+            <div className={styles.securityHeading}>
+              <span className={styles.securityIcon}>
+                <KeyIcon size={16} />
+              </span>
+              <div>
+                <h3>Individual Service Password</h3>
+                <p>Select a service first, then choose which credential to update.</p>
+              </div>
+            </div>
+            <FormGrid>
+              <Select
+                label="Service"
+                value={securityServiceId}
+                options={[
+                  { value: '', label: 'Choose service...' },
+                  ...securityServices.map((service) => ({ value: service.id, label: service.label }))
+                ]}
+                onChange={updateSecurityService}
+              />
+              {selectedSecurityService && (
+                <>
+                  <Select
+                    label="Credential"
+                    value={securityCredentialType}
+                    options={selectedSecurityCredentialOptions}
+                    onChange={(value) => setSecurityCredentialType(value as SecurityCredentialType)}
+                  />
+                  <div className={styles.securitySummary}>
+                    <strong>{selectedSecurityService.label}</strong>
+                    <span>{selectedSecurityService.description}</span>
+                  </div>
+                  <Password
+                    label="Current Admin Password"
+                    value={serviceCurrentPassword}
+                    autoComplete="current-password"
+                    error={currentAdminPasswordError(serviceCurrentPassword)}
+                    onChange={setServiceCurrentPassword}
+                  />
+                  <Password
+                    label="New Service Password"
+                    value={servicePassword}
+                    autoComplete="new-password"
+                    error={passwordConfirmationError(
+                      `${selectedSecurityService.label} password`,
+                      servicePassword,
+                      servicePasswordConfirm
+                    )}
+                    onChange={setServicePassword}
+                  />
+                  <Password
+                    label="Confirm Service Password"
+                    value={servicePasswordConfirm}
+                    autoComplete="new-password"
+                    onChange={setServicePasswordConfirm}
+                  />
+                  <div className={styles.actionRow}>
+                    <span>Apply Service Change</span>
+                    <Button isDisabled={securityState === 'saving'} onPress={applyServicePassword}>
+                      <KeyIcon size={15} />
+                      {securityState === 'saving'
+                        ? 'Saving...'
+                        : securityState === 'queued'
+                          ? 'Queued'
+                          : 'Update selected service'}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </FormGrid>
+          </section>
+
+          <div className={styles.securityNote}>
+            Runtime secrets are still stored in Stackarr's local config database today. The Settings API redacts them
+            before returning config to the browser; at-rest encryption is a separate migration because shell automation
+            also reads these values.
+          </div>
+        </div>
+      )}
+
       {section === 'general' && (
         <FormGrid>
           <Text label="Timezone" value={envValue('TIMEZONE')} onChange={(value) => updateEnv('TIMEZONE', value)} />
@@ -779,6 +1175,15 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
       {section === 'general' && draftSettings.ui.showAdvanced && (
         <FormGrid>
+          {protectedEnvPasswordChanged && (
+            <Password
+              label="Current Admin Password"
+              value={generalCurrentPassword}
+              autoComplete="current-password"
+              error={currentAdminPasswordError(generalCurrentPassword)}
+              onChange={setGeneralCurrentPassword}
+            />
+          )}
           {advancedEnvKeys.map((key) => {
             const Field = isSecretEnvKey(key) ? Password : Text;
             const error = isPortablePasswordEnvKey(key)
@@ -839,13 +1244,21 @@ export function SettingsEditor({ section, env, settings }: Props) {
         </FormGrid>
       )}
 
-      <div className={styles.footer}>
-        <button onClick={save} type="button">
-          {state === 'saving' ? 'Saving...' : 'Save'}
-        </button>
-        {state === 'saved' && <span>{message || 'Saved'}</span>}
-        {state === 'error' && <span className={styles.error}>{message || 'Save failed'}</span>}
-      </div>
+      {section !== 'security' && (
+        <div className={styles.footer}>
+          <button onClick={save} type="button">
+            {state === 'saving' ? 'Saving...' : 'Save'}
+          </button>
+          {state === 'saved' && <span>{message || 'Saved'}</span>}
+          {state === 'error' && <span className={styles.error}>{message || 'Save failed'}</span>}
+        </div>
+      )}
+      {section === 'security' && securityState !== 'idle' && (
+        <div className={styles.footer}>
+          {securityState === 'queued' && <span>{message || 'Security apply queued.'}</span>}
+          {securityState === 'error' && <span className={styles.error}>{message || 'Security update failed'}</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -912,32 +1325,53 @@ function Path({ label, value, onChange }: { label: string; value: string; onChan
 function Password({
   label,
   value,
+  autoComplete = 'off',
   error,
   onChange
 }: {
   label: string;
   value: string;
+  autoComplete?: string;
   error?: string;
   onChange: (value: string) => void;
 }) {
+  const id = useId();
+  const [visible, setVisible] = useState(false);
+
   return (
-    <label className={styles.field}>
-      <span>{label}</span>
-      <input
-        aria-invalid={Boolean(error)}
-        autoComplete="off"
-        pattern={isPortablePasswordEnvKey(label) ? '[A-Za-z0-9._-]{8,}' : undefined}
-        spellCheck={false}
-        title={
-          isPortablePasswordEnvKey(label)
-            ? `Use at least ${portablePasswordMinimumLength} characters: ${portablePasswordDescription}.`
-            : undefined
-        }
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+    <div className={styles.field}>
+      <label htmlFor={id}>{label}</label>
+      <div className={styles.passwordControl}>
+        <input
+          id={id}
+          aria-invalid={Boolean(error)}
+          autoComplete={autoComplete}
+          pattern={isPortablePasswordEnvKey(label) ? '[A-Za-z0-9._-]{8,}' : undefined}
+          spellCheck={false}
+          title={
+            isPortablePasswordEnvKey(label)
+              ? `Use at least ${portablePasswordMinimumLength} characters: ${portablePasswordDescription}.`
+              : undefined
+          }
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <span className={styles.passwordToggleWrap} title={`${visible ? 'Hide' : 'Show'} ${label}`}>
+          <Button
+            aria-label={`${visible ? 'Hide' : 'Show'} ${label}`}
+            className={styles.passwordToggle}
+            isIconOnly
+            size="sm"
+            variant="tertiary"
+            onPress={() => setVisible((current) => !current)}
+          >
+            <EyeIcon size={14} />
+          </Button>
+        </span>
+      </div>
       {error && <small>{error}</small>}
-    </label>
+    </div>
   );
 }
 
@@ -958,7 +1392,7 @@ function Select({
 }: {
   label: string;
   value: string;
-  options: string[];
+  options: SelectOption[];
   onChange: (value: string) => void;
 }) {
   return (
@@ -966,8 +1400,8 @@ function Select({
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={selectOptionValue(option)} value={selectOptionValue(option)}>
+            {selectOptionLabel(option)}
           </option>
         ))}
       </select>
@@ -984,8 +1418,101 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
   );
 }
 
+function selectOptionValue(option: SelectOption) {
+  return typeof option === 'string' ? option : option.value;
+}
+
+function selectOptionLabel(option: SelectOption) {
+  return typeof option === 'string' ? option : option.label;
+}
+
+function securityCredentialOptions(service: SecurityServiceTarget): SelectOption[] {
+  const options: SelectOption[] = [];
+
+  if (service.accessKeys?.length) {
+    options.push({ value: 'access', label: 'Frontend/admin access' });
+  }
+
+  if (service.databaseKeys?.length) {
+    options.push({ value: 'database', label: 'Postgres role' });
+  }
+
+  return options;
+}
+
+function applyPasswordPatch(env: StackarrEnv, keys: string[], password: string): StackarrEnv {
+  const next = { ...env };
+
+  for (const key of keys) {
+    next[key] = password;
+  }
+
+  return next;
+}
+
+function currentAdminPasswordError(password: string, required = false) {
+  if (!password && required) {
+    return 'Current admin password is required.';
+  }
+
+  return '';
+}
+
+function passwordConfirmationError(label: string, password: string, confirmation: string) {
+  if (!password && !confirmation) {
+    return '';
+  }
+
+  if (!password) {
+    return `${label} is required.`;
+  }
+
+  const validation = portablePasswordValueError(label, password, '');
+  if (validation) {
+    return validation;
+  }
+
+  if (password !== confirmation) {
+    return `${label} confirmation does not match.`;
+  }
+
+  return '';
+}
+
 function isSecretEnvKey(key: string) {
-  return ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY'].some((fragment) => key.includes(fragment));
+  const normalized = key.toUpperCase();
+  return (
+    ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY'].some((fragment) => normalized.includes(fragment)) ||
+    normalized === 'DATABASE_URL' ||
+    normalized.endsWith('_DATABASE_URL') ||
+    normalized.endsWith('_DB_URL')
+  );
+}
+
+function protectedEnvChangeRequiresCurrentPassword(draftEnv: StackarrEnv, currentEnv: StackarrEnv) {
+  for (const [key, value] of Object.entries(draftEnv)) {
+    if (!isCurrentPasswordProtectedEnvKey(key)) {
+      continue;
+    }
+
+    if (String(value ?? '') !== String(currentEnv[key] ?? '')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isCurrentPasswordProtectedEnvKey(key: string) {
+  const normalized = key.toUpperCase();
+
+  return (
+    normalized === 'PASSWORD' ||
+    normalized.endsWith('_PASSWORD') ||
+    normalized === 'DATABASE_URL' ||
+    normalized.endsWith('_DATABASE_URL') ||
+    normalized.endsWith('_DB_URL')
+  );
 }
 
 function isPortablePasswordEnvKey(key: string) {
@@ -1008,16 +1535,20 @@ function firstPortablePasswordValidationError(draftEnv: StackarrEnv, currentEnv:
 }
 
 function validatePortablePasswordValue(key: string, value: string, currentValue: string) {
+  return portablePasswordValueError(humanizePasswordKey(key), value, currentValue);
+}
+
+function portablePasswordValueError(label: string, value: string, currentValue: string) {
   if (!value || value === currentValue) {
     return '';
   }
 
   if (value.length < portablePasswordMinimumLength) {
-    return `${humanizePasswordKey(key)} must be at least ${portablePasswordMinimumLength} characters.`;
+    return `${label} must be at least ${portablePasswordMinimumLength} characters.`;
   }
 
   if (!portablePasswordPattern.test(value)) {
-    return `${humanizePasswordKey(key)} may only use ${portablePasswordDescription}.`;
+    return `${label} may only use ${portablePasswordDescription}.`;
   }
 
   return '';

@@ -162,7 +162,7 @@ service_port_localhost_only() {
     local container_port="$2"
     local mapping
 
-    mapping="$(docker compose -f "$ROOT_DIR/docker-compose.yml" port "$service" "$container_port" 2>/dev/null | head -1 || true)"
+    mapping="$(stackarr_compose port "$service" "$container_port" 2>/dev/null | head -1 || true)"
     [[ "$mapping" == 127.0.0.1:* ]]
 }
 
@@ -172,7 +172,7 @@ else
     failure "Docker runtime is not ready"
 fi
 
-DB_FILE="${STACKARR_DATABASE_FILE:-$ROOT_DIR/config/stackarr.db}"
+DB_FILE="${STACKARR_DATABASE_FILE:-$(default_stackarr_database_file)}"
 if [[ -f "$DB_FILE" ]]; then
     pass "Stackarr runtime config database exists"
 else
@@ -190,7 +190,7 @@ for dir in "${MEDIA_ROOT:-}" "${MUSIC_ROOT:-}" "${CONFIG_ROOT:-}" "${DOWNLOADS_R
     fi
 done
 
-if docker compose -f "$ROOT_DIR/docker-compose.yml" config >/dev/null 2>&1; then
+if stackarr_compose config >/dev/null 2>&1; then
     pass "docker-compose.yml parses"
 else
     failure "docker-compose.yml failed to parse"
@@ -224,6 +224,11 @@ fi
 
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.stack.plist" ]]; then
     pass "Startup launch agent installed"
+    if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
+        pass "Startup launch agent is associated with the Stackarr app bundle"
+    else
+        warning "Startup launch agent is not associated with the Stackarr app bundle. Reinstall it with 'stackarr startup install'."
+    fi
     if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
         pass "Startup launch agent points at this Stackarr executable"
     else
@@ -235,8 +240,16 @@ fi
 
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.backup.plist" ]]; then
     pass "Backup launch agent installed"
+    BACKUP_AGENT_BIN="${STATE_ROOT:-}/launchd/Stackarr Backup Agent.app/Contents/MacOS/stackarr-backup-agent"
+    if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
+        pass "Backup launch agent is associated with the Stackarr app bundle"
+    else
+        warning "Backup launch agent is not associated with the Stackarr app bundle. Reinstall it with 'stackarr backup install'."
+    fi
     if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
         pass "Backup launch agent points at this Stackarr executable"
+    elif [[ -x "$BACKUP_AGENT_BIN" ]] && grep -Fq "<string>$BACKUP_AGENT_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
+        pass "Backup launch agent uses the dedicated Stackarr Backup Agent helper"
     else
         warning "Backup launch agent points at a different Stackarr executable. Reinstall it with 'stackarr backup install'."
     fi
@@ -246,6 +259,11 @@ fi
 
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.update.plist" ]]; then
     pass "Update launch agent installed"
+    if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.update.plist"; then
+        pass "Update launch agent is associated with the Stackarr app bundle"
+    else
+        warning "Update launch agent is not associated with the Stackarr app bundle. Reinstall it with 'stackarr update install'."
+    fi
     if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.update.plist"; then
         pass "Update launch agent points at this Stackarr executable"
     else

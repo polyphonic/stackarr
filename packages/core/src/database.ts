@@ -12,7 +12,6 @@ type StackarrDatabaseTarget = 'main' | 'log';
 let database: Database | undefined;
 let postgresMainMigrated = false;
 let postgresLogMigrated = false;
-const runtimeConfigKey = 'stackarr.runtimeConfig';
 
 type NotificationRow = {
   id: number;
@@ -83,12 +82,18 @@ export function readJsonSetting<T>(key: string, fallback: T): T {
     return fallback;
   }
 
-  const postgresRow = postgresConfigured('main') ? readPostgresSetting(key) : undefined;
   const sqliteRow = fs.existsSync(appDatabasePath) ? readSqliteSetting(key) : undefined;
-  const row =
-    key === runtimeConfigKey && postgresRow?.value && sqliteRow?.value && postgresRow.value !== sqliteRow.value
-      ? syncRuntimeConfigStores(sqliteRow.value)
-      : (postgresRow ?? sqliteRow);
+  const postgresRow = postgresConfigured('main') ? readPostgresSetting(key) : undefined;
+  let row = sqliteRow;
+
+  if (sqliteRow?.value !== undefined) {
+    if (postgresConfigured('main') && postgresRow?.value !== sqliteRow.value) {
+      writePostgresSetting(key, sqliteRow.value);
+    }
+  } else if (postgresRow?.value !== undefined) {
+    writeSqliteSetting(key, postgresRow.value);
+    row = postgresRow;
+  }
 
   if (!row?.value) {
     return fallback;
@@ -104,14 +109,11 @@ export function readJsonSetting<T>(key: string, fallback: T): T {
 export function writeJsonSetting<T>(key: string, value: T) {
   const jsonValue = JSON.stringify(value);
 
-  if (postgresConfigured('main') && writePostgresSetting(key, jsonValue)) {
-    if (key === runtimeConfigKey) {
-      writeSqliteSetting(key, jsonValue);
-    }
-    return;
-  }
-
   writeSqliteSetting(key, jsonValue);
+
+  if (postgresConfigured('main')) {
+    writePostgresSetting(key, jsonValue);
+  }
 }
 
 function readSqliteSetting(key: string): { value?: string } | undefined {
@@ -128,11 +130,6 @@ function writeSqliteSetting(key: string, value: string) {
       on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at
     `)
     .run(key, value);
-}
-
-function syncRuntimeConfigStores(value: string): { value: string } {
-  writePostgresSetting(runtimeConfigKey, value);
-  return { value };
 }
 
 export function readNotificationRows(): NotificationRow[] {

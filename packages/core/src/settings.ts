@@ -163,7 +163,7 @@ export function readSettings(): StackarrSettings {
     const current = migratedStored
       ? mergeSettings(defaultSettings, migratedStored)
       : mergeSettings(defaultSettings, envSettings);
-    const migrated = backfillSettingsFromEnv(current, envSettings);
+    const migrated = syncEnvBackedSettings(current, envSettings);
 
     if (
       !stored ||
@@ -243,35 +243,26 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
   };
 }
 
-function backfillSettingsFromEnv(current: StackarrSettings, envSettings: StackarrSettingsPatch): StackarrSettings {
+function syncEnvBackedSettings(current: StackarrSettings, envSettings: StackarrSettingsPatch): StackarrSettings {
   const next = mergeSettings(current, {});
 
-  if (envSettings.host?.bindAddress && current.host.bindAddress === defaultSettings.host.bindAddress) {
+  if (envSettings.host?.bindAddress !== undefined) {
     next.host.bindAddress = envSettings.host.bindAddress;
   }
 
-  if (envSettings.host?.port && current.host.port === defaultSettings.host.port) {
+  if (envSettings.host?.port !== undefined) {
     next.host.port = envSettings.host.port;
   }
 
-  if (
-    envSettings.metadata?.plexMetadataMonitoring !== undefined &&
-    current.metadata.plexMetadataMonitoring === defaultSettings.metadata.plexMetadataMonitoring
-  ) {
+  if (envSettings.metadata?.plexMetadataMonitoring !== undefined) {
     next.metadata.plexMetadataMonitoring = envSettings.metadata.plexMetadataMonitoring;
   }
 
-  if (
-    envSettings.metadata?.jellyfinMetadataMonitoring !== undefined &&
-    current.metadata.jellyfinMetadataMonitoring === defaultSettings.metadata.jellyfinMetadataMonitoring
-  ) {
+  if (envSettings.metadata?.jellyfinMetadataMonitoring !== undefined) {
     next.metadata.jellyfinMetadataMonitoring = envSettings.metadata.jellyfinMetadataMonitoring;
   }
 
-  if (
-    envSettings.profiles?.preferSeparateHd4kInstances !== undefined &&
-    current.profiles.preferSeparateHd4kInstances === defaultSettings.profiles.preferSeparateHd4kInstances
-  ) {
+  if (envSettings.profiles?.preferSeparateHd4kInstances !== undefined) {
     next.profiles.preferSeparateHd4kInstances = envSettings.profiles.preferSeparateHd4kInstances;
   }
 
@@ -287,7 +278,7 @@ function backfillSettingsFromEnv(current: StackarrSettings, envSettings: Stackar
     'tv4kDefault',
     'musicDefault'
   ] as Array<keyof StackarrSettings['profiles']>) {
-    if (envSettings.profiles?.[key] !== undefined && current.profiles[key] === defaultSettings.profiles[key]) {
+    if (envSettings.profiles?.[key] !== undefined) {
       next.profiles[key] = envSettings.profiles[key] as never;
     }
   }
@@ -295,9 +286,7 @@ function backfillSettingsFromEnv(current: StackarrSettings, envSettings: Stackar
   for (const [key, value] of Object.entries(envSettings.services ?? {}) as Array<
     [keyof StackarrSettings['services'], boolean]
   >) {
-    if (current.services[key] === defaultSettings.services[key]) {
-      next.services[key] = value;
-    }
+    next.services[key] = value;
   }
 
   if (envSettings.telemetry?.endpoint && !current.telemetry.endpoint) {

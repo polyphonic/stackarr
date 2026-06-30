@@ -21,10 +21,10 @@ bin/stackarr update run
 
 The Stackarr updater is an all-stack Docker image refresh for the active Compose profiles. It pulls current images, recreates the enabled services together, reapplies naming/download/request integration settings, and then runs the maintenance image cleanup.
 
-Install the scheduled updater with:
+Enable scheduled updates with:
 
 ```bash
 bin/stackarr update install
 ```
 
-The default scheduled update window is Sunday at `04:30`. Native Plex is not updated by Stackarr; keep Plex on its own native update schedule and set `UPDATE_WEEKDAY`/`UPDATE_TIME` to the same maintenance window when you want the Docker stack to move with it.
+The default scheduled update window is Sunday at `04:30`. In Docker installs, the Stackarr container scheduler runs this workflow. Native Plex is not updated by Stackarr; keep Plex on its own native update schedule and set `UPDATE_WEEKDAY`/`UPDATE_TIME` to the same maintenance window when you want the Docker stack to move with it.

@@ -71,6 +71,7 @@ test('dry-run setup config carries shared credentials without personal Pulsarr r
   assert.equal(result.plan.config.BACKUP_SCHEDULE, 'weekly');
   assert.equal(result.plan.config.BACKUP_WEEKDAY, 'Sun');
   assert.equal(result.plan.config.BACKUP_RETENTION_COUNT, '52');
+  assert.equal(result.plan.config.ENABLE_SCHEDULED_UPDATES, 'false');
   assert.equal(result.plan.config.UPDATE_TIME, '04:30');
   assert.equal(result.plan.config.UPDATE_WEEKDAY, 'Sun');
   assert.equal(result.plan.config.STACKARR_MOVIE_PROFILE_PRESET, 'lite');
@@ -259,4 +260,15 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.doesNotMatch(configure, /HD Lite watchlist users/);
   assert.doesNotMatch(configure, /PULSARR_HD_LITE_USERS/);
   assert.doesNotMatch(common, /PULSARR_HD_LITE_USERS/);
+});
+
+test('Lidarr is configured as download-only for manually curated music libraries', async () => {
+  const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
+  const configure = await readFile(new URL('../../../stackarr/scripts/configure.sh', import.meta.url), 'utf8');
+  const downloads = await readFile(new URL('../../../stackarr/scripts/downloads.sh', import.meta.url), 'utf8');
+
+  assert.match(compose, /\$\{MUSIC_ROOT:-\.\/\.stackarr\/media\/Music\}:\/music:ro/);
+  assert.match(configure, /Lidarr completed download handling disabled[\s\S]*"\$LIDARR_KEY" false/);
+  assert.match(downloads, /Lidarr completed download handling disabled[\s\S]*"\$wait_for_ready" false/);
+  assert.doesNotMatch(configure, /Lidarr completed download handling enabled/);
 });

@@ -14,13 +14,14 @@ host_install_hint() {
     echo "Open Terminal and run:"
     echo "  stackarr portless install"
     echo "App archive fallback:"
-    echo "  /Applications/Stackarr.app/Contents/MacOS/stackarr portless install"
+    echo "  /Applications/Stackarr.app/Contents/MacOS/Stackarr portless install"
     echo "Source checkouts can use:"
     echo "  bin/stackarr portless install"
 }
 
 load_browser_link_settings() {
-    local db_file="${STACKARR_DATABASE_FILE:-$REPO_ROOT/stackarr/config/stackarr.db}"
+    local db_file
+    db_file="$(default_stackarr_database_file)"
     local exporter="$ROOT_DIR/scripts/settings-export.cjs"
 
     : "${STACKARR_SERVICE_URL_MODE:=localhost}"
@@ -222,6 +223,10 @@ install_agent() {
   <string>com.stackarr.portless</string>
   <key>ProcessType</key>
   <string>Background</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
+  </array>
   <key>WorkingDirectory</key>
   <string>$APP_ROOT</string>
   <key>ProgramArguments</key>

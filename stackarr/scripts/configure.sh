@@ -1765,6 +1765,7 @@ configure_servarr_auth() {
     local label="$1"
     local url="$2"
     local api_key="$3"
+    local auth_password="${4:-${PASSWORD:-}}"
     local current payload
 
     if [[ -z "$api_key" ]]; then
@@ -1772,8 +1773,8 @@ configure_servarr_auth() {
         return 0
     fi
 
-    if [[ -z "${USERNAME:-}" || -z "${PASSWORD:-}" ]]; then
-        warn "$label skipped because USERNAME or PASSWORD is empty"
+    if [[ -z "${USERNAME:-}" || -z "$auth_password" ]]; then
+        warn "$label skipped because USERNAME or the selected password is empty"
         return 0
     fi
 
@@ -1782,7 +1783,7 @@ configure_servarr_auth() {
         return 1
     }
 
-    payload="$(python3 - "$USERNAME" "$PASSWORD" "$current" <<'PY'
+    payload="$(python3 - "$USERNAME" "$auth_password" "$current" <<'PY'
 import json
 import sys
 
@@ -1836,6 +1837,7 @@ configure_servarr_download_handling() {
     local label="$1"
     local url="$2"
     local api_key="$3"
+    local enabled="${4:-true}"
     local current payload
 
     if [[ -z "$api_key" ]]; then
@@ -1848,13 +1850,14 @@ configure_servarr_download_handling() {
         return 1
     }
 
-    payload="$(python3 - "$current" <<'PY'
+    payload="$(python3 - "$current" "$enabled" <<'PY'
 import json
 import sys
 
 data = json.loads(sys.argv[1])
+enabled = sys.argv[2].lower() == "true"
 
-data["enableCompletedDownloadHandling"] = True
+data["enableCompletedDownloadHandling"] = enabled
 data.setdefault("downloadClientWorkingFolders", "_UNPACK_|_FAILED_")
 data.setdefault("autoRedownloadFailed", False)
 data.setdefault("autoRedownloadFailedFromInteractiveSearch", False)
@@ -1875,8 +1878,8 @@ configure_bazarr_auth() {
         return 0
     fi
 
-    if [[ -z "${USERNAME:-}" || -z "${PASSWORD:-}" ]]; then
-        warn "Bazarr UI auth skipped because USERNAME or PASSWORD is empty"
+    if [[ -z "${USERNAME:-}" || -z "${BAZARR_PASSWORD:-}" ]]; then
+        warn "Bazarr UI auth skipped because USERNAME or BAZARR_PASSWORD is empty"
         return 0
     fi
 
@@ -1885,7 +1888,13 @@ configure_bazarr_auth() {
         return 1
     }
 
-    target_hash="$(md5 -q -s "$PASSWORD")"
+    target_hash="$(python3 - "${BAZARR_PASSWORD:-}" <<'PY'
+import hashlib
+import sys
+
+print(hashlib.md5(sys.argv[1].encode()).hexdigest())
+PY
+)"
     result="$(python3 - "$file" "$USERNAME" "$target_hash" <<'PY'
 from pathlib import Path
 import sys
@@ -1974,7 +1983,7 @@ PY
         return 0
     fi
 
-    docker compose -f "$ROOT_DIR/docker-compose.yml" restart bazarr >/dev/null
+    stackarr_compose restart bazarr >/dev/null
     wait_for_http "Bazarr" "$BAZARR_URL"
     ok "Bazarr UI auth configured"
 }
@@ -1982,7 +1991,7 @@ PY
 extract_qbittorrent_temp_password() {
     local output
 
-    output="$(docker compose -f "$ROOT_DIR/docker-compose.yml" logs --no-color qbittorrent 2>/dev/null || true)"
+    output="$(stackarr_compose logs --no-color qbittorrent 2>/dev/null || true)"
     python3 - "$output" <<'PY'
 import re
 import sys
@@ -2115,7 +2124,7 @@ PY
 )"
 
         if [[ "$config_result" == "changed" ]]; then
-            docker compose -f "$ROOT_DIR/docker-compose.yml" stop qbittorrent >/dev/null
+            stackarr_compose stop qbittorrent >/dev/null
             python3 - "$config_file" <<'PY'
 import sys
 from pathlib import Path
@@ -2163,13 +2172,13 @@ if in_bittorrent:
 
 path.write_text("\n".join(out) + "\n")
 PY
-            docker compose -f "$ROOT_DIR/docker-compose.yml" start qbittorrent >/dev/null
+            stackarr_compose start qbittorrent >/dev/null
             wait_for_http "qBittorrent" "$QBITTORRENT_URL"
         fi
     fi
 
     cookie_file="$(mktemp)"
-    if ! qbittorrent_login "$USERNAME" "$PASSWORD" "$cookie_file"; then
+    if ! qbittorrent_login "$USERNAME" "$QBITTORRENT_PASSWORD" "$cookie_file"; then
         bootstrap_password="$(extract_qbittorrent_temp_password || true)"
         if [[ -z "$bootstrap_password" ]]; then
             rm -f "$cookie_file"
@@ -2184,7 +2193,7 @@ PY
         fi
     fi
 
-    payload="$(python3 - "$desired_complete" "$desired_incomplete" "$USERNAME" "$PASSWORD" "${QBITTORRENT_TORRENT_PORT:-6881}" <<'PY'
+    payload="$(python3 - "$desired_complete" "$desired_incomplete" "$USERNAME" "$QBITTORRENT_PASSWORD" "${QBITTORRENT_TORRENT_PORT:-6881}" <<'PY'
 import json
 import sys
 
@@ -2224,7 +2233,7 @@ PY
 
     rm -f "$cookie_file"
     cookie_file="$(mktemp)"
-    if ! qbittorrent_login "$USERNAME" "$PASSWORD" "$cookie_file"; then
+    if ! qbittorrent_login "$USERNAME" "$QBITTORRENT_PASSWORD" "$cookie_file"; then
         rm -f "$cookie_file"
         warn "qBittorrent did not accept the configured shared credentials"
         return 1
@@ -2375,7 +2384,7 @@ sync_recyclarr_profiles() {
     wire_recyclarr_keys
 
     output_file="$(mktemp)"
-    if ! docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T recyclarr /app/recyclarr/recyclarr config create -f \
+    if ! stackarr_compose exec -T recyclarr /app/recyclarr/recyclarr config create -f \
         -t "hd-bluray-web" \
         -t "uhd-bluray-web" \
         -t "web-1080p" \
@@ -2410,7 +2419,7 @@ sync_recyclarr_profiles() {
     ok "Recyclarr template configs written"
 
     output_file="$(mktemp)"
-    if ! docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T recyclarr /app/recyclarr/recyclarr sync "${sync_args[@]}" >"$output_file" 2>&1; then
+    if ! stackarr_compose exec -T recyclarr /app/recyclarr/recyclarr sync "${sync_args[@]}" >"$output_file" 2>&1; then
         warn "Recyclarr sync failed"
         sed -n '1,20p' "$output_file"
         rm -f "$output_file"
@@ -2460,7 +2469,7 @@ radarr_download_payload() {
 
     priority="$(torrent_client_priority transmission)"
     cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$PASSWORD"},{"name":"movieCategory","value":"$category"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
+{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$TRANSMISSION_PASSWORD"},{"name":"movieCategory","value":"$category"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
 EOF
 }
 
@@ -2475,7 +2484,7 @@ qbittorrent_download_payload() {
     priority="$(torrent_client_priority qbittorrent)"
 
     cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"qBittorrent","implementation":"QBittorrent","configContract":"QBittorrentSettings","fields":[{"name":"host","value":"qbittorrent"},{"name":"port","value":${QBITTORRENT_WEBUI_PORT:-8081}},{"name":"useSsl","value":false},{"name":"urlBase","value":""},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$PASSWORD"},{"name":"$category_field","value":"$category"},{"name":"$imported_category_field","value":""},{"name":"$recent_priority_field","value":0},{"name":"$older_priority_field","value":0},{"name":"initialState","value":0},{"name":"sequentialOrder","value":false},{"name":"firstAndLast","value":false},{"name":"contentLayout","value":0}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
+{"enable":true,"protocol":"torrent","priority":${priority},"name":"qBittorrent","implementation":"QBittorrent","configContract":"QBittorrentSettings","fields":[{"name":"host","value":"qbittorrent"},{"name":"port","value":${QBITTORRENT_WEBUI_PORT:-8081}},{"name":"useSsl","value":false},{"name":"urlBase","value":""},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$QBITTORRENT_PASSWORD"},{"name":"$category_field","value":"$category"},{"name":"$imported_category_field","value":""},{"name":"$recent_priority_field","value":0},{"name":"$older_priority_field","value":0},{"name":"initialState","value":0},{"name":"sequentialOrder","value":false},{"name":"firstAndLast","value":false},{"name":"contentLayout","value":0}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
 EOF
 }
 
@@ -2490,7 +2499,7 @@ sonarr_download_payload() {
 
     priority="$(torrent_client_priority transmission)"
     cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$PASSWORD"},{"name":"tvCategory","value":"$category"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
+{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$TRANSMISSION_PASSWORD"},{"name":"tvCategory","value":"$category"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
 EOF
 }
 
@@ -2504,7 +2513,7 @@ lidarr_download_payload() {
 
     priority="$(torrent_client_priority transmission)"
     cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$PASSWORD"},{"name":"musicCategory","value":"$LIDARR_CATEGORY"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
+{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$TRANSMISSION_PASSWORD"},{"name":"musicCategory","value":"$LIDARR_CATEGORY"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
 EOF
 }
 
@@ -2631,7 +2640,7 @@ PULSARR = f"http://127.0.0.1:{os.environ.get('PULSARR_PORT', '3003')}"
 CONFIG_ROOT = Path(os.environ.get('CONFIG_ROOT', ''))
 PLEX_PREFS_PATH = Path(os.environ.get('PLEX_PREFS_PATH', ''))
 USERNAME = os.environ.get('USERNAME', 'stackarr').strip() or 'stackarr'
-PASSWORD = os.environ.get('PASSWORD', '')
+PASSWORD = os.environ.get('PULSARR_PASSWORD') or os.environ.get('PASSWORD', '')
 USER_EMAIL = os.environ.get('USER_EMAIL', '').strip()
 PLEX_SERVER_URL = os.environ.get('PULSARR_PLEX_SERVER_URL', 'http://host.docker.internal:32400').strip() or 'http://host.docker.internal:32400'
 RADARR_DEFAULT_PROFILE = os.environ.get('STACKARR_MOVIE_DEFAULT_PROFILE', 'HD Lite').strip() or 'HD Lite'
@@ -3016,7 +3025,7 @@ if torrent_client_enabled transmission; then
     ensure_download_client "Lidarr Transmission client configured" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_KEY" "Transmission" "$(lidarr_download_payload)"
     configure_servarr_download_handling "Radarr completed download handling enabled" "$RADARR_URL/api/v3/config/downloadclient" "$RADARR_KEY"
     configure_servarr_download_handling "Sonarr completed download handling enabled" "$SONARR_URL/api/v3/config/downloadclient" "$SONARR_KEY"
-    configure_servarr_download_handling "Lidarr completed download handling enabled" "$LIDARR_URL/api/v1/config/downloadclient" "$LIDARR_KEY"
+    configure_servarr_download_handling "Lidarr completed download handling disabled" "$LIDARR_URL/api/v1/config/downloadclient" "$LIDARR_KEY" false
 
     delete_named_service "Radarr qBittorrent client removed" "$RADARR_URL/api/v3/downloadclient" "$RADARR_URL/api/v3/downloadclient" "$RADARR_KEY" "qBittorrent"
     delete_named_service "Sonarr qBittorrent client removed" "$SONARR_URL/api/v3/downloadclient" "$SONARR_URL/api/v3/downloadclient" "$SONARR_KEY" "qBittorrent"
@@ -3041,7 +3050,7 @@ else
     ensure_download_client "Lidarr qBittorrent client configured" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_URL/api/v1/downloadclient" "$LIDARR_KEY" "qBittorrent" "$(lidarr_qbittorrent_download_payload)"
     configure_servarr_download_handling "Radarr completed download handling enabled" "$RADARR_URL/api/v3/config/downloadclient" "$RADARR_KEY"
     configure_servarr_download_handling "Sonarr completed download handling enabled" "$SONARR_URL/api/v3/config/downloadclient" "$SONARR_KEY"
-    configure_servarr_download_handling "Lidarr completed download handling enabled" "$LIDARR_URL/api/v1/config/downloadclient" "$LIDARR_KEY"
+    configure_servarr_download_handling "Lidarr completed download handling disabled" "$LIDARR_URL/api/v1/config/downloadclient" "$LIDARR_KEY" false
     if optional_service_enabled radarr4k; then
         delete_named_service "Radarr 4K Transmission client removed" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_KEY" "Transmission"
         ensure_download_client "Radarr 4K qBittorrent client configured" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_URL/api/v3/downloadclient" "$RADARR_4K_KEY" "qBittorrent" "$(radarr_qbittorrent_download_payload "$RADARR_4K_CATEGORY")"
@@ -3258,15 +3267,15 @@ if optional_service_enabled sonarr4k; then
     apply_series_monitoring_policy "Sonarr 4K series monitoring policy applied" "$SONARR_4K_URL/api/v3/series" "$SONARR_4K_URL/api/v3/series" "$SONARR_4K_KEY" "$SEERR_DB" true
 fi
 
-configure_servarr_auth "Radarr UI auth configured" "$RADARR_URL/api/v3/config/host" "$RADARR_KEY"
-configure_servarr_auth "Sonarr UI auth configured" "$SONARR_URL/api/v3/config/host" "$SONARR_KEY"
-configure_servarr_auth "Prowlarr UI auth configured" "$PROWLARR_URL/api/v1/config/host" "$PROWLARR_KEY"
-configure_servarr_auth "Lidarr UI auth configured" "$LIDARR_URL/api/v1/config/host" "$LIDARR_KEY"
+configure_servarr_auth "Radarr UI auth configured" "$RADARR_URL/api/v3/config/host" "$RADARR_KEY" "$RADARR_PASSWORD"
+configure_servarr_auth "Sonarr UI auth configured" "$SONARR_URL/api/v3/config/host" "$SONARR_KEY" "$SONARR_PASSWORD"
+configure_servarr_auth "Prowlarr UI auth configured" "$PROWLARR_URL/api/v1/config/host" "$PROWLARR_KEY" "$PROWLARR_PASSWORD"
+configure_servarr_auth "Lidarr UI auth configured" "$LIDARR_URL/api/v1/config/host" "$LIDARR_KEY" "$LIDARR_PASSWORD"
 if optional_service_enabled radarr4k; then
-    configure_servarr_auth "Radarr 4K UI auth configured" "$RADARR_4K_URL/api/v3/config/host" "$RADARR_4K_KEY"
+    configure_servarr_auth "Radarr 4K UI auth configured" "$RADARR_4K_URL/api/v3/config/host" "$RADARR_4K_KEY" "$RADARR4K_PASSWORD"
 fi
 if optional_service_enabled sonarr4k; then
-    configure_servarr_auth "Sonarr 4K UI auth configured" "$SONARR_4K_URL/api/v3/config/host" "$SONARR_4K_KEY"
+    configure_servarr_auth "Sonarr 4K UI auth configured" "$SONARR_4K_URL/api/v3/config/host" "$SONARR_4K_KEY" "$SONARR4K_PASSWORD"
 fi
 "$ROOT_DIR/scripts/naming.sh" apply --wait || true
 "$ROOT_DIR/scripts/downloads.sh" apply --wait || true

@@ -494,6 +494,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     BACKUP_WEEKDAY: 'Sun',
     BACKUP_RETENTION_COUNT: String(input.backupRetentionCount),
     STACKARR_DATABASE_MODE: input.databaseMode,
+    ENABLE_SCHEDULED_UPDATES: String(input.installUpdates),
     UPDATE_TIME: '04:30',
     UPDATE_WEEKDAY: 'Sun',
     PLEX_INSTALL_MODE: input.plexInstallMode,
@@ -685,21 +686,21 @@ function buildSetupCommands(input: ResolvedMediaServerSetupInput) {
       name: 'stackarr startup install',
       args: ['startup', 'install'],
       timeoutMs: 5 * 60 * 1000,
-      description: 'Install login startup agent.'
+      description: 'Enable startup automation.'
     });
   if (input.installBackup)
     commands.push({
       name: 'stackarr backup install',
       args: ['backup', 'install'],
       timeoutMs: 5 * 60 * 1000,
-      description: 'Install scheduled backup agent.'
+      description: 'Enable scheduled backup automation.'
     });
   if (input.installUpdates)
     commands.push({
       name: 'stackarr update install',
       args: ['update', 'install'],
       timeoutMs: 5 * 60 * 1000,
-      description: 'Install scheduled update agent.'
+      description: 'Enable scheduled update automation.'
     });
   for (const plugin of input.agentPluginIntegrations ?? []) {
     commands.push({

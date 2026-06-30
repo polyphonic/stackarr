@@ -6,9 +6,11 @@ export type CommandName =
   | 'MigrateCurrentStack'
   | 'ApplyNamingPreset'
   | 'ApplyDownloadsPreset'
+  | 'SecurityApply'
   | 'ApplyRequestsPreset'
   | 'ClearRequestsPreset'
   | 'Backup'
+  | 'BackupPermissions'
   | 'Update'
   | 'PlexCheck'
   | 'PermissionsAudit'
@@ -90,6 +92,13 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
     disruptive: false,
     event: 'Configure'
   },
+  SecurityApply: {
+    name: 'SecurityApply',
+    label: 'Apply security credentials',
+    args: ['security', 'apply'],
+    disruptive: true,
+    event: 'Configure'
+  },
   ApplyRequestsPreset: {
     name: 'ApplyRequestsPreset',
     label: 'Apply requests preset',
@@ -110,6 +119,13 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
     args: ['backup', 'run'],
     disruptive: false,
     event: 'Backup'
+  },
+  BackupPermissions: {
+    name: 'BackupPermissions',
+    label: 'Check backup access',
+    args: ['backup', 'permissions'],
+    disruptive: false,
+    event: 'Configure'
   },
   Update: {
     name: 'Update',
@@ -141,42 +157,42 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
   },
   StartupInstall: {
     name: 'StartupInstall',
-    label: 'Install startup agent',
+    label: 'Enable startup automation',
     args: ['startup', 'install'],
     disruptive: false,
     event: 'Configure'
   },
   StartupUninstall: {
     name: 'StartupUninstall',
-    label: 'Uninstall startup agent',
+    label: 'Disable startup automation',
     args: ['startup', 'uninstall'],
     disruptive: false,
     event: 'Configure'
   },
   BackupInstall: {
     name: 'BackupInstall',
-    label: 'Install backup agent',
+    label: 'Enable backup automation',
     args: ['backup', 'install'],
     disruptive: false,
     event: 'Configure'
   },
   BackupUninstall: {
     name: 'BackupUninstall',
-    label: 'Uninstall backup agent',
+    label: 'Disable backup automation',
     args: ['backup', 'uninstall'],
     disruptive: false,
     event: 'Configure'
   },
   UpdateInstall: {
     name: 'UpdateInstall',
-    label: 'Install update agent',
+    label: 'Enable update automation',
     args: ['update', 'install'],
     disruptive: false,
     event: 'Configure'
   },
   UpdateUninstall: {
     name: 'UpdateUninstall',
-    label: 'Uninstall update agent',
+    label: 'Disable update automation',
     args: ['update', 'uninstall'],
     disruptive: false,
     event: 'Configure'

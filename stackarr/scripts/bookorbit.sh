@@ -18,7 +18,7 @@ wait_for_bookorbit_database() {
     local i
 
     for ((i = 1; i <= attempts; i++)); do
-        if docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+        if stackarr_compose exec -T \
             -e PGPASSWORD="$BOOKORBIT_POSTGRES_PASSWORD" \
             database pg_isready \
             -U "${BOOKORBIT_POSTGRES_USER:-bookorbit}" \
@@ -33,12 +33,12 @@ wait_for_bookorbit_database() {
 }
 
 bookorbit_app_is_running() {
-    docker compose -f "$ROOT_DIR/docker-compose.yml" ps --services --status running 2>/dev/null | grep -qx 'bookorbit'
+    stackarr_compose ps --services --status running 2>/dev/null | grep -qx 'bookorbit'
 }
 
 bookorbit_password_hash() {
-    docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
-        -e STACKARR_BOOKORBIT_PASSWORD="$PASSWORD" \
+    stackarr_compose exec -T \
+        -e STACKARR_BOOKORBIT_PASSWORD="$BOOKORBIT_PASSWORD" \
         bookorbit node -e '
 const { hash } = require("bcryptjs");
 hash(process.env.STACKARR_BOOKORBIT_PASSWORD || "", 12)
@@ -59,8 +59,8 @@ apply_bookorbit_credentials() {
         return 0
     fi
 
-    if [[ -z "${USERNAME:-}" || -z "${PASSWORD:-}" ]]; then
-        warn "BookOrbit credential sync skipped because USERNAME or PASSWORD is empty"
+    if [[ -z "${USERNAME:-}" || -z "${BOOKORBIT_PASSWORD:-}" ]]; then
+        warn "BookOrbit credential sync skipped because USERNAME or BOOKORBIT_PASSWORD is empty"
         return 1
     fi
 
@@ -80,7 +80,7 @@ apply_bookorbit_credentials() {
 
     email="${USER_EMAIL:-}"
 
-    docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T \
+    stackarr_compose exec -T \
         -e PGPASSWORD="$BOOKORBIT_POSTGRES_PASSWORD" \
         database psql \
         -v ON_ERROR_STOP=1 \

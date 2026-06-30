@@ -30,7 +30,8 @@ case "$cmd" in
         shift
         load_env
         ensure_docker_runtime
-        exec docker compose -f "$ROOT_DIR/docker-compose.yml" down "$@"
+        stackarr_compose down "$@"
+        exit $?
         ;;
     configure)
         shift
@@ -53,6 +54,10 @@ case "$cmd" in
     downloads)
         shift || true
         exec "$ROOT_DIR/scripts/downloads.sh" "$@"
+        ;;
+    security)
+        shift || true
+        exec "$ROOT_DIR/scripts/security.sh" "$@"
         ;;
     database)
         shift || true
@@ -86,7 +91,8 @@ case "$cmd" in
         shift
         load_env
         ensure_docker_runtime
-        exec docker compose -f "$ROOT_DIR/docker-compose.yml" logs -f "$@"
+        stackarr_compose logs -f "$@"
+        exit $?
         ;;
     cloudflare)
         shift || true
@@ -113,6 +119,10 @@ case "$cmd" in
                 shift || true
                 exec "$ROOT_DIR/scripts/backup-install.sh" "$sub" "$@"
                 ;;
+            permissions)
+                shift || true
+                exec "$ROOT_DIR/scripts/backup-install.sh" "$sub" "$@"
+                ;;
             run)
                 shift || true
                 exec "$ROOT_DIR/scripts/backup-run.sh" "$@"
@@ -122,7 +132,7 @@ case "$cmd" in
                 exec "$ROOT_DIR/scripts/restore.sh" "$@"
                 ;;
             *)
-                fail "Usage: stackarr backup install|uninstall|run|restore <archive>"
+                fail "Usage: stackarr backup install|uninstall|permissions|run|restore <archive>"
                 ;;
         esac
         ;;
@@ -186,6 +196,7 @@ Stackarr commands:
   stackarr telemetry status|preview|enable|disable|send
   stackarr naming apply|prestart
   stackarr downloads apply
+  stackarr security apply
   stackarr database ensure|status
   stackarr requests apply|clear
   stackarr doctor
@@ -193,7 +204,7 @@ Stackarr commands:
   stackarr portless apply|install|status|uninstall
   stackarr cloudflare install|start|stop|status|delete|uninstall
   stackarr startup install|uninstall
-  stackarr backup install|uninstall|run
+  stackarr backup install|uninstall|permissions|run
   stackarr backup restore <archive>
   stackarr mcp serve
   stackarr plugins install|export [hermes|openclaw|all]
