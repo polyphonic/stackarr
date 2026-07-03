@@ -12,6 +12,7 @@ const defaults: Record<string, number> = {
   lidarr: 8686,
   seerr: 5055,
   pulsarr: 3003,
+  maintainerr: 6246,
   plex: 32400,
   transmission: 9091,
   qbittorrent: 8081,

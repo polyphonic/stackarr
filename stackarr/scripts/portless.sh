@@ -143,6 +143,10 @@ register_aliases() {
         register pulsarr "${PULSARR_PORT:-3003}"
     fi
 
+    if truthy "${ENABLE_MAINTAINERR:-false}"; then
+        register maintainerr "${MAINTAINERR_PORT:-6246}"
+    fi
+
     if [[ "$(lowercase "${PLEX_INSTALL_MODE:-native}")" != "disabled" ]]; then
         register plex "${PLEX_DOCKER_PORT:-32400}"
     fi

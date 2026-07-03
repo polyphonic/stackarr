@@ -142,7 +142,18 @@ const tools: ToolDef[] = [
       enabledMediaTypes: z.array(z.enum(['movies', 'tv', 'music', 'books'])).optional(),
       requestManagers: z.array(z.enum(['seerr', 'pulsarr'])).optional(),
       enabledServices: z
-        .array(z.enum(['bazarr', 'tinymediamanager', 'lidarr', 'bookorbit', 'recyclarr', 'flaresolverr', 'tidarr']))
+        .array(
+          z.enum([
+            'bazarr',
+            'tinymediamanager',
+            'lidarr',
+            'bookorbit',
+            'recyclarr',
+            'flaresolverr',
+            'tidarr',
+            'maintainerr'
+          ])
+        )
         .optional(),
       enableMovies: z.boolean().optional(),
       enableTvShows: z.boolean().optional(),
@@ -154,6 +165,8 @@ const tools: ToolDef[] = [
       enableRecyclarr: z.boolean().optional(),
       enableFlaresolverr: z.boolean().optional(),
       enableTidarr: z.boolean().optional(),
+      enableMaintainerr: z.boolean().optional(),
+      maintainerrCleanupPresets: z.array(z.enum(['watched-movies', 'abandoned-shows', 'stale-requests'])).optional(),
       movieProfilePreset: z.enum(['lite', 'balanced']).optional(),
       movie4kProfilePreset: z.enum(['lite', 'balanced']).optional(),
       tvProfilePreset: z.enum(['lite', 'balanced']).optional(),
@@ -304,6 +317,7 @@ const tools: ToolDef[] = [
           service: z.enum([
             'stackarr',
             'pulsarr',
+            'maintainerr',
             'bookorbit',
             'seerr',
             'plex',

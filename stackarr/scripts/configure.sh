@@ -40,6 +40,7 @@ LIDARR_URL="$(service_url lidarr "$LIDARR_URL" 8686)"
 BAZARR_URL="$(service_url bazarr "$BAZARR_URL" 6767)"
 SEERR_URL="$(service_url seerr "$SEERR_URL" 5055)"
 PULSARR_URL="$(service_url pulsarr "$PULSARR_URL" "${PULSARR_PORT:-3003}")"
+MAINTAINERR_URL="$(service_url maintainerr "$MAINTAINERR_URL" "${MAINTAINERR_PORT:-6246}")"
 FLARESOLVERR_URL="$(service_url flaresolverr "${FLARESOLVERR_URL:-http://127.0.0.1:8191}" 8191)"
 TRANSMISSION_URL="$(service_url transmission "$TRANSMISSION_URL" 9091)/transmission/web/"
 QBITTORRENT_URL="$(service_url qbittorrent "$QBITTORRENT_URL" "${QBITTORRENT_WEBUI_PORT:-8081}")"
@@ -2907,6 +2908,317 @@ except Exception as exc:
     note('WARN', f'Pulsarr configuration skipped: {exc}')
 PY
 }
+
+configure_maintainerr_stack() {
+    if ! optional_service_enabled maintainerr; then
+        warn "Maintainerr configuration skipped because Maintainerr is disabled"
+        return 0
+    fi
+
+    python3 - <<'PY'
+import json
+import os
+import plistlib
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+MAINTAINERR = os.environ.get('MAINTAINERR_URL', 'http://127.0.0.1:6246').rstrip('/')
+CONFIG_ROOT = Path(os.environ.get('CONFIG_ROOT', ''))
+PLEX_PREFS_PATH = Path(os.environ.get('PLEX_PREFS_PATH', ''))
+PLEX_INSTALL_MODE = os.environ.get('PLEX_INSTALL_MODE', 'native').strip().lower()
+JELLYFIN_INSTALL_MODE = os.environ.get('JELLYFIN_INSTALL_MODE', 'disabled').strip().lower()
+PREFERRED_TORRENT_CLIENT = os.environ.get('PREFERRED_TORRENT_CLIENT', 'transmission').strip().lower()
+USERNAME = os.environ.get('USERNAME', 'stackarr').strip() or 'stackarr'
+QBITTORRENT_PASSWORD = os.environ.get('QBITTORRENT_PASSWORD') or os.environ.get('PASSWORD', '')
+
+
+def note(kind, message):
+    print(f"{kind}: {message}")
+
+
+def flag(value, default=False):
+    if value is None or value == '':
+        return default
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def request(method, path, payload=None, ok=(200, 201, 204)):
+    data = None
+    headers = {}
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        headers['Content-Type'] = 'application/json'
+    req = urllib.request.Request(f"{MAINTAINERR}{path}", data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = resp.read().decode()
+            parsed = json.loads(body) if body else {}
+            if resp.status not in ok:
+                raise RuntimeError(f"{method} {path} returned HTTP {resp.status}")
+            return parsed
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode()
+        message = ''
+        try:
+            parsed = json.loads(body) if body else {}
+            message = str(parsed.get('message') or '')
+        except Exception:
+            pass
+        if exc.code in ok:
+            return {}
+        suffix = f": {message}" if message else ''
+        raise RuntimeError(f"{method} {path} failed with HTTP {exc.code}{suffix}") from exc
+
+
+def normalize_url(url, default_scheme='http'):
+    value = (url or '').strip()
+    if not value:
+        return ''
+    if '://' not in value:
+        value = f"{default_scheme}://{value}"
+    return value.rstrip('/')
+
+
+def container_url(override, local_url, docker_url, default_port):
+    value = normalize_url(override)
+    if value:
+        return value
+    if docker_url:
+        return docker_url
+    parsed = urllib.parse.urlparse(normalize_url(local_url) or f"http://127.0.0.1:{default_port}")
+    hostname = parsed.hostname or 'host.docker.internal'
+    if hostname in ('localhost', '127.0.0.1', '::1'):
+        hostname = 'host.docker.internal'
+    port = parsed.port or default_port
+    scheme = parsed.scheme or 'http'
+    return f"{scheme}://{hostname}:{port}"
+
+
+def plex_local_url():
+    if PLEX_INSTALL_MODE == 'docker':
+        return f"http://127.0.0.1:{os.environ.get('PLEX_DOCKER_PORT', '32400')}"
+    return normalize_url(os.environ.get('PLEX_URL', 'http://127.0.0.1:32400'))
+
+
+def plex_container_url():
+    docker_url = 'http://plex:32400' if PLEX_INSTALL_MODE == 'docker' else ''
+    return container_url(
+        os.environ.get('MAINTAINERR_PLEX_SERVER_URL', ''),
+        os.environ.get('PLEX_URL', 'http://127.0.0.1:32400'),
+        docker_url,
+        32400,
+    )
+
+
+def jellyfin_container_url():
+    docker_url = 'http://jellyfin:8096' if JELLYFIN_INSTALL_MODE == 'docker' else ''
+    return container_url(
+        os.environ.get('MAINTAINERR_JELLYFIN_SERVER_URL', ''),
+        os.environ.get('JELLYFIN_URL', 'http://127.0.0.1:8096'),
+        docker_url,
+        8096,
+    )
+
+
+def qbittorrent_container_url():
+    override = normalize_url(os.environ.get('MAINTAINERR_QBITTORRENT_URL', ''))
+    if override:
+        return override
+    return f"http://qbittorrent:{os.environ.get('QBITTORRENT_WEBUI_PORT', '8081')}"
+
+
+def split_plex_target(url):
+    parsed = urllib.parse.urlparse(normalize_url(url))
+    port = parsed.port or (443 if parsed.scheme == 'https' else 32400)
+    return {
+        'hostname': parsed.hostname or 'host.docker.internal',
+        'port': port,
+        'ssl': 1 if parsed.scheme == 'https' or port == 443 else 0,
+    }
+
+
+def arr_key(name):
+    path = CONFIG_ROOT / name / 'config.xml'
+    if not path.exists():
+        return ''
+    try:
+        return (ET.parse(path).getroot().findtext('ApiKey') or '').strip()
+    except Exception:
+        return ''
+
+
+def read_json_key(path, keys):
+    if not path.exists():
+        return ''
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return ''
+    current = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return ''
+        current = current.get(key)
+    return str(current or '').strip()
+
+
+def read_plex_token():
+    token = os.environ.get('PLEX_TOKEN', '').strip()
+    if token:
+        return token
+    if not PLEX_PREFS_PATH.exists():
+        return ''
+    try:
+        with PLEX_PREFS_PATH.open('rb') as fh:
+            prefs = plistlib.load(fh)
+        return str(prefs.get('PlexOnlineToken') or '').strip()
+    except Exception:
+        return ''
+
+
+def plex_identity(token):
+    local_url = plex_local_url()
+    if not token or not local_url:
+        return 'Plex', ''
+    url = f"{local_url}/?X-Plex-Token={urllib.parse.quote(token)}"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            root = ET.fromstring(resp.read())
+        name = (
+            root.get('friendlyName')
+            or root.get('serverName')
+            or root.get('name')
+            or root.get('machineIdentifier')
+            or 'Plex'
+        )
+        return name, root.get('machineIdentifier') or ''
+    except Exception:
+        return 'Plex', ''
+
+
+def configure_plex():
+    if PLEX_INSTALL_MODE == 'disabled':
+        return False
+    token = read_plex_token()
+    if not token:
+        note('WARN', 'Maintainerr Plex wiring skipped because no Plex token is available')
+        return False
+    name, machine_id = plex_identity(token)
+    target = split_plex_target(plex_container_url())
+    request('POST', '/api/settings/plex/token', {'plex_auth_token': token})
+    request('PATCH', '/api/settings', {
+        'media_server_type': 'plex',
+        'plex_name': name,
+        'plex_hostname': target['hostname'],
+        'plex_port': target['port'],
+        'plex_ssl': target['ssl'],
+        'plex_machine_id': machine_id,
+        'plex_manual_mode': 1,
+    })
+    note('OK', f"Maintainerr connected to Plex ({name})")
+    return True
+
+
+def configure_jellyfin():
+    if JELLYFIN_INSTALL_MODE == 'disabled':
+        return False
+    api_key = os.environ.get('JELLYFIN_API_KEY', '').strip()
+    if not api_key:
+        note('WARN', 'Maintainerr Jellyfin wiring skipped because JELLYFIN_API_KEY is not set')
+        return False
+    result = request('POST', '/api/settings/jellyfin', {
+        'jellyfin_url': jellyfin_container_url(),
+        'jellyfin_api_key': api_key,
+        'jellyfin_user_id': '',
+    })
+    if result.get('status') == 'NOK':
+        note('WARN', f"Maintainerr Jellyfin wiring skipped: {result.get('message', 'connection failed')}")
+        return False
+    note('OK', 'Maintainerr connected to Jellyfin')
+    return True
+
+
+def upsert_servarr(kind, server_name, url, api_key):
+    if not api_key:
+        note('WARN', f'Maintainerr {server_name} wiring skipped because the API key is unavailable')
+        return
+    path = f'/api/settings/{kind}'
+    current = request('GET', path, ok=(200,))
+    if not isinstance(current, list):
+        current = []
+    existing = next(
+        (
+            item for item in current
+            if str(item.get('serverName', '')).lower() == server_name.lower()
+            or str(item.get('url', '')).rstrip('/').lower() == url.rstrip('/').lower()
+        ),
+        None,
+    )
+    payload = {'serverName': server_name, 'url': url, 'apiKey': api_key}
+    if existing and existing.get('id') is not None:
+        request('PUT', f"{path}/{existing['id']}", payload, ok=(200,))
+        note('OK', f'Maintainerr updated {server_name}')
+    else:
+        request('POST', path, payload, ok=(200, 201))
+        note('OK', f'Maintainerr added {server_name}')
+
+
+def configure_servarr():
+    upsert_servarr('radarr', 'Radarr', 'http://radarr:7878', arr_key('radarr'))
+    upsert_servarr('sonarr', 'Sonarr', 'http://sonarr:8989', arr_key('sonarr'))
+    if flag(os.environ.get('ENABLE_4K_SERVARR', 'false')):
+        upsert_servarr('radarr', 'Radarr 4K', 'http://radarr4k:7878', arr_key('radarr4k'))
+        upsert_servarr('sonarr', 'Sonarr 4K', 'http://sonarr4k:8989', arr_key('sonarr4k'))
+
+
+def configure_seerr():
+    if not flag(os.environ.get('ENABLE_SEERR', 'false')):
+        return
+    key = os.environ.get('SEERR_API_KEY', '').strip() or read_json_key(CONFIG_ROOT / 'seerr' / 'settings.json', ['main', 'apiKey'])
+    if not key:
+        note('WARN', 'Maintainerr Seerr wiring skipped because the Seerr API key is unavailable')
+        return
+    request('POST', '/api/settings/seerr', {'url': 'http://seerr:5055', 'api_key': key})
+    note('OK', 'Maintainerr connected to Seerr')
+
+
+def configure_download_client():
+    if PREFERRED_TORRENT_CLIENT not in ('qbittorrent', 'qbit', 'qb'):
+        selected = PREFERRED_TORRENT_CLIENT or 'transmission'
+        note('WARN', f'Maintainerr download-client cleanup skipped because Maintainerr currently supports qBittorrent and Stackarr is using {selected}')
+        return
+    request('POST', '/api/settings/download-client', {
+        'download_client_url': qbittorrent_container_url(),
+        'download_client_username': USERNAME,
+        'download_client_password': QBITTORRENT_PASSWORD,
+        'download_client_delete_data': False,
+        'download_client_fallback_ratio': 0.5,
+    })
+    note('OK', 'Maintainerr connected to qBittorrent')
+
+
+try:
+    media_configured = configure_plex()
+    if not media_configured:
+        media_configured = configure_jellyfin()
+    if not media_configured:
+        note('WARN', 'Maintainerr media-server wiring skipped; configure Plex or Jellyfin credentials and rerun stackarr configure')
+    configure_servarr()
+    configure_seerr()
+    configure_download_client()
+    setup_ready = request('GET', '/api/settings/test/setup', ok=(200,))
+    if setup_ready is True:
+        note('OK', 'Maintainerr first-run setup is complete')
+    else:
+        note('WARN', 'Maintainerr first-run setup is still incomplete')
+except Exception as exc:
+    note('WARN', f'Maintainerr configuration skipped: {exc}')
+PY
+}
+
 if optional_service_enabled movies; then
     wait_for_http "Radarr" "$RADARR_URL"
 fi
@@ -2922,6 +3234,15 @@ fi
 if optional_service_enabled pulsarr; then
     wait_for_http "Pulsarr" "$PULSARR_URL/health"
     configure_pulsarr_stack || true
+fi
+if optional_service_enabled maintainerr; then
+    wait_for_http "Maintainerr" "$MAINTAINERR_URL"
+    configure_maintainerr_stack || true
+    if [[ -n "${MAINTAINERR_CLEANUP_PRESETS:-}" ]]; then
+        ok "Maintainerr cleanup preset ideas recorded: $MAINTAINERR_CLEANUP_PRESETS"
+    else
+        ok "Maintainerr enabled with no cleanup presets configured"
+    fi
 fi
 wait_for_http "Prowlarr" "$PROWLARR_URL"
 if optional_service_enabled lidarr; then

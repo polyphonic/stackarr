@@ -50,6 +50,9 @@ cloudflare_service_url() {
         pulsarr|requests)
             printf 'http://127.0.0.1:%s\n' "${PULSARR_PORT:-3003}"
             ;;
+        maintainerr|cleanup)
+            printf 'http://127.0.0.1:%s\n' "${MAINTAINERR_PORT:-6246}"
+            ;;
         bookorbit|books)
             printf 'http://127.0.0.1:%s\n' "${BOOKORBIT_WEB_PORT:-7582}"
             ;;

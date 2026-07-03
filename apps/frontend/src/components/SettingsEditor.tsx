@@ -153,6 +153,7 @@ const securityServices: SecurityServiceTarget[] = [
 ];
 const cloudflareServiceOptions = [
   'pulsarr',
+  'maintainerr',
   'bookorbit',
   'stackarr',
   'seerr',
@@ -838,6 +839,34 @@ export function SettingsEditor({ section, env, settings }: Props) {
               updateEnvBool('ENABLE_PULSARR', value);
               updateSettings('services', 'enablePulsarr', value);
             }}
+          />
+          <Check
+            label="Maintainerr Cleanup"
+            checked={envBool('ENABLE_MAINTAINERR', draftSettings.services.enableMaintainerr)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_MAINTAINERR', value);
+              updateSettings('services', 'enableMaintainerr', value);
+            }}
+          />
+          <Text
+            label="Maintainerr Cleanup Presets"
+            value={envValue('MAINTAINERR_CLEANUP_PRESETS')}
+            onChange={(value) => updateEnv('MAINTAINERR_CLEANUP_PRESETS', value)}
+          />
+          <Text
+            label="Maintainerr Plex URL"
+            value={envValue('MAINTAINERR_PLEX_SERVER_URL')}
+            onChange={(value) => updateEnv('MAINTAINERR_PLEX_SERVER_URL', value)}
+          />
+          <Text
+            label="Maintainerr Jellyfin URL"
+            value={envValue('MAINTAINERR_JELLYFIN_SERVER_URL')}
+            onChange={(value) => updateEnv('MAINTAINERR_JELLYFIN_SERVER_URL', value)}
+          />
+          <Text
+            label="Maintainerr qBittorrent URL"
+            value={envValue('MAINTAINERR_QBITTORRENT_URL')}
+            onChange={(value) => updateEnv('MAINTAINERR_QBITTORRENT_URL', value)}
           />
         </FormGrid>
       )}

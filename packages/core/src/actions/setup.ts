@@ -18,6 +18,8 @@ import { redactSecrets } from '../safety/redaction';
 import { writeSettings } from '../settings';
 
 const execFileAsync = promisify(execFile);
+const maintainerrCleanupPresetOptions = ['watched-movies', 'abandoned-shows', 'stale-requests'] as const;
+type MaintainerrCleanupPreset = (typeof maintainerrCleanupPresetOptions)[number];
 
 export type MediaServerSetupInput = {
   databaseMode?: 'app-default' | 'postgres';
@@ -32,7 +34,14 @@ export type MediaServerSetupInput = {
   enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books'>;
   requestManagers?: Array<'seerr' | 'pulsarr'>;
   enabledServices?: Array<
-    'bazarr' | 'tinymediamanager' | 'lidarr' | 'bookorbit' | 'recyclarr' | 'flaresolverr' | 'tidarr'
+    | 'bazarr'
+    | 'tinymediamanager'
+    | 'lidarr'
+    | 'bookorbit'
+    | 'recyclarr'
+    | 'flaresolverr'
+    | 'tidarr'
+    | 'maintainerr'
   >;
   enableMovies?: boolean;
   enableTvShows?: boolean;
@@ -44,6 +53,8 @@ export type MediaServerSetupInput = {
   enableRecyclarr?: boolean;
   enableFlaresolverr?: boolean;
   enableTidarr?: boolean;
+  enableMaintainerr?: boolean;
+  maintainerrCleanupPresets?: MaintainerrCleanupPreset[];
   movieProfilePreset?: MediaProfilePreset;
   movie4kProfilePreset?: MediaProfilePreset;
   tvProfilePreset?: MediaProfilePreset;
@@ -84,7 +95,14 @@ type ResolvedMediaServerSetupInput = Required<
   enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books'>;
   requestManagers?: Array<'seerr' | 'pulsarr'>;
   enabledServices?: Array<
-    'bazarr' | 'tinymediamanager' | 'lidarr' | 'bookorbit' | 'recyclarr' | 'flaresolverr' | 'tidarr'
+    | 'bazarr'
+    | 'tinymediamanager'
+    | 'lidarr'
+    | 'bookorbit'
+    | 'recyclarr'
+    | 'flaresolverr'
+    | 'tidarr'
+    | 'maintainerr'
   >;
 };
 
@@ -112,6 +130,8 @@ export const opinionatedSetupDefaults = {
   enableRecyclarr: true,
   enableFlaresolverr: true,
   enableTidarr: true,
+  enableMaintainerr: false,
+  maintainerrCleanupPresets: [] as MaintainerrCleanupPreset[],
   movieProfilePreset: 'lite' as MediaProfilePreset,
   movie4kProfilePreset: 'lite' as MediaProfilePreset,
   tvProfilePreset: 'lite' as MediaProfilePreset,
@@ -267,10 +287,27 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'enabledServices',
         prompt:
-          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Recyclarr manages profiles, FlareSolverr helps indexers, and Tidarr helps Tidal workflows.',
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, and Maintainerr stages cleanup planning.',
         type: 'multi-choice',
-        choices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'bookorbit'],
+        choices: [
+          'bazarr',
+          'tinymediamanager',
+          'lidarr',
+          'recyclarr',
+          'flaresolverr',
+          'tidarr',
+          'bookorbit',
+          'maintainerr'
+        ],
         default: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr']
+      },
+      {
+        id: 'maintainerrCleanupPresets',
+        prompt:
+          'Optional Maintainerr cleanup ideas to keep handy after Stackarr wires the media server, Arr services, Seerr, and supported download client.',
+        type: 'multi-choice',
+        choices: [...maintainerrCleanupPresetOptions],
+        default: opinionatedSetupDefaults.maintainerrCleanupPresets
       },
       {
         id: 'movieProfilePreset',
@@ -349,7 +386,8 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableBookOrbit: input.enabledServices.includes('bookorbit'),
         enableRecyclarr: input.enabledServices.includes('recyclarr'),
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
-        enableTidarr: input.enabledServices.includes('tidarr')
+        enableTidarr: input.enabledServices.includes('tidarr'),
+        enableMaintainerr: input.enabledServices.includes('maintainerr')
       }
     : {};
   const merged = {
@@ -407,7 +445,8 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       merged.plexInstallMode === 'docker'
         ? 'Plex Docker mode starts Plex with the stack; complete Plex claim/sign-in before Plex-dependent automations need a Plex account.'
         : 'Plex native mode expects the desktop Plex Media Server to already be installed and signed in; install the desktop version first if desired.',
-      'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.'
+      'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.',
+      'Maintainerr is wired to the selected media server, Arr services, Seerr, and qBittorrent when available; cleanup rules stay user-controlled.'
     ]
   };
   const passwordValidationError = portablePasswordValidationError(merged.globalPassword, 'Global password');
@@ -509,6 +548,13 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_RECYCLARR: String(input.enableRecyclarr),
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
     ENABLE_TIDARR: String(input.enableTidarr),
+    ENABLE_MAINTAINERR: String(input.enableMaintainerr),
+    MAINTAINERR_BIND_IP: '127.0.0.1',
+    MAINTAINERR_PORT: '6246',
+    MAINTAINERR_URL: 'http://127.0.0.1:6246',
+    MAINTAINERR_BASE_PATH: '',
+    MAINTAINERR_GITHUB_TOKEN: '',
+    MAINTAINERR_CLEANUP_PRESETS: input.maintainerrCleanupPresets.join(','),
     STACKARR_MOVIE_PROFILE_PRESET: input.movieProfilePreset,
     STACKARR_TV_PROFILE_PRESET: input.tvProfilePreset,
     STACKARR_MUSIC_PROFILE_PRESET: input.musicProfilePreset,

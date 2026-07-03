@@ -348,6 +348,41 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPassword('pulsarrPostgresPassword', 'Database Password', 'PULSARR_POSTGRES_PASSWORD')
     ])
   ],
+  maintainerr: [
+    group('Cleanup Planner', [
+      envCheckbox('enableMaintainerr', 'Enable Maintainerr', 'ENABLE_MAINTAINERR'),
+      envText('maintainerrUrl', 'Local URL', 'MAINTAINERR_URL'),
+      envText('maintainerrBindIp', 'Bind IP', 'MAINTAINERR_BIND_IP'),
+      envNumber('maintainerrPort', 'Port', 'MAINTAINERR_PORT'),
+      envText('maintainerrBasePath', 'Base Path', 'MAINTAINERR_BASE_PATH'),
+      envText(
+        'maintainerrCleanupPresets',
+        'Cleanup Preset Ideas',
+        'MAINTAINERR_CLEANUP_PRESETS',
+        'Comma-separated common cleanup ideas for the Maintainerr workspace. Stackarr wires the app, but cleanup rules remain user-controlled.'
+      ),
+      envText(
+        'maintainerrPlexServerUrl',
+        'Plex URL Override',
+        'MAINTAINERR_PLEX_SERVER_URL',
+        'Optional container-facing Plex URL for Maintainerr. Blank lets Stackarr choose plex:32400 or host.docker.internal:32400.'
+      ),
+      envText(
+        'maintainerrJellyfinServerUrl',
+        'Jellyfin URL Override',
+        'MAINTAINERR_JELLYFIN_SERVER_URL',
+        'Optional container-facing Jellyfin URL for Maintainerr. Blank lets Stackarr choose jellyfin:8096 or host.docker.internal:8096.'
+      ),
+      envText(
+        'maintainerrQbittorrentUrl',
+        'qBittorrent URL Override',
+        'MAINTAINERR_QBITTORRENT_URL',
+        'Optional container-facing qBittorrent URL for Maintainerr download cleanup.'
+      ),
+      envText('maintainerrImage', 'Docker Image', 'MAINTAINERR_IMAGE'),
+      envPassword('maintainerrGithubToken', 'GitHub Token', 'MAINTAINERR_GITHUB_TOKEN')
+    ])
+  ],
   plex: [
     group('Media Server', [
       envSelect('plexInstallMode', 'Install Mode', 'PLEX_INSTALL_MODE', ['native', 'docker', 'disabled']),
@@ -726,7 +761,8 @@ function settingsPatchFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     ['enableFlaresolverr', 'ENABLE_FLARESOLVERR'],
     ['enableTidarr', 'ENABLE_TIDARR'],
     ['enableSeerr', 'ENABLE_SEERR'],
-    ['enablePulsarr', 'ENABLE_PULSARR']
+    ['enablePulsarr', 'ENABLE_PULSARR'],
+    ['enableMaintainerr', 'ENABLE_MAINTAINERR']
   ];
 
   for (const [settingsKey, envKey] of mappings) {

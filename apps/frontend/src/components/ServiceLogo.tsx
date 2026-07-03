@@ -18,6 +18,7 @@ const logoPaths: Record<string, string> = {
   cloudflare: '/logos/cloudflare.svg',
   seerr: '/logos/overseerr.svg',
   pulsarr: '/logos/pulsarr.svg',
+  maintainerr: '/logos/maintainerr.svg',
   bookorbit: '/logos/bookorbit.svg',
   overseerr: '/logos/overseerr.svg',
   recyclarr: '/logos/recyclarr.svg',

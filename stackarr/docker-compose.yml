@@ -446,6 +446,37 @@ services:
       homepage.href: http://127.0.0.1:${PULSARR_PORT:-3003}
     restart: unless-stopped
 
+  maintainerr:
+    profiles:
+      - maintainerr
+    container_name: maintainerr
+    image: ${MAINTAINERR_IMAGE:-ghcr.io/maintainerr/maintainerr:latest}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TIMEZONE:-Etc/UTC}
+      UI_PORT: ${MAINTAINERR_PORT:-6246}
+      BASE_PATH: ${MAINTAINERR_BASE_PATH:-}
+      GITHUB_TOKEN: ${MAINTAINERR_GITHUB_TOKEN:-}
+    volumes:
+      - "${APP_ROOT:-./.stackarr}/config/maintainerr:/opt/data"
+    ports:
+      - "${MAINTAINERR_BIND_IP:-127.0.0.1}:${MAINTAINERR_PORT:-6246}:${MAINTAINERR_PORT:-6246}"
+    labels:
+      org.opencontainers.image.title: Maintainerr
+      org.opencontainers.image.description: Media library cleanup planning and collection management for Plex and Jellyfin.
+      org.opencontainers.image.source: https://github.com/maintainerr/maintainerr
+      org.opencontainers.image.documentation: https://docs.maintainerr.info/latest/
+      homepage.name: Maintainerr
+      homepage.description: Library cleanup planner
+      homepage.href: http://127.0.0.1:${MAINTAINERR_PORT:-6246}
+    healthcheck:
+      test: ["CMD", "/opt/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
   seerr:
     profiles:
       - seerr

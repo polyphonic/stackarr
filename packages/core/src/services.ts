@@ -104,6 +104,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'Pulsarr',
     description: 'Plex watchlist monitor that sends movies and shows to the Arr stack.'
   },
+  maintainerr: {
+    displayName: 'Maintainerr',
+    description: 'Plex/Jellyfin library cleanup planner and collection manager.'
+  },
   plex: {
     displayName: 'Plex',
     description: 'Media server for playback, metadata, watch history, and library scans.'
@@ -237,6 +241,9 @@ export function getServices(): ServiceSummary[] {
     service('seerr', 'support', optionalMode(env.ENABLE_SEERR), 5055, settings),
     service('pulsarr', 'support', optionalMode(env.ENABLE_PULSARR), Number(env.PULSARR_PORT ?? 3003), settings, {
       notes: ['Plex watchlist automation and Arr routing managed by Pulsarr.']
+    }),
+    service('maintainerr', 'support', optionalMode(env.ENABLE_MAINTAINERR), Number(env.MAINTAINERR_PORT ?? 6246), settings, {
+      notes: ['Cleanup rules are created inside Maintainerr; Stackarr only starts and links the app.']
     }),
     mediaServer('plex', mode(env.PLEX_INSTALL_MODE, 'native'), 32400, env.PLEX_CONFIG_PATH, env, settings),
     mediaServer('jellyfin', mode(env.JELLYFIN_INSTALL_MODE, 'disabled'), 8096, env.JELLYFIN_CONFIG_PATH, env, settings),

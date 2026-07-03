@@ -20,6 +20,7 @@ process.stdin.on('end', () => {
   const preferred = {
     seerr: ['/app/config', '/config'],
     pulsarr: ['/app/data', '/config'],
+    maintainerr: ['/opt/data'],
     tinymediamanager: ['/data', '/config'],
     tidarr: ['/shared', '/config'],
     bookorbit: ['/data', '/config']
@@ -57,6 +58,7 @@ function serviceName(value) {
     ['bazarr', ['bazarr']],
     ['seerr', ['jellyseerr', 'overseerr', 'seerr']],
     ['pulsarr', ['pulsarr']],
+    ['maintainerr', ['maintainerr']],
     ['transmission', ['transmission']],
     ['qbittorrent', ['qbittorrent', 'qbit']],
     ['tinymediamanager', ['tiny-media-manager', 'tinymediamanager', 'tinymm']],

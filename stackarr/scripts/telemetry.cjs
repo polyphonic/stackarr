@@ -251,6 +251,7 @@ function serviceNames(config) {
   if (envFlag(config.ENABLE_TIDARR, true)) names.push('tidarr');
   if (envFlag(config.ENABLE_SEERR, false)) names.push('seerr');
   if (envFlag(config.ENABLE_PULSARR, true)) names.push('pulsarr');
+  if (envFlag(config.ENABLE_MAINTAINERR, false)) names.push('maintainerr');
   if (config.PLEX_INSTALL_MODE === 'docker') names.push('plex');
   if (config.PLEX_INSTALL_MODE === 'native') names.push('plex-native');
   if (config.JELLYFIN_INSTALL_MODE === 'docker') names.push('jellyfin');
