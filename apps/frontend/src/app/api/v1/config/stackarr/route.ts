@@ -44,16 +44,20 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = requireApiKey(request);
+  const currentEnv = readEnv();
+  const existingApiKey = currentEnv.STACKARR_API_KEY?.trim() ?? '';
+  if (existingApiKey) {
+    const auth = requireApiKey(request);
 
-  if (auth) {
-    return auth;
+    if (auth) {
+      return auth;
+    }
   }
 
-  const currentEnv = readEnv();
   const beforeSettings = readSettings();
   const body = await request.json().catch(() => ({}));
   let afterSettings = beforeSettings;
+  let nextEnv: StackarrEnv | null = null;
 
   const config = typeof body.config === 'object' && body.config ? body.config : null;
   if (config && typeof config === 'object') {
@@ -71,7 +75,11 @@ export async function PUT(request: NextRequest) {
       return json({ accepted: false, error: currentPasswordError }, { status: 403 });
     }
 
-    writeEnvConfig(withGeneratedOptionalSecrets(config as StackarrEnv));
+    nextEnv = writeEnvConfig(withGeneratedOptionalSecrets(config as StackarrEnv));
+  }
+
+  if (!nextEnv && !existingApiKey) {
+    nextEnv = writeEnvConfig({ STACKARR_API_KEY: nodeCrypto.randomBytes(24).toString('hex') });
   }
 
   if (body.settings && typeof body.settings === 'object') {
@@ -92,7 +100,11 @@ export async function PUT(request: NextRequest) {
 
   const task = queuePortlessSetupIfNeeded(beforeSettings, afterSettings);
 
-  return json({ accepted: true, portlessTask: task ?? undefined });
+  return json({
+    accepted: true,
+    apiKey: !existingApiKey && nextEnv?.STACKARR_API_KEY ? nextEnv.STACKARR_API_KEY : undefined,
+    portlessTask: task ?? undefined
+  });
 }
 
 function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
@@ -120,6 +132,10 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     : current.STACKARR_LOG_DATABASE_URL;
   const next: StackarrEnv = {
     ...config,
+    STACKARR_API_KEY:
+      unredactedConfigValue('STACKARR_API_KEY') ||
+      current.STACKARR_API_KEY?.trim() ||
+      nodeCrypto.randomBytes(24).toString('hex'),
     STACKARR_DATABASE_MODE: databaseMode,
     PASSWORD: unredactedConfigValue('PASSWORD') || current.PASSWORD || stackPassword,
     DATABASE_SUPERUSER_PASSWORD: databasePassword,

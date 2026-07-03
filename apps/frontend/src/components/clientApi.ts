@@ -20,3 +20,15 @@ export async function stackarrFetch(input: RequestInfo | URL, init: RequestInit 
 
   return response;
 }
+
+export function storeStackarrApiKeyFromBody(body: unknown) {
+  if (!body || typeof body !== 'object') {
+    return;
+  }
+
+  const apiKey = (body as { apiKey?: unknown }).apiKey;
+
+  if (typeof apiKey === 'string' && apiKey && !/^\*+$/.test(apiKey)) {
+    window.localStorage.setItem('stackarrApiKey', apiKey);
+  }
+}

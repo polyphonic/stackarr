@@ -34,7 +34,7 @@ The primary API namespace is `/api/v1`, matching the arr family naming style:
 - `GET/POST /api/v1/notification`
 - `GET /api/v1/notification/schema`
 
-When `STACKARR_API_KEY` exists, mutating API calls require `X-Api-Key`.
+Mutating API calls require `X-Api-Key`. CLI setup and the first dashboard config save create an API key; command endpoints fail closed when no key is configured.
 
 ## Settings Storage
 
@@ -44,7 +44,7 @@ Stackarr uses a split that mirrors the arr apps' app-data pattern:
 - The Stackarr runtime database stores app-level UI, host, profile, metadata, public-exposure preferences, and Connect notification definitions. `stackarr/config/stackarr.db` is the default SQLite store and remains a bootstrap/fallback file when settings are moved to Postgres.
 - `stackarr/config/*.json` remains the versioned source for naming, download, and request presets.
 
-The UI redacts secrets before sending config to the browser. If an API key is configured, browser actions prompt once and store it locally for subsequent requests.
+The UI redacts secrets before sending config to the browser. Browser actions send the saved API key, prompting once when needed and storing it locally for subsequent requests.
 
 ## Media Servers
 

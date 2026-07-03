@@ -10,10 +10,10 @@ Stackarr follows the arr convention of API-key auth.
 X-Api-Key: your-stackarr-api-key
 ```
 
-The key is stored in Stackarr configuration. Advanced Docker deployments may provide it as:
+The key is stored in Stackarr configuration. `stackarr init` creates one during CLI setup, and the dashboard creates one during the first config save when the key is missing. Advanced Docker deployments may provide it as:
 
 ```dotenv
 STACKARR_API_KEY=...
 ```
 
-Browser actions prompt once and store the key locally for subsequent requests. Secrets are redacted in config summaries, logs, API responses, and MCP activity where possible.
+Browser actions send the saved key, prompting once when needed and storing it locally for subsequent requests. Command endpoints refuse requests when no key is configured. Secrets are redacted in config summaries, logs, API responses, and MCP activity where possible.
