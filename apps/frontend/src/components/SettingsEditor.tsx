@@ -6,7 +6,7 @@ import { applyStackarrDocumentTheme } from '@stackarr/ui/theme-provider';
 import { toast } from '@stackarr/ui/toast';
 import type React from 'react';
 import { useId, useState } from 'react';
-import { stackarrFetch } from './clientApi';
+import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
 import { PathInput } from './PathPicker';
 import styles from './SettingsEditor.module.css';
 
@@ -296,6 +296,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
       })
     });
     const body = await response.json().catch(() => ({}));
+    storeStackarrApiKeyFromBody(body);
 
     return { response, body };
   }

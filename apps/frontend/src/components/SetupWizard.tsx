@@ -2,7 +2,7 @@
 
 import { toast } from '@stackarr/ui/toast';
 import { useMemo, useState } from 'react';
-import { stackarrFetch } from './clientApi';
+import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
 import { PathInput } from './PathPicker';
 import styles from './SetupWizard.module.css';
 import { TaskProgressView, useLiveTasks } from './TaskProgress';
@@ -293,15 +293,21 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
         settings: { setup: { onboardingComplete: true, installMode: 'fresh' } }
       })
     });
+    const body = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      const errorMessage = typeof body.error === 'string' ? body.error : 'Setup save failed.';
+      const errorMessage =
+        typeof body.error === 'string'
+          ? body.error
+          : typeof body.message === 'string'
+            ? body.message
+            : 'Setup save failed.';
       setMessage(errorMessage);
       toast.error(errorMessage, { id: toastId });
       return false;
     }
 
+    storeStackarrApiKeyFromBody(body);
     setMessage(successMessage);
     toast.success(successMessage, { id: toastId });
     return true;

@@ -30,7 +30,7 @@
 Stackarr is an arr-style control plane for running a private media stack from a local web dashboard. It wraps setup, service wiring, runtime settings, backups, and trusted-agent maintenance around familiar tools such as Sonarr, Radarr, Prowlarr, Plex, Jellyfin, Seerr, Transmission, and qBittorrent.
 
 > [!WARNING]
-> Stackarr is alpha software. Keep the app bound to `127.0.0.1` until authentication, Cloudflare, and public URL settings are configured.
+> Stackarr is alpha software. Keep the app bound to `127.0.0.1` until the API key, Cloudflare, and public URL settings are configured.
 
 ## Quick Start
 
