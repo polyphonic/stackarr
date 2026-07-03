@@ -191,6 +191,21 @@ export const serviceIntegrations = [
       'Stackarr makes Pulsarr the default request-manager path for Plex-oriented setups, including first-run credentials, database choices, service links, backups, and optional Cloudflare routing.'
   },
   {
+    slug: 'maintainerr',
+    name: 'Maintainerr',
+    logo: 'maintainerr',
+    category: 'Cleanup',
+    role: 'Library cleanup planner',
+    hero: 'Maintainerr creates Plex or Jellyfin cleanup collections from rules that you review before removal.',
+    whatItDoes: [
+      'Connects to a media server and related request or arr services for cleanup context.',
+      'Builds collections from rule conditions such as activity, requests, or library state.',
+      'Can remove media after rules and collection timing are deliberately configured in its UI.'
+    ],
+    stackarr:
+      'Stackarr can run Maintainerr, persist its data, link it through localhost or Portless, include it in backups, and wire Plex/Jellyfin, Radarr/Sonarr, Seerr, and qBittorrent when available while leaving destructive cleanup rules user-controlled.'
+  },
+  {
     slug: 'bookorbit',
     name: 'BookOrbit',
     logo: 'bookorbit',

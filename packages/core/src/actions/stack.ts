@@ -149,6 +149,7 @@ function normalizeCloudflareService(value: string) {
   const allowed = new Set([
     'stackarr',
     'pulsarr',
+    'maintainerr',
     'bookorbit',
     'seerr',
     'plex',

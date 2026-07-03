@@ -29,6 +29,24 @@ const steps = [
   'Run Setup'
 ];
 
+const maintainerrCleanupPresetChoices = [
+  {
+    id: 'watched-movies',
+    label: 'Watched Movies',
+    description: 'Movies that have been played and can be reviewed for removal later.'
+  },
+  {
+    id: 'abandoned-shows',
+    label: 'Abandoned Shows',
+    description: 'Series with stale viewing activity or no recent plays.'
+  },
+  {
+    id: 'stale-requests',
+    label: 'Stale Requests',
+    description: 'Requested items that have sat unused after being added.'
+  }
+];
+
 type SetupState = {
   mediaRoot: string;
   musicRoot: string;
@@ -46,6 +64,8 @@ type SetupState = {
   enableRecyclarr: boolean;
   enableFlaresolverr: boolean;
   enableTidarr: boolean;
+  enableMaintainerr: boolean;
+  maintainerrCleanupPresets: string[];
   movieProfilePreset: string;
   movie4kProfilePreset: string;
   tvProfilePreset: string;
@@ -88,6 +108,8 @@ const defaults: SetupState = {
   enableRecyclarr: true,
   enableFlaresolverr: true,
   enableTidarr: true,
+  enableMaintainerr: false,
+  maintainerrCleanupPresets: [],
   movieProfilePreset: 'lite',
   movie4kProfilePreset: 'lite',
   tvProfilePreset: 'lite',
@@ -164,6 +186,13 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_RECYCLARR: String(state.enableRecyclarr),
       ENABLE_FLARESOLVERR: String(state.enableFlaresolverr),
       ENABLE_TIDARR: String(state.enableTidarr),
+      ENABLE_MAINTAINERR: String(state.enableMaintainerr),
+      MAINTAINERR_BIND_IP: '127.0.0.1',
+      MAINTAINERR_PORT: '6246',
+      MAINTAINERR_URL: 'http://127.0.0.1:6246',
+      MAINTAINERR_BASE_PATH: '',
+      MAINTAINERR_GITHUB_TOKEN: '',
+      MAINTAINERR_CLEANUP_PRESETS: state.maintainerrCleanupPresets.join(','),
       STACKARR_MOVIE_PROFILE_PRESET: state.movieProfilePreset,
       STACKARR_TV_PROFILE_PRESET: state.tvProfilePreset,
       STACKARR_MUSIC_PROFILE_PRESET: state.musicProfilePreset,
@@ -243,6 +272,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           ? [effectiveEnableSeerr && 'Seerr', effectiveEnablePulsarr && 'Pulsarr'].filter(Boolean).join(', ') || 'None'
           : 'Disabled'
       ],
+      ['Maintainerr', state.enableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
+      [
+        'Cleanup presets',
+        state.maintainerrCleanupPresets.length ? state.maintainerrCleanupPresets.join(', ') : 'None'
+      ],
       [
         'Movie profile',
         state.enable4kServarr
@@ -268,6 +302,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
 
   function update<K extends keyof SetupState>(key: K, value: SetupState[K]) {
     setState((currentState) => ({ ...currentState, [key]: value }));
+  }
+
+  function toggleMaintainerrCleanupPreset(preset: string, checked: boolean) {
+    setState((currentState) => {
+      const selected = new Set(currentState.maintainerrCleanupPresets);
+      if (checked) {
+        selected.add(preset);
+      } else {
+        selected.delete(preset);
+      }
+      return { ...currentState, maintainerrCleanupPresets: Array.from(selected) };
+    });
   }
 
   async function saveSetup({
@@ -700,6 +746,25 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               description="Tidal helper for music workflows that need it."
               onChange={(value) => update('enableTidarr', value)}
             />
+            <ServiceChoice
+              checked={state.enableMaintainerr}
+              label="Maintainerr Cleanup"
+              description="Plex/Jellyfin cleanup planner. Stackarr connects media server, Arr services, and supported download cleanup."
+              onChange={(value) => update('enableMaintainerr', value)}
+            />
+            {state.enableMaintainerr && (
+              <div className={styles.cleanupPresetChoices}>
+                {maintainerrCleanupPresetChoices.map((preset) => (
+                  <ServiceChoice
+                    key={preset.id}
+                    checked={state.maintainerrCleanupPresets.includes(preset.id)}
+                    label={preset.label}
+                    description={preset.description}
+                    onChange={(value) => toggleMaintainerrCleanupPreset(preset.id, value)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
         {current === 'Account' && (

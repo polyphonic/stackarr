@@ -62,6 +62,7 @@ export type StackarrSettings = {
     enableTidarr: boolean;
     enableSeerr: boolean;
     enablePulsarr: boolean;
+    enableMaintainerr: boolean;
   };
   metadata: {
     tinyMediaManagerEnabled: boolean;
@@ -138,7 +139,8 @@ export const defaultSettings: StackarrSettings = {
     enableFlaresolverr: true,
     enableTidarr: true,
     enableSeerr: true,
-    enablePulsarr: true
+    enablePulsarr: true,
+    enableMaintainerr: false
   },
   metadata: {
     tinyMediaManagerEnabled: true,
@@ -227,7 +229,8 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableFlaresolverr: envFlag(env.ENABLE_FLARESOLVERR, defaultSettings.services.enableFlaresolverr),
       enableTidarr: envFlag(env.ENABLE_TIDARR, defaultSettings.services.enableTidarr),
       enableSeerr: envFlag(env.ENABLE_SEERR, defaultSettings.services.enableSeerr),
-      enablePulsarr: envFlag(env.ENABLE_PULSARR, defaultSettings.services.enablePulsarr)
+      enablePulsarr: envFlag(env.ENABLE_PULSARR, defaultSettings.services.enablePulsarr),
+      enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr)
     },
     metadata: {
       ...defaultSettings.metadata,

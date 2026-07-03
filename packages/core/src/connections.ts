@@ -129,6 +129,14 @@ export function getConnections(): StackarrConnection[] {
       managedFields: ['Base URL', 'Plex token', 'Arr routes', 'Authentication']
     },
     {
+      name: 'Maintainerr',
+      target: 'maintainerr',
+      kind: 'api',
+      status: flag(env.ENABLE_MAINTAINERR, false) ? 'configured' : 'optional',
+      description: 'Connects Plex/Jellyfin cleanup planning to media-server, Arr, Seerr, and supported download-client settings.',
+      managedFields: ['Media server', 'Radarr/Sonarr services', 'Seerr', 'qBittorrent', 'Cleanup preset notes']
+    },
+    {
       name: 'Cloudflare Tunnel',
       target: 'cloudflare',
       kind: 'public-url',
@@ -310,6 +318,28 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       ]
     },
     {
+      implementation: 'Maintainerr',
+      name: 'Maintainerr',
+      target: 'maintainerr',
+      kind: 'api',
+      description: 'Connect media-server cleanup planning to the Stackarr service map and first-run setup.',
+      fields: [
+        urlField('Base URL', 'http://maintainerr:6246'),
+        { name: 'mediaServer', label: 'Media Server', type: 'select', options: ['Plex', 'Jellyfin'] },
+        { name: 'plexToken', label: 'Plex Token', type: 'password' },
+        { name: 'jellyfinApiKey', label: 'Jellyfin API Key', type: 'password' },
+        { name: 'movieService', label: 'Movie Services', type: 'text', placeholder: 'Radarr, Radarr 4K' },
+        { name: 'seriesService', label: 'Series Services', type: 'text', placeholder: 'Sonarr, Sonarr 4K' },
+        { name: 'downloadClient', label: 'Download Client', type: 'select', options: ['qBittorrent', 'None'] },
+        {
+          name: 'cleanupPresets',
+          label: 'Cleanup Preset Ideas',
+          type: 'text',
+          placeholder: 'watched-movies,abandoned-shows,stale-requests'
+        }
+      ]
+    },
+    {
       implementation: 'Plex',
       name: 'Plex',
       target: 'plex',
@@ -368,7 +398,7 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
           name: 'service',
           label: 'Stackarr service',
           type: 'select',
-          options: ['pulsarr', 'seerr', 'bookorbit'],
+          options: ['pulsarr', 'seerr', 'bookorbit', 'maintainerr'],
           required: true
         },
         { name: 'apiToken', label: 'API Token', type: 'password' }

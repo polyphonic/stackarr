@@ -211,6 +211,13 @@
   line-height: 1.4;
 }
 
+.cleanupPresetChoices {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
 .checks label {
   grid-template-columns: 20px 1fr;
   align-items: center;

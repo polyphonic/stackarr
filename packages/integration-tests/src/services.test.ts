@@ -71,6 +71,7 @@ test('Cloudflare route normalization accepts download clients', async () => {
             routes: [
               { hostname: 'https://transmission.example.com/web', service: 'transmission' },
               { hostname: 'qbittorrent.example.com', service: 'qbittorrent' },
+              { hostname: 'cleanup.example.com', service: 'maintainerr' },
               { hostname: 'ignored.example.com', service: 'not-a-service' }
             ]
           });
@@ -89,7 +90,8 @@ test('Cloudflare route normalization accepts download clients', async () => {
 
     assert.deepEqual(JSON.parse(stdout), [
       { hostname: 'transmission.example.com', service: 'transmission' },
-      { hostname: 'qbittorrent.example.com', service: 'qbittorrent' }
+      { hostname: 'qbittorrent.example.com', service: 'qbittorrent' },
+      { hostname: 'cleanup.example.com', service: 'maintainerr' }
     ]);
   } finally {
     await rm(root, { recursive: true, force: true });

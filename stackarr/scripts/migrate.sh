@@ -99,6 +99,9 @@ normalize_service_name() {
         *pulsarr*)
             printf '%s\n' "pulsarr"
             ;;
+        *maintainerr*)
+            printf '%s\n' "maintainerr"
+            ;;
         *transmission*)
             printf '%s\n' "transmission"
             ;;
@@ -405,6 +408,7 @@ flag("ENABLE_FLARESOLVERR", "flaresolverr" in services)
 flag("ENABLE_TIDARR", "tidarr" in services)
 flag("ENABLE_SEERR", "seerr" in services)
 flag("ENABLE_PULSARR", "pulsarr" in services)
+flag("ENABLE_MAINTAINERR", "maintainerr" in services)
 
 if "qbittorrent" in services:
     patch["PREFERRED_TORRENT_CLIENT"] = "qbittorrent"

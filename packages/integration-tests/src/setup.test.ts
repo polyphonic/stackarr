@@ -25,6 +25,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.ok(questionIds.includes('requestManagers'));
   assert.ok(questionIds.includes('configureSeerr'));
   assert.ok(questionIds.includes('enabledServices'));
+  assert.ok(questionIds.includes('maintainerrCleanupPresets'));
   assert.ok(questionIds.includes('movieProfilePreset'));
   assert.ok(questionIds.includes('tvProfilePreset'));
   assert.ok(questionIds.includes('musicProfilePreset'));
@@ -37,6 +38,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.ok(enabledServicesQuestion?.choices);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('seerr'), false);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('pulsarr'), false);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('maintainerr'), true);
   assert.equal(profile.defaults.globalUsername, 'admin');
   assert.equal(profile.defaults.globalEmail, '');
   assert.equal(profile.defaults.databaseMode, 'app-default');
@@ -48,6 +50,8 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.enableSeerr, false);
   assert.equal(profile.defaults.configureSeerr, false);
   assert.equal(profile.defaults.enablePulsarr, true);
+  assert.equal(profile.defaults.enableMaintainerr, false);
+  assert.deepEqual(profile.defaults.maintainerrCleanupPresets, []);
   assert.equal(profile.defaults.backupRetentionCount, 52);
   assert.equal('pulsarrHdLiteUsers' in profile.defaults, false);
 });
@@ -83,8 +87,31 @@ test('dry-run setup config carries shared credentials without personal Pulsarr r
   assert.equal(result.plan.config.ENABLE_SEERR, 'false');
   assert.equal(result.plan.config.STACKARR_CONFIGURE_SEERR, 'false');
   assert.equal(result.plan.config.ENABLE_PULSARR, 'true');
+  assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'false');
+  assert.equal(result.plan.config.MAINTAINERR_CLEANUP_PRESETS, '');
   assert.equal(result.plan.config.PULSARR_HD_LITE_USERS, undefined);
   assert.match(result.plan.notes.join('\n'), /Pulsarr first-run admin/i);
+  assert.match(result.plan.notes.join('\n'), /Maintainerr is wired to the selected media server/i);
+});
+
+test('dry-run setup records Maintainerr cleanup preset ideas for the wired service', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: [
+      'bazarr',
+      'tinymediamanager',
+      'lidarr',
+      'recyclarr',
+      'flaresolverr',
+      'tidarr',
+      'maintainerr'
+    ],
+    maintainerrCleanupPresets: ['watched-movies', 'stale-requests']
+  });
+
+  assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'true');
+  assert.equal(result.plan.config.MAINTAINERR_CLEANUP_PRESETS, 'watched-movies,stale-requests');
+  assert.equal(result.plan.config.MAINTAINERR_URL, 'http://127.0.0.1:6246');
 });
 
 test('dry-run setup lets music root differ from media root', async () => {
@@ -257,6 +284,9 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /LIDARR_DEFAULT_PROFILE/);
   assert.ok(configure.includes('Season[ ._-]?\\\\d{1,2}'));
   assert.match(configure, /configure_pulsarr_stack \|\| true/);
+  assert.match(configure, /configure_maintainerr_stack \|\| true/);
+  assert.match(configure, /Maintainerr first-run setup is complete/);
+  assert.match(configure, /Maintainerr cleanup preset ideas recorded/);
   assert.doesNotMatch(configure, /HD Lite watchlist users/);
   assert.doesNotMatch(configure, /PULSARR_HD_LITE_USERS/);
   assert.doesNotMatch(common, /PULSARR_HD_LITE_USERS/);
