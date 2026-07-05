@@ -38,10 +38,10 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  stackarr:
+  app:
     profiles:
       - stackarr
-    container_name: stackarr
+    container_name: app
     image: ${STACKARR_IMAGE:-polyphonic/stackarr:alpha}
     environment:
       NODE_ENV: production
@@ -359,7 +359,7 @@ services:
       dbType: ${PULSARR_DB_TYPE:-sqlite}
       dbPath: ${PULSARR_DB_PATH:-/app/data/db/pulsarr.db}
       dbHost: ${PULSARR_DB_HOST:-}
-      dbPort: ${PULSARR_DB_PORT:-}
+      dbPort: ${PULSARR_DB_PORT:-5432}
       dbName: ${PULSARR_DB_NAME:-}
       dbUser: ${PULSARR_DB_USER:-}
       dbPassword: ${PULSARR_DB_PASSWORD:-}
@@ -450,7 +450,7 @@ services:
       - immich
       - romm
     container_name: redis
-    image: ${REDIS_IMAGE:-redis:8-alpine}
+    image: ${REDIS_IMAGE:-redis:8.8.0-alpine}
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
@@ -712,7 +712,7 @@ services:
       DB_VECTOR_EXTENSION: ${IMMICH_DB_VECTOR_EXTENSION:-pgvector}
       REDIS_HOSTNAME: redis
       REDIS_PORT: 6379
-      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+      IMMICH_MACHINE_LEARNING_URL: http://immich-ml:3003
     volumes:
       - "${IMMICH_UPLOAD_LOCATION:-./.stackarr/media/Pictures}:/data"
       - "/etc/localtime:/etc/localtime:ro"
@@ -735,10 +735,10 @@ services:
       disable: false
     restart: unless-stopped
 
-  immich-machine-learning:
+  immich-ml:
     profiles:
       - immich
-    container_name: immich-machine-learning
+    container_name: immich-ml
     image: ${IMMICH_MACHINE_LEARNING_IMAGE:-ghcr.io/immich-app/immich-machine-learning}:${IMMICH_VERSION:-release}
     environment:
       TZ: ${TIMEZONE:-Etc/UTC}

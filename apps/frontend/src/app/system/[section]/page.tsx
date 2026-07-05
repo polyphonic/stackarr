@@ -266,6 +266,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                 <CommandButton name="CloudflareInstall" label={commandRegistry.CloudflareInstall.label} />
                 <CommandButton name="CloudflareStart" label={commandRegistry.CloudflareStart.label} />
                 <CommandButton name="CloudflareStop" label={commandRegistry.CloudflareStop.label} />
+                <CommandButton name="CloudflareSync" label={commandRegistry.CloudflareSync.label} />
                 <CommandButton name="CloudflareRotate" label={commandRegistry.CloudflareRotate.label} disruptive />
                 <CommandButton name="CloudflareDelete" label={commandRegistry.CloudflareDelete.label} disruptive />
                 <CommandButton

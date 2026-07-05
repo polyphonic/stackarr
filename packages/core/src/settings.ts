@@ -104,12 +104,12 @@ export const defaultSettings: StackarrSettings = {
     refreshIntervalSeconds: 30,
     serviceUrlMode: 'localhost',
     serviceUrlScheme: 'https',
-    serviceUrlHostSuffix: 'stackarr',
-    unifyServiceUrls: true,
+    serviceUrlHostSuffix: 'stack',
+    unifyServiceUrls: false,
     serviceFavorites: []
   },
   host: {
-    authenticationMethod: 'apikey',
+    authenticationMethod: 'forms',
     enableSsl: false,
     urlBase: '',
     bindAddress: '127.0.0.1',

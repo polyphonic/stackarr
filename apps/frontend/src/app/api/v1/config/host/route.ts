@@ -38,7 +38,7 @@ export async function PUT(request: NextRequest) {
 
   writeSettings({
     host: {
-      authenticationMethod: body.authenticationMethod ?? 'apikey',
+      authenticationMethod: body.authenticationMethod ?? 'forms',
       enableSsl: Boolean(body.enableSsl),
       urlBase: String(body.urlBase ?? ''),
       bindAddress: String(body.bindAddress ?? '127.0.0.1'),
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest) {
   });
 
   return json({
-    authenticationMethod: body.authenticationMethod ?? 'apikey',
+    authenticationMethod: body.authenticationMethod ?? 'forms',
     apiKey: existingApiKey ? '********' : nextApiKey
   });
 }

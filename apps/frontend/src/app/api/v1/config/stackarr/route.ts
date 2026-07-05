@@ -113,7 +113,9 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   const stackPassword =
     unredactedConfigValue('PASSWORD') || current.PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
   const databasePassword =
-    unredactedConfigValue('DATABASE_SUPERUSER_PASSWORD') || current.DATABASE_SUPERUSER_PASSWORD || stackPassword;
+    unredactedConfigValue('DATABASE_SUPERUSER_PASSWORD') ||
+    current.DATABASE_SUPERUSER_PASSWORD ||
+    nodeCrypto.randomBytes(24).toString('hex');
   const databaseMode = normalizeDatabaseMode(config.STACKARR_DATABASE_MODE || current.STACKARR_DATABASE_MODE);
   const postgresMode = databaseMode === 'postgres';
   const tracearrEnabled = String(config.ENABLE_TRACEARR ?? current.ENABLE_TRACEARR ?? '').toLowerCase() === 'true';
@@ -125,6 +127,7 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     tracearrEnabled && requestedDatabaseImage === 'pgvector/pgvector:pg18-trixie'
       ? 'timescale/timescaledb-ha:pg18.1-ts2.25.0'
       : requestedDatabaseImage;
+  const databasePgdata = config.DATABASE_PGDATA || current.DATABASE_PGDATA || '/var/lib/postgresql/data';
   const requestedStackarrDatabaseUrl = isLegacyStackarrPostgresUrl(unredactedConfigValue('STACKARR_DATABASE_URL'))
     ? ''
     : unredactedConfigValue('STACKARR_DATABASE_URL');
@@ -177,6 +180,7 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     STACKARR_DATABASE_MODE: databaseMode,
     PASSWORD: unredactedConfigValue('PASSWORD') || current.PASSWORD || stackPassword,
     DATABASE_IMAGE: databaseImage,
+    DATABASE_PGDATA: databasePgdata,
     DATABASE_SUPERUSER_PASSWORD: databasePassword,
     STACKARR_POSTGRES_MAIN_DATABASE:
       config.STACKARR_POSTGRES_MAIN_DATABASE ||
@@ -270,7 +274,7 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     PULSARR_DB_TYPE: postgresMode ? 'postgres' : config.PULSARR_DB_TYPE || current.PULSARR_DB_TYPE || 'sqlite',
     PULSARR_DB_PATH: config.PULSARR_DB_PATH || current.PULSARR_DB_PATH || '/app/data/db/pulsarr.db',
     PULSARR_DB_HOST: postgresMode ? 'database' : '',
-    PULSARR_DB_PORT: postgresMode ? '5432' : '',
+    PULSARR_DB_PORT: '5432',
     PULSARR_DB_NAME: postgresMode ? 'pulsarr' : '',
     PULSARR_DB_USER: postgresMode ? 'pulsarr' : '',
     PULSARR_DB_PASSWORD: postgresMode
@@ -529,7 +533,7 @@ function validateCurrentPasswordForProtectedConfigChange(
   }
 
   if (typeof currentPassword !== 'string' || !currentPassword) {
-    return 'Current admin password is required to change password fields.';
+    return 'Current admin password is required to change protected account or secret fields.';
   }
 
   if (!constantTimeStringEqual(currentPassword, current.PASSWORD)) {
@@ -565,6 +569,8 @@ function isCurrentPasswordProtectedConfigKey(key: string) {
   const normalized = key.toUpperCase();
 
   return (
+    normalized === 'USERNAME' ||
+    normalized === 'USER_EMAIL' ||
     normalized === 'PASSWORD' ||
     normalized.endsWith('_PASSWORD') ||
     normalized.includes('CLAIM_CODE') ||

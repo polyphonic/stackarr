@@ -122,7 +122,11 @@ function decryptStreamripSecrets(config: Partial<StreamripConfig>) {
   const decrypted = structuredClone(config ?? {}) as Partial<StreamripConfig>;
   for (const field of streamripConfigFields) {
     if (field.secret && decrypted[field.section]?.[field.name]) {
-      decrypted[field.section]![field.name] = decryptSecret(decrypted[field.section]![field.name]);
+      try {
+        decrypted[field.section]![field.name] = decryptSecret(decrypted[field.section]![field.name]);
+      } catch {
+        decrypted[field.section]![field.name] = '';
+      }
     }
   }
   return decrypted;

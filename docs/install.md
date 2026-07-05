@@ -51,7 +51,7 @@ STACKARR_WEB_PORT="7777"
 Then start only the Stackarr service:
 
 ```bash
-docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr
+docker compose -f stackarr/docker-compose.yml --profile stackarr up -d app
 ```
 
 The Docker socket mount is intentionally explicit. It allows Stackarr to queue arr-style commands that control the local compose stack. Keep `STACKARR_BIND_IP` on `127.0.0.1` until authentication, Cloudflare, and public URL settings are configured.
@@ -59,7 +59,7 @@ The Docker socket mount is intentionally explicit. It allows Stackarr to queue a
 Choose media, music, downloads, and backup folders during setup. On macOS, share those selected folders with Docker Desktop or OrbStack, then run **System > Status > Audit permissions** or:
 
 ```bash
-docker exec stackarr /app/bin/stackarr permissions audit
+docker exec app /app/bin/stackarr permissions audit
 ```
 
 The audit checks Stackarr and running service containers through their actual bind mounts. Scheduled backups and optional scheduled updates run from the Stackarr container, so the Docker install does not require Watchtower, Portainer, or host launch agents for those jobs.
@@ -74,7 +74,7 @@ For end users, the intended flow is:
 stackarr portless install
 ```
 
-Run that command from Terminal after enabling `portless` in **Settings > UI > Service Link Mode**. Approve the macOS admin prompts so names like `https://app.stackarr`, `https://plex.stackarr`, and `https://sonarr4k.stackarr` resolve without a port suffix.
+Run that command from Terminal after enabling `portless` in **Settings > UI > Service Link Mode**. Approve the macOS admin prompts so names like `https://app.stack`, `https://plex.stack`, and `https://sonarr4k.stack` resolve without a port suffix.
 
 Installing Portless globally first is optional. If it already exists, Stackarr reuses it; otherwise the host command installs Portless with npm before registering Stackarr aliases. Source checkouts can run `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`; run that helper from Terminal for host approval tasks.
 

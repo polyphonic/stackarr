@@ -16,7 +16,7 @@ STACKARR_WEB_PORT=7777
 Start only the Stackarr service:
 
 ```bash
-docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr
+docker compose -f stackarr/docker-compose.yml --profile stackarr up -d app
 ```
 
 Developers working from a local checkout can override `STACKARR_IMAGE=stackarr:local` after building that tag.
@@ -24,8 +24,8 @@ Developers working from a local checkout can override `STACKARR_IMAGE=stackarr:l
 ## Update the Running Service
 
 ```bash
-docker compose -f stackarr/docker-compose.yml --profile stackarr pull stackarr
-docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr
+docker compose -f stackarr/docker-compose.yml --profile stackarr pull app
+docker compose -f stackarr/docker-compose.yml --profile stackarr up -d app
 ```
 
 This recreates only the Stackarr dashboard/API container unless other services are explicitly included.

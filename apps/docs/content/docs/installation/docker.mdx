@@ -8,7 +8,7 @@ Use Docker when Stackarr should run beside the services it manages.
 
 ```bash
 docker run -d \
-  --name stackarr \
+  --name app \
   --restart unless-stopped \
   -p 7777:7777 \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -31,7 +31,7 @@ Choose media, music, downloads, and backup folders during setup. On macOS, grant
 Stackarr verifies access through the same bind mounts the services use. Run it from **System > Status > Audit permissions**, or from the container:
 
 ```bash
-docker exec stackarr /app/bin/stackarr permissions audit
+docker exec app /app/bin/stackarr permissions audit
 ```
 
 The audit checks Stackarr's own config, log, download, and backup mounts, then checks running service mounts such as Radarr `/movies`, Sonarr `/tv`, Transmission or qBittorrent `/downloads`, and Lidarr `/music`.
@@ -42,7 +42,7 @@ The Stackarr image includes the scheduler and maintenance helpers. Weekly backup
 
 ## Portless Host Approval
 
-Docker can queue Portless setup, but clean `https://*.stackarr` names need a normal host Terminal password prompt for port `443`, certificate trust, and `/etc/hosts`.
+Docker can queue Portless setup, but clean `https://*.stack` names need a normal host Terminal password prompt for port `443`, certificate trust, and `/etc/hosts`.
 
 ```bash
 stackarr portless install

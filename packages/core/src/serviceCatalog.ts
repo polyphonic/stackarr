@@ -77,12 +77,6 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         ['ui', 'serviceUrlMode'],
         ['localhost', 'portless', 'loopback']
       ),
-      settingsCheckbox(
-        'unifyServiceUrls',
-        'Unify Service URLs',
-        ['ui', 'unifyServiceUrls'],
-        'Use dashboard routes like /immich while keeping direct Portless aliases available.'
-      ),
       settingsSelect('serviceUrlScheme', 'Portless Scheme', ['ui', 'serviceUrlScheme'], ['https', 'http']),
       settingsText('serviceUrlHostSuffix', 'Portless Host Suffix', ['ui', 'serviceUrlHostSuffix'])
     ])

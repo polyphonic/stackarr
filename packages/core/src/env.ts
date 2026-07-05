@@ -1,4 +1,5 @@
 import * as nodeCrypto from 'node:crypto';
+import * as nodeFs from 'node:fs';
 import { databaseExists, readJsonSetting, writeJsonSetting } from './database';
 
 export type InstallMode = 'disabled' | 'native' | 'docker';
@@ -21,6 +22,8 @@ const defaultMusicRoot = `${defaultMediaRoot}/Music`;
 const defaultPicturesRoot = `${defaultMediaRoot}/Pictures`;
 const defaultGamesRoot = `${defaultMediaRoot}/Games`;
 const defaultDownloadsRoot = `${defaultAppRoot}/downloads`;
+const defaultDatabasePgdata = '/var/lib/postgresql/data';
+const legacyPgvectorDatabasePgdata = '/var/lib/postgresql/18/docker';
 
 export const managedEnvDefaults: StackarrEnv = {
   TIMEZONE: 'Etc/UTC',
@@ -253,7 +256,7 @@ export const managedEnvDefaults: StackarrEnv = {
   PULSARR_IMAGE: 'lakker/pulsarr:latest',
   MAINTAINERR_IMAGE: 'ghcr.io/maintainerr/maintainerr:latest',
   TRACEARR_IMAGE: 'ghcr.io/connorgallopo/tracearr:latest',
-  REDIS_IMAGE: 'redis:8-alpine',
+  REDIS_IMAGE: 'redis:8.8.0-alpine',
   RECYCLARR_IMAGE: 'ghcr.io/recyclarr/recyclarr:latest',
   FLARESOLVERR_IMAGE: 'ghcr.io/flaresolverr/flaresolverr:latest',
   LIDARR_IMAGE: 'lscr.io/linuxserver/lidarr:latest',
@@ -264,6 +267,7 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
   DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
+  DATABASE_PGDATA: '',
   DATABASE_BIND_IP: '127.0.0.1',
   DATABASE_HOST_PORT: '5433',
   DATABASE_NAME: 'postgres',
@@ -286,7 +290,7 @@ export const managedEnvDefaults: StackarrEnv = {
   PULSARR_DB_TYPE: 'sqlite',
   PULSARR_DB_PATH: '/app/data/db/pulsarr.db',
   PULSARR_DB_HOST: '',
-  PULSARR_DB_PORT: '',
+  PULSARR_DB_PORT: '5432',
   PULSARR_DB_NAME: '',
   PULSARR_DB_USER: '',
   PULSARR_DB_PASSWORD: '',
@@ -464,6 +468,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   merged.IMMICH_DB_VECTOR_EXTENSION = merged.IMMICH_DB_VECTOR_EXTENSION || 'pgvector';
   if (!env.DOWNLOADS_ROOT) merged.DOWNLOADS_ROOT = `${appRoot}/downloads`;
   if (!env.BACKUP_ROOT) merged.BACKUP_ROOT = `${appRoot}/backups`;
+  if (!env.DATABASE_PGDATA) merged.DATABASE_PGDATA = detectDatabasePgdata(merged.CONFIG_ROOT);
   merged.PUID = merged.PUID || defaultUid();
   merged.PGID = merged.PGID || defaultGid();
   dropDeprecatedCloudflareHostnameKeys(merged);
@@ -473,7 +478,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   }
   merged.STACKARR_DATABASE_MODE = normalizeDatabaseMode(merged.STACKARR_DATABASE_MODE);
   applyAccessPasswordDefaults(merged);
-  const databasePassword = merged.DATABASE_SUPERUSER_PASSWORD || merged.PASSWORD || '';
+  const databasePassword = merged.DATABASE_SUPERUSER_PASSWORD || '';
   merged.STACKARR_POSTGRES_MAIN_DATABASE =
     merged.STACKARR_POSTGRES_MAIN_DATABASE || merged.STACKARR_POSTGRES_DATABASE || 'stackarr-main';
   merged.STACKARR_POSTGRES_DATABASE = merged.STACKARR_POSTGRES_MAIN_DATABASE;
@@ -514,6 +519,20 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyRommSecretDefaults(merged);
 
   return merged;
+}
+
+function detectDatabasePgdata(configRoot: string | undefined) {
+  const databaseRoot = `${configRoot || defaultConfigRoot}/database`;
+
+  if (nodeFs.existsSync(`${databaseRoot}/data/PG_VERSION`)) {
+    return defaultDatabasePgdata;
+  }
+
+  if (nodeFs.existsSync(`${databaseRoot}/18/docker/PG_VERSION`)) {
+    return legacyPgvectorDatabasePgdata;
+  }
+
+  return defaultDatabasePgdata;
 }
 
 function normalizeRommDatabaseDefaults(env: StackarrEnv) {
@@ -601,9 +620,9 @@ function applyDatabaseModeDefaults(env: StackarrEnv, databasePassword: string) {
   env.LIDARR_POSTGRES_PASSWORD = env.LIDARR_POSTGRES_PASSWORD || databasePassword;
 
   env.PULSARR_DB_TYPE = postgresMode ? 'postgres' : env.PULSARR_DB_TYPE || 'sqlite';
+  env.PULSARR_DB_PORT = env.PULSARR_DB_PORT || '5432';
   if (postgresMode && env.PULSARR_DB_TYPE === 'postgres') {
     env.PULSARR_DB_HOST = env.PULSARR_DB_HOST || 'database';
-    env.PULSARR_DB_PORT = env.PULSARR_DB_PORT || '5432';
     env.PULSARR_DB_NAME = env.PULSARR_DB_NAME || env.PULSARR_POSTGRES_DATABASE || 'pulsarr';
     env.PULSARR_DB_USER = env.PULSARR_DB_USER || env.PULSARR_POSTGRES_USER || 'pulsarr';
     env.PULSARR_DB_PASSWORD = env.PULSARR_DB_PASSWORD || env.PULSARR_POSTGRES_PASSWORD || databasePassword;

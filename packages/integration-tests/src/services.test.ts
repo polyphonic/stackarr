@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -11,7 +11,7 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
-test('Portless browser links use unified dashboard routes by default', async () => {
+test('Portless browser links use direct service aliases by default', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 
   try {
@@ -30,7 +30,7 @@ test('Portless browser links use unified dashboard routes by default', async () 
             ui: {
               serviceUrlMode: 'portless',
               serviceUrlScheme: 'https',
-              serviceUrlHostSuffix: 'stackarr:1355'
+              serviceUrlHostSuffix: 'stack:1355'
             }
           });
 
@@ -51,15 +51,15 @@ test('Portless browser links use unified dashboard routes by default', async () 
     );
 
     assert.deepEqual(JSON.parse(stdout), {
-      browserUrl: 'https://app.stackarr/transmission',
-      directUrl: 'https://transmission.stackarr/transmission/web/'
+      browserUrl: 'https://transmission.stack',
+      directUrl: 'https://transmission.stack/transmission/web/'
     });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('Portless browser links can use direct service aliases', async () => {
+test('Portless browser links ignore the legacy unify flag', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 
   try {
@@ -78,8 +78,8 @@ test('Portless browser links can use direct service aliases', async () => {
             ui: {
               serviceUrlMode: 'portless',
               serviceUrlScheme: 'https',
-              serviceUrlHostSuffix: 'stackarr:1355',
-              unifyServiceUrls: false
+              serviceUrlHostSuffix: 'stack:1355',
+              unifyServiceUrls: true
             }
           });
 
@@ -96,7 +96,56 @@ test('Portless browser links can use direct service aliases', async () => {
       }
     );
 
-    assert.equal(stdout.trim(), 'https://transmission.stackarr/transmission/web/');
+    assert.equal(stdout.trim(), 'https://transmission.stack');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Disabled optional services do not publish Portless browser URLs', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeSettings } = await import('./packages/core/src/settings.ts');
+          const { getServices } = await import('./packages/core/src/services.ts');
+
+          writeSettings({
+            ui: {
+              serviceUrlMode: 'portless',
+              serviceUrlScheme: 'https',
+              serviceUrlHostSuffix: ''
+            }
+          });
+
+          process.env.ENABLE_MAINTAINERR = 'false';
+          const maintainerr = getServices().find((service) => service.name === 'maintainerr');
+          console.log(JSON.stringify({
+            status: maintainerr?.status,
+            browserUrl: maintainerr?.browserUrl ?? null
+          }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    assert.deepEqual(JSON.parse(stdout), {
+      status: 'disabled',
+      browserUrl: null
+    });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -108,6 +157,77 @@ test('Portless script registers configured tld aliases before host sync', async 
   assert.match(script, /ensure_route_file_alias "\$name" "\$port"/);
   assert.match(script, /STACKARR_PORTLESS_TLD="\$tld"/);
   assert.match(script, /PORTLESS_TLD="\$tld" portless hosts sync/);
+});
+
+test('Portless apply prunes legacy suffix and disabled Stackarr aliases', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+  const binDir = path.join(root, 'bin');
+  const homeDir = path.join(root, 'home');
+  const routesDir = path.join(homeDir, '.portless');
+  const routesFile = path.join(routesDir, 'routes.json');
+  const fakePortless = path.join(binDir, 'portless');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await mkdir(routesDir, { recursive: true });
+    await writeFile(
+      routesFile,
+      JSON.stringify(
+        [
+          { hostname: 'app.stackarr', port: 7777, pid: 0 },
+          { hostname: 'maintainerr.stack', port: 6246, pid: 0 },
+          { hostname: 'custom.stackarr', port: 9999, pid: 0 }
+        ],
+        null,
+        2
+      ) + '\n'
+    );
+    await writeFile(
+      fakePortless,
+      [
+        '#!/bin/sh',
+        'if [ "$1" = "proxy" ] && [ "$2" = "start" ]; then exit 0; fi',
+        'if [ "$1" = "alias" ]; then exit 0; fi',
+        'if [ "$1" = "hosts" ] && [ "$2" = "sync" ]; then exit 0; fi',
+        'if [ "$1" = "list" ]; then exit 0; fi',
+        'exit 0',
+        ''
+      ].join('\n')
+    );
+    await chmod(fakePortless, 0o755);
+
+    await execFile('bash', ['stackarr/scripts/portless.sh', 'apply'], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH}`,
+        HOME: homeDir,
+        APP_ROOT: path.join(root, 'app'),
+        CONFIG_ROOT: path.join(root, 'app/config'),
+        STATE_ROOT: path.join(root, 'app/state'),
+        LOG_ROOT: path.join(root, 'app/logs'),
+        STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
+        STACKARR_SERVICE_URL_MODE: 'portless',
+        STACKARR_SERVICE_URL_SCHEME: 'https',
+        STACKARR_SERVICE_URL_HOST_SUFFIX: 'stack',
+        STACKARR_WEB_ENABLED: 'true',
+        ENABLE_MAINTAINERR: 'false',
+        ENABLE_TRACEARR: 'false',
+        ENABLE_SEERR: 'false',
+        ENABLE_TIDARR: 'false'
+      }
+    });
+
+    const routes = JSON.parse(await readFile(routesFile, 'utf8'));
+    const hostnames = routes.map((route: { hostname: string }) => route.hostname).sort();
+
+    assert.ok(hostnames.includes('app.stack'));
+    assert.ok(hostnames.includes('custom.stackarr'));
+    assert.ok(!hostnames.includes('app.stackarr'));
+    assert.ok(!hostnames.includes('maintainerr.stack'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('Cloudflare route normalization accepts download clients', async () => {

@@ -18,7 +18,7 @@ type RouteParams = {
 export async function GET(request: Request, { params }: { params: Promise<RouteParams> }) {
   const settings = readSettings();
 
-  if (settings.ui.serviceUrlMode !== 'portless' || settings.ui.unifyServiceUrls === false) {
+  if (settings.ui.serviceUrlMode !== 'portless') {
     return notFound();
   }
 

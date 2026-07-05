@@ -643,7 +643,8 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
 }
 
 function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
-  const databasePassword = input.globalPassword || nodeCrypto.randomBytes(24).toString('hex');
+  const accountPassword = input.globalPassword || nodeCrypto.randomBytes(20).toString('hex');
+  const databasePassword = nodeCrypto.randomBytes(24).toString('hex');
   const postgresMode = input.databaseMode === 'postgres';
   const rommLibraryRoot = input.rommLibraryRoot || `${input.mediaRoot}/Games`;
   const rommPreset = rommMetadataPresetOptions.includes(input.rommMetadataPreset) ? input.rommMetadataPreset : 'chef';
@@ -696,7 +697,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     TRACEARR_AUTO_CONFIGURE: 'true',
     TRACEARR_ADMIN_USERNAME: input.globalUsername,
     TRACEARR_ADMIN_EMAIL: input.globalEmail,
-    TRACEARR_ADMIN_PASSWORD: input.enableTracearr ? input.globalPassword || databasePassword : '',
+    TRACEARR_ADMIN_PASSWORD: input.enableTracearr ? accountPassword : '',
     TRACEARR_CLAIM_CODE: '',
     TRACEARR_PLEX_SERVER_URL: '',
     TRACEARR_JELLYFIN_SERVER_URL: '',
@@ -719,7 +720,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     STACKARR_CONFIGURE_SEERR: String(input.configureSeerr),
     ENABLE_PULSARR: String(input.enablePulsarr),
     USERNAME: input.globalUsername,
-    PASSWORD: input.globalPassword || databasePassword,
+    PASSWORD: accountPassword,
     USER_EMAIL: input.globalEmail,
     PREFERRED_TORRENT_CLIENT: input.torrentClient,
     SEERR_BIND_IP: input.seerrBindIp,
@@ -789,12 +790,13 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ROMM_IMAGE: 'rommapp/romm:latest',
     ROMM_DB_IMAGE: '',
     DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
+    DATABASE_PGDATA: '/var/lib/postgresql/data',
     DATABASE_BIND_IP: '127.0.0.1',
     DATABASE_HOST_PORT: '5433',
     DATABASE_NAME: 'postgres',
     DATABASE_SUPERUSER: 'postgres',
     DATABASE_SUPERUSER_PASSWORD: databasePassword,
-    REDIS_IMAGE: 'redis:8-alpine',
+    REDIS_IMAGE: 'redis:8.8.0-alpine',
     STACKARR_POSTGRES_DATABASE: 'stackarr-main',
     STACKARR_POSTGRES_MAIN_DATABASE: 'stackarr-main',
     STACKARR_POSTGRES_LOG_DATABASE: 'stackarr-log',
@@ -817,7 +819,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     PULSARR_DB_TYPE: postgresMode ? 'postgres' : 'sqlite',
     PULSARR_DB_PATH: '/app/data/db/pulsarr.db',
     PULSARR_DB_HOST: postgresMode ? 'database' : '',
-    PULSARR_DB_PORT: postgresMode ? '5432' : '',
+    PULSARR_DB_PORT: '5432',
     PULSARR_DB_NAME: postgresMode ? 'pulsarr' : '',
     PULSARR_DB_USER: postgresMode ? 'pulsarr' : '',
     PULSARR_DB_PASSWORD: postgresMode ? databasePassword : '',
@@ -884,7 +886,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
 
   if (input.enableBookOrbit) {
     if (!env.BOOKORBIT_JWT_SECRET) env.BOOKORBIT_JWT_SECRET = nodeCrypto.randomBytes(32).toString('hex');
-    if (!env.BOOKORBIT_SETUP_TOKEN) env.BOOKORBIT_SETUP_TOKEN = input.globalPassword;
+    if (!env.BOOKORBIT_SETUP_TOKEN) env.BOOKORBIT_SETUP_TOKEN = accountPassword;
   }
 
   return env;

@@ -15,7 +15,8 @@ const settings = [
   ['indexers', 'Indexers', 'Prowlarr-managed indexers and proxy notes'],
   ['connect', 'Connect', 'Stackarr integrations with other app APIs, configs, webhooks, and public URLs'],
   ['metadata', 'Metadata', 'TinyMediaManager and media server metadata behavior'],
-  ['security', 'Security', 'Shared and per-service passwords for app access and Postgres roles'],
+  ['account', 'Account', 'Stackarr sign-in, global identity, service owner email, and API key'],
+  ['security', 'Security', 'Per-service passwords and isolated Postgres role credentials'],
   ['general', 'General', 'API key, timezone, update windows, and paths'],
   ['ui', 'UI', 'Theme and display preferences']
 ];

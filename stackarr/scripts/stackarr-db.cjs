@@ -13,12 +13,6 @@ function readSetting(key) {
       return postgresValue;
     }
 
-    const sqliteValue = readSqliteSetting(key);
-    if (sqliteValue !== undefined) {
-      withPostgres(() => writePostgresRawSetting(key, sqliteValue));
-      return sqliteValue;
-    }
-
     return undefined;
   }
 
@@ -363,7 +357,8 @@ function pruneSqliteTasks(limit = 100) {
 
 function readPostgresSetting(key) {
   ensurePostgresSchema();
-  return runPsql(`select value from app_settings where key = ${sqlLiteral(key)};`);
+  const value = runPsql(`select value from app_settings where key = ${sqlLiteral(key)};`);
+  return value === '' ? undefined : value;
 }
 
 function writePostgresRawSetting(key, value) {
