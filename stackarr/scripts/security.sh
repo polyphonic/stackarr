@@ -67,6 +67,7 @@ rotate_postgres_roles() {
     rotate_postgres_role "${DATABASE_SUPERUSER:-postgres}" "${DATABASE_SUPERUSER_PASSWORD:-}" "Postgres superuser"
     rotate_postgres_role "${STACKARR_POSTGRES_USER:-stackarr}" "${STACKARR_POSTGRES_PASSWORD:-}" "Stackarr Postgres"
     rotate_postgres_role "${BOOKORBIT_POSTGRES_USER:-bookorbit}" "${BOOKORBIT_POSTGRES_PASSWORD:-}" "BookOrbit Postgres"
+    rotate_postgres_role "${IMMICH_DB_USERNAME:-immich}" "${IMMICH_DB_PASSWORD:-}" "Immich Postgres"
     rotate_postgres_role "${SEERR_POSTGRES_USER:-seerr}" "${SEERR_POSTGRES_PASSWORD:-}" "Seerr Postgres"
     rotate_postgres_role "${PULSARR_POSTGRES_USER:-pulsarr}" "${PULSARR_POSTGRES_PASSWORD:-}" "Pulsarr Postgres"
     rotate_postgres_role "${BAZARR_POSTGRES_USER:-bazarr}" "${BAZARR_POSTGRES_PASSWORD:-}" "Bazarr Postgres"
@@ -83,8 +84,8 @@ ensure_database_roles() {
 
     stackarr_compose --profile database up -d database
     rotate_postgres_roles
-    stackarr_compose --profile database up --force-recreate database-init
-    stackarr_compose --profile database rm -f -s database-init >/dev/null 2>&1 || true
+    run_shared_database_init
+    remove_database_init_sidecar
 }
 
 security_service_list() {
@@ -119,11 +120,24 @@ security_service_list() {
     if optional_service_enabled bookorbit; then
         services+=("bookorbit")
     fi
+    if optional_service_enabled immich; then
+        services+=("immich")
+        services+=("immich-machine-learning")
+        services+=("redis")
+    fi
+    if optional_service_enabled romm; then
+        services+=("romm")
+        services+=("redis")
+    fi
     if optional_service_enabled seerr; then
         services+=("seerr")
     fi
     if optional_service_enabled pulsarr; then
         services+=("pulsarr")
+    fi
+    if optional_service_enabled tracearr; then
+        services+=("tracearr")
+        services+=("redis")
     fi
 
     for service in "${services[@]}"; do

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Tracearr">
+  <rect width="128" height="128" rx="24" fill="#071019"/>
+  <path d="M26 78c12-28 32-42 60-42h16" fill="none" stroke="#44e5c8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M26 94h76" fill="none" stroke="#6aa7ff" stroke-width="10" stroke-linecap="round"/>
+  <path d="M44 36h46" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="34" cy="78" r="8" fill="#ffffff"/>
+  <circle cx="70" cy="50" r="8" fill="#ffffff"/>
+  <circle cx="102" cy="36" r="8" fill="#ffffff"/>
+</svg>

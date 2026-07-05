@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Immich</title>
+  <desc id="desc">Stylized photo-aperture mark for Immich.</desc>
+  <rect width="64" height="64" rx="16" fill="#111827"/>
+  <circle cx="32" cy="32" r="9" fill="#fff"/>
+  <path d="M32 6c5.8 8.1 6.4 14.8 1.8 20.2C27.6 21.6 27 14.9 32 6Z" fill="#ef4444"/>
+  <path d="M51.5 14.5c-1.6 9.8-5.9 15-12.9 15.5-1.2-7.7 3.1-12.8 12.9-15.5Z" fill="#f97316"/>
+  <path d="M58 32c-8.1 5.8-14.8 6.4-20.2 1.8C42.4 27.6 49.1 27 58 32Z" fill="#eab308"/>
+  <path d="M49.5 51.5c-9.8-1.6-15-5.9-15.5-12.9 7.7-1.2 12.8 3.1 15.5 12.9Z" fill="#22c55e"/>
+  <path d="M32 58c-5.8-8.1-6.4-14.8-1.8-20.2C36.4 42.4 37 49.1 32 58Z" fill="#06b6d4"/>
+  <path d="M12.5 49.5c1.6-9.8 5.9-15 12.9-15.5 1.2 7.7-3.1 12.8-12.9 15.5Z" fill="#3b82f6"/>
+  <path d="M6 32c8.1-5.8 14.8-6.4 20.2-1.8C21.6 36.4 14.9 37 6 32Z" fill="#8b5cf6"/>
+  <path d="M14.5 12.5c9.8 1.6 15 5.9 15.5 12.9-7.7 1.2-12.8-3.1-15.5-12.9Z" fill="#ec4899"/>
+</svg>

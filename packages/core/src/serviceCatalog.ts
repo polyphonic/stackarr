@@ -56,10 +56,14 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('musicRoot', 'Music Root', 'MUSIC_ROOT'),
       envPath('downloadsRoot', 'Downloads Root', 'DOWNLOADS_ROOT'),
       envPath('backupRoot', 'Backup Root', 'BACKUP_ROOT'),
-      envPath('booksRoot', 'Books Root', 'BOOKS_ROOT')
+      envPath('booksRoot', 'Books Root', 'BOOKS_ROOT'),
+      envPath('immichUploadLocation', 'Pictures Root', 'IMMICH_UPLOAD_LOCATION'),
+      envPath('gamesRoot', 'Games Root', 'GAMES_ROOT')
     ]),
     group('Database', [
       envSelect('stackarrDatabaseMode', 'Mode', 'STACKARR_DATABASE_MODE', ['app-default', 'postgres']),
+      envText('databaseImage', 'Postgres Image', 'DATABASE_IMAGE'),
+      envText('redisImage', 'Redis Image', 'REDIS_IMAGE'),
       envPassword('databaseSuperuserPassword', 'Postgres Superuser Password', 'DATABASE_SUPERUSER_PASSWORD'),
       envText('stackarrPostgresDatabase', 'Database Name', 'STACKARR_POSTGRES_DATABASE'),
       envText('stackarrPostgresUser', 'Database User', 'STACKARR_POSTGRES_USER'),
@@ -72,6 +76,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         'Service Link Mode',
         ['ui', 'serviceUrlMode'],
         ['localhost', 'portless', 'loopback']
+      ),
+      settingsCheckbox(
+        'unifyServiceUrls',
+        'Unify Service URLs',
+        ['ui', 'unifyServiceUrls'],
+        'Use dashboard routes like /immich while keeping direct Portless aliases available.'
       ),
       settingsSelect('serviceUrlScheme', 'Portless Scheme', ['ui', 'serviceUrlScheme'], ['https', 'http']),
       settingsText('serviceUrlHostSuffix', 'Portless Host Suffix', ['ui', 'serviceUrlHostSuffix'])
@@ -255,6 +265,77 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPassword('bookorbitSetupToken', 'Setup Token', 'BOOKORBIT_SETUP_TOKEN')
     ])
   ],
+  immich: [
+    group('Photos (Immich)', [
+      envCheckbox('enableImmich', 'Enable Immich', 'ENABLE_IMMICH'),
+      envText('immichUrl', 'Public/App URL', 'IMMICH_URL'),
+      envText('immichBindIp', 'Bind IP', 'IMMICH_BIND_IP'),
+      envNumber('immichWebPort', 'Web Port', 'IMMICH_WEB_PORT'),
+      envNumber('immichContainerPort', 'Container Port', 'IMMICH_CONTAINER_PORT'),
+      envPath('immichUploadLocation', 'Upload/Library Location', 'IMMICH_UPLOAD_LOCATION'),
+      envText('immichVersion', 'Immich Version Tag', 'IMMICH_VERSION'),
+      envText('immichServerImage', 'Server Image', 'IMMICH_SERVER_IMAGE'),
+      envText('immichMachineLearningImage', 'Machine Learning Image', 'IMMICH_MACHINE_LEARNING_IMAGE')
+    ]),
+    group('Immich Database', [
+      envText('immichDbUsername', 'Database User', 'IMMICH_DB_USERNAME'),
+      envText('immichDbDatabaseName', 'Database Name', 'IMMICH_DB_DATABASE_NAME'),
+      envText('immichDbVectorExtension', 'Vector Extension', 'IMMICH_DB_VECTOR_EXTENSION'),
+      envPassword('immichDbPassword', 'Database Password', 'IMMICH_DB_PASSWORD')
+    ])
+  ],
+  romm: [
+    group('Games (RomM)', [
+      envCheckbox('enableRomm', 'Enable RomM', 'ENABLE_ROMM'),
+      envText('rommUrl', 'Local URL', 'ROMM_URL'),
+      envText('rommBindIp', 'Bind IP', 'ROMM_BIND_IP'),
+      envNumber('rommWebPort', 'Web Port', 'ROMM_WEB_PORT'),
+      envNumber('rommContainerPort', 'Container Port', 'ROMM_CONTAINER_PORT'),
+      envPath('gamesRoot', 'Games Root', 'GAMES_ROOT'),
+      envPath('rommLibraryRoot', 'RomM Library Root', 'ROMM_LIBRARY_ROOT'),
+      envPath('rommAssetsRoot', 'Assets Root', 'ROMM_ASSETS_ROOT'),
+      envPath('rommConfigRoot', 'Config Root', 'ROMM_CONFIG_ROOT'),
+      envPath('rommResourcesRoot', 'Resources Root', 'ROMM_RESOURCES_ROOT'),
+      envText('rommRedisHost', 'Redis Host', 'ROMM_REDIS_HOST'),
+      envNumber('rommRedisPort', 'Redis Port', 'ROMM_REDIS_PORT'),
+      envText('rommImage', 'RomM Image', 'ROMM_IMAGE')
+    ]),
+    group('RomM Database', [
+      envSelect('rommDbDriver', 'Database Driver', 'ROMM_DB_DRIVER', ['postgresql']),
+      envText('rommDbHost', 'Database Host', 'ROMM_DB_HOST'),
+      envNumber('rommDbPort', 'Database Port', 'ROMM_DB_PORT'),
+      envText('rommDbName', 'Database Name', 'ROMM_DB_NAME'),
+      envText('rommDbUser', 'Database User', 'ROMM_DB_USER'),
+      envPassword('rommDbPassword', 'Database Password', 'ROMM_DB_PASSWORD'),
+      envText('rommDbQueryJson', 'Extra Connection Params JSON', 'ROMM_DB_QUERY_JSON'),
+      envPassword('rommAuthSecretKey', 'Auth Secret Key', 'ROMM_AUTH_SECRET_KEY')
+    ]),
+    group('RomM First-Run Admin', [
+      envCheckbox('rommAutoConfigure', 'Auto Configure Admin', 'ROMM_AUTO_CONFIGURE'),
+      envText('rommAdminUsername', 'Admin Username', 'ROMM_ADMIN_USERNAME'),
+      envText('rommAdminEmail', 'Admin Email', 'ROMM_ADMIN_EMAIL'),
+      envPassword('rommAdminPassword', 'Admin Password', 'ROMM_ADMIN_PASSWORD')
+    ]),
+    group('Metadata Providers', [
+      envText(
+        'rommIgdbClientId',
+        'IGDB Client ID',
+        'ROMM_IGDB_CLIENT_ID',
+        'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#igdb'
+      ),
+      envPassword('rommIgdbClientSecret', 'IGDB Client Secret', 'ROMM_IGDB_CLIENT_SECRET'),
+      envPassword('rommMobyGamesApiKey', 'MobyGames API Key', 'ROMM_MOBYGAMES_API_KEY'),
+      envText('rommScreenscraperUser', 'ScreenScraper User', 'ROMM_SCREENSCRAPER_USER'),
+      envPassword('rommScreenscraperPassword', 'ScreenScraper Password', 'ROMM_SCREENSCRAPER_PASSWORD'),
+      envPassword('rommRetroachievementsApiKey', 'RetroAchievements API Key', 'ROMM_RETROACHIEVEMENTS_API_KEY'),
+      envPassword('rommSteamGridDbApiKey', 'SteamGridDB API Key', 'ROMM_STEAMGRIDDB_API_KEY'),
+      envCheckbox('rommHasheousApiEnabled', 'Use Hasheous Metadata', 'ROMM_HASHEOUS_API_ENABLED'),
+      envCheckbox('rommPlaymatchApiEnabled', 'Use Playmatch Metadata', 'ROMM_PLAYMATCH_API_ENABLED'),
+      envCheckbox('rommLaunchboxApiEnabled', 'Use LaunchBox Metadata', 'ROMM_LAUNCHBOX_API_ENABLED'),
+      envCheckbox('rommFlashpointApiEnabled', 'Use Flashpoint Metadata', 'ROMM_FLASHPOINT_API_ENABLED'),
+      envCheckbox('rommHltbApiEnabled', 'Use HowLongToBeat Metadata', 'ROMM_HLTB_API_ENABLED')
+    ])
+  ],
   bazarr: [
     group('Subtitles', [
       envCheckbox('enableBazarr', 'Enable Bazarr', 'ENABLE_BAZARR'),
@@ -316,14 +397,21 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
     group(
       'Cloudflare Tunnel',
       [
-        envPassword('cloudflareTunnelToken', 'Tunnel Token', 'CLOUDFLARE_TUNNEL_TOKEN'),
-        envPassword('cloudflareApiToken', 'API Token', 'CLOUDFLARE_API_TOKEN'),
+        envPassword(
+          'cloudflareApiToken',
+          'API Token',
+          'CLOUDFLARE_API_TOKEN',
+          'Custom Cloudflare token with Account Cloudflare Tunnel/Edit, Access Policies/Edit, Zero Trust/Edit, Zone/Read, and DNS/Edit.'
+        ),
         envText('cloudflareAccountId', 'Account ID', 'CLOUDFLARE_ACCOUNT_ID'),
         envText('cloudflareZoneId', 'Zone ID', 'CLOUDFLARE_ZONE_ID'),
         envText('cloudflaredTunnelName', 'Tunnel Name', 'CLOUDFLARED_TUNNEL_NAME'),
-        envText('cloudflaredTunnelId', 'Tunnel ID', 'CLOUDFLARED_TUNNEL_ID')
+        envText('cloudflaredTunnelId', 'Tunnel ID', 'CLOUDFLARED_TUNNEL_ID'),
+        envCheckbox('cloudflareAccessEnabled', 'Protect Routes with Access', 'CLOUDFLARE_ACCESS_ENABLED'),
+        envText('cloudflareAccessEmails', 'Access Allowed Emails', 'CLOUDFLARE_ACCESS_ALLOWED_EMAILS'),
+        envText('cloudflareAccessSession', 'Access Session Duration', 'CLOUDFLARE_ACCESS_SESSION_DURATION')
       ],
-      'Public app exposure is managed by the Connect route list.'
+      'Public app exposure is managed by the Connect route list. Stackarr creates the tunnel, DNS records, and optional reusable Cloudflare Access allowlist from an account API token.'
     ),
     group('Request Defaults', [presetJson('seerrRequests', 'Seerr Request Preset', 'requests', ['seerr'])])
   ],
@@ -381,6 +469,53 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       ),
       envText('maintainerrImage', 'Docker Image', 'MAINTAINERR_IMAGE'),
       envPassword('maintainerrGithubToken', 'GitHub Token', 'MAINTAINERR_GITHUB_TOKEN')
+    ])
+  ],
+  tracearr: [
+    group('Media Server Monitoring', [
+      envCheckbox('enableTracearr', 'Enable Tracearr', 'ENABLE_TRACEARR'),
+      envText('tracearrUrl', 'Local URL', 'TRACEARR_URL'),
+      envText('tracearrBindIp', 'Bind IP', 'TRACEARR_BIND_IP'),
+      envNumber('tracearrPort', 'Port', 'TRACEARR_PORT'),
+      envCheckbox(
+        'tracearrAutoConfigure',
+        'Auto-configure Tracearr',
+        'TRACEARR_AUTO_CONFIGURE',
+        'During stackarr configure, create or log in to the Tracearr owner account and add the selected media server when credentials are available.'
+      ),
+      envText('tracearrAdminUsername', 'Owner Username', 'TRACEARR_ADMIN_USERNAME'),
+      envText('tracearrAdminEmail', 'Owner Email', 'TRACEARR_ADMIN_EMAIL'),
+      envText(
+        'tracearrPlexServerUrl',
+        'Plex URL Override',
+        'TRACEARR_PLEX_SERVER_URL',
+        'Optional container-facing Plex URL for Tracearr. Blank lets Stackarr choose plex:32400 or host.docker.internal:32400.'
+      ),
+      envText(
+        'tracearrJellyfinServerUrl',
+        'Jellyfin URL Override',
+        'TRACEARR_JELLYFIN_SERVER_URL',
+        'Optional container-facing Jellyfin URL for Tracearr. Blank lets Stackarr choose jellyfin:8096 or host.docker.internal:8096.'
+      ),
+      envText(
+        'tracearrEmbyServerUrl',
+        'Emby URL Override',
+        'TRACEARR_EMBY_SERVER_URL',
+        'Optional container-facing Emby URL for Tracearr when EMBY_API_KEY is supplied.'
+      ),
+      envText('tracearrLogLevel', 'Log Level', 'TRACEARR_LOG_LEVEL'),
+      envText('tracearrCorsOrigin', 'CORS Origin', 'TRACEARR_CORS_ORIGIN'),
+      envText('tracearrImage', 'Docker Image', 'TRACEARR_IMAGE'),
+      envText('tracearrPostgresDatabase', 'Database Name', 'TRACEARR_POSTGRES_DATABASE'),
+      envText('tracearrPostgresUser', 'Database User', 'TRACEARR_POSTGRES_USER')
+    ]),
+    group('Secrets', [
+      envPassword('tracearrDbPassword', 'Database Password', 'TRACEARR_DB_PASSWORD'),
+      envPassword('tracearrPostgresPassword', 'Postgres Password', 'TRACEARR_POSTGRES_PASSWORD'),
+      envPassword('tracearrJwtSecret', 'JWT Secret', 'TRACEARR_JWT_SECRET'),
+      envPassword('tracearrCookieSecret', 'Cookie Secret', 'TRACEARR_COOKIE_SECRET'),
+      envPassword('tracearrAdminPassword', 'Owner Password', 'TRACEARR_ADMIN_PASSWORD'),
+      envPassword('tracearrClaimCode', 'Claim Code', 'TRACEARR_CLAIM_CODE')
     ])
   ],
   plex: [
@@ -756,13 +891,16 @@ function settingsPatchFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     ['enableBazarr', 'ENABLE_BAZARR'],
     ['enableLidarr', 'ENABLE_LIDARR'],
     ['enableBookOrbit', 'ENABLE_BOOKORBIT'],
+    ['enableImmich', 'ENABLE_IMMICH'],
+    ['enableRomm', 'ENABLE_ROMM'],
     ['enableTinyMediaManager', 'ENABLE_TINYMEDIAMANAGER'],
     ['enableRecyclarr', 'ENABLE_RECYCLARR'],
     ['enableFlaresolverr', 'ENABLE_FLARESOLVERR'],
     ['enableTidarr', 'ENABLE_TIDARR'],
     ['enableSeerr', 'ENABLE_SEERR'],
     ['enablePulsarr', 'ENABLE_PULSARR'],
-    ['enableMaintainerr', 'ENABLE_MAINTAINERR']
+    ['enableMaintainerr', 'ENABLE_MAINTAINERR'],
+    ['enableTracearr', 'ENABLE_TRACEARR']
   ];
 
   for (const [settingsKey, envKey] of mappings) {
@@ -819,6 +957,10 @@ function envSelect(id: string, label: string, key: string, options: string[], de
 
 function settingsText(id: string, label: string, path: string[], description?: string): FieldDefinition {
   return { id, label, type: 'text', source: { source: 'settings', path }, description };
+}
+
+function settingsCheckbox(id: string, label: string, path: string[], description?: string): FieldDefinition {
+  return { id, label, type: 'checkbox', source: { source: 'settings', path }, description };
 }
 
 function settingsSelect(

@@ -32,12 +32,16 @@ Shared Postgres databases:
   Stackarr main: postgres://$STACKARR_POSTGRES_USER@database:5432/$STACKARR_POSTGRES_DATABASE
   Stackarr log:  postgres://$STACKARR_POSTGRES_USER@database:5432/$STACKARR_POSTGRES_LOG_DATABASE
   BookOrbit:    postgres://$BOOKORBIT_POSTGRES_USER@database:5432/$BOOKORBIT_POSTGRES_DATABASE
+  Immich:       postgresql://$IMMICH_DB_USERNAME@database:5432/$IMMICH_DB_DATABASE_NAME
+  RomM:         postgresql://$ROMM_DB_USER@${ROMM_DB_HOST:-database}:${ROMM_DB_PORT:-5432}/$ROMM_DB_NAME
   Seerr:        postgres://$SEERR_POSTGRES_USER@database:5432/$SEERR_POSTGRES_DATABASE
   Pulsarr:      postgres://$PULSARR_POSTGRES_USER@database:5432/$PULSARR_POSTGRES_DATABASE
+  Tracearr:     postgres://$TRACEARR_POSTGRES_USER@database:5432/$TRACEARR_POSTGRES_DATABASE
 
 Config roots:
   TinyMediaManager: $CONFIG_ROOT/tinymediamanager
   Transmission: $CONFIG_ROOT/transmission
   qBittorrent: $CONFIG_ROOT/qbittorrent
   Tidarr:       $CONFIG_ROOT/tidarr
+  RomM:         $CONFIG_ROOT/romm
 EOF

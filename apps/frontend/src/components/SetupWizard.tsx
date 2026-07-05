@@ -47,12 +47,22 @@ const maintainerrCleanupPresetChoices = [
   }
 ];
 
+const rommMetadataProviderLinks = {
+  igdb: 'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#igdb',
+  screenscraper: 'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#screenscraper',
+  steamGridDb: 'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#steamgriddb',
+  retroAchievements: 'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#retroachievements',
+  hasheous: 'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#hasheous',
+  playmatch: 'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#playmatch'
+};
+
 type SetupState = {
   mediaRoot: string;
   musicRoot: string;
   downloadsRoot: string;
   backupRoot: string;
   plexInstallMode: string;
+  plexToken: string;
   jellyfinInstallMode: string;
   enableMovies: boolean;
   enableTvShows: boolean;
@@ -60,12 +70,25 @@ type SetupState = {
   enableBazarr: boolean;
   enableLidarr: boolean;
   enableBookOrbit: boolean;
+  enableImmich: boolean;
+  enableRomm: boolean;
   enableTinyMediaManager: boolean;
   enableRecyclarr: boolean;
   enableFlaresolverr: boolean;
   enableTidarr: boolean;
   enableMaintainerr: boolean;
+  enableTracearr: boolean;
   maintainerrCleanupPresets: string[];
+  rommLibraryRoot: string;
+  rommMetadataPreset: string;
+  rommIgdbClientId: string;
+  rommIgdbClientSecret: string;
+  rommSteamGridDbApiKey: string;
+  rommRetroAchievementsApiKey: string;
+  rommScreenscraperUser: string;
+  rommScreenscraperPassword: string;
+  rommHasheousApiEnabled: boolean;
+  rommPlaymatchApiEnabled: boolean;
   movieProfilePreset: string;
   movie4kProfilePreset: string;
   tvProfilePreset: string;
@@ -97,6 +120,7 @@ const defaults: SetupState = {
   downloadsRoot: '/stackarr/downloads',
   backupRoot: '/stackarr/backups',
   plexInstallMode: 'native',
+  plexToken: '',
   jellyfinInstallMode: 'disabled',
   enableMovies: true,
   enableTvShows: true,
@@ -104,12 +128,25 @@ const defaults: SetupState = {
   enableBazarr: true,
   enableLidarr: true,
   enableBookOrbit: false,
+  enableImmich: false,
+  enableRomm: false,
   enableTinyMediaManager: true,
   enableRecyclarr: true,
   enableFlaresolverr: true,
   enableTidarr: true,
   enableMaintainerr: false,
+  enableTracearr: false,
   maintainerrCleanupPresets: [],
+  rommLibraryRoot: '/stackarr/media/Games',
+  rommMetadataPreset: 'chef',
+  rommIgdbClientId: '',
+  rommIgdbClientSecret: '',
+  rommSteamGridDbApiKey: '',
+  rommRetroAchievementsApiKey: '',
+  rommScreenscraperUser: '',
+  rommScreenscraperPassword: '',
+  rommHasheousApiEnabled: true,
+  rommPlaymatchApiEnabled: false,
   movieProfilePreset: 'lite',
   movie4kProfilePreset: 'lite',
   tvProfilePreset: 'lite',
@@ -161,6 +198,15 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const setupTask = setupTaskId ? liveTasks.find((task) => task.id === setupTaskId) : undefined;
 
   const setupConfig = useMemo(() => {
+    const rommLibraryRoot = state.rommLibraryRoot || `${state.mediaRoot}/Games`;
+    const rommPreset = state.rommMetadataPreset;
+    const rommUsesIgdb = rommPreset === 'chef' || rommPreset === 'twitch' || rommPreset === 'custom';
+    const rommUsesSteamGridDb = rommPreset === 'chef' || rommPreset === 'custom';
+    const rommUsesRetroAchievements = rommPreset === 'chef' || rommPreset === 'french' || rommPreset === 'custom';
+    const rommUsesScreenscraper = rommPreset === 'french' || rommPreset === 'custom';
+    const rommHasheousEnabled =
+      rommPreset === 'quick' || rommPreset === 'chef' || (rommPreset === 'custom' && state.rommHasheousApiEnabled);
+    const rommPlaymatchEnabled = rommPreset === 'twitch' || (rommPreset === 'custom' && state.rommPlaymatchApiEnabled);
     const config: Record<string, string> = {
       MEDIA_ROOT: state.mediaRoot,
       MUSIC_ROOT: state.musicRoot,
@@ -175,6 +221,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       UPDATE_TIME: '04:30',
       UPDATE_WEEKDAY: 'Sun',
       PLEX_INSTALL_MODE: state.plexInstallMode,
+      PLEX_TOKEN: state.plexToken,
       JELLYFIN_INSTALL_MODE: state.jellyfinInstallMode,
       ENABLE_MOVIES: String(state.enableMovies),
       ENABLE_TV_SHOWS: String(state.enableTvShows),
@@ -182,17 +229,36 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_BAZARR: String(state.enableBazarr),
       ENABLE_LIDARR: String(state.enableLidarr),
       ENABLE_BOOKORBIT: String(state.enableBookOrbit),
+      ENABLE_IMMICH: String(state.enableImmich),
+      ENABLE_ROMM: String(state.enableRomm),
       ENABLE_TINYMEDIAMANAGER: String(state.enableTinyMediaManager),
       ENABLE_RECYCLARR: String(state.enableRecyclarr),
       ENABLE_FLARESOLVERR: String(state.enableFlaresolverr),
       ENABLE_TIDARR: String(state.enableTidarr),
       ENABLE_MAINTAINERR: String(state.enableMaintainerr),
+      ENABLE_TRACEARR: String(state.enableTracearr),
       MAINTAINERR_BIND_IP: '127.0.0.1',
       MAINTAINERR_PORT: '6246',
       MAINTAINERR_URL: 'http://127.0.0.1:6246',
       MAINTAINERR_BASE_PATH: '',
       MAINTAINERR_GITHUB_TOKEN: '',
       MAINTAINERR_CLEANUP_PRESETS: state.maintainerrCleanupPresets.join(','),
+      TRACEARR_BIND_IP: '127.0.0.1',
+      TRACEARR_PORT: '3000',
+      TRACEARR_URL: 'http://127.0.0.1:3000',
+      TRACEARR_AUTO_CONFIGURE: 'true',
+      TRACEARR_ADMIN_USERNAME: state.globalUsername,
+      TRACEARR_ADMIN_EMAIL: state.globalEmail,
+      TRACEARR_ADMIN_PASSWORD: state.enableTracearr ? state.globalPassword : '',
+      TRACEARR_CLAIM_CODE: '',
+      TRACEARR_PLEX_SERVER_URL: '',
+      TRACEARR_JELLYFIN_SERVER_URL: '',
+      TRACEARR_EMBY_SERVER_URL: '',
+      TRACEARR_DB_PASSWORD: '',
+      TRACEARR_JWT_SECRET: '',
+      TRACEARR_COOKIE_SECRET: '',
+      TRACEARR_LOG_LEVEL: 'info',
+      TRACEARR_CORS_ORIGIN: '*',
       STACKARR_MOVIE_PROFILE_PRESET: state.movieProfilePreset,
       STACKARR_TV_PROFILE_PRESET: state.tvProfilePreset,
       STACKARR_MUSIC_PROFILE_PRESET: state.musicProfilePreset,
@@ -220,6 +286,54 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       BOOKORBIT_APP_URL: 'http://127.0.0.1:7582',
       BOOKORBIT_CLIENT_URL: 'http://127.0.0.1:7582',
       BOOKS_ROOT: `${state.mediaRoot}/Books`,
+      IMMICH_BIND_IP: '127.0.0.1',
+      IMMICH_WEB_PORT: '2283',
+      IMMICH_CONTAINER_PORT: '2283',
+      IMMICH_URL: 'http://127.0.0.1:2283',
+      IMMICH_UPLOAD_LOCATION: `${state.mediaRoot}/Pictures`,
+      IMMICH_VERSION: 'release',
+      IMMICH_DB_USERNAME: 'immich',
+      IMMICH_DB_DATABASE_NAME: 'immich',
+      IMMICH_DB_VECTOR_EXTENSION: 'pgvector',
+      IMMICH_DB_PASSWORD: '',
+      GAMES_ROOT: rommLibraryRoot,
+      ROMM_URL: 'http://127.0.0.1:7583',
+      ROMM_BIND_IP: '127.0.0.1',
+      ROMM_WEB_PORT: '7583',
+      ROMM_CONTAINER_PORT: '8080',
+      ROMM_LIBRARY_ROOT: rommLibraryRoot,
+      ROMM_ASSETS_ROOT: '',
+      ROMM_CONFIG_ROOT: '',
+      ROMM_RESOURCES_ROOT: '',
+      ROMM_REDIS_DATA_ROOT: '',
+      ROMM_REDIS_HOST: 'redis',
+      ROMM_REDIS_PORT: '6379',
+      ROMM_DB_DATA_LOCATION: '',
+      ROMM_DB_DRIVER: 'postgresql',
+      ROMM_DB_HOST: 'database',
+      ROMM_DB_PORT: '5432',
+      ROMM_DB_NAME: 'romm',
+      ROMM_DB_USER: 'romm',
+      ROMM_DB_PASSWORD: '',
+      ROMM_DB_ROOT_PASSWORD: '',
+      ROMM_DB_QUERY_JSON: '',
+      ROMM_AUTH_SECRET_KEY: '',
+      ROMM_AUTO_CONFIGURE: 'false',
+      ROMM_ADMIN_USERNAME: '',
+      ROMM_ADMIN_EMAIL: '',
+      ROMM_ADMIN_PASSWORD: '',
+      ROMM_IGDB_CLIENT_ID: rommUsesIgdb ? state.rommIgdbClientId : '',
+      ROMM_IGDB_CLIENT_SECRET: rommUsesIgdb ? state.rommIgdbClientSecret : '',
+      ROMM_MOBYGAMES_API_KEY: '',
+      ROMM_SCREENSCRAPER_USER: rommUsesScreenscraper ? state.rommScreenscraperUser : '',
+      ROMM_SCREENSCRAPER_PASSWORD: rommUsesScreenscraper ? state.rommScreenscraperPassword : '',
+      ROMM_RETROACHIEVEMENTS_API_KEY: rommUsesRetroAchievements ? state.rommRetroAchievementsApiKey : '',
+      ROMM_STEAMGRIDDB_API_KEY: rommUsesSteamGridDb ? state.rommSteamGridDbApiKey : '',
+      ROMM_HASHEOUS_API_ENABLED: String(rommHasheousEnabled),
+      ROMM_PLAYMATCH_API_ENABLED: String(rommPlaymatchEnabled),
+      ROMM_LAUNCHBOX_API_ENABLED: 'false',
+      ROMM_FLASHPOINT_API_ENABLED: 'false',
+      ROMM_HLTB_API_ENABLED: 'false',
       STACKARR_MOVIE_4K_PROFILE_PRESET: '',
       STACKARR_TV_4K_PROFILE_PRESET: '',
       STACKARR_MOVIE_4K_DEFAULT_PROFILE: '',
@@ -261,7 +375,9 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           state.enableMovies && 'Movies',
           state.enableTvShows && 'TV Shows',
           state.enableLidarr && 'Music',
-          state.enableBookOrbit && 'Books'
+          state.enableBookOrbit && 'Books',
+          state.enableImmich && 'Photos',
+          state.enableRomm && 'Games'
         ]
           .filter(Boolean)
           .join(', ') || 'None'
@@ -273,10 +389,13 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           : 'Disabled'
       ],
       ['Maintainerr', state.enableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
-      [
-        'Cleanup presets',
-        state.maintainerrCleanupPresets.length ? state.maintainerrCleanupPresets.join(', ') : 'None'
-      ],
+      ['Tracearr', state.enableTracearr ? 'Enabled' : 'Disabled'],
+      ['Immich', state.enableImmich ? 'Enabled' : 'Disabled'],
+      ['RomM', state.enableRomm ? 'Enabled privately' : 'Disabled'],
+      ['RomM library', state.enableRomm ? state.rommLibraryRoot || `${state.mediaRoot}/Games` : 'Disabled'],
+      ['RomM setup', state.enableRomm ? 'Manual in RomM' : 'Disabled'],
+      ['RomM metadata', state.enableRomm ? rommMetadataLabel(state.rommMetadataPreset) : 'Disabled'],
+      ['Cleanup presets', state.maintainerrCleanupPresets.length ? state.maintainerrCleanupPresets.join(', ') : 'None'],
       [
         'Movie profile',
         state.enable4kServarr
@@ -632,6 +751,16 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               </select>
             </label>
             <label>
+              Plex Token
+              <input
+                autoComplete="off"
+                type="password"
+                value={state.plexToken}
+                onChange={(event) => update('plexToken', event.target.value)}
+                placeholder="Auto-discover from native Plex when blank"
+              />
+            </label>
+            <label>
               Jellyfin
               <select
                 value={state.jellyfinInstallMode}
@@ -711,6 +840,152 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               onChange={(value) => update('enableBookOrbit', value)}
             />
             <ServiceChoice
+              checked={state.enableImmich}
+              label="Photos (Immich)"
+              description="Optional photo-library backup, browsing, and iOS sync powered by Immich."
+              onChange={(value) => update('enableImmich', value)}
+            />
+            <ServiceChoice
+              checked={state.enableRomm}
+              label="Games (RomM)"
+              description="Optional private ROM manager and browser-play game library. Stackarr keeps it local unless you explicitly expose it later."
+              onChange={(value) => update('enableRomm', value)}
+            />
+            {state.enableRomm && (
+              <div className={styles.form}>
+                <label>
+                  RomM Library Root
+                  <PathInput value={state.rommLibraryRoot} onChange={(value) => update('rommLibraryRoot', value)} />
+                </label>
+                <label>
+                  Metadata Providers
+                  <select
+                    value={state.rommMetadataPreset}
+                    onChange={(event) => update('rommMetadataPreset', event.target.value)}
+                  >
+                    <option value="chef">Chef's Choice</option>
+                    <option value="french">French Connection</option>
+                    <option value="twitch">Twitch Fanboy</option>
+                    <option value="quick">Quick Starter</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <p>
+                  <a href={rommMetadataProviderLinks.hasheous} rel="noreferrer" target="_blank">
+                    Hasheous
+                  </a>
+                  {' · '}
+                  <a href={rommMetadataProviderLinks.igdb} rel="noreferrer" target="_blank">
+                    IGDB
+                  </a>
+                  {' · '}
+                  <a href={rommMetadataProviderLinks.steamGridDb} rel="noreferrer" target="_blank">
+                    SteamGridDB
+                  </a>
+                  {' · '}
+                  <a href={rommMetadataProviderLinks.retroAchievements} rel="noreferrer" target="_blank">
+                    RetroAchievements
+                  </a>
+                  {' · '}
+                  <a href={rommMetadataProviderLinks.screenscraper} rel="noreferrer" target="_blank">
+                    ScreenScraper
+                  </a>
+                  {' · '}
+                  <a href={rommMetadataProviderLinks.playmatch} rel="noreferrer" target="_blank">
+                    Playmatch
+                  </a>
+                </p>
+                {(state.rommMetadataPreset === 'chef' ||
+                  state.rommMetadataPreset === 'twitch' ||
+                  state.rommMetadataPreset === 'custom') && (
+                  <>
+                    <label>
+                      IGDB Client ID
+                      <input
+                        autoComplete="off"
+                        value={state.rommIgdbClientId}
+                        onChange={(event) => update('rommIgdbClientId', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      IGDB Client Secret
+                      <input
+                        autoComplete="off"
+                        type="password"
+                        value={state.rommIgdbClientSecret}
+                        onChange={(event) => update('rommIgdbClientSecret', event.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+                {(state.rommMetadataPreset === 'chef' || state.rommMetadataPreset === 'custom') && (
+                  <label>
+                    SteamGridDB API Key
+                    <input
+                      autoComplete="off"
+                      type="password"
+                      value={state.rommSteamGridDbApiKey}
+                      onChange={(event) => update('rommSteamGridDbApiKey', event.target.value)}
+                    />
+                  </label>
+                )}
+                {(state.rommMetadataPreset === 'chef' ||
+                  state.rommMetadataPreset === 'french' ||
+                  state.rommMetadataPreset === 'custom') && (
+                  <label>
+                    RetroAchievements API Key
+                    <input
+                      autoComplete="off"
+                      type="password"
+                      value={state.rommRetroAchievementsApiKey}
+                      onChange={(event) => update('rommRetroAchievementsApiKey', event.target.value)}
+                    />
+                  </label>
+                )}
+                {(state.rommMetadataPreset === 'french' || state.rommMetadataPreset === 'custom') && (
+                  <>
+                    <label>
+                      ScreenScraper Username
+                      <input
+                        autoComplete="off"
+                        value={state.rommScreenscraperUser}
+                        onChange={(event) => update('rommScreenscraperUser', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      ScreenScraper Password
+                      <input
+                        autoComplete="off"
+                        type="password"
+                        value={state.rommScreenscraperPassword}
+                        onChange={(event) => update('rommScreenscraperPassword', event.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+                {state.rommMetadataPreset === 'custom' && (
+                  <div className={styles.checks}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={state.rommHasheousApiEnabled}
+                        onChange={(event) => update('rommHasheousApiEnabled', event.target.checked)}
+                      />{' '}
+                      Hasheous
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={state.rommPlaymatchApiEnabled}
+                        onChange={(event) => update('rommPlaymatchApiEnabled', event.target.checked)}
+                      />{' '}
+                      Playmatch
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+            <ServiceChoice
               checked={state.enable4kServarr}
               label="Separate Radarr/Sonarr 4K"
               description="Dedicated 4K movie and TV apps keep UHD requests, profiles, and upgrades isolated from HD libraries."
@@ -751,6 +1026,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               label="Maintainerr Cleanup"
               description="Plex/Jellyfin cleanup planner. Stackarr connects media server, Arr services, and supported download cleanup."
               onChange={(value) => update('enableMaintainerr', value)}
+            />
+            <ServiceChoice
+              checked={state.enableTracearr}
+              label="Tracearr Monitoring"
+              description="Real-time Plex, Jellyfin, and Emby monitoring. Stackarr starts it and wires the selected server when credentials are available."
+              onChange={(value) => update('enableTracearr', value)}
             />
             {state.enableMaintainerr && (
               <div className={styles.cleanupPresetChoices}>
@@ -817,8 +1098,9 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               </select>
             </label>
             <p>
-              BookOrbit uses Postgres when enabled. The shared Postgres option moves supported Stackarr-managed apps
-              onto the database container as a blanket advanced setup choice.
+              BookOrbit, Immich, RomM, and Tracearr use Stackarr's shared Postgres when enabled. Immich, RomM, and
+              Tracearr also use the shared Redis service. The shared Postgres option moves supported Arr apps onto the
+              database container as a blanket advanced setup choice.
             </p>
           </div>
         )}
@@ -1034,6 +1316,21 @@ function mediaProfileName(preset: string, resolution: 'hd' | '4k') {
 
 function musicProfileName(preset: string) {
   return preset === 'lossy' ? 'Lossy 256+' : 'Lossless';
+}
+
+function rommMetadataLabel(preset: string) {
+  switch (preset) {
+    case 'french':
+      return 'ScreenScraper + RetroAchievements';
+    case 'twitch':
+      return 'IGDB + Playmatch';
+    case 'quick':
+      return 'Hasheous';
+    case 'custom':
+      return 'Custom';
+    default:
+      return 'Hasheous + IGDB + SteamGridDB + RetroAchievements';
+  }
 }
 
 function validateRequiredPortablePassword(password: string) {

@@ -76,7 +76,7 @@ stackarr portless install
 
 Run that command from Terminal after enabling `portless` in **Settings > UI > Service Link Mode**. Approve the macOS admin prompts so names like `https://app.stackarr`, `https://plex.stackarr`, and `https://sonarr4k.stackarr` resolve without a port suffix.
 
-Installing Portless globally first is optional. If it already exists, Stackarr reuses it; otherwise the host command installs Portless with npm before registering Stackarr aliases. Source checkouts can run `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`; if the app has been moved to Applications, the bundled helper is `/Applications/Stackarr.app/Contents/MacOS/Stackarr`.
+Installing Portless globally first is optional. If it already exists, Stackarr reuses it; otherwise the host command installs Portless with npm before registering Stackarr aliases. Source checkouts can run `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`; run that helper from Terminal for host approval tasks.
 
 If the dashboard shows the Portless task as blocked, it is waiting for this host approval step. Open normal Terminal, run the command above, and enter the Mac password there.
 

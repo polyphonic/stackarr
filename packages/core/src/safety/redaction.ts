@@ -1,4 +1,5 @@
-const secretKeyPattern = /(api[_-]?key|token|password|passwd|secret|credential|auth|plex[_-]?token|cookie)/i;
+const secretKeyPattern =
+  /(api[_-]?key|token|password|passwd|secret|credential|auth|plex[_-]?token|cookie|claim[_-]?code)/i;
 const tokenValuePattern = /([?&](?:apikey|api_key|token|X-Plex-Token)=)[^&\s]+/gi;
 const urlPasswordPattern = /([a-z][a-z0-9+.-]*:\/\/[^:/\s]+:)[^@\s]+(@)/gi;
 

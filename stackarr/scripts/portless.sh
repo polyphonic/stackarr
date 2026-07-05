@@ -13,8 +13,6 @@ LAUNCH_DOMAIN=""
 host_install_hint() {
     echo "Open Terminal and run:"
     echo "  stackarr portless install"
-    echo "App archive fallback:"
-    echo "  /Applications/Stackarr.app/Contents/MacOS/Stackarr portless install"
     echo "Source checkouts can use:"
     echo "  bin/stackarr portless install"
 }
@@ -27,6 +25,7 @@ load_browser_link_settings() {
     : "${STACKARR_SERVICE_URL_MODE:=localhost}"
     : "${STACKARR_SERVICE_URL_SCHEME:=https}"
     : "${STACKARR_SERVICE_URL_HOST_SUFFIX:=stackarr}"
+    : "${STACKARR_UNIFY_SERVICE_URLS:=true}"
 
     [[ -f "$db_file" ]] || return 0
     [[ -f "$exporter" ]] || return 0
@@ -84,8 +83,48 @@ register() {
     local port="$2"
 
     [[ -n "$port" ]] || return 0
-    portless alias "$name" "$port" --force
+    PORTLESS_TLD="$tld" portless alias "$name" "$port" --force
+    ensure_route_file_alias "$name" "$port"
     ok "${scheme}://$name.${tld} -> :$port"
+}
+
+ensure_route_file_alias() {
+    local name="$1"
+    local port="$2"
+    local routes_file="$HOME/.portless/routes.json"
+
+    command -v node >/dev/null 2>&1 || return 0
+    mkdir -p "$(dirname "$routes_file")"
+
+    STACKARR_PORTLESS_ALIAS="$name" \
+        STACKARR_PORTLESS_PORT="$port" \
+        STACKARR_PORTLESS_TLD="$tld" \
+        STACKARR_PORTLESS_ROUTES_FILE="$routes_file" \
+        node <<'NODE'
+const fs = require('node:fs');
+
+const routesFile = process.env.STACKARR_PORTLESS_ROUTES_FILE;
+const alias = String(process.env.STACKARR_PORTLESS_ALIAS || '').trim().toLowerCase();
+const tld = String(process.env.STACKARR_PORTLESS_TLD || 'stackarr').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+const port = Number(process.env.STACKARR_PORTLESS_PORT || 0);
+
+if (!routesFile || !alias || !tld || !port) process.exit(0);
+
+const hostname = `${alias}.${tld}`;
+let routes = [];
+
+try {
+  routes = JSON.parse(fs.readFileSync(routesFile, 'utf8'));
+  if (!Array.isArray(routes)) routes = [];
+} catch {
+  routes = [];
+}
+
+const next = routes.filter((route) => String(route?.hostname || '').toLowerCase() !== hostname);
+next.push({ hostname, port, pid: 0 });
+
+fs.writeFileSync(routesFile, `${JSON.stringify(next, null, 2)}\n`);
+NODE
 }
 
 register_aliases() {
@@ -119,6 +158,14 @@ register_aliases() {
         register bookorbit "${BOOKORBIT_WEB_PORT:-7582}"
     fi
 
+    if truthy "${ENABLE_IMMICH:-false}"; then
+        register immich "${IMMICH_WEB_PORT:-2283}"
+    fi
+
+    if truthy "${ENABLE_ROMM:-false}"; then
+        register romm "${ROMM_WEB_PORT:-7583}"
+    fi
+
     if truthy "${ENABLE_BAZARR:-true}"; then
         register bazarr 6767
     fi
@@ -147,6 +194,10 @@ register_aliases() {
         register maintainerr "${MAINTAINERR_PORT:-6246}"
     fi
 
+    if truthy "${ENABLE_TRACEARR:-false}"; then
+        register tracearr "${TRACEARR_PORT:-3000}"
+    fi
+
     if [[ "$(lowercase "${PLEX_INSTALL_MODE:-native}")" != "disabled" ]]; then
         register plex "${PLEX_DOCKER_PORT:-32400}"
     fi
@@ -154,6 +205,62 @@ register_aliases() {
     if [[ "$(lowercase "${JELLYFIN_INSTALL_MODE:-disabled}")" != "disabled" ]]; then
         register jellyfin "${JELLYFIN_DOCKER_PORT:-8096}"
     fi
+}
+
+prune_stale_stackarr_aliases() {
+    local routes_file="$HOME/.portless/routes.json"
+    [[ -f "$routes_file" ]] || return 0
+    command -v node >/dev/null 2>&1 || return 0
+
+    STACKARR_PORTLESS_TLD="$tld" STACKARR_PORTLESS_ROUTES_FILE="$routes_file" node <<'NODE'
+const fs = require('node:fs');
+
+const routesFile = process.env.STACKARR_PORTLESS_ROUTES_FILE;
+const tld = String(process.env.STACKARR_PORTLESS_TLD || 'stackarr').toLowerCase();
+const stackarrAliases = new Set([
+  'app',
+  'transmission',
+  'qbittorrent',
+  'prowlarr',
+  'radarr',
+  'sonarr',
+  'radarr4k',
+  'sonarr4k',
+  'lidarr',
+  'bookorbit',
+  'immich',
+  'romm',
+  'bazarr',
+  'tinymm',
+  'flaresolverr',
+  'tidarr',
+  'seerr',
+  'pulsarr',
+  'maintainerr',
+  'tracearr',
+  'plex',
+  'jellyfin',
+]);
+
+try {
+  const routes = JSON.parse(fs.readFileSync(routesFile, 'utf8'));
+  if (!Array.isArray(routes)) process.exit(0);
+
+  const next = routes.filter((route) => {
+    const hostname = String(route?.hostname || '').toLowerCase();
+    const parts = hostname.split('.');
+    const alias = parts.shift();
+    if (!alias || !stackarrAliases.has(alias)) return true;
+    return parts.join('.') === tld;
+  });
+
+  if (next.length === routes.length) process.exit(0);
+  fs.copyFileSync(routesFile, `${routesFile}.bak-stackarr-prune`);
+  fs.writeFileSync(routesFile, `${JSON.stringify(next, null, 2)}\n`);
+} catch {
+  process.exit(0);
+}
+NODE
 }
 
 start_proxy() {
@@ -291,8 +398,9 @@ case "$cmd" in
         start_proxy "$tld" "$scheme"
 
         register_aliases
+        prune_stale_stackarr_aliases
 
-        if ! portless hosts sync; then
+        if ! PORTLESS_TLD="$tld" portless hosts sync; then
             warn "Portless aliases were registered, but hosts sync failed. Clean names will not resolve until macOS host approval completes."
             host_install_hint
         fi

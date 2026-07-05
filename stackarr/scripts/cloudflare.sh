@@ -19,9 +19,11 @@ API_TOKEN_FILE="$STATE_ROOT/cloudflare-api-token"
 RUN_SCRIPT="$ROOT_DIR/scripts/cloudflare-run.sh"
 DEFAULT_METRICS_PORT="42183"
 DEFAULT_TUNNEL_NAME="stackarr"
+DEFAULT_ACCESS_POLICY_NAME="${CLOUDFLARE_ACCESS_POLICY_NAME:-Email Allowlist}"
+LEGACY_ACCESS_POLICY_NAME="Stackarr family allowlist"
 
 usage() {
-    fail "Usage: stackarr cloudflare install [--token <token>] [--route <hostname=service>] [--api-token <api-token>]
+    fail "Usage: stackarr cloudflare install [--api-token <api-token>] [--route <hostname=service[:access|public]>] [--access-email <email>] [--access-session <duration>] [--no-access]
        stackarr cloudflare start
        stackarr cloudflare stop
        stackarr cloudflare status
@@ -53,8 +55,17 @@ cloudflare_service_url() {
         maintainerr|cleanup)
             printf 'http://127.0.0.1:%s\n' "${MAINTAINERR_PORT:-6246}"
             ;;
+        tracearr|monitoring|analytics)
+            printf 'http://127.0.0.1:%s\n' "${TRACEARR_PORT:-3000}"
+            ;;
         bookorbit|books)
             printf 'http://127.0.0.1:%s\n' "${BOOKORBIT_WEB_PORT:-7582}"
+            ;;
+        immich|photos|pics)
+            printf 'http://127.0.0.1:%s\n' "${IMMICH_WEB_PORT:-2283}"
+            ;;
+        romm|games)
+            printf 'http://127.0.0.1:%s\n' "${ROMM_WEB_PORT:-7583}"
             ;;
         seerr)
             printf 'http://127.0.0.1:5055\n'
@@ -100,6 +111,19 @@ collect_cloudflare_routes() {
 import json
 import os
 
+def default_access(service):
+    return service not in {"immich", "photos", "pics"}
+
+def normalize_access(value, service):
+    if isinstance(value, bool):
+        return value
+    token = str(value or "").strip().lower()
+    if token in {"1", "true", "yes", "on", "access", "protected"}:
+        return True
+    if token in {"0", "false", "no", "off", "public", "mobile", "none"}:
+        return False
+    return default_access(service)
+
 raw = os.environ.get("CLOUDFLARE_TUNNEL_ROUTES") or ""
 
 try:
@@ -123,8 +147,59 @@ for route in routes:
     hostname = hostname.split("/", 1)[0]
     if not hostname or hostname in seen:
         continue
+    access = normalize_access(route.get("access"), service)
     seen.add(hostname)
-    print(f"{hostname}\t{service}")
+    print(f"{hostname}\t{service}\t{str(access).lower()}")
+PY
+}
+
+print_cloudflare_route_override() {
+    local route="$1"
+
+    python3 - "$route" <<'PY'
+import sys
+
+ACCESS_TRUE = {"1", "true", "yes", "on", "access", "protected"}
+ACCESS_FALSE = {"0", "false", "no", "off", "public", "mobile", "none"}
+
+def default_access(service):
+    return service not in {"immich", "photos", "pics"}
+
+def parse_access(value, service):
+    token = str(value or "").strip().lower()
+    if token in ACCESS_TRUE:
+        return True
+    if token in ACCESS_FALSE:
+        return False
+    return default_access(service)
+
+raw = sys.argv[1].strip()
+raw = raw.removeprefix("https://").removeprefix("http://")
+if "=" in raw:
+    hostname, descriptor = raw.split("=", 1)
+else:
+    hostname, descriptor = raw, "pulsarr"
+
+hostname = hostname.split("/", 1)[0].strip().lower()
+descriptor = descriptor.strip().lower() or "pulsarr"
+access_value = None
+
+if "?access=" in descriptor:
+    descriptor, access_value = descriptor.split("?access=", 1)
+
+for separator in (":", ","):
+    if separator in descriptor:
+        left, right = descriptor.rsplit(separator, 1)
+        if right in ACCESS_TRUE or right in ACCESS_FALSE:
+            descriptor = left
+            access_value = right
+            break
+
+service = descriptor.strip() or "pulsarr"
+access = parse_access(access_value, service)
+
+if hostname:
+    print(f"{hostname}\t{service}\t{str(access).lower()}")
 PY
 }
 
@@ -136,12 +211,51 @@ import json
 import pathlib
 import sys
 
+def default_access(service):
+    return service not in {"immich", "photos", "pics"}
+
+def normalize_access(value, service):
+    token = str(value or "").strip().lower()
+    if token in {"1", "true", "yes", "on", "access", "protected"}:
+        return True
+    if token in {"0", "false", "no", "off", "public", "mobile", "none"}:
+        return False
+    return default_access(service)
+
 routes = []
 for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
     parts = line.rstrip("\n").split("\t")
     if len(parts) >= 2 and parts[0] and parts[1]:
-        routes.append({"hostname": parts[0], "service": parts[1]})
+        access = normalize_access(parts[2] if len(parts) >= 3 else "", parts[1])
+        routes.append({"hostname": parts[0], "service": parts[1], "access": access})
 print(json.dumps(routes, separators=(",", ":")))
+PY
+}
+
+cloudflare_access_route_count() {
+    local routes_file="$1"
+
+    python3 - "$routes_file" <<'PY'
+import pathlib
+import sys
+
+def default_access(service):
+    return service not in {"immich", "photos", "pics"}
+
+def normalize_access(value, service):
+    token = str(value or "").strip().lower()
+    if token in {"1", "true", "yes", "on", "access", "protected"}:
+        return True
+    if token in {"0", "false", "no", "off", "public", "mobile", "none"}:
+        return False
+    return default_access(service)
+
+count = 0
+for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+    parts = line.rstrip("\n").split("\t")
+    if len(parts) >= 2 and parts[0] and parts[1]:
+        count += int(normalize_access(parts[2] if len(parts) >= 3 else "", parts[1]))
+print(count)
 PY
 }
 
@@ -178,7 +292,6 @@ write_cloudflare_token_file() {
 
     umask 077
     printf '%s\n' "$token" > "$TOKEN_FILE"
-    set_env_value "CLOUDFLARE_TUNNEL_TOKEN" "$token"
 }
 
 write_cloudflare_api_token_file() {
@@ -214,11 +327,6 @@ read_cloudflare_api_token() {
 
 read_cloudflare_tunnel_token() {
     local token_path="${CLOUDFLARED_TOKEN_FILE:-$TOKEN_FILE}"
-
-    if [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then
-        printf '%s\n' "$CLOUDFLARE_TUNNEL_TOKEN"
-        return 0
-    fi
 
     if [[ -f "$token_path" ]]; then
         read_secret_file "$token_path"
@@ -534,27 +642,18 @@ PY
 
 ensure_cloudflare_tunnel_credentials() {
     local api_token="$1"
-    local tunnel_token="$2"
-    local account_id="$3"
-    local tunnel_id="$4"
-    local tunnel_name="$5"
+    local account_id="$2"
+    local tunnel_id="$3"
+    local tunnel_name="$4"
     local resolved_tunnel_id resolved_tunnel_name resolved_tunnel_token
     local existing
 
-    if [[ -n "$tunnel_token" ]]; then
-        [[ -n "$account_id" ]] || account_id="$(decode_tunnel_token_field "$tunnel_token" "a")"
-        [[ -n "$tunnel_id" ]] || tunnel_id="$(decode_tunnel_token_field "$tunnel_token" "t")"
-        [[ -n "$tunnel_name" ]] || tunnel_name="${CLOUDFLARED_TUNNEL_NAME:-$DEFAULT_TUNNEL_NAME}"
-        printf '%s\t%s\t%s\t%s\n' "$account_id" "$tunnel_id" "$tunnel_name" "$tunnel_token"
-        return 0
-    fi
-
-    [[ -n "$api_token" ]] || fail "Either a Cloudflare tunnel token or Cloudflare API token is required"
-        [[ -n "$account_id" ]] || fail "Could not determine the Cloudflare account ID. Make sure the API token includes Zone Read and provide a hostname in the same zone."
+    [[ -n "$api_token" ]] || fail "Cloudflare API token is required"
+    [[ -n "$account_id" ]] || fail "Could not determine the Cloudflare account ID. Make sure the API token includes Zone Read and provide a hostname in the same zone, or set CLOUDFLARE_ACCOUNT_ID."
 
     if [[ -n "$tunnel_id" ]]; then
         resolved_tunnel_token="$(fetch_cloudflare_tunnel_token "$api_token" "$account_id" "$tunnel_id" || true)"
-        [[ -n "$resolved_tunnel_token" ]] || fail "Could not fetch the Cloudflare tunnel token for tunnel $tunnel_id"
+        [[ -n "$resolved_tunnel_token" ]] || fail "Could not fetch the Cloudflare connector credential for tunnel $tunnel_id"
         if [[ -z "$tunnel_name" ]]; then
             existing="$(fetch_cloudflare_tunnel_details "$api_token" "$account_id" "$tunnel_id" || true)"
             if [[ -n "$existing" ]]; then
@@ -572,7 +671,7 @@ ensure_cloudflare_tunnel_credentials() {
     if [[ -n "$existing" ]]; then
         IFS=$'\t' read -r resolved_tunnel_id resolved_tunnel_name <<< "$existing"
         resolved_tunnel_token="$(fetch_cloudflare_tunnel_token "$api_token" "$account_id" "$resolved_tunnel_id" || true)"
-        [[ -n "$resolved_tunnel_token" ]] || fail "Found Cloudflare tunnel '$resolved_tunnel_name' but could not fetch its tunnel token"
+        [[ -n "$resolved_tunnel_token" ]] || fail "Found Cloudflare tunnel '$resolved_tunnel_name' but could not fetch its connector credential"
         printf '%s\t%s\t%s\t%s\n' "$account_id" "$resolved_tunnel_id" "${resolved_tunnel_name:-$tunnel_name}" "$resolved_tunnel_token"
         return 0
     fi
@@ -875,6 +974,426 @@ ensure_cloudflare_public_hostname() {
     rm -f "$config_file" "$update_file"
 }
 
+cloudflare_access_enabled() {
+    flag_enabled "${CLOUDFLARE_ACCESS_ENABLED:-false}"
+}
+
+cloudflare_access_allowed_emails_json() {
+    python3 <<'PY'
+import json
+import os
+import re
+
+raw = os.environ.get("CLOUDFLARE_ACCESS_ALLOWED_EMAILS", "")
+emails = []
+seen = set()
+for item in re.split(r"[\s,;]+", raw):
+    email = item.strip().lower()
+    if not email or "@" not in email or email in seen:
+        continue
+    seen.add(email)
+    emails.append(email)
+print(json.dumps(emails, separators=(",", ":")))
+PY
+}
+
+cloudflare_access_email_count() {
+    local emails_json
+
+    emails_json="$(cloudflare_access_allowed_emails_json)"
+    python3 - "$emails_json" <<'PY'
+import json
+import sys
+
+print(len(json.loads(sys.argv[1])))
+PY
+}
+
+require_cloudflare_access_allowlist() {
+    local count
+
+    count="$(cloudflare_access_email_count)"
+
+    [[ "$count" -gt 0 ]] || fail "Cloudflare Access protection needs CLOUDFLARE_ACCESS_ALLOWED_EMAILS set to one or more family email addresses"
+}
+
+build_cloudflare_access_app_body() {
+    local hostname="$1"
+    local route_service="$2"
+    local session_duration="${CLOUDFLARE_ACCESS_SESSION_DURATION:-720h}"
+    local otp_identity_provider_id="${3:-}"
+    local reusable_policy_id="${4:-}"
+
+    python3 - "$hostname" "$route_service" "$session_duration" "$otp_identity_provider_id" "$reusable_policy_id" <<'PY'
+import json
+import sys
+
+hostname, route_service, session_duration, otp_identity_provider_id, reusable_policy_id = sys.argv[1:6]
+service_name = route_service[:1].upper() + route_service[1:]
+body = {
+    "name": f"Stackarr {service_name}",
+    "domain": hostname,
+    "type": "self_hosted",
+    "session_duration": session_duration or "720h",
+    "auto_redirect_to_identity": bool(otp_identity_provider_id)
+}
+if otp_identity_provider_id:
+    body["allowed_idps"] = [otp_identity_provider_id]
+if reusable_policy_id:
+    body["policies"] = [{"id": reusable_policy_id}]
+print(json.dumps(body, separators=(",", ":")))
+PY
+}
+
+build_cloudflare_access_policy_body() {
+    local emails_json="$1"
+    local policy_name="${2:-$DEFAULT_ACCESS_POLICY_NAME}"
+    local session_duration="${CLOUDFLARE_ACCESS_SESSION_DURATION:-720h}"
+
+    python3 - "$emails_json" "$policy_name" "$session_duration" <<'PY'
+import json
+import sys
+
+emails = json.loads(sys.argv[1])
+policy_name = sys.argv[2]
+session_duration = sys.argv[3] or "720h"
+include = [{"email": {"email": email}} for email in emails]
+print(json.dumps({
+    "name": policy_name,
+    "decision": "allow",
+    "include": include,
+    "exclude": [],
+    "require": [],
+    "session_duration": session_duration
+}, separators=(",", ":")))
+PY
+}
+
+build_cloudflare_access_otp_identity_provider_body() {
+    python3 <<'PY'
+import json
+
+print(json.dumps({
+    "name": "One-time PIN",
+    "type": "onetimepin",
+    "config": {}
+}, separators=(",", ":")))
+PY
+}
+
+ensure_cloudflare_access_otp_identity_provider() {
+    local api_token="$1"
+    local account_id="$2"
+    local id_file="$3"
+    local output_file body identity_provider_id
+
+    [[ -n "$api_token" && -n "$account_id" ]] || fail "Cloudflare Access OTP setup needs an API token and account ID"
+
+    output_file="$(mktemp)"
+    if ! cloudflare_api_request "GET" "/accounts/$account_id/access/identity_providers" "$output_file" "" "$api_token"; then
+        rm -f "$output_file"
+        fail "Could not inspect Cloudflare Access identity providers. Check that the API token includes Zero Trust Access identity provider read/edit permissions."
+    fi
+
+    identity_provider_id="$(python3 - "$output_file" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for provider in payload.get("result") or []:
+    provider_type = str(provider.get("type") or "").lower()
+    provider_name = str(provider.get("name") or "").lower()
+    if provider_type in {"onetimepin", "one-time-pin", "otp"} or provider_name == "one-time pin":
+        print(provider.get("id", ""))
+        break
+PY
+)"
+
+    if [[ -n "$identity_provider_id" ]]; then
+        printf '%s\n' "$identity_provider_id" > "$id_file"
+        rm -f "$output_file"
+        ok "Cloudflare Access One-time PIN identity provider is configured"
+        return 0
+    fi
+
+    body="$(build_cloudflare_access_otp_identity_provider_body)"
+    if cloudflare_api_request "POST" "/accounts/$account_id/access/identity_providers" "$output_file" "$body" "$api_token"; then
+        identity_provider_id="$(python3 - "$output_file" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print((payload.get("result") or {}).get("id", ""))
+PY
+)"
+        [[ -n "$identity_provider_id" ]] || fail "Cloudflare Access One-time PIN identity provider did not return an ID"
+        printf '%s\n' "$identity_provider_id" > "$id_file"
+        ok "Created Cloudflare Access One-time PIN identity provider"
+    else
+        rm -f "$output_file"
+        fail "Could not create Cloudflare Access One-time PIN identity provider. Check that the API token includes Zero Trust Access identity provider edit permissions."
+    fi
+
+    rm -f "$output_file"
+}
+
+find_cloudflare_access_app_id() {
+    local api_token="$1"
+    local account_id="$2"
+    local hostname="$3"
+    local app_record app_id
+
+    app_record="$(find_cloudflare_access_app_record "$api_token" "$account_id" "$hostname" || true)"
+    IFS=$'\t' read -r app_id _ <<< "$app_record"
+
+    [[ -n "$app_id" ]] || return 1
+    printf '%s\n' "$app_id"
+}
+
+find_cloudflare_access_app_record() {
+    local api_token="$1"
+    local account_id="$2"
+    local hostname="$3"
+    local output_file app_record
+
+    output_file="$(mktemp)"
+    if ! cloudflare_api_request "GET" "/accounts/$account_id/access/apps?search=$hostname" "$output_file" "" "$api_token"; then
+        rm -f "$output_file"
+        return 1
+    fi
+
+    app_record="$(python3 - "$output_file" "$hostname" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+target = sys.argv[2].lower()
+for app in payload.get("result") or []:
+    domains = []
+    domain = app.get("domain")
+    if domain:
+        domains.append(str(domain).lower())
+    for item in app.get("self_hosted_domains") or []:
+        if isinstance(item, dict):
+            value = item.get("domain") or item.get("hostname")
+        else:
+            value = item
+        if value:
+            domains.append(str(value).lower())
+    if target in domains:
+        print(f"{app.get('id', '')}\t{app.get('name', '')}")
+        break
+PY
+)"
+    rm -f "$output_file"
+
+    [[ -n "$app_record" ]] || return 1
+    printf '%s\n' "$app_record"
+}
+
+find_cloudflare_access_policy_id() {
+    local api_token="$1"
+    local account_id="$2"
+    local app_id="$3"
+    local policy_name="$4"
+    local output_file policy_id
+
+    output_file="$(mktemp)"
+    if ! cloudflare_api_request "GET" "/accounts/$account_id/access/apps/$app_id/policies" "$output_file" "" "$api_token"; then
+        rm -f "$output_file"
+        return 1
+    fi
+
+    policy_id="$(python3 - "$output_file" "$policy_name" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+target = sys.argv[2]
+for policy in payload.get("result") or []:
+    if policy.get("name") == target:
+        print(policy.get("id", ""))
+        break
+PY
+)"
+    rm -f "$output_file"
+
+    [[ -n "$policy_id" ]] || return 1
+    printf '%s\n' "$policy_id"
+}
+
+find_cloudflare_access_reusable_policy_id() {
+    local api_token="$1"
+    local account_id="$2"
+    local policy_name="$3"
+    local output_file policy_id
+
+    output_file="$(mktemp)"
+    if ! cloudflare_api_request "GET" "/accounts/$account_id/access/policies" "$output_file" "" "$api_token"; then
+        rm -f "$output_file"
+        return 1
+    fi
+
+    policy_id="$(python3 - "$output_file" "$policy_name" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+target = sys.argv[2]
+for policy in payload.get("result") or []:
+    if policy.get("name") == target:
+        print(policy.get("id", ""))
+        break
+PY
+)"
+    rm -f "$output_file"
+
+    [[ -n "$policy_id" ]] || return 1
+    printf '%s\n' "$policy_id"
+}
+
+ensure_cloudflare_access_reusable_policy() {
+    local api_token="$1"
+    local account_id="$2"
+    local policy_file emails_json policy_body policy_id
+
+    [[ -n "$api_token" && -n "$account_id" ]] || fail "Cloudflare Access reusable policy setup needs an API token and account ID"
+    require_cloudflare_access_allowlist
+
+    policy_file="$(mktemp)"
+    emails_json="$(cloudflare_access_allowed_emails_json)"
+    policy_body="$(build_cloudflare_access_policy_body "$emails_json" "$DEFAULT_ACCESS_POLICY_NAME")"
+    policy_id="$(find_cloudflare_access_reusable_policy_id "$api_token" "$account_id" "$DEFAULT_ACCESS_POLICY_NAME" || true)"
+
+    if [[ -n "$policy_id" ]]; then
+        if cloudflare_api_request "PUT" "/accounts/$account_id/access/policies/$policy_id" "$policy_file" "$policy_body" "$api_token"; then
+            ok "Updated reusable Cloudflare Access policy '$DEFAULT_ACCESS_POLICY_NAME'" >&2
+        else
+            rm -f "$policy_file"
+            fail "Could not update reusable Cloudflare Access policy '$DEFAULT_ACCESS_POLICY_NAME'"
+        fi
+    else
+        if cloudflare_api_request "POST" "/accounts/$account_id/access/policies" "$policy_file" "$policy_body" "$api_token"; then
+            policy_id="$(python3 - "$policy_file" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print((payload.get("result") or {}).get("id", ""))
+PY
+)"
+            ok "Created reusable Cloudflare Access policy '$DEFAULT_ACCESS_POLICY_NAME'" >&2
+        else
+            rm -f "$policy_file"
+            fail "Could not create reusable Cloudflare Access policy '$DEFAULT_ACCESS_POLICY_NAME'. Check that the API token includes Zero Trust Access policy edit permissions."
+        fi
+    fi
+
+    rm -f "$policy_file"
+
+    [[ -n "$policy_id" ]] || fail "Reusable Cloudflare Access policy '$DEFAULT_ACCESS_POLICY_NAME' did not return an ID"
+    printf '%s\n' "$policy_id"
+}
+
+delete_cloudflare_access_legacy_policy() {
+    local api_token="$1"
+    local account_id="$2"
+    local app_id="$3"
+    local hostname="$4"
+    local policy_id output_file
+
+    policy_id="$(find_cloudflare_access_policy_id "$api_token" "$account_id" "$app_id" "$LEGACY_ACCESS_POLICY_NAME" || true)"
+    [[ -n "$policy_id" ]] || return 0
+
+    output_file="$(mktemp)"
+    if cloudflare_api_request "DELETE" "/accounts/$account_id/access/apps/$app_id/policies/$policy_id" "$output_file" "" "$api_token"; then
+        ok "Removed legacy Cloudflare Access allowlist for $hostname"
+    else
+        warn "Could not remove legacy Cloudflare Access allowlist for $hostname"
+    fi
+    rm -f "$output_file"
+}
+
+delete_cloudflare_access_application() {
+    local api_token="$1"
+    local account_id="$2"
+    local hostname="$3"
+    local app_record app_id app_name output_file
+
+    app_record="$(find_cloudflare_access_app_record "$api_token" "$account_id" "$hostname" || true)"
+    [[ -n "$app_record" ]] || return 0
+    IFS=$'\t' read -r app_id app_name <<< "$app_record"
+    [[ -n "$app_id" ]] || return 0
+
+    if [[ "$app_name" != Stackarr* ]]; then
+        warn "Cloudflare Access app for $hostname is not Stackarr-managed; leaving it in place"
+        return 0
+    fi
+
+    output_file="$(mktemp)"
+    if cloudflare_api_request "DELETE" "/accounts/$account_id/access/apps/$app_id" "$output_file" "" "$api_token"; then
+        ok "Removed Cloudflare Access app for public/mobile route $hostname"
+    else
+        warn "Could not remove Cloudflare Access app for public/mobile route $hostname"
+    fi
+    rm -f "$output_file"
+}
+
+ensure_cloudflare_access_application() {
+    local api_token="$1"
+    local account_id="$2"
+    local hostname="$3"
+    local route_service="$4"
+    local otp_identity_provider_id="${5:-}"
+    local reusable_policy_id="${6:-}"
+    local app_file body app_id
+
+    [[ -n "$api_token" && -n "$account_id" ]] || fail "Cloudflare Access setup needs an API token and account ID"
+    require_cloudflare_access_allowlist
+    [[ -n "$reusable_policy_id" ]] || fail "Cloudflare Access setup needs reusable policy '$DEFAULT_ACCESS_POLICY_NAME'"
+
+    app_file="$(mktemp)"
+    body="$(build_cloudflare_access_app_body "$hostname" "$route_service" "$otp_identity_provider_id" "$reusable_policy_id")"
+    app_id="$(find_cloudflare_access_app_id "$api_token" "$account_id" "$hostname" || true)"
+
+    if [[ -n "$app_id" ]]; then
+        if cloudflare_api_request "PUT" "/accounts/$account_id/access/apps/$app_id" "$app_file" "$body" "$api_token"; then
+            ok "Updated Cloudflare Access app for $hostname"
+        else
+            rm -f "$app_file"
+            fail "Could not update Cloudflare Access app for $hostname"
+        fi
+    else
+        if cloudflare_api_request "POST" "/accounts/$account_id/access/apps" "$app_file" "$body" "$api_token"; then
+            app_id="$(python3 - "$app_file" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print((payload.get("result") or {}).get("id", ""))
+PY
+)"
+            ok "Created Cloudflare Access app for $hostname"
+        else
+            rm -f "$app_file"
+            fail "Could not create Cloudflare Access app for $hostname. Check that the API token includes Zero Trust Access application/policy edit permissions."
+        fi
+    fi
+
+    [[ -n "$app_id" ]] || fail "Cloudflare Access app for $hostname did not return an app ID"
+
+    delete_cloudflare_access_legacy_policy "$api_token" "$account_id" "$app_id" "$hostname"
+
+    rm -f "$app_file"
+}
+
 cleanup_cloudflare_local_state() {
     local remove_api_token="${1:-false}"
     local current_token_file="${CLOUDFLARED_TOKEN_FILE:-$TOKEN_FILE}"
@@ -899,7 +1418,6 @@ cleanup_cloudflare_local_state() {
     set_env_value "CLOUDFLARED_TUNNEL_ID" ""
     set_env_value "CLOUDFLARED_TUNNEL_NAME" "$DEFAULT_TUNNEL_NAME"
     set_env_value "CLOUDFLARE_TUNNEL_ROUTES" ""
-    set_env_value "CLOUDFLARE_TUNNEL_TOKEN" ""
     if [[ "$remove_api_token" == true ]]; then
         set_env_value "CLOUDFLARE_API_TOKEN" ""
     fi
@@ -1007,7 +1525,7 @@ qbittorrent_is_loopback_only() {
 print_dashboard_steps() {
     local routes_file="$1"
     local route_managed="${2:-false}"
-    local route_hostname route_service route_service_url
+    local route_hostname route_service route_access route_service_url access_email_count access_route_count
 
     echo ""
     echo "Cloudflare dashboard settings:"
@@ -1017,28 +1535,39 @@ print_dashboard_steps() {
         else
             echo "  Published application routes:"
         fi
-        while IFS=$'\t' read -r route_hostname route_service; do
+        while IFS=$'\t' read -r route_hostname route_service route_access; do
             [[ -n "$route_hostname" && -n "$route_service" ]] || continue
             route_service_url="$(cloudflare_service_url "$route_service" || true)"
-            echo "    https://$route_hostname -> ${route_service_url:-$route_service}"
+            if [[ "$route_access" == "true" ]]; then
+                echo "    https://$route_hostname -> ${route_service_url:-$route_service} (Access)"
+            else
+                echo "    https://$route_hostname -> ${route_service_url:-$route_service} (public/mobile)"
+            fi
         done < "$routes_file"
     else
         echo "  Published application route: none configured"
-        echo "    Add routes in Settings > Connect or pass --route hostname=service"
+        echo "    Add routes in Settings > Connect or pass --route hostname=service[:access|public]"
         echo "    Service type: HTTP"
     fi
-    echo "  Cloudflare Access app: optional"
-    echo "    Add a Self-hosted Access app if you want Cloudflare to require another login before a routed service"
+    if cloudflare_access_enabled; then
+        access_email_count="$(cloudflare_access_email_count)"
+        access_route_count="$(cloudflare_access_route_count "$routes_file")"
+        echo "  Cloudflare Access app: managed by Stackarr"
+        echo "    One-time PIN login with $access_email_count allowed email(s) on $access_route_count protected route(s)"
+    else
+        echo "  Cloudflare Access app: optional"
+        echo "    Enable Protect Routes with Access to add One-time PIN plus an email allowlist before public routes"
+    fi
     echo "  Keep download clients and admin apps private unless you explicitly add a route for them"
 }
 
 install_cloudflare() {
-    local token=""
     local hostname=""
     local cloudflared_bin
     local api_token=""
     local effective_api_token=""
     local tunnel_id=""
+    local token=""
     local route_managed=false
     local zone_info=""
     local resolved_zone_id=""
@@ -1048,16 +1577,18 @@ install_cloudflare() {
     local routes_file=""
     local routes_json=""
     local route_count=0
+    local access_route_count=0
     local route_override
+    local access_idp_file=""
+    local access_idp_id=""
+    local access_policy_id=""
+    local access_session=""
+    local disable_access=false
+    local -a access_emails=()
     local -a route_overrides=()
 
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
-            --token)
-                [[ "$#" -ge 2 ]] || usage
-                token="$2"
-                shift 2
-                ;;
             --route)
                 [[ "$#" -ge 2 ]] || usage
                 route_override="${2#https://}"
@@ -1074,6 +1605,20 @@ install_cloudflare() {
                 api_token="$2"
                 shift 2
                 ;;
+            --access-email)
+                [[ "$#" -ge 2 ]] || usage
+                access_emails+=("$2")
+                shift 2
+                ;;
+            --access-session)
+                [[ "$#" -ge 2 ]] || usage
+                access_session="$2"
+                shift 2
+                ;;
+            --no-access)
+                disable_access=true
+                shift
+                ;;
             *)
                 usage
                 ;;
@@ -1082,33 +1627,40 @@ install_cloudflare() {
 
     load_cloudflare_state
 
-    if [[ -z "$token" ]]; then
-        token="$(read_cloudflare_tunnel_token || true)"
-        [[ -n "$token" ]] && ok "Using existing Cloudflare tunnel token"
+    if [[ "$disable_access" == true ]]; then
+        set_env_value "CLOUDFLARE_ACCESS_ENABLED" "false"
+    elif [[ "${#access_emails[@]}" -gt 0 ]]; then
+        set_env_value "CLOUDFLARE_ACCESS_ENABLED" "true"
+        set_env_value "CLOUDFLARE_ACCESS_ALLOWED_EMAILS" "$(IFS=,; printf '%s' "${access_emails[*]}")"
+    fi
+    if [[ -n "$access_session" ]]; then
+        set_env_value "CLOUDFLARE_ACCESS_SESSION_DURATION" "$access_session"
     fi
 
     if [[ -z "$api_token" ]]; then
         api_token="$(read_cloudflare_api_token || true)"
     fi
     effective_api_token="$api_token"
-
-    if [[ -z "$token" && -z "$effective_api_token" && -t 0 ]]; then
-        read -r -s -p "Cloudflare tunnel token (leave blank if using API token only): " token
-        echo ""
-    fi
+    [[ -n "$effective_api_token" ]] || fail "Cloudflare API token is required. Create an account token with Cloudflare Tunnel, DNS, Zone Read, Zero Trust, and Access policy permissions."
 
     routes_file="$(mktemp)"
     if [[ "${#route_overrides[@]}" -gt 0 ]]; then
         for route_override in "${route_overrides[@]}"; do
-            printf '%s\t%s\n' "$(normalize_hostname "${route_override%%=*}")" "$(lowercase "${route_override#*=}")"
+            print_cloudflare_route_override "$route_override"
         done > "$routes_file"
     else
         collect_cloudflare_routes > "$routes_file"
     fi
     routes_json="$(routes_to_json "$routes_file")"
     route_count="$(grep -cve '^[[:space:]]*$' "$routes_file" || true)"
+    access_route_count="$(cloudflare_access_route_count "$routes_file")"
     if [[ "$route_count" -gt 0 ]]; then
         hostname="$(awk -F'\t' 'NF >= 2 && $1 != "" {print $1; exit}' "$routes_file")"
+    fi
+
+    if [[ "$route_count" -gt 0 && "$access_route_count" -gt 0 ]] && cloudflare_access_enabled; then
+        [[ -n "$effective_api_token" ]] || fail "Cloudflare Access protection needs a Cloudflare API token so routes can be protected before they are published"
+        require_cloudflare_access_allowlist
     fi
 
     cloudflared_bin="$(find_cloudflared_bin || true)"
@@ -1138,32 +1690,30 @@ install_cloudflare() {
         resolved_account_id="$(resolve_account_id_from_zone_id "$resolved_zone_id" "$effective_api_token" || true)"
     fi
 
-    if [[ -z "$resolved_account_id" && -n "$token" ]]; then
-        resolved_account_id="$(decode_tunnel_token_field "$token" "a")"
-    fi
-
     credentials="$(ensure_cloudflare_tunnel_credentials \
         "$effective_api_token" \
-        "$token" \
         "$resolved_account_id" \
         "$tunnel_id" \
         "$tunnel_name")"
     IFS=$'\t' read -r resolved_account_id tunnel_id tunnel_name token <<< "$credentials"
-    if [[ -n "$effective_api_token" ]]; then
-        rename_cloudflare_tunnel "$effective_api_token" "$resolved_account_id" "$tunnel_id" "$DEFAULT_TUNNEL_NAME"
-        tunnel_name="$DEFAULT_TUNNEL_NAME"
-    fi
+    rename_cloudflare_tunnel "$effective_api_token" "$resolved_account_id" "$tunnel_id" "$DEFAULT_TUNNEL_NAME"
+    tunnel_name="$DEFAULT_TUNNEL_NAME"
 
-    [[ -n "$token" ]] || fail "Could not determine a Cloudflare tunnel token"
+    [[ -n "$token" ]] || fail "Could not determine a Cloudflare connector credential"
     write_cloudflare_token_file "$token"
-
-    if [[ -n "$effective_api_token" ]]; then
-        write_cloudflare_api_token_file "$effective_api_token"
-    fi
+    write_cloudflare_api_token_file "$effective_api_token"
 
     if [[ "$route_count" -gt 0 && -n "$effective_api_token" ]]; then
-        local route_hostname route_service route_service_url route_zone_id route_account_id
-        while IFS=$'\t' read -r route_hostname route_service; do
+        local route_hostname route_service route_access route_service_url route_zone_id route_account_id
+        if [[ "$access_route_count" -gt 0 ]] && cloudflare_access_enabled; then
+            access_idp_file="$(mktemp)"
+            ensure_cloudflare_access_otp_identity_provider "$effective_api_token" "$resolved_account_id" "$access_idp_file"
+            access_idp_id="$(cat "$access_idp_file")"
+            [[ -n "$access_idp_id" ]] || fail "Cloudflare Access One-time PIN identity provider did not return an ID"
+            access_policy_id="$(ensure_cloudflare_access_reusable_policy "$effective_api_token" "$resolved_account_id")"
+            [[ -n "$access_policy_id" ]] || fail "Reusable Cloudflare Access policy did not return an ID"
+        fi
+        while IFS=$'\t' read -r route_hostname route_service route_access; do
             [[ -n "$route_hostname" && -n "$route_service" ]] || continue
             route_service_url="$(cloudflare_service_url "$route_service")" || fail "Unknown Cloudflare route service '$route_service'"
             zone_info="$(resolve_zone_info "$route_hostname" "$effective_api_token" || true)"
@@ -1176,8 +1726,14 @@ install_cloudflare() {
             if [[ -z "$resolved_account_id" && -n "$route_account_id" ]]; then
                 resolved_account_id="$route_account_id"
             fi
+            if [[ "$route_access" == "true" ]] && cloudflare_access_enabled; then
+                ensure_cloudflare_access_application "$effective_api_token" "$resolved_account_id" "$route_hostname" "$route_service" "$access_idp_id" "$access_policy_id"
+            else
+                delete_cloudflare_access_application "$effective_api_token" "$resolved_account_id" "$route_hostname"
+            fi
             ensure_cloudflare_public_hostname "$effective_api_token" "$resolved_account_id" "$tunnel_id" "$route_zone_id" "$route_hostname" "$route_service_url"
         done < "$routes_file"
+        rm -f "$access_idp_file"
         route_managed=true
     elif [[ "$route_count" -gt 0 ]]; then
         warn "No Cloudflare API token provided, so public hostname routes still need to be created manually"
@@ -1218,9 +1774,7 @@ start_cloudflare() {
     load_cloudflare_state
 
     if [[ ! -f "${CLOUDFLARED_TOKEN_FILE:-$TOKEN_FILE}" ]]; then
-        token="$(read_cloudflare_tunnel_token || true)"
-        [[ -n "$token" ]] || fail "Missing Cloudflare tunnel token. Run 'stackarr cloudflare install' first."
-        write_cloudflare_token_file "$token"
+        fail "Missing internal Cloudflare connector token. Run 'stackarr cloudflare install --api-token <token>' first."
     fi
 
     create_plist
@@ -1244,7 +1798,7 @@ status_cloudflare() {
     local metrics_port="$DEFAULT_METRICS_PORT"
     local route_managed=false
     local api_token_available=false
-    local routes_file route_hostname route_service route_service_url
+    local routes_file route_hostname route_service route_access route_service_url
 
     print_header "Stackarr Cloudflare"
     load_cloudflare_state
@@ -1259,16 +1813,16 @@ status_cloudflare() {
         warning "cloudflared is not installed"
     fi
 
-    if [[ -n "${CLOUDFLARED_TUNNEL_ID:-}" || -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then
+    if [[ -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
         pass "Cloudflare tunnel runtime config exists"
     else
         warning "Cloudflare tunnel runtime config is missing"
     fi
 
     if [[ -f "${CLOUDFLARED_TOKEN_FILE:-$TOKEN_FILE}" ]]; then
-        pass "Cloudflare tunnel token file exists"
+        pass "Cloudflare connector token file exists"
     else
-        warning "Cloudflare tunnel token file is missing"
+        warning "Cloudflare connector token file is missing"
     fi
 
     if [[ -f "$API_TOKEN_FILE" ]]; then
@@ -1324,10 +1878,14 @@ status_cloudflare() {
     if [[ -s "$routes_file" ]]; then
         echo ""
         echo "Public routes:"
-        while IFS=$'\t' read -r route_hostname route_service; do
+        while IFS=$'\t' read -r route_hostname route_service route_access; do
             [[ -n "$route_hostname" && -n "$route_service" ]] || continue
             route_service_url="$(cloudflare_service_url "$route_service" || true)"
-            echo "  https://$route_hostname -> ${route_service_url:-$route_service}"
+            if [[ "$route_access" == "true" ]]; then
+                echo "  https://$route_hostname -> ${route_service_url:-$route_service} (Access)"
+            else
+                echo "  https://$route_hostname -> ${route_service_url:-$route_service} (public/mobile)"
+            fi
         done < "$routes_file"
     fi
 
@@ -1347,6 +1905,12 @@ status_cloudflare() {
         echo "Route automation: managed by Stackarr"
     elif [[ "$api_token_available" == true ]]; then
         echo "Route automation: API token is available for future automatic route creation"
+    fi
+
+    if cloudflare_access_enabled; then
+        echo "Access protection: enabled with One-time PIN and $(cloudflare_access_email_count) allowed email(s)"
+    else
+        echo "Access protection: disabled"
     fi
 
     echo ""
@@ -1439,12 +2003,12 @@ delete_cloudflare() {
     fi
 
     [[ -n "$account_id" ]] || fail "Could not determine the Cloudflare account ID for tunnel deletion. Use a Cloudflare API token with Zone Read and save at least one route in Settings > Connect."
-    [[ -n "$tunnel_id" ]] || fail "Could not determine the Cloudflare tunnel ID for deletion. Re-run install first or set CLOUDFLARE_TUNNEL_TOKEN."
+    [[ -n "$tunnel_id" ]] || fail "Could not determine the Cloudflare tunnel ID for deletion. Re-run install first."
 
     stop_cloudflare
     disconnect_cloudflare_tunnel "$effective_api_token" "$account_id" "$tunnel_id"
     if [[ -s "$routes_file" ]]; then
-        while IFS=$'\t' read -r route_hostname route_service; do
+        while IFS=$'\t' read -r route_hostname route_service _route_access; do
             [[ -n "$route_hostname" ]] || continue
             route_zone_id="$zone_id"
             if [[ -z "$route_zone_id" ]]; then
@@ -1501,7 +2065,7 @@ rotate_cloudflare() {
         api_token="$(read_cloudflare_api_token || true)"
     fi
     effective_api_token="$api_token"
-    [[ -n "$effective_api_token" ]] || fail "A Cloudflare API token is required to rotate the tunnel token. Save Cloudflare API Token in Settings > Connect first."
+    [[ -n "$effective_api_token" ]] || fail "A Cloudflare API token is required to rotate the Cloudflare connector credential. Save Cloudflare API Token in Settings > Connect first."
 
     routes_file="$(mktemp)"
     collect_cloudflare_routes > "$routes_file"
@@ -1509,7 +2073,7 @@ rotate_cloudflare() {
     if [[ -s "$routes_file" ]]; then
         hostname="$(awk -F'\t' 'NF >= 2 && $1 != "" {print $1; exit}' "$routes_file")"
     fi
-    [[ -n "$hostname" ]] || fail "At least one Cloudflare route is required to rotate the tunnel token. Save a route in Settings > Connect first."
+    [[ -n "$hostname" ]] || fail "At least one Cloudflare route is required to rotate the Cloudflare connector credential. Save a route in Settings > Connect first."
 
     if [[ -n "${CLOUDFLARED_TUNNEL_NAME:-}" ]]; then
         tunnel_name="$CLOUDFLARED_TUNNEL_NAME"
@@ -1541,7 +2105,7 @@ rotate_cloudflare() {
     if [[ -n "$tunnel_id" ]]; then
         disconnect_cloudflare_tunnel "$effective_api_token" "$account_id" "$tunnel_id"
         if [[ -s "$routes_file" ]]; then
-            while IFS=$'\t' read -r route_hostname route_service; do
+            while IFS=$'\t' read -r route_hostname route_service _route_access; do
                 [[ -n "$route_hostname" ]] || continue
                 route_zone_id="$zone_id"
                 if [[ -z "$route_zone_id" ]]; then
@@ -1563,7 +2127,7 @@ rotate_cloudflare() {
     write_cloudflare_api_token_file "$effective_api_token"
     install_cloudflare --api-token "$effective_api_token"
     rm -f "$routes_file"
-    ok "Rotated Cloudflare tunnel token for configured routes"
+    ok "Rotated Cloudflare connector credential for configured routes"
 }
 
 uninstall_cloudflare() {

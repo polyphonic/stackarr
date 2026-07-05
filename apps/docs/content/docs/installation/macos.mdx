@@ -46,18 +46,12 @@ App archives include a `stackarr` helper next to `Stackarr.app` for Terminal tas
 ./stackarr portless install
 ```
 
-If `Stackarr.app` has been moved to Applications without the helper, use the bundled command directly:
+For native startup, update, backup, and tunnel background jobs, run install commands from the helper next to `Stackarr.app`:
 
 ```bash
-/Applications/Stackarr.app/Contents/MacOS/Stackarr portless install
-```
-
-For native startup, update, backup, and tunnel background jobs, run install commands from the app-bundled helper after moving the app to Applications:
-
-```bash
-/Applications/Stackarr.app/Contents/MacOS/Stackarr startup install
-/Applications/Stackarr.app/Contents/MacOS/Stackarr backup install
-/Applications/Stackarr.app/Contents/MacOS/Stackarr update install
+./stackarr startup install
+./stackarr backup install
+./stackarr update install
 ```
 
 Those LaunchAgents are associated with the `Stackarr.app` bundle in macOS Login Items and Background Activity. If the backup root lives on an external drive, grant the needed file access to `Stackarr.app`.

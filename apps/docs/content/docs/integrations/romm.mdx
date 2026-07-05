@@ -1,0 +1,45 @@
+---
+title: RomM
+description: Private ROM and game-library management in Stackarr.
+---
+
+# RomM
+
+[RomM](https://romm.app/) is a self-hosted game-library manager for emulator collections. It scans a structured ROM library, adds metadata and artwork, and stores saves, states, assets, and app config separately from the game files.
+
+## What Stackarr manages
+
+- Optional Docker Compose profile: `romm`
+- Private local bind by default: `127.0.0.1:${ROMM_WEB_PORT:-7583}`
+- App container: `rommapp/romm`
+- Shared Postgres database: `${ROMM_DB_NAME:-romm}` on the `database` service
+- Shared Redis cache: `redis`
+- Library mount: `${ROMM_LIBRARY_ROOT}` → `/romm/library`
+- Durable app paths for assets, config, and fetched resources
+- Dashboard, CLI, MCP, and Portless service-link visibility
+
+## Privacy stance
+
+Stackarr does **not** publish RomM by default. Use the local URL or Portless alias first. If you later decide to expose it, add a Cloudflare route intentionally instead of relying on setup defaults.
+
+```bash
+bin/stackarr romm enable
+bin/stackarr up
+bin/stackarr romm status
+```
+
+## Folder structure
+
+RomM expects the game library to follow its platform-oriented folder structure. Keep the actual ROM library under your configured Games folder and let Stackarr keep RomM's database/assets/config under the app config root.
+
+## Metadata providers
+
+Onboarding can save RomM metadata provider credentials into local runtime config:
+
+- Chef's Choice: Hasheous + IGDB + SteamGridDB + RetroAchievements
+- French Connection: ScreenScraper + RetroAchievements
+- Twitch Fanboy: IGDB + Playmatch
+- Quick Starter: Hasheous only
+- Custom: choose individual providers
+
+Provider setup details live in the RomM docs: [IGDB](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#igdb), [ScreenScraper](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#screenscraper), [SteamGridDB](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#steamgriddb), [RetroAchievements](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#retroachievements), [Hasheous](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#hasheous), and [Playmatch](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#playmatch).

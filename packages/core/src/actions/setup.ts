@@ -20,6 +20,8 @@ import { writeSettings } from '../settings';
 const execFileAsync = promisify(execFile);
 const maintainerrCleanupPresetOptions = ['watched-movies', 'abandoned-shows', 'stale-requests'] as const;
 type MaintainerrCleanupPreset = (typeof maintainerrCleanupPresetOptions)[number];
+const rommMetadataPresetOptions = ['chef', 'french', 'twitch', 'quick', 'custom'] as const;
+type RommMetadataPreset = (typeof rommMetadataPresetOptions)[number];
 
 export type MediaServerSetupInput = {
   databaseMode?: 'app-default' | 'postgres';
@@ -30,18 +32,22 @@ export type MediaServerSetupInput = {
   backupRoot?: string;
   backupRetentionCount?: number;
   plexInstallMode?: InstallMode;
+  plexToken?: string;
   jellyfinInstallMode?: InstallMode;
-  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books'>;
+  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>;
   requestManagers?: Array<'seerr' | 'pulsarr'>;
   enabledServices?: Array<
     | 'bazarr'
     | 'tinymediamanager'
     | 'lidarr'
     | 'bookorbit'
+    | 'immich'
+    | 'romm'
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
     | 'maintainerr'
+    | 'tracearr'
   >;
   enableMovies?: boolean;
   enableTvShows?: boolean;
@@ -49,12 +55,25 @@ export type MediaServerSetupInput = {
   enableBazarr?: boolean;
   enableLidarr?: boolean;
   enableBookOrbit?: boolean;
+  enableImmich?: boolean;
+  enableRomm?: boolean;
   enableTinyMediaManager?: boolean;
   enableRecyclarr?: boolean;
   enableFlaresolverr?: boolean;
   enableTidarr?: boolean;
   enableMaintainerr?: boolean;
+  enableTracearr?: boolean;
   maintainerrCleanupPresets?: MaintainerrCleanupPreset[];
+  rommLibraryRoot?: string;
+  rommMetadataPreset?: RommMetadataPreset;
+  rommIgdbClientId?: string;
+  rommIgdbClientSecret?: string;
+  rommSteamGridDbApiKey?: string;
+  rommRetroAchievementsApiKey?: string;
+  rommScreenscraperUser?: string;
+  rommScreenscraperPassword?: string;
+  rommHasheousApiEnabled?: boolean;
+  rommPlaymatchApiEnabled?: boolean;
   movieProfilePreset?: MediaProfilePreset;
   movie4kProfilePreset?: MediaProfilePreset;
   tvProfilePreset?: MediaProfilePreset;
@@ -92,17 +111,20 @@ type ResolvedMediaServerSetupInput = Required<
   Omit<MediaServerSetupInput, 'confirmSetup' | 'dryRun' | 'enabledMediaTypes' | 'requestManagers' | 'enabledServices'>
 > & {
   namingScheme: string;
-  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books'>;
+  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>;
   requestManagers?: Array<'seerr' | 'pulsarr'>;
   enabledServices?: Array<
     | 'bazarr'
     | 'tinymediamanager'
     | 'lidarr'
     | 'bookorbit'
+    | 'immich'
+    | 'romm'
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
     | 'maintainerr'
+    | 'tracearr'
   >;
 };
 
@@ -118,20 +140,34 @@ export const opinionatedSetupDefaults = {
   backupRetentionCount: 52,
   databaseMode: 'app-default' as const,
   plexInstallMode: 'native' as InstallMode,
+  plexToken: '',
   jellyfinInstallMode: 'disabled' as InstallMode,
-  enabledMediaTypes: ['movies', 'tv', 'music'] as Array<'movies' | 'tv' | 'music' | 'books'>,
+  enabledMediaTypes: ['movies', 'tv', 'music'] as Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>,
   enableMovies: true,
   enableTvShows: true,
   enable4kServarr: false,
   enableBazarr: true,
   enableLidarr: true,
   enableBookOrbit: false,
+  enableImmich: false,
+  enableRomm: false,
   enableTinyMediaManager: true,
   enableRecyclarr: true,
   enableFlaresolverr: true,
   enableTidarr: true,
   enableMaintainerr: false,
+  enableTracearr: false,
   maintainerrCleanupPresets: [] as MaintainerrCleanupPreset[],
+  rommLibraryRoot: '',
+  rommMetadataPreset: 'chef' as RommMetadataPreset,
+  rommIgdbClientId: '',
+  rommIgdbClientSecret: '',
+  rommSteamGridDbApiKey: '',
+  rommRetroAchievementsApiKey: '',
+  rommScreenscraperUser: '',
+  rommScreenscraperPassword: '',
+  rommHasheousApiEnabled: true,
+  rommPlaymatchApiEnabled: false,
   movieProfilePreset: 'lite' as MediaProfilePreset,
   movie4kProfilePreset: 'lite' as MediaProfilePreset,
   tvProfilePreset: 'lite' as MediaProfilePreset,
@@ -245,6 +281,13 @@ export function getMediaServerSetupProfileAction() {
         default: opinionatedSetupDefaults.plexInstallMode
       },
       {
+        id: 'plexToken',
+        prompt:
+          'Optional Plex token for automatic Plex API wiring. Native signed-in Plex installs can leave this blank.',
+        type: 'password',
+        default: ''
+      },
+      {
         id: 'jellyfinInstallMode',
         prompt: 'How should Jellyfin be handled?',
         type: 'choice',
@@ -255,7 +298,7 @@ export function getMediaServerSetupProfileAction() {
         id: 'enabledMediaTypes',
         prompt: 'Which libraries should Stackarr set up?',
         type: 'multi-choice',
-        choices: ['movies', 'tv', 'music', 'books'],
+        choices: ['movies', 'tv', 'music', 'books', 'photos', 'games'],
         default: ['movies', 'tv', 'music']
       },
       {
@@ -287,7 +330,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'enabledServices',
         prompt:
-          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, and Maintainerr stages cleanup planning.',
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, and Tracearr monitors media-server activity.',
         type: 'multi-choice',
         choices: [
           'bazarr',
@@ -297,7 +340,10 @@ export function getMediaServerSetupProfileAction() {
           'flaresolverr',
           'tidarr',
           'bookorbit',
-          'maintainerr'
+          'immich',
+          'romm',
+          'maintainerr',
+          'tracearr'
         ],
         default: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr']
       },
@@ -308,6 +354,56 @@ export function getMediaServerSetupProfileAction() {
         type: 'multi-choice',
         choices: [...maintainerrCleanupPresetOptions],
         default: opinionatedSetupDefaults.maintainerrCleanupPresets
+      },
+      {
+        id: 'rommLibraryRoot',
+        prompt: 'Where should RomM mount the game library?',
+        type: 'path',
+        default: `${opinionatedSetupDefaults.mediaRoot}/Games`
+      },
+      {
+        id: 'rommMetadataPreset',
+        prompt:
+          'Which RomM metadata provider combo should onboarding configure? chef = Hasheous + IGDB + SteamGridDB + RetroAchievements; french = ScreenScraper + RetroAchievements; twitch = IGDB + Playmatch; quick = Hasheous only.',
+        type: 'choice',
+        choices: [...rommMetadataPresetOptions],
+        default: opinionatedSetupDefaults.rommMetadataPreset
+      },
+      {
+        id: 'rommIgdbClientId',
+        prompt: 'RomM IGDB client ID, if using the chef or twitch provider combo.',
+        type: 'text',
+        default: ''
+      },
+      {
+        id: 'rommIgdbClientSecret',
+        prompt: 'RomM IGDB client secret, if using the chef or twitch provider combo.',
+        type: 'password',
+        default: ''
+      },
+      {
+        id: 'rommSteamGridDbApiKey',
+        prompt: 'RomM SteamGridDB API key, if using the chef provider combo.',
+        type: 'password',
+        default: ''
+      },
+      {
+        id: 'rommRetroAchievementsApiKey',
+        prompt: 'RomM RetroAchievements API key, if using the chef or french provider combo.',
+        type: 'password',
+        default: ''
+      },
+      {
+        id: 'rommScreenscraperUser',
+        prompt: 'RomM ScreenScraper username, if using the french provider combo.',
+        type: 'text',
+        default: ''
+      },
+      {
+        id: 'rommScreenscraperPassword',
+        prompt: 'RomM ScreenScraper password, if using the french provider combo.',
+        type: 'password',
+        default: ''
       },
       {
         id: 'movieProfilePreset',
@@ -369,7 +465,9 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableMovies: input.enabledMediaTypes.includes('movies'),
         enableTvShows: input.enabledMediaTypes.includes('tv'),
         enableLidarr: input.enabledMediaTypes.includes('music'),
-        enableBookOrbit: input.enabledMediaTypes.includes('books')
+        enableBookOrbit: input.enabledMediaTypes.includes('books'),
+        enableImmich: input.enabledMediaTypes.includes('photos'),
+        enableRomm: input.enabledMediaTypes.includes('games')
       }
     : {};
   const requestManagerPatch = input.requestManagers
@@ -384,10 +482,13 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableTinyMediaManager: input.enabledServices.includes('tinymediamanager'),
         enableLidarr: input.enabledServices.includes('lidarr'),
         enableBookOrbit: input.enabledServices.includes('bookorbit'),
+        enableImmich: input.enabledServices.includes('immich'),
+        enableRomm: input.enabledServices.includes('romm'),
         enableRecyclarr: input.enabledServices.includes('recyclarr'),
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
         enableTidarr: input.enabledServices.includes('tidarr'),
-        enableMaintainerr: input.enabledServices.includes('maintainerr')
+        enableMaintainerr: input.enabledServices.includes('maintainerr'),
+        enableTracearr: input.enabledServices.includes('tracearr')
       }
     : {};
   const merged = {
@@ -438,7 +539,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       openBrowser: merged.openBrowser
     },
     notes: [
-      'Asks which libraries to set up: Movies (Radarr), TV shows (Sonarr), Music (Lidarr), and Books (BookOrbit).',
+      'Asks which libraries to set up: Movies (Radarr), TV shows (Sonarr), Music (Lidarr), Books (BookOrbit), Photos (Immich), and Games (RomM).',
       'Uses repo-managed naming, download, and request presets.',
       'Radarr and Sonarr size/profile presets are written into the generated Recyclarr configs; Lidarr profiles are applied through Lidarr because Recyclarr does not manage Lidarr.',
       'Naming preset follows Plex-friendly naming conventions via stackarr/config/naming.json.',
@@ -446,7 +547,10 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         ? 'Plex Docker mode starts Plex with the stack; complete Plex claim/sign-in before Plex-dependent automations need a Plex account.'
         : 'Plex native mode expects the desktop Plex Media Server to already be installed and signed in; install the desktop version first if desired.',
       'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.',
-      'Maintainerr is wired to the selected media server, Arr services, Seerr, and qBittorrent when available; cleanup rules stay user-controlled.'
+      'Maintainerr is wired to the selected media server, Arr services, Seerr, and qBittorrent when available; cleanup rules stay user-controlled.',
+      'Tracearr uses the shared Postgres/TimescaleDB service plus shared Redis; onboarding attempts first-owner setup and media-server wiring when credentials are available.',
+      'Immich is optional photo-library functionality; Stackarr starts the web app and machine-learning worker against shared Postgres and shared Redis, then the user completes first-run setup in Immich or the iOS app.',
+      'RomM is optional private game-library functionality; Stackarr starts RomM on the shared Postgres and Redis services, and no public Cloudflare route is added unless the user explicitly creates one later.'
     ]
   };
   const passwordValidationError = portablePasswordValidationError(merged.globalPassword, 'Global password');
@@ -479,6 +583,24 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
   writeEnvConfig(envPatch);
   writeSettings({
     setup: { onboardingComplete: true, installMode: 'fresh' },
+    services: {
+      enableMovies: merged.enableMovies,
+      enableTvShows: merged.enableTvShows,
+      enable4kServarr: merged.enable4kServarr,
+      enableBazarr: merged.enableBazarr,
+      enableLidarr: merged.enableLidarr,
+      enableBookOrbit: merged.enableBookOrbit,
+      enableImmich: merged.enableImmich,
+      enableRomm: merged.enableRomm,
+      enableTinyMediaManager: merged.enableTinyMediaManager,
+      enableRecyclarr: merged.enableRecyclarr,
+      enableFlaresolverr: merged.enableFlaresolverr,
+      enableTidarr: merged.enableTidarr,
+      enableSeerr: merged.enableSeerr,
+      enablePulsarr: merged.enablePulsarr,
+      enableMaintainerr: merged.enableMaintainerr,
+      enableTracearr: merged.enableTracearr
+    },
     profiles: {
       movieProfilePreset: merged.movieProfilePreset,
       movie4kProfilePreset: merged.movie4kProfilePreset,
@@ -523,6 +645,15 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
 function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
   const databasePassword = input.globalPassword || nodeCrypto.randomBytes(24).toString('hex');
   const postgresMode = input.databaseMode === 'postgres';
+  const rommLibraryRoot = input.rommLibraryRoot || `${input.mediaRoot}/Games`;
+  const rommPreset = rommMetadataPresetOptions.includes(input.rommMetadataPreset) ? input.rommMetadataPreset : 'chef';
+  const rommUsesIgdb = rommPreset === 'chef' || rommPreset === 'twitch' || rommPreset === 'custom';
+  const rommUsesSteamGridDb = rommPreset === 'chef' || rommPreset === 'custom';
+  const rommUsesRetroAchievements = rommPreset === 'chef' || rommPreset === 'french' || rommPreset === 'custom';
+  const rommUsesScreenscraper = rommPreset === 'french' || rommPreset === 'custom';
+  const rommHasheousEnabled =
+    rommPreset === 'quick' || rommPreset === 'chef' || (rommPreset === 'custom' && input.rommHasheousApiEnabled);
+  const rommPlaymatchEnabled = rommPreset === 'twitch' || (rommPreset === 'custom' && input.rommPlaymatchApiEnabled);
   const env: StackarrEnv = {
     MEDIA_ROOT: input.mediaRoot,
     MUSIC_ROOT: input.musicRoot,
@@ -537,6 +668,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     UPDATE_TIME: '04:30',
     UPDATE_WEEKDAY: 'Sun',
     PLEX_INSTALL_MODE: input.plexInstallMode,
+    PLEX_TOKEN: input.plexToken,
     JELLYFIN_INSTALL_MODE: input.jellyfinInstallMode,
     ENABLE_MOVIES: String(input.enableMovies),
     ENABLE_TV_SHOWS: String(input.enableTvShows),
@@ -544,17 +676,39 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_BAZARR: String(input.enableBazarr),
     ENABLE_LIDARR: String(input.enableLidarr),
     ENABLE_BOOKORBIT: String(input.enableBookOrbit),
+    ENABLE_IMMICH: String(input.enableImmich),
+    ENABLE_ROMM: String(input.enableRomm),
     ENABLE_TINYMEDIAMANAGER: String(input.enableTinyMediaManager),
     ENABLE_RECYCLARR: String(input.enableRecyclarr),
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
     ENABLE_TIDARR: String(input.enableTidarr),
     ENABLE_MAINTAINERR: String(input.enableMaintainerr),
+    ENABLE_TRACEARR: String(input.enableTracearr),
     MAINTAINERR_BIND_IP: '127.0.0.1',
     MAINTAINERR_PORT: '6246',
     MAINTAINERR_URL: 'http://127.0.0.1:6246',
     MAINTAINERR_BASE_PATH: '',
     MAINTAINERR_GITHUB_TOKEN: '',
     MAINTAINERR_CLEANUP_PRESETS: input.maintainerrCleanupPresets.join(','),
+    TRACEARR_BIND_IP: '127.0.0.1',
+    TRACEARR_PORT: '3000',
+    TRACEARR_URL: 'http://127.0.0.1:3000',
+    TRACEARR_AUTO_CONFIGURE: 'true',
+    TRACEARR_ADMIN_USERNAME: input.globalUsername,
+    TRACEARR_ADMIN_EMAIL: input.globalEmail,
+    TRACEARR_ADMIN_PASSWORD: input.enableTracearr ? input.globalPassword || databasePassword : '',
+    TRACEARR_CLAIM_CODE: '',
+    TRACEARR_PLEX_SERVER_URL: '',
+    TRACEARR_JELLYFIN_SERVER_URL: '',
+    TRACEARR_EMBY_SERVER_URL: '',
+    TRACEARR_DB_PASSWORD: databasePassword,
+    TRACEARR_POSTGRES_DATABASE: 'tracearr',
+    TRACEARR_POSTGRES_USER: 'tracearr',
+    TRACEARR_POSTGRES_PASSWORD: databasePassword,
+    TRACEARR_JWT_SECRET: input.enableTracearr ? nodeCrypto.randomBytes(32).toString('hex') : '',
+    TRACEARR_COOKIE_SECRET: input.enableTracearr ? nodeCrypto.randomBytes(32).toString('hex') : '',
+    TRACEARR_LOG_LEVEL: 'info',
+    TRACEARR_CORS_ORIGIN: '*',
     STACKARR_MOVIE_PROFILE_PRESET: input.movieProfilePreset,
     STACKARR_TV_PROFILE_PRESET: input.tvProfilePreset,
     STACKARR_MUSIC_PROFILE_PRESET: input.musicProfilePreset,
@@ -582,12 +736,65 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     BOOKORBIT_APP_URL: 'http://127.0.0.1:7582',
     BOOKORBIT_CLIENT_URL: 'http://127.0.0.1:7582',
     BOOKS_ROOT: `${input.mediaRoot}/Books`,
-    DATABASE_IMAGE: 'pgvector/pgvector:pg18-trixie',
+    IMMICH_BIND_IP: '127.0.0.1',
+    IMMICH_WEB_PORT: '2283',
+    IMMICH_CONTAINER_PORT: '2283',
+    IMMICH_URL: 'http://127.0.0.1:2283',
+    IMMICH_UPLOAD_LOCATION: `${input.mediaRoot}/Pictures`,
+    IMMICH_VERSION: 'release',
+    IMMICH_DB_USERNAME: 'immich',
+    IMMICH_DB_DATABASE_NAME: 'immich',
+    IMMICH_DB_PASSWORD: input.enableImmich ? nodeCrypto.randomBytes(24).toString('hex') : '',
+    IMMICH_DB_VECTOR_EXTENSION: 'pgvector',
+    IMMICH_SERVER_IMAGE: 'ghcr.io/immich-app/immich-server',
+    IMMICH_MACHINE_LEARNING_IMAGE: 'ghcr.io/immich-app/immich-machine-learning',
+    GAMES_ROOT: rommLibraryRoot,
+    ROMM_URL: 'http://127.0.0.1:7583',
+    ROMM_BIND_IP: '127.0.0.1',
+    ROMM_WEB_PORT: '7583',
+    ROMM_CONTAINER_PORT: '8080',
+    ROMM_LIBRARY_ROOT: rommLibraryRoot,
+    ROMM_ASSETS_ROOT: `${setupDefaultAppRoot}/config/romm/assets`,
+    ROMM_CONFIG_ROOT: `${setupDefaultAppRoot}/config/romm/config`,
+    ROMM_RESOURCES_ROOT: `${setupDefaultAppRoot}/config/romm/resources`,
+    ROMM_REDIS_DATA_ROOT: '',
+    ROMM_REDIS_HOST: 'redis',
+    ROMM_REDIS_PORT: '6379',
+    ROMM_DB_DATA_LOCATION: '',
+    ROMM_DB_DRIVER: 'postgresql',
+    ROMM_DB_HOST: 'database',
+    ROMM_DB_PORT: '5432',
+    ROMM_DB_NAME: 'romm',
+    ROMM_DB_USER: 'romm',
+    ROMM_DB_PASSWORD: input.enableRomm ? nodeCrypto.randomBytes(24).toString('hex') : '',
+    ROMM_DB_ROOT_PASSWORD: '',
+    ROMM_DB_QUERY_JSON: '',
+    ROMM_AUTH_SECRET_KEY: input.enableRomm ? nodeCrypto.randomBytes(32).toString('hex') : '',
+    ROMM_AUTO_CONFIGURE: 'false',
+    ROMM_ADMIN_USERNAME: '',
+    ROMM_ADMIN_EMAIL: '',
+    ROMM_ADMIN_PASSWORD: '',
+    ROMM_IGDB_CLIENT_ID: rommUsesIgdb ? input.rommIgdbClientId : '',
+    ROMM_IGDB_CLIENT_SECRET: rommUsesIgdb ? input.rommIgdbClientSecret : '',
+    ROMM_MOBYGAMES_API_KEY: '',
+    ROMM_SCREENSCRAPER_USER: rommUsesScreenscraper ? input.rommScreenscraperUser : '',
+    ROMM_SCREENSCRAPER_PASSWORD: rommUsesScreenscraper ? input.rommScreenscraperPassword : '',
+    ROMM_RETROACHIEVEMENTS_API_KEY: rommUsesRetroAchievements ? input.rommRetroAchievementsApiKey : '',
+    ROMM_STEAMGRIDDB_API_KEY: rommUsesSteamGridDb ? input.rommSteamGridDbApiKey : '',
+    ROMM_HASHEOUS_API_ENABLED: String(rommHasheousEnabled),
+    ROMM_PLAYMATCH_API_ENABLED: String(rommPlaymatchEnabled),
+    ROMM_LAUNCHBOX_API_ENABLED: 'false',
+    ROMM_FLASHPOINT_API_ENABLED: 'false',
+    ROMM_HLTB_API_ENABLED: 'false',
+    ROMM_IMAGE: 'rommapp/romm:latest',
+    ROMM_DB_IMAGE: '',
+    DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
     DATABASE_BIND_IP: '127.0.0.1',
     DATABASE_HOST_PORT: '5433',
     DATABASE_NAME: 'postgres',
     DATABASE_SUPERUSER: 'postgres',
     DATABASE_SUPERUSER_PASSWORD: databasePassword,
+    REDIS_IMAGE: 'redis:8-alpine',
     STACKARR_POSTGRES_DATABASE: 'stackarr-main',
     STACKARR_POSTGRES_MAIN_DATABASE: 'stackarr-main',
     STACKARR_POSTGRES_LOG_DATABASE: 'stackarr-log',

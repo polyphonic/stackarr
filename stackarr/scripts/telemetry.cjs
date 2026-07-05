@@ -245,6 +245,7 @@ function serviceNames(config) {
   if (envFlag(config.ENABLE_BAZARR, true)) names.push('bazarr');
   if (envFlag(config.ENABLE_LIDARR, true)) names.push('lidarr');
   if (envFlag(config.ENABLE_BOOKORBIT, false)) names.push('bookorbit');
+  if (envFlag(config.ENABLE_ROMM, false)) names.push('romm');
   if (envFlag(config.ENABLE_TINYMEDIAMANAGER, true)) names.push('tinymediamanager');
   if (envFlag(config.ENABLE_RECYCLARR, true)) names.push('recyclarr');
   if (envFlag(config.ENABLE_FLARESOLVERR, true)) names.push('flaresolverr');
@@ -252,6 +253,7 @@ function serviceNames(config) {
   if (envFlag(config.ENABLE_SEERR, false)) names.push('seerr');
   if (envFlag(config.ENABLE_PULSARR, true)) names.push('pulsarr');
   if (envFlag(config.ENABLE_MAINTAINERR, false)) names.push('maintainerr');
+  if (envFlag(config.ENABLE_TRACEARR, false)) names.push('tracearr');
   if (config.PLEX_INSTALL_MODE === 'docker') names.push('plex');
   if (config.PLEX_INSTALL_MODE === 'native') names.push('plex-native');
   if (config.JELLYFIN_INSTALL_MODE === 'docker') names.push('jellyfin');

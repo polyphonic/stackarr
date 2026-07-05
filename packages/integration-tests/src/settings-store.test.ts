@@ -39,7 +39,7 @@ test('default database resolver uses the packaged data directory when present', 
   }
 });
 
-test('settings reads repair postgres from the canonical SQLite store', async () => {
+test('settings reads prefer the active Postgres store over the SQLite bootstrap copy', async () => {
   const fixture = await createFakePostgresFixture('stackarr.settings', { ui: { theme: 'light' } });
   const sqliteValue = JSON.stringify({ ui: { theme: 'dark' } });
   writeSqliteSetting(fixture.databaseFile, 'stackarr.settings', sqliteValue);
@@ -49,15 +49,15 @@ test('settings reads repair postgres from the canonical SQLite store', async () 
     const value = stackarrDb.readSetting('stackarr.settings');
     const log = await readFile(fixture.psqlLog, 'utf8');
 
-    assert.equal(value, sqliteValue);
-    assert.match(log, /insert into app_settings[\s\S]*stackarr\.settings[\s\S]*"dark"/);
+    assert.equal(value, JSON.stringify({ ui: { theme: 'light' } }));
+    assert.doesNotMatch(log, /insert into app_settings[\s\S]*stackarr\.settings[\s\S]*"dark"/);
   } finally {
     fixture.restoreEnv();
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
 
-test('runtime config writes mirror the complete canonical SQLite row to postgres', async () => {
+test('runtime config writes update only the active Postgres row when Postgres is configured', async () => {
   const fixture = await createFakePostgresFixture('stackarr.runtimeConfig', {
     STACKARR_WEB_PORT: '7580',
     KEEP: 'postgres'
@@ -74,8 +74,15 @@ test('runtime config writes mirror the complete canonical SQLite row to postgres
     const log = await readFile(fixture.psqlLog, 'utf8');
 
     assert.match(log, /insert into app_settings[\s\S]*STACKARR_WEB_PORT[\s\S]*7777/);
-    assert.match(log, /insert into app_settings[\s\S]*KEEP[\s\S]*sqlite/);
-    assert.doesNotMatch(log, /insert into app_settings[\s\S]*KEEP[\s\S]*postgres/);
+    assert.match(log, /insert into app_settings[\s\S]*KEEP[\s\S]*postgres/);
+    assert.doesNotMatch(log, /insert into app_settings[\s\S]*KEEP[\s\S]*sqlite/);
+    assert.equal(
+      readSqliteSetting(fixture.databaseFile, 'stackarr.runtimeConfig'),
+      JSON.stringify({
+        STACKARR_WEB_PORT: '7777',
+        KEEP: 'sqlite'
+      })
+    );
   } finally {
     fixture.restoreEnv();
     await rm(fixture.root, { recursive: true, force: true });
@@ -93,6 +100,16 @@ function writeSqliteSetting(databaseFile: string, key: string, value: string) {
       );
     `);
     db.prepare('insert into app_settings (key, value) values (?, ?)').run(key, value);
+  } finally {
+    db.close();
+  }
+}
+
+function readSqliteSetting(databaseFile: string, key: string) {
+  const db = new DatabaseSync(databaseFile);
+  try {
+    return (db.prepare('select value from app_settings where key = ?').get(key) as { value?: string } | undefined)
+      ?.value;
   } finally {
     db.close();
   }

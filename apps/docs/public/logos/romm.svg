@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">RomM</title>
+  <desc id="desc">Stylized purple game controller for RomM</desc>
+  <defs>
+    <linearGradient id="g" x1="18" x2="110" y1="24" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#111827"/>
+  <path fill="url(#g)" d="M31.7 48.2c4.1-5 10.2-7.8 16.7-7.8h31.2c6.5 0 12.6 2.9 16.7 7.8l17.3 21.1c6.8 8.3.9 20.9-9.8 20.9-4.1 0-8-2-10.4-5.4l-6.7-9.3H41.3l-6.7 9.3c-2.4 3.4-6.3 5.4-10.4 5.4-10.7 0-16.6-12.6-9.8-20.9l17.3-21.1Z"/>
+  <path fill="#fff" d="M44 55h8v8h8v8h-8v8h-8v-8h-8v-8h8v-8Zm37 5.5a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0Zm-14 11a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0Z" opacity=".94"/>
+</svg>

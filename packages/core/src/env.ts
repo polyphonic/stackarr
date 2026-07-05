@@ -1,3 +1,4 @@
+import * as nodeCrypto from 'node:crypto';
 import { databaseExists, readJsonSetting, writeJsonSetting } from './database';
 
 export type InstallMode = 'disabled' | 'native' | 'docker';
@@ -17,6 +18,8 @@ const defaultStateRoot = `${defaultAppRoot}/state`;
 const defaultLogRoot = `${defaultAppRoot}/logs`;
 const defaultMediaRoot = `${defaultAppRoot}/media`;
 const defaultMusicRoot = `${defaultMediaRoot}/Music`;
+const defaultPicturesRoot = `${defaultMediaRoot}/Pictures`;
+const defaultGamesRoot = `${defaultMediaRoot}/Games`;
 const defaultDownloadsRoot = `${defaultAppRoot}/downloads`;
 
 export const managedEnvDefaults: StackarrEnv = {
@@ -33,6 +36,7 @@ export const managedEnvDefaults: StackarrEnv = {
   CONFIG_ROOT: defaultConfigRoot,
   STATE_ROOT: defaultStateRoot,
   LOG_ROOT: defaultLogRoot,
+  STACKARR_REPO_ROOT: '',
 
   PLEX_CONFIG_PATH: `${home}/Library/Application Support/Plex Media Server`,
   PLEX_PREFS_PATH: `${home}/Library/Preferences/com.plexapp.plexmediaserver.plist`,
@@ -46,6 +50,8 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_BAZARR: 'true',
   ENABLE_LIDARR: 'true',
   ENABLE_BOOKORBIT: 'false',
+  ENABLE_IMMICH: 'false',
+  ENABLE_ROMM: 'false',
   ENABLE_TINYMEDIAMANAGER: 'true',
   ENABLE_RECYCLARR: 'true',
   ENABLE_FLARESOLVERR: 'true',
@@ -54,6 +60,7 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_CONFIGURE_SEERR: 'false',
   ENABLE_PULSARR: 'true',
   ENABLE_MAINTAINERR: 'false',
+  ENABLE_TRACEARR: 'false',
   ENABLE_BACKUP: 'true',
   STACKARR_MOVIE_PROFILE_PRESET: 'lite',
   STACKARR_MOVIE_4K_PROFILE_PRESET: 'lite',
@@ -105,6 +112,25 @@ export const managedEnvDefaults: StackarrEnv = {
   MAINTAINERR_PLEX_SERVER_URL: '',
   MAINTAINERR_JELLYFIN_SERVER_URL: '',
   MAINTAINERR_QBITTORRENT_URL: '',
+  TRACEARR_BIND_IP: '127.0.0.1',
+  TRACEARR_PORT: '3000',
+  TRACEARR_URL: 'http://127.0.0.1:3000',
+  TRACEARR_AUTO_CONFIGURE: 'true',
+  TRACEARR_ADMIN_USERNAME: '',
+  TRACEARR_ADMIN_EMAIL: '',
+  TRACEARR_ADMIN_PASSWORD: '',
+  TRACEARR_CLAIM_CODE: '',
+  TRACEARR_PLEX_SERVER_URL: '',
+  TRACEARR_JELLYFIN_SERVER_URL: '',
+  TRACEARR_EMBY_SERVER_URL: '',
+  TRACEARR_DB_PASSWORD: '',
+  TRACEARR_POSTGRES_DATABASE: 'tracearr',
+  TRACEARR_POSTGRES_USER: 'tracearr',
+  TRACEARR_POSTGRES_PASSWORD: '',
+  TRACEARR_JWT_SECRET: '',
+  TRACEARR_COOKIE_SECRET: '',
+  TRACEARR_LOG_LEVEL: 'info',
+  TRACEARR_CORS_ORIGIN: '*',
   TRANSMISSION_BIND_IP: '127.0.0.1',
   TRANSMISSION_URL: 'http://127.0.0.1:9091',
   TRANSMISSION_TORRENT_PORT: '51413',
@@ -128,6 +154,54 @@ export const managedEnvDefaults: StackarrEnv = {
   BOOKORBIT_CONTAINER_PORT: '7582',
   BOOKORBIT_DATABASE_URL: '',
   BOOKS_ROOT: `${defaultMediaRoot}/Books`,
+  IMMICH_URL: 'http://127.0.0.1:2283',
+  IMMICH_BIND_IP: '127.0.0.1',
+  IMMICH_WEB_PORT: '2283',
+  IMMICH_CONTAINER_PORT: '2283',
+  IMMICH_UPLOAD_LOCATION: defaultPicturesRoot,
+  IMMICH_VERSION: 'release',
+  IMMICH_DB_USERNAME: 'immich',
+  IMMICH_DB_DATABASE_NAME: 'immich',
+  IMMICH_DB_PASSWORD: '',
+  IMMICH_DB_VECTOR_EXTENSION: 'pgvector',
+  GAMES_ROOT: defaultGamesRoot,
+  ROMM_URL: 'http://127.0.0.1:7583',
+  ROMM_BIND_IP: '127.0.0.1',
+  ROMM_WEB_PORT: '7583',
+  ROMM_CONTAINER_PORT: '8080',
+  ROMM_LIBRARY_ROOT: defaultGamesRoot,
+  ROMM_ASSETS_ROOT: `${defaultConfigRoot}/romm/assets`,
+  ROMM_CONFIG_ROOT: `${defaultConfigRoot}/romm/config`,
+  ROMM_RESOURCES_ROOT: `${defaultConfigRoot}/romm/resources`,
+  ROMM_REDIS_DATA_ROOT: `${defaultConfigRoot}/romm/redis`,
+  ROMM_REDIS_HOST: 'redis',
+  ROMM_REDIS_PORT: '6379',
+  ROMM_DB_DATA_LOCATION: `${defaultConfigRoot}/romm/mysql`,
+  ROMM_DB_DRIVER: 'postgresql',
+  ROMM_DB_HOST: 'database',
+  ROMM_DB_PORT: '5432',
+  ROMM_DB_NAME: 'romm',
+  ROMM_DB_USER: 'romm',
+  ROMM_DB_PASSWORD: '',
+  ROMM_DB_ROOT_PASSWORD: '',
+  ROMM_DB_QUERY_JSON: '',
+  ROMM_AUTH_SECRET_KEY: '',
+  ROMM_AUTO_CONFIGURE: 'false',
+  ROMM_ADMIN_USERNAME: '',
+  ROMM_ADMIN_EMAIL: '',
+  ROMM_ADMIN_PASSWORD: '',
+  ROMM_IGDB_CLIENT_ID: '',
+  ROMM_IGDB_CLIENT_SECRET: '',
+  ROMM_MOBYGAMES_API_KEY: '',
+  ROMM_SCREENSCRAPER_USER: '',
+  ROMM_SCREENSCRAPER_PASSWORD: '',
+  ROMM_RETROACHIEVEMENTS_API_KEY: '',
+  ROMM_STEAMGRIDDB_API_KEY: '',
+  ROMM_HASHEOUS_API_ENABLED: 'true',
+  ROMM_PLAYMATCH_API_ENABLED: 'false',
+  ROMM_LAUNCHBOX_API_ENABLED: 'false',
+  ROMM_FLASHPOINT_API_ENABLED: 'false',
+  ROMM_HLTB_API_ENABLED: 'false',
   BAZARR_URL: 'http://127.0.0.1:6767',
   SEERR_URL: 'http://127.0.0.1:5055',
   PULSARR_URL: 'http://127.0.0.1:3003',
@@ -158,6 +232,7 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_STORAGE_WAIT_SECONDS: '600',
 
   STACKARR_API_KEY: '',
+  STACKARR_DOCKER_CONTEXT: '',
   STACKARR_WEB_ENABLED: 'true',
   STACKARR_IMAGE: 'polyphonic/stackarr:alpha',
   STACKARR_BIND_IP: '127.0.0.1',
@@ -177,12 +252,18 @@ export const managedEnvDefaults: StackarrEnv = {
   SEERR_IMAGE: 'ghcr.io/seerr-team/seerr:latest',
   PULSARR_IMAGE: 'lakker/pulsarr:latest',
   MAINTAINERR_IMAGE: 'ghcr.io/maintainerr/maintainerr:latest',
+  TRACEARR_IMAGE: 'ghcr.io/connorgallopo/tracearr:latest',
+  REDIS_IMAGE: 'redis:8-alpine',
   RECYCLARR_IMAGE: 'ghcr.io/recyclarr/recyclarr:latest',
   FLARESOLVERR_IMAGE: 'ghcr.io/flaresolverr/flaresolverr:latest',
   LIDARR_IMAGE: 'lscr.io/linuxserver/lidarr:latest',
   BOOKORBIT_IMAGE: 'ghcr.io/bookorbit/bookorbit:latest',
+  IMMICH_SERVER_IMAGE: 'ghcr.io/immich-app/immich-server',
+  IMMICH_MACHINE_LEARNING_IMAGE: 'ghcr.io/immich-app/immich-machine-learning',
+  ROMM_IMAGE: 'rommapp/romm:latest',
+  ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
-  DATABASE_IMAGE: 'pgvector/pgvector:pg18-trixie',
+  DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
   DATABASE_BIND_IP: '127.0.0.1',
   DATABASE_HOST_PORT: '5433',
   DATABASE_NAME: 'postgres',
@@ -263,7 +344,6 @@ export const managedEnvDefaults: StackarrEnv = {
   JELLYFIN_IMAGE: 'lscr.io/linuxserver/jellyfin:latest',
   JELLYFIN_DOCKER_PORT: '8096',
 
-  CLOUDFLARE_TUNNEL_TOKEN: '',
   CLOUDFLARE_API_TOKEN: '',
   CLOUDFLARE_ACCOUNT_ID: '',
   CLOUDFLARE_ZONE_ID: '',
@@ -275,10 +355,13 @@ export const managedEnvDefaults: StackarrEnv = {
   CLOUDFLARED_KEEP_LAN: 'true',
   CLOUDFLARE_ROUTE_MANAGED: 'false',
   CLOUDFLARE_TUNNEL_ROUTES: '',
+  CLOUDFLARE_ACCESS_ENABLED: 'false',
+  CLOUDFLARE_ACCESS_ALLOWED_EMAILS: '',
+  CLOUDFLARE_ACCESS_SESSION_DURATION: '720h',
   SEERR_ORIGIN_URL: 'http://127.0.0.1:5055'
 };
 
-const secretKeys = ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY'];
+const secretKeys = ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY', 'CLAIM_CODE'];
 const accessPasswordKeys = [
   'TRANSMISSION_PASSWORD',
   'QBITTORRENT_PASSWORD',
@@ -354,6 +437,7 @@ export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): Stack
   }
 
   dropDeprecatedCloudflareHostnameKeys(merged);
+  normalizeRommDatabaseDefaults(merged);
   return merged;
 }
 
@@ -367,6 +451,17 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   merged.LOG_ROOT = merged.LOG_ROOT || `${appRoot}/logs`;
   if (!env.MEDIA_ROOT) merged.MEDIA_ROOT = `${appRoot}/media`;
   if (!env.MUSIC_ROOT) merged.MUSIC_ROOT = `${merged.MEDIA_ROOT}/Music`;
+  if (!env.GAMES_ROOT) merged.GAMES_ROOT = `${merged.MEDIA_ROOT}/Games`;
+  if (!env.ROMM_LIBRARY_ROOT) merged.ROMM_LIBRARY_ROOT = merged.GAMES_ROOT;
+  if (!env.ROMM_ASSETS_ROOT) merged.ROMM_ASSETS_ROOT = `${appRoot}/config/romm/assets`;
+  if (!env.ROMM_CONFIG_ROOT) merged.ROMM_CONFIG_ROOT = `${appRoot}/config/romm/config`;
+  if (!env.ROMM_RESOURCES_ROOT) merged.ROMM_RESOURCES_ROOT = `${appRoot}/config/romm/resources`;
+  if (!env.ROMM_REDIS_DATA_ROOT) merged.ROMM_REDIS_DATA_ROOT = `${appRoot}/config/romm/redis`;
+  if (!env.ROMM_DB_DATA_LOCATION) merged.ROMM_DB_DATA_LOCATION = `${appRoot}/config/romm/mysql`;
+  normalizeRommDatabaseDefaults(merged);
+  if (!env.IMMICH_UPLOAD_LOCATION) merged.IMMICH_UPLOAD_LOCATION = `${merged.MEDIA_ROOT}/Pictures`;
+  if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
+  merged.IMMICH_DB_VECTOR_EXTENSION = merged.IMMICH_DB_VECTOR_EXTENSION || 'pgvector';
   if (!env.DOWNLOADS_ROOT) merged.DOWNLOADS_ROOT = `${appRoot}/downloads`;
   if (!env.BACKUP_ROOT) merged.BACKUP_ROOT = `${appRoot}/backups`;
   merged.PUID = merged.PUID || defaultUid();
@@ -409,9 +504,41 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
     merged.STACKARR_LOG_DATABASE_URL = '';
   }
 
+  if (flagValue(merged.ENABLE_TRACEARR) && merged.DATABASE_IMAGE === 'pgvector/pgvector:pg18-trixie') {
+    merged.DATABASE_IMAGE = 'timescale/timescaledb-ha:pg18.1-ts2.25.0';
+  }
+
   applyDatabaseModeDefaults(merged, databasePassword);
+  applyTracearrSecretDefaults(merged, databasePassword);
+  applyImmichSecretDefaults(merged);
+  applyRommSecretDefaults(merged);
 
   return merged;
+}
+
+function normalizeRommDatabaseDefaults(env: StackarrEnv) {
+  if (!env.ROMM_REDIS_HOST) env.ROMM_REDIS_HOST = 'redis';
+  if (!env.ROMM_REDIS_PORT) env.ROMM_REDIS_PORT = '6379';
+
+  if (!env.ROMM_DB_HOST || ['romm-db', 'mysql', 'mariadb'].includes(env.ROMM_DB_HOST)) {
+    env.ROMM_DB_HOST = 'database';
+  }
+
+  if (!env.ROMM_DB_DRIVER || ['mysql', 'mariadb'].includes(env.ROMM_DB_DRIVER)) {
+    env.ROMM_DB_DRIVER = 'postgresql';
+  }
+
+  if (!env.ROMM_DB_PORT || env.ROMM_DB_PORT === '3306') {
+    env.ROMM_DB_PORT = '5432';
+  }
+
+  if (
+    env.ROMM_DB_IMAGE === 'mysql:8' ||
+    env.ROMM_DB_IMAGE === 'mysql:latest' ||
+    env.ROMM_DB_IMAGE?.startsWith('mariadb:')
+  ) {
+    env.ROMM_DB_IMAGE = '';
+  }
 }
 
 function applyAccessPasswordDefaults(env: StackarrEnv) {
@@ -427,6 +554,7 @@ function applyAccessPasswordDefaults(env: StackarrEnv) {
 function dropDeprecatedCloudflareHostnameKeys(env: StackarrEnv) {
   delete env.CLOUDFLARE_HOSTNAME;
   delete env.CLOUDFLARED_TUNNEL_HOSTNAME;
+  delete env.CLOUDFLARE_TUNNEL_TOKEN;
 }
 
 function normalizeDatabaseMode(value: string | undefined) {
@@ -496,6 +624,45 @@ function applyDatabaseModeDefaults(env: StackarrEnv, databasePassword: string) {
   env.SONARR4K_POSTGRES_PORT = env.SONARR4K_POSTGRES_PORT || postgresPort;
   env.LIDARR_POSTGRES_HOST = env.LIDARR_POSTGRES_HOST || postgresHost;
   env.LIDARR_POSTGRES_PORT = env.LIDARR_POSTGRES_PORT || postgresPort;
+}
+
+function applyTracearrSecretDefaults(env: StackarrEnv, databasePassword: string) {
+  if (!flagValue(env.ENABLE_TRACEARR)) {
+    return;
+  }
+
+  env.TRACEARR_DB_PASSWORD = env.TRACEARR_DB_PASSWORD || databasePassword || nodeCrypto.randomBytes(24).toString('hex');
+  env.TRACEARR_POSTGRES_PASSWORD = env.TRACEARR_POSTGRES_PASSWORD || env.TRACEARR_DB_PASSWORD;
+  env.TRACEARR_JWT_SECRET = env.TRACEARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
+  env.TRACEARR_COOKIE_SECRET = env.TRACEARR_COOKIE_SECRET || nodeCrypto.randomBytes(32).toString('hex');
+  env.TRACEARR_ADMIN_USERNAME = env.TRACEARR_ADMIN_USERNAME || env.USERNAME || 'stackarr';
+  env.TRACEARR_ADMIN_EMAIL = env.TRACEARR_ADMIN_EMAIL || env.USER_EMAIL || '';
+  env.TRACEARR_ADMIN_PASSWORD = env.TRACEARR_ADMIN_PASSWORD || env.PASSWORD || '';
+}
+
+function applyImmichSecretDefaults(env: StackarrEnv) {
+  if (!flagValue(env.ENABLE_IMMICH)) {
+    return;
+  }
+
+  env.IMMICH_DB_PASSWORD = env.IMMICH_DB_PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+}
+
+function applyRommSecretDefaults(env: StackarrEnv) {
+  if (!flagValue(env.ENABLE_ROMM)) {
+    return;
+  }
+
+  env.ROMM_DB_PASSWORD = env.ROMM_DB_PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+  env.ROMM_AUTH_SECRET_KEY = env.ROMM_AUTH_SECRET_KEY || nodeCrypto.randomBytes(32).toString('hex');
+  env.ROMM_AUTO_CONFIGURE = 'false';
+  env.ROMM_ADMIN_USERNAME = '';
+  env.ROMM_ADMIN_EMAIL = '';
+  env.ROMM_ADMIN_PASSWORD = '';
+}
+
+function flagValue(value: string | undefined) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
 }
 
 function buildBookOrbitPostgresUrl(env: StackarrEnv, databasePassword: string) {
@@ -585,6 +752,14 @@ function isHostPathKey(key: string) {
     'BACKUP_ROOT',
     'BACKUP_STAGING_ROOT',
     'BOOKS_ROOT',
+    'GAMES_ROOT',
+    'ROMM_LIBRARY_ROOT',
+    'ROMM_ASSETS_ROOT',
+    'ROMM_CONFIG_ROOT',
+    'ROMM_RESOURCES_ROOT',
+    'ROMM_REDIS_DATA_ROOT',
+    'ROMM_DB_DATA_LOCATION',
+    'IMMICH_UPLOAD_LOCATION',
     'PLEX_CONFIG_PATH',
     'PLEX_PREFS_PATH',
     'JELLYFIN_CONFIG_PATH'

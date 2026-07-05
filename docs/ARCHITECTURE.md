@@ -11,7 +11,7 @@ Stackarr is now organized as a Next.js-first arr-style control plane.
 - `packages/integration-tests` contains the integration test workspace.
 - `distribution` contains release packaging such as macOS app archives.
 - `stackarr` contains the shell scripts, config presets, hooks, and Docker Compose file.
-- Stackarr-backed app settings are the runtime configuration store; service URLs, images, ports, paths, credentials, and Cloudflare settings are managed through the UI/API/MCP layer. SQLite remains the default runtime store, and advanced installs can move Stackarr settings to the shared Postgres database while keeping SQLite as a bootstrap/fallback source.
+- Stackarr-backed app settings are the runtime configuration store; service URLs, images, ports, paths, credentials, and Cloudflare settings are managed through the UI/API/MCP layer. SQLite remains the default runtime store, and advanced installs can move Stackarr settings to the shared Postgres database while keeping SQLite as a bootstrap/import source rather than a second live copy.
 
 ## Executable Boundary
 
@@ -41,7 +41,7 @@ Mutating API calls require `X-Api-Key`. CLI setup and the first dashboard config
 Stackarr uses a split that mirrors the arr apps' app-data pattern:
 
 - Saved app settings store runtime values, including paths, ports, install modes, and secrets. Docker Compose environment variables remain available only for advanced container-specific overrides.
-- The Stackarr runtime database stores app-level UI, host, profile, metadata, public-exposure preferences, and Connect notification definitions. `stackarr/config/stackarr.db` is the default SQLite store and remains a bootstrap/fallback file when settings are moved to Postgres.
+- The Stackarr runtime database stores app-level UI, host, profile, metadata, public-exposure preferences, and Connect notification definitions. `stackarr/config/stackarr.db` is the default SQLite store and becomes a bootstrap/import file when settings are moved to Postgres.
 - `stackarr/config/*.json` remains the versioned source for naming, download, and request presets.
 
 The UI redacts secrets before sending config to the browser. Browser actions send the saved API key, prompting once when needed and storing it locally for subsequent requests.

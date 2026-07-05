@@ -234,7 +234,7 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
   },
   CloudflareRotate: {
     name: 'CloudflareRotate',
-    label: 'Rotate Cloudflare tunnel token',
+    label: 'Rotate Cloudflare connector credential',
     args: ['cloudflare', 'rotate'],
     disruptive: true,
     event: 'Configure'

@@ -13,17 +13,22 @@ const defaults: Record<string, number> = {
   seerr: 5055,
   pulsarr: 3003,
   maintainerr: 6246,
+  tracearr: 3000,
   plex: 32400,
   transmission: 9091,
   qbittorrent: 8081,
-  bookorbit: 7582
+  bookorbit: 7582,
+  immich: 2283,
+  romm: 7583
 };
 
 const containerDefaults: Record<string, number> = {
   ...defaults,
   sonarr4k: 8989,
   radarr4k: 7878,
-  bookorbit: 7582
+  bookorbit: 7582,
+  immich: 2283,
+  romm: 8080
 };
 
 export function serviceBaseUrl(service: string) {
@@ -34,7 +39,11 @@ export function serviceBaseUrl(service: string) {
   const dockerPort =
     service === 'bookorbit'
       ? Number(env.BOOKORBIT_CONTAINER_PORT ?? containerDefaults.bookorbit)
-      : containerDefaults[service];
+      : service === 'immich'
+        ? Number(env.IMMICH_CONTAINER_PORT ?? containerDefaults.immich)
+        : service === 'romm'
+          ? Number(env.ROMM_CONTAINER_PORT ?? containerDefaults.romm)
+          : containerDefaults[service];
   const port = stackarrRuntime === 'docker' ? dockerPort : defaults[service];
   const host = stackarrRuntime === 'docker' && port ? service : '127.0.0.1';
 

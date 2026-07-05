@@ -19,13 +19,11 @@ ensure_docker_runtime
 
 case "${1:-help}" in
     ensure)
-        stackarr_compose --profile database up -d database
-        stackarr_compose --profile database up --force-recreate database-init
-        stackarr_compose --profile database rm -f -s database-init >/dev/null 2>&1 || true
+        ensure_shared_database
         ok "Shared database is initialized"
         ;;
     status)
-        stackarr_compose --profile database ps database database-init
+        stackarr_compose --profile database ps database
         ;;
     help|--help|-h)
         usage
