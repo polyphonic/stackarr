@@ -6,15 +6,13 @@ export async function stackarrFetch(input: RequestInfo | URL, init: RequestInit 
     headers.set('X-Api-Key', apiKey);
   }
 
-  let response = await fetch(input, { ...init, headers });
+  const response = await fetch(input, { ...init, headers, credentials: init.credentials ?? 'same-origin' });
 
   if (response.status === 401) {
-    const nextKey = window.prompt('Stackarr API key');
+    const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
-    if (nextKey) {
-      window.localStorage.setItem('stackarrApiKey', nextKey);
-      headers.set('X-Api-Key', nextKey);
-      response = await fetch(input, { ...init, headers });
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.assign(`/login?next=${encodeURIComponent(next)}`);
     }
   }
 

@@ -40,9 +40,12 @@ const globalDatabasePasswordKeys = [
   'DATABASE_SUPERUSER_PASSWORD',
   'STACKARR_POSTGRES_PASSWORD',
   'BOOKORBIT_POSTGRES_PASSWORD',
+  'IMMICH_DB_PASSWORD',
+  'ROMM_DB_PASSWORD',
   'SEERR_POSTGRES_PASSWORD',
   'PULSARR_POSTGRES_PASSWORD',
   'TRACEARR_DB_PASSWORD',
+  'TRACEARR_POSTGRES_PASSWORD',
   'BAZARR_POSTGRES_PASSWORD',
   'PROWLARR_POSTGRES_PASSWORD',
   'RADARR_POSTGRES_PASSWORD',
@@ -51,8 +54,29 @@ const globalDatabasePasswordKeys = [
   'SONARR4K_POSTGRES_PASSWORD',
   'LIDARR_POSTGRES_PASSWORD'
 ];
-const globalPasswordKeys = ['PASSWORD', ...globalDatabasePasswordKeys];
+const accountPasswordKeys = [
+  'PASSWORD',
+  'TRANSMISSION_PASSWORD',
+  'QBITTORRENT_PASSWORD',
+  'PROWLARR_PASSWORD',
+  'RADARR_PASSWORD',
+  'RADARR4K_PASSWORD',
+  'SONARR_PASSWORD',
+  'SONARR4K_PASSWORD',
+  'LIDARR_PASSWORD',
+  'BAZARR_PASSWORD',
+  'PULSARR_PASSWORD',
+  'BOOKORBIT_PASSWORD',
+  'TINYMEDIAMANAGER_PASSWORD',
+  'TRACEARR_ADMIN_PASSWORD'
+];
 const securityServices: SecurityServiceTarget[] = [
+  {
+    id: 'all-postgres',
+    label: 'All managed Postgres roles',
+    description: 'Every managed Postgres role password, including the superuser and app roles.',
+    databaseKeys: globalDatabasePasswordKeys
+  },
   {
     id: 'radarr',
     label: 'Radarr',
@@ -143,7 +167,8 @@ const securityServices: SecurityServiceTarget[] = [
   {
     id: 'tracearr',
     label: 'Tracearr',
-    description: 'Tracearr shared-Postgres role password.',
+    description: 'Tracearr owner password and shared-Postgres role password.',
+    accessKeys: ['TRACEARR_ADMIN_PASSWORD'],
     databaseKeys: ['TRACEARR_DB_PASSWORD', 'TRACEARR_POSTGRES_PASSWORD']
   },
   {
@@ -215,13 +240,14 @@ export function SettingsEditor({ section, env, settings }: Props) {
   const [draftEnv, setDraftEnv] = useState(env);
   const [draftSettings, setDraftSettings] = useState(settings);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [accountState, setAccountState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
   const [rotateState, setRotateState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
   const [cloudflareApplyState, setCloudflareApplyState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
   const [securityState, setSecurityState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
   const [generalCurrentPassword, setGeneralCurrentPassword] = useState('');
-  const [globalCurrentPassword, setGlobalCurrentPassword] = useState('');
-  const [globalPassword, setGlobalPassword] = useState('');
-  const [globalPasswordConfirm, setGlobalPasswordConfirm] = useState('');
+  const [accountCurrentPassword, setAccountCurrentPassword] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountPasswordConfirm, setAccountPasswordConfirm] = useState('');
   const [securityServiceId, setSecurityServiceId] = useState('');
   const [securityCredentialType, setSecurityCredentialType] = useState<SecurityCredentialType>('access');
   const [serviceCurrentPassword, setServiceCurrentPassword] = useState('');
@@ -459,27 +485,32 @@ export function SettingsEditor({ section, env, settings }: Props) {
     toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
   }
 
-  async function applyGlobalPassword() {
+  async function applyAccountSettings() {
+    const usernameChanged = envValue('USERNAME') !== (env.USERNAME ?? '');
+    const emailChanged = envValue('USER_EMAIL') !== (env.USER_EMAIL ?? '');
+    const apiKeyChanged = envValue('STACKARR_API_KEY') !== (env.STACKARR_API_KEY ?? '');
+    const passwordChanged = Boolean(accountPassword || accountPasswordConfirm);
+    const requiresCurrentPassword = usernameChanged || emailChanged || apiKeyChanged || passwordChanged;
     const validation =
-      currentAdminPasswordError(globalCurrentPassword, true) ||
-      passwordConfirmationError('Global password', globalPassword, globalPasswordConfirm) ||
-      (!globalPassword ? 'Global password is required.' : '');
+      currentAdminPasswordError(accountCurrentPassword, requiresCurrentPassword) ||
+      (passwordChanged ? passwordConfirmationError('Account password', accountPassword, accountPasswordConfirm) : '') ||
+      (!requiresCurrentPassword ? 'No account changes to save.' : '');
     if (validation) {
-      setSecurityState('error');
+      setAccountState('error');
       setMessage(validation);
       toast.error(validation);
       return;
     }
 
-    const nextEnv = applyPasswordPatch(draftEnv, globalPasswordKeys, globalPassword);
-    if (nextEnv.PULSARR_DB_TYPE === 'postgres') {
-      nextEnv.PULSARR_DB_PASSWORD = globalPassword;
+    let nextEnv = applyAccountIdentityPatch(draftEnv, env);
+    if (passwordChanged) {
+      nextEnv = applyPasswordPatch(nextEnv, accountPasswordKeys, accountPassword);
     }
 
-    await saveSecurityPasswordChange(nextEnv, 'Global password saved.', globalCurrentPassword);
-    setGlobalCurrentPassword('');
-    setGlobalPassword('');
-    setGlobalPasswordConfirm('');
+    await saveAccountChange(nextEnv, 'Account settings saved.', accountCurrentPassword);
+    setAccountCurrentPassword('');
+    setAccountPassword('');
+    setAccountPasswordConfirm('');
   }
 
   async function applyServicePassword() {
@@ -539,6 +570,35 @@ export function SettingsEditor({ section, env, settings }: Props) {
     });
 
     setSecurityState(applyResponse.ok ? 'queued' : 'error');
+    const nextMessage = applyResponse.ok
+      ? `${savedMessage} Security apply queued.`
+      : `${savedMessage} Security apply failed to queue.`;
+    setMessage(nextMessage);
+    toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
+  }
+
+  async function saveAccountChange(nextEnv: StackarrEnv, savedMessage: string, currentPassword: string) {
+    setAccountState('saving');
+    setMessage('');
+    const toastId = toast.loading('Saving account settings...');
+    const { response, body } = await saveConfig(nextEnv, draftSettings, currentPassword);
+
+    if (!response.ok) {
+      setAccountState('error');
+      const errorMessage = typeof body.error === 'string' ? body.error : 'Account settings failed to save.';
+      setMessage(errorMessage);
+      toast.error(errorMessage, { id: toastId });
+      return;
+    }
+
+    setDraftEnv(nextEnv);
+    const applyResponse = await stackarrFetch('/api/v1/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'SecurityApply', confirmed: true })
+    });
+
+    setAccountState(applyResponse.ok ? 'queued' : 'error');
     const nextMessage = applyResponse.ok
       ? `${savedMessage} Security apply queued.`
       : `${savedMessage} Security apply failed to queue.`;
@@ -1201,6 +1261,82 @@ export function SettingsEditor({ section, env, settings }: Props) {
         </FormGrid>
       )}
 
+      {section === 'account' && (
+        <div className={styles.securityLayout}>
+          <section className={styles.securitySection}>
+            <div className={styles.securityHeading}>
+              <span className={styles.securityIcon}>
+                <LockIcon size={16} />
+              </span>
+              <div>
+                <h3>Stackarr Account</h3>
+                <p>Change the dashboard sign-in and the global identity used by managed service setup.</p>
+              </div>
+            </div>
+            <FormGrid>
+              <Text label="Username" value={envValue('USERNAME')} onChange={(value) => updateEnv('USERNAME', value)} />
+              <Text label="Email" value={envValue('USER_EMAIL')} onChange={(value) => updateEnv('USER_EMAIL', value)} />
+              <Select
+                label="Authentication"
+                value={draftSettings.host.authenticationMethod}
+                options={['forms', 'apikey', 'none']}
+                onChange={(value) =>
+                  updateSettings(
+                    'host',
+                    'authenticationMethod',
+                    value as StackarrSettings['host']['authenticationMethod']
+                  )
+                }
+              />
+              <Password
+                label="API Key"
+                value={envValue('STACKARR_API_KEY')}
+                onChange={(value) => updateEnv('STACKARR_API_KEY', value)}
+              />
+              <Password
+                label="Current Admin Password"
+                value={accountCurrentPassword}
+                autoComplete="current-password"
+                error={currentAdminPasswordError(
+                  accountCurrentPassword,
+                  envValue('USERNAME') !== (env.USERNAME ?? '') ||
+                    envValue('USER_EMAIL') !== (env.USER_EMAIL ?? '') ||
+                    envValue('STACKARR_API_KEY') !== (env.STACKARR_API_KEY ?? '') ||
+                    Boolean(accountPassword || accountPasswordConfirm)
+                )}
+                onChange={setAccountCurrentPassword}
+              />
+              <Password
+                label="New Account Password"
+                value={accountPassword}
+                autoComplete="new-password"
+                error={passwordConfirmationError('Account password', accountPassword, accountPasswordConfirm)}
+                onChange={setAccountPassword}
+              />
+              <Password
+                label="Confirm Account Password"
+                value={accountPasswordConfirm}
+                autoComplete="new-password"
+                onChange={setAccountPasswordConfirm}
+              />
+              <div className={styles.actionRow}>
+                <span>Apply Account Change</span>
+                <Button isDisabled={accountState === 'saving'} onPress={applyAccountSettings}>
+                  <KeyIcon size={15} />
+                  {accountState === 'saving' ? 'Saving...' : accountState === 'queued' ? 'Queued' : 'Save account'}
+                </Button>
+              </div>
+            </FormGrid>
+          </section>
+
+          <div className={styles.securityNote}>
+            Username and email changes follow managed owner fields such as Tracearr when those fields still match the
+            old global identity. The account password updates managed app sign-ins only; Postgres passwords stay under
+            Security.
+          </div>
+        </div>
+      )}
+
       {section === 'security' && (
         <div className={styles.securityLayout}>
           <section className={styles.securitySection}>
@@ -1209,52 +1345,8 @@ export function SettingsEditor({ section, env, settings }: Props) {
                 <LockIcon size={16} />
               </span>
               <div>
-                <h3>Global Admin Password</h3>
-                <p>
-                  Updates the shared app password and all managed Postgres role passwords. Individual service access
-                  overrides keep their own password.
-                </p>
-              </div>
-            </div>
-            <FormGrid>
-              <Password
-                label="Current Admin Password"
-                value={globalCurrentPassword}
-                autoComplete="current-password"
-                error={currentAdminPasswordError(globalCurrentPassword)}
-                onChange={setGlobalCurrentPassword}
-              />
-              <Password
-                label="New Global Password"
-                value={globalPassword}
-                autoComplete="new-password"
-                error={passwordConfirmationError('Global password', globalPassword, globalPasswordConfirm)}
-                onChange={setGlobalPassword}
-              />
-              <Password
-                label="Confirm Global Password"
-                value={globalPasswordConfirm}
-                autoComplete="new-password"
-                onChange={setGlobalPasswordConfirm}
-              />
-              <div className={styles.actionRow}>
-                <span>Apply Global Change</span>
-                <Button isDisabled={securityState === 'saving'} onPress={applyGlobalPassword}>
-                  <KeyIcon size={15} />
-                  {securityState === 'saving' ? 'Saving...' : securityState === 'queued' ? 'Queued' : 'Update password'}
-                </Button>
-              </div>
-            </FormGrid>
-          </section>
-
-          <section className={styles.securitySection}>
-            <div className={styles.securityHeading}>
-              <span className={styles.securityIcon}>
-                <KeyIcon size={16} />
-              </span>
-              <div>
-                <h3>Individual Service Password</h3>
-                <p>Select a service first, then choose which credential to update.</p>
+                <h3>Service Credentials</h3>
+                <p>Change an individual service login or a managed Postgres role password.</p>
               </div>
             </div>
             <FormGrid>
@@ -1330,19 +1422,6 @@ export function SettingsEditor({ section, env, settings }: Props) {
       {section === 'general' && (
         <FormGrid>
           <Text label="Timezone" value={envValue('TIMEZONE')} onChange={(value) => updateEnv('TIMEZONE', value)} />
-          <Password
-            label="API Key"
-            value={envValue('STACKARR_API_KEY')}
-            onChange={(value) => updateEnv('STACKARR_API_KEY', value)}
-          />
-          <Select
-            label="Authentication"
-            value={draftSettings.host.authenticationMethod}
-            options={['apikey', 'forms', 'none']}
-            onChange={(value) =>
-              updateSettings('host', 'authenticationMethod', value as StackarrSettings['host']['authenticationMethod'])
-            }
-          />
           <Text
             label="Bind Address"
             value={draftSettings.host.bindAddress}
@@ -1443,11 +1522,6 @@ export function SettingsEditor({ section, env, settings }: Props) {
             onChange={(value) => updateSettings('ui', 'serviceUrlHostSuffix', value)}
           />
           <Check
-            label="Unify Service URLs"
-            checked={draftSettings.ui.unifyServiceUrls}
-            onChange={(value) => updateSettings('ui', 'unifyServiceUrls', value)}
-          />
-          <Check
             label="Show Advanced Settings"
             checked={draftSettings.ui.showAdvanced}
             onChange={(value) => updateSettings('ui', 'showAdvanced', value)}
@@ -1455,13 +1529,19 @@ export function SettingsEditor({ section, env, settings }: Props) {
         </FormGrid>
       )}
 
-      {section !== 'security' && (
+      {section !== 'security' && section !== 'account' && (
         <div className={styles.footer}>
           <button onClick={save} type="button">
             {state === 'saving' ? 'Saving...' : 'Save'}
           </button>
           {state === 'saved' && <span>{message || 'Saved'}</span>}
           {state === 'error' && <span className={styles.error}>{message || 'Save failed'}</span>}
+        </div>
+      )}
+      {section === 'account' && accountState !== 'idle' && (
+        <div className={styles.footer}>
+          {accountState === 'queued' && <span>{message || 'Account settings saved.'}</span>}
+          {accountState === 'error' && <span className={styles.error}>{message || 'Account update failed'}</span>}
         </div>
       )}
       {section === 'security' && securityState !== 'idle' && (
@@ -1669,6 +1749,77 @@ function applyPasswordPatch(env: StackarrEnv, keys: string[], password: string):
   return next;
 }
 
+function applyAccountIdentityPatch(env: StackarrEnv, currentEnv: StackarrEnv): StackarrEnv {
+  const next: StackarrEnv = {
+    ...env,
+    USERNAME: String(env.USERNAME ?? '').trim(),
+    USER_EMAIL: String(env.USER_EMAIL ?? '').trim()
+  };
+  const oldUsername = String(currentEnv.USERNAME ?? '').trim();
+  const oldEmail = String(currentEnv.USER_EMAIL ?? '').trim();
+
+  if (identityFieldFollowsGlobal(currentEnv.TRACEARR_ADMIN_USERNAME, oldUsername, '')) {
+    next.TRACEARR_ADMIN_USERNAME = next.USERNAME || 'stackarr';
+  }
+
+  if (identityFieldFollowsGlobal(currentEnv.TRACEARR_ADMIN_EMAIL, oldEmail, '')) {
+    next.TRACEARR_ADMIN_EMAIL = next.USER_EMAIL;
+  }
+
+  next.CLOUDFLARE_ACCESS_ALLOWED_EMAILS = syncAccountEmailList(
+    next.CLOUDFLARE_ACCESS_ALLOWED_EMAILS,
+    oldEmail,
+    next.USER_EMAIL,
+    next.CLOUDFLARE_ACCESS_ENABLED
+  );
+
+  return next;
+}
+
+function identityFieldFollowsGlobal(value: string | undefined, oldGlobalValue: string, emptyValue: string) {
+  const normalized = String(value ?? '').trim();
+  return normalized === emptyValue || (!!oldGlobalValue && normalized === oldGlobalValue);
+}
+
+function syncAccountEmailList(
+  value: string | undefined,
+  oldEmail: string,
+  newEmail: string,
+  accessEnabled: string | undefined
+) {
+  const emails = String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const normalizedOldEmail = oldEmail.toLowerCase();
+  let changed = false;
+
+  const nextEmails = emails.flatMap((email) => {
+    if (normalizedOldEmail && email.toLowerCase() === normalizedOldEmail) {
+      changed = true;
+      return newEmail ? [newEmail] : [];
+    }
+
+    return [email];
+  });
+
+  if (
+    !changed &&
+    newEmail &&
+    nextEmails.length === 0 &&
+    ['1', 'true', 'yes', 'on'].includes(String(accessEnabled ?? '').toLowerCase())
+  ) {
+    nextEmails.push(newEmail);
+    changed = true;
+  }
+
+  if (!changed) {
+    return value ?? '';
+  }
+
+  return Array.from(new Map(nextEmails.map((email) => [email.toLowerCase(), email])).values()).join(',');
+}
+
 function currentAdminPasswordError(password: string, required = false) {
   if (!password && required) {
     return 'Current admin password is required.';
@@ -1726,6 +1877,8 @@ function isCurrentPasswordProtectedEnvKey(key: string) {
   const normalized = key.toUpperCase();
 
   return (
+    normalized === 'USERNAME' ||
+    normalized === 'USER_EMAIL' ||
     normalized === 'PASSWORD' ||
     normalized.endsWith('_PASSWORD') ||
     normalized.includes('CLAIM_CODE') ||

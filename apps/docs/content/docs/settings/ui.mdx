@@ -9,7 +9,7 @@ UI settings control presentation:
 - Theme.
 - Refresh interval.
 - Service link mode.
-- Unified service URLs.
+- Direct service URLs.
 - Portless URL scheme.
 - Portless host suffix.
 - Advanced setting visibility.
@@ -27,8 +27,8 @@ Choose `light`, `dark`, or `system`. Stackarr applies the preference across the 
 
 ## Service Links
 
-Set service links to `portless` to use local names such as `https://app.stackarr` and `https://plex.stackarr`. The default `Unify Service URLs` setting makes dashboard links use Stackarr routes such as `https://app.stackarr/immich`, while direct aliases such as `https://immich.stackarr` remain registered for native apps, mobile apps, and manual access.
+Set service links to `portless` to use local names such as `https://app.stack` and `https://plex.stack`. Dashboard links use direct aliases by default, while Stackarr routes such as `https://app.stack/immich` continue to redirect to the matching direct service URL.
 
-When Stackarr is running in Docker, the app queues the setup task and asks the user to open Terminal and run `stackarr portless install`, because clean `.stackarr` names require host access for port `443`, certificate trust, and `/etc/hosts`. Source checkouts can use `bin/stackarr portless install`.
+When Stackarr is running in Docker, the app queues the setup task and asks the user to open Terminal and run `stackarr portless install`, because clean `.stack` names require host access for port `443`, certificate trust, and `/etc/hosts`. Source checkouts can use `bin/stackarr portless install`.
 
-These settings live in SQLite because they are app preferences, not bootstrap values needed before the app starts.
+These settings live in the configured Stackarr runtime settings store. In Postgres mode, Postgres is the source of truth.

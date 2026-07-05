@@ -9,13 +9,13 @@ function quote(value) {
 
 function normalizeHostSuffix(value) {
   return (
-    String(value || 'stackarr')
+    String(value || 'stack')
       .trim()
       .toLowerCase()
       .replace(/^https?:\/\//, '')
       .replace(/\/.*$/, '')
       .replace(/:\d+$/, '')
-      .replace(/^\.+|\.+$/g, '') || 'stackarr'
+      .replace(/^\.+|\.+$/g, '') || 'stack'
   );
 }
 
@@ -27,7 +27,7 @@ try {
   const mode = ['localhost', 'loopback', 'portless'].includes(ui.serviceUrlMode) ? ui.serviceUrlMode : 'localhost';
   const scheme = ui.serviceUrlScheme === 'http' ? 'http' : 'https';
   const suffix = normalizeHostSuffix(ui.serviceUrlHostSuffix);
-  const unify = ui.unifyServiceUrls === false ? 'false' : 'true';
+  const unify = ui.unifyServiceUrls === true ? 'true' : 'false';
 
   console.log('export STACKARR_SERVICE_URL_MODE=' + quote(mode));
   console.log('export STACKARR_SERVICE_URL_SCHEME=' + quote(scheme));
@@ -36,6 +36,6 @@ try {
 } catch {
   console.log("export STACKARR_SERVICE_URL_MODE='localhost'");
   console.log("export STACKARR_SERVICE_URL_SCHEME='https'");
-  console.log("export STACKARR_SERVICE_URL_HOST_SUFFIX='stackarr'");
-  console.log("export STACKARR_UNIFY_SERVICE_URLS='true'");
+  console.log("export STACKARR_SERVICE_URL_HOST_SUFFIX='stack'");
+  console.log("export STACKARR_UNIFY_SERVICE_URLS='false'");
 }

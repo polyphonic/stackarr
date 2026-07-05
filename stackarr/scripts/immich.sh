@@ -29,7 +29,7 @@ print_immich_status() {
     echo "Redis: shared redis service"
 
     if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-        stackarr_compose --profile database --profile immich ps immich immich-machine-learning database redis || true
+        stackarr_compose --profile database --profile immich ps immich immich-ml database redis || true
     else
         warn "Docker runtime is not ready; container status skipped"
     fi

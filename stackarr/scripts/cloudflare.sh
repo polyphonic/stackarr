@@ -27,6 +27,7 @@ usage() {
        stackarr cloudflare start
        stackarr cloudflare stop
        stackarr cloudflare status
+       stackarr cloudflare sync
        stackarr cloudflare rotate [--api-token <api-token>]
        stackarr cloudflare delete [--api-token <api-token>]
        stackarr cloudflare uninstall"
@@ -230,6 +231,153 @@ for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
         routes.append({"hostname": parts[0], "service": parts[1], "access": access})
 print(json.dumps(routes, separators=(",", ":")))
 PY
+}
+
+cloudflare_routes_from_tunnel_config() {
+    local config_file="$1"
+
+    python3 - "$config_file" <<'PY'
+import json
+import os
+import pathlib
+import sys
+from urllib.parse import urlparse
+
+path = pathlib.Path(sys.argv[1])
+
+try:
+    payload = json.loads(path.read_text())
+except Exception:
+    payload = {}
+
+result = payload.get("result") if isinstance(payload, dict) else {}
+config = result.get("config") if isinstance(result, dict) else {}
+ingress = config.get("ingress") if isinstance(config, dict) else []
+
+ports = {
+    str(os.environ.get("STACKARR_WEB_PORT") or "7777"): "app",
+    str(os.environ.get("PULSARR_PORT") or "3003"): "pulsarr",
+    str(os.environ.get("MAINTAINERR_PORT") or "6246"): "maintainerr",
+    str(os.environ.get("TRACEARR_PORT") or "3000"): "tracearr",
+    str(os.environ.get("BOOKORBIT_WEB_PORT") or "7582"): "bookorbit",
+    str(os.environ.get("IMMICH_WEB_PORT") or "2283"): "immich",
+    str(os.environ.get("ROMM_WEB_PORT") or "7583"): "romm",
+    "5055": "seerr",
+    "9091": "transmission",
+    str(os.environ.get("QBITTORRENT_WEBUI_PORT") or "8081"): "qbittorrent",
+    str(os.environ.get("PLEX_DOCKER_PORT") or "32400"): "plex",
+    str(os.environ.get("JELLYFIN_DOCKER_PORT") or "8096"): "jellyfin",
+    "4000": "tinymm",
+    "7878": "radarr",
+    "8989": "sonarr",
+    "8686": "lidarr",
+    "9696": "prowlarr",
+    "6767": "bazarr",
+}
+
+def normalize_hostname(value):
+    return str(value or "").strip().lower().removeprefix("https://").removeprefix("http://").split("/", 1)[0]
+
+def service_from_url(value):
+    text = str(value or "").strip()
+    if not text or text.startswith("http_status:"):
+        return ""
+    parsed = urlparse(text)
+    host = (parsed.hostname or "").lower()
+    port = str(parsed.port or (443 if parsed.scheme == "https" else 80))
+    if host in {"127.0.0.1", "localhost", "::1", "host.docker.internal"}:
+        return ports.get(port, "")
+    return ports.get(port, "")
+
+seen = set()
+for rule in ingress if isinstance(ingress, list) else []:
+    if not isinstance(rule, dict):
+        continue
+    hostname = normalize_hostname(rule.get("hostname"))
+    service = service_from_url(rule.get("service"))
+    if not hostname or not service or hostname in seen:
+        continue
+    seen.add(hostname)
+    print(f"{hostname}\t{service}")
+PY
+}
+
+cloudflare_access_apps_summary() {
+    local api_token="$1"
+    local account_id="$2"
+    local output_file="$3"
+    local apps_file
+
+    apps_file="$(mktemp)"
+    if ! cloudflare_api_request "GET" "/accounts/$account_id/access/apps?per_page=1000" "$apps_file" "" "$api_token"; then
+        rm -f "$apps_file"
+        return 1
+    fi
+
+    python3 - "$apps_file" > "$output_file" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for app in payload.get("result") or []:
+    app_id = str(app.get("id") or "")
+    session = str(app.get("session_duration") or "")
+    domains = []
+    if app.get("domain"):
+        domains.append(app.get("domain"))
+    for item in app.get("self_hosted_domains") or []:
+        if isinstance(item, dict):
+            domains.append(item.get("domain") or item.get("hostname") or "")
+        else:
+            domains.append(item)
+    for domain in domains:
+        hostname = str(domain or "").strip().lower()
+        if hostname:
+            print(f"{hostname}\t{app_id}\t{session}")
+PY
+    rm -f "$apps_file"
+}
+
+cloudflare_access_policy_summary() {
+    local api_token="$1"
+    local account_id="$2"
+    local output_file="$3"
+    local policies_file
+
+    policies_file="$(mktemp)"
+    if ! cloudflare_api_request "GET" "/accounts/$account_id/access/policies?per_page=1000" "$policies_file" "" "$api_token"; then
+        rm -f "$policies_file"
+        return 1
+    fi
+
+    python3 - "$policies_file" "$DEFAULT_ACCESS_POLICY_NAME" > "$output_file" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+target = sys.argv[2]
+
+for policy in payload.get("result") or []:
+    if policy.get("name") != target:
+        continue
+    emails = []
+    for item in policy.get("include") or []:
+        if not isinstance(item, dict):
+            continue
+        email = item.get("email")
+        if isinstance(email, dict):
+            value = email.get("email")
+        else:
+            value = email
+        if value:
+            emails.append(str(value).strip().lower())
+    session = str(policy.get("session_duration") or "")
+    print(",".join(dict.fromkeys(email for email in emails if email)) + "\t" + session)
+    break
+PY
+    rm -f "$policies_file"
 }
 
 cloudflare_access_route_count() {
@@ -1920,6 +2068,157 @@ status_cloudflare() {
     rm -f "$routes_file"
 }
 
+sync_cloudflare() {
+    local api_token=""
+    local token=""
+    local account_id=""
+    local tunnel_id=""
+    local tunnel_name="$DEFAULT_TUNNEL_NAME"
+    local details=""
+    local config_file routes_raw_file routes_file routes_json access_apps_file policy_file
+    local route_count access_route_count first_hostname zone_info zone_id=""
+    local emails="" session_duration="" app_session="" policy_line="" email_count=0
+    local cloudflared_bin=""
+
+    load_cloudflare_state
+
+    if [[ -f "$API_TOKEN_FILE" ]]; then
+        api_token="$(read_secret_file "$API_TOKEN_FILE" || true)"
+    else
+        api_token="$(read_cloudflare_api_token || true)"
+    fi
+    [[ -n "$api_token" ]] || fail "Cloudflare API token is required to sync real tunnel and Access settings."
+
+    if [[ -f "$TOKEN_FILE" ]]; then
+        token="$(read_secret_file "$TOKEN_FILE" || true)"
+    else
+        token="$(read_cloudflare_tunnel_token || true)"
+    fi
+
+    account_id="${CLOUDFLARE_ACCOUNT_ID:-}"
+    tunnel_id="${CLOUDFLARED_TUNNEL_ID:-}"
+    if [[ -n "$token" ]]; then
+        account_id="$(decode_tunnel_token_field "$token" "a" || true)"
+        tunnel_id="$(decode_tunnel_token_field "$token" "t" || true)"
+    fi
+
+    if [[ -z "$account_id" ]]; then
+        fail "Could not determine Cloudflare account ID from the connector token or runtime config."
+    fi
+
+    if [[ -z "$tunnel_id" ]]; then
+        details="$(find_cloudflare_tunnel_by_name "$api_token" "$account_id" "${CLOUDFLARED_TUNNEL_NAME:-$DEFAULT_TUNNEL_NAME}" || true)"
+        if [[ -n "$details" ]]; then
+            IFS=$'\t' read -r tunnel_id tunnel_name <<< "$details"
+        fi
+    fi
+    [[ -n "$tunnel_id" ]] || fail "Could not determine Cloudflare tunnel ID to sync."
+
+    details="$(fetch_cloudflare_tunnel_details "$api_token" "$account_id" "$tunnel_id" || true)"
+    if [[ -n "$details" ]]; then
+        IFS=$'\t' read -r tunnel_id tunnel_name <<< "$details"
+    fi
+    [[ -n "$tunnel_name" ]] || tunnel_name="$DEFAULT_TUNNEL_NAME"
+
+    config_file="$(mktemp)"
+    routes_raw_file="$(mktemp)"
+    routes_file="$(mktemp)"
+    access_apps_file="$(mktemp)"
+    policy_file="$(mktemp)"
+
+    cloudflare_api_request "GET" "/accounts/$account_id/cfd_tunnel/$tunnel_id/configurations" "$config_file" "" "$api_token" || {
+        rm -f "$config_file" "$routes_raw_file" "$routes_file" "$access_apps_file" "$policy_file"
+        fail "Could not fetch the real Cloudflare tunnel ingress configuration."
+    }
+    cloudflare_routes_from_tunnel_config "$config_file" > "$routes_raw_file"
+
+    cloudflare_access_apps_summary "$api_token" "$account_id" "$access_apps_file" || {
+        rm -f "$config_file" "$routes_raw_file" "$routes_file" "$access_apps_file" "$policy_file"
+        fail "Could not inspect Cloudflare Access apps. Check that the API token can read Zero Trust Access applications."
+    }
+
+    python3 - "$routes_raw_file" "$access_apps_file" > "$routes_file" <<'PY'
+import pathlib
+import sys
+
+routes_file = pathlib.Path(sys.argv[1])
+apps_file = pathlib.Path(sys.argv[2])
+
+protected = set()
+for line in apps_file.read_text().splitlines():
+    parts = line.split("\t")
+    if parts and parts[0]:
+        protected.add(parts[0].strip().lower())
+
+for line in routes_file.read_text().splitlines():
+    parts = line.split("\t")
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        continue
+    hostname = parts[0].strip().lower()
+    service = parts[1].strip().lower()
+    access = "true" if hostname in protected else "false"
+    print(f"{hostname}\t{service}\t{access}")
+PY
+
+    routes_json="$(routes_to_json "$routes_file")"
+    route_count="$(grep -cve '^[[:space:]]*$' "$routes_file" || true)"
+    access_route_count="$(cloudflare_access_route_count "$routes_file")"
+
+    cloudflare_access_policy_summary "$api_token" "$account_id" "$policy_file" || {
+        rm -f "$config_file" "$routes_raw_file" "$routes_file" "$access_apps_file" "$policy_file"
+        fail "Could not inspect Cloudflare Access reusable policy. Check that the API token can read Access policies."
+    }
+    if [[ -s "$policy_file" ]]; then
+        policy_line="$(head -n 1 "$policy_file")"
+        emails="${policy_line%%$'\t'*}"
+        if [[ "$policy_line" == *$'\t'* ]]; then
+            session_duration="${policy_line#*$'\t'}"
+        fi
+    fi
+    if [[ -z "$session_duration" ]]; then
+        app_session="$(awk -F'\t' '$3 != "" {print $3; exit}' "$access_apps_file")"
+        session_duration="${app_session:-720h}"
+    fi
+
+    if [[ "$route_count" -gt 0 ]]; then
+        first_hostname="$(awk -F'\t' 'NF >= 2 && $1 != "" {print $1; exit}' "$routes_file")"
+        zone_info="$(resolve_zone_info "$first_hostname" "$api_token" || true)"
+        if [[ -n "$zone_info" ]]; then
+            IFS=$'\t' read -r zone_id _ <<< "$zone_info"
+        fi
+    fi
+
+    cloudflared_bin="$(find_cloudflared_bin || true)"
+    [[ -n "$cloudflared_bin" ]] && set_env_value "CLOUDFLARED_BIN" "$cloudflared_bin"
+    set_env_value "CLOUDFLARED_METRICS_PORT" "${CLOUDFLARED_METRICS_PORT:-$DEFAULT_METRICS_PORT}"
+    [[ -f "$TOKEN_FILE" ]] && set_env_value "CLOUDFLARED_TOKEN_FILE" "$TOKEN_FILE"
+    set_env_value "CLOUDFLARED_KEEP_LAN" "${CLOUDFLARED_KEEP_LAN:-true}"
+    set_env_value "CLOUDFLARE_ACCOUNT_ID" "$account_id"
+    set_env_value "CLOUDFLARED_TUNNEL_ID" "$tunnel_id"
+    set_env_value "CLOUDFLARED_TUNNEL_NAME" "$tunnel_name"
+    set_env_value "CLOUDFLARE_ROUTE_MANAGED" "true"
+    set_env_value "CLOUDFLARE_TUNNEL_ROUTES" "$routes_json"
+    [[ -n "$zone_id" ]] && set_env_value "CLOUDFLARE_ZONE_ID" "$zone_id"
+    set_env_value "CLOUDFLARE_ACCESS_ENABLED" "$([[ "$access_route_count" -gt 0 ]] && printf true || printf false)"
+    set_env_value "CLOUDFLARE_ACCESS_ALLOWED_EMAILS" "$emails"
+    set_env_value "CLOUDFLARE_ACCESS_SESSION_DURATION" "${session_duration:-720h}"
+
+    load_env
+    write_compose_env_file
+
+    ok "Synced Cloudflare tunnel settings from remote state"
+    echo "Tunnel name: $tunnel_name"
+    echo "Tunnel ID: $tunnel_id"
+    echo "Routes synced: $route_count"
+    echo "Access-protected routes: $access_route_count"
+    if [[ -n "$emails" ]]; then
+        email_count="$(awk -F',' '{print NF}' <<< "$emails")"
+    fi
+    echo "Allowed emails synced: $email_count"
+
+    rm -f "$config_file" "$routes_raw_file" "$routes_file" "$access_apps_file" "$policy_file"
+}
+
 delete_cloudflare() {
     local api_token=""
     local effective_api_token=""
@@ -2174,6 +2473,10 @@ case "$ACTION" in
         ;;
     status)
         status_cloudflare
+        ;;
+    sync)
+        print_header "Stackarr Cloudflare"
+        sync_cloudflare
         ;;
     rotate)
         print_header "Stackarr Cloudflare"

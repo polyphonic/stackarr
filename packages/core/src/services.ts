@@ -379,7 +379,7 @@ function service(
     mode,
     port,
     localUrl: port ? `http://127.0.0.1:${port}` : undefined,
-    browserUrl: port ? browserUrl(name, port, settings) : undefined,
+    browserUrl: mode !== 'disabled' && port ? browserUrl(name, port, settings) : undefined,
     status: mode === 'disabled' ? 'disabled' : 'configured',
     dockerService: name === 'stackarr' ? undefined : name,
     ...extras
@@ -427,19 +427,15 @@ function mediaServer(
 
 function browserUrl(name: string, port: number, settings?: StackarrSettings) {
   const mode = settings?.ui.serviceUrlMode ?? 'localhost';
-  const path = browserPath(name);
 
   if (mode === 'portless') {
     const scheme = settings?.ui.serviceUrlScheme === 'http' ? 'http' : 'https';
-    const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stackarr');
-    const directUrl = `${scheme}://${hostnameLabel(name)}.${suffix}${path}`;
+    const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stack');
 
-    if (name !== 'stackarr' && settings?.ui.unifyServiceUrls !== false) {
-      return `${scheme}://${hostnameLabel('stackarr')}.${suffix}/${serviceRouteSlug(name)}`;
-    }
-
-    return directUrl;
+    return `${scheme}://${hostnameLabel(name)}.${suffix}`;
   }
+
+  const path = browserPath(name);
 
   if (mode === 'loopback') {
     return `http://127.0.0.1:${port}${path}`;
@@ -450,7 +446,7 @@ function browserUrl(name: string, port: number, settings?: StackarrSettings) {
 
 export function directPortlessBrowserUrl(name: string, settings?: StackarrSettings, pathOverride?: string) {
   const scheme = settings?.ui.serviceUrlScheme === 'http' ? 'http' : 'https';
-  const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stackarr');
+  const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stack');
   const path = pathOverride ?? browserPath(name);
 
   return `${scheme}://${hostnameLabel(name)}.${suffix}${path}`;
@@ -556,7 +552,7 @@ function normalizeHostSuffix(suffix: string) {
       .replace(/^https?:\/\//, '')
       .replace(/\/.*$/, '')
       .replace(/:\d+$/, '')
-      .replace(/^\.+|\.+$/g, '') || 'stackarr'
+      .replace(/^\.+|\.+$/g, '') || 'stack'
   );
 }
 

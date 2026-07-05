@@ -195,7 +195,7 @@ stackarr plugins install hermes`}</LandingCodeBlock>
             <h3>Docker stack</h3>
             <p>Spin up Stackarr with its managed services when you want the full home media stack in one launch.</p>
             <LandingCodeBlock>{`docker pull polyphonic/stackarr:alpha
-docker compose -f stackarr/docker-compose.yml --profile stackarr up -d stackarr`}</LandingCodeBlock>
+	docker compose -f stackarr/docker-compose.yml --profile stackarr up -d app`}</LandingCodeBlock>
           </article>
         </div>
       </section>

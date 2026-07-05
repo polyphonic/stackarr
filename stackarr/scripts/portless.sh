@@ -9,6 +9,7 @@ STACKARR_BIN=""
 PLIST_DIR=""
 PLIST_PATH=""
 LAUNCH_DOMAIN=""
+REGISTERED_ALIASES=()
 
 host_install_hint() {
     echo "Open Terminal and run:"
@@ -24,10 +25,10 @@ load_browser_link_settings() {
 
     : "${STACKARR_SERVICE_URL_MODE:=localhost}"
     : "${STACKARR_SERVICE_URL_SCHEME:=https}"
-    : "${STACKARR_SERVICE_URL_HOST_SUFFIX:=stackarr}"
-    : "${STACKARR_UNIFY_SERVICE_URLS:=true}"
+    : "${STACKARR_SERVICE_URL_HOST_SUFFIX:=stack}"
+    : "${STACKARR_UNIFY_SERVICE_URLS:=false}"
 
-    [[ -f "$db_file" ]] || return 0
+    [[ -n "${STACKARR_DATABASE_URL:-}" || -f "$db_file" ]] || return 0
     [[ -f "$exporter" ]] || return 0
     command -v node >/dev/null 2>&1 || return 0
 
@@ -83,6 +84,7 @@ register() {
     local port="$2"
 
     [[ -n "$port" ]] || return 0
+    REGISTERED_ALIASES+=("$name")
     PORTLESS_TLD="$tld" portless alias "$name" "$port" --force
     ensure_route_file_alias "$name" "$port"
     ok "${scheme}://$name.${tld} -> :$port"
@@ -105,7 +107,7 @@ const fs = require('node:fs');
 
 const routesFile = process.env.STACKARR_PORTLESS_ROUTES_FILE;
 const alias = String(process.env.STACKARR_PORTLESS_ALIAS || '').trim().toLowerCase();
-const tld = String(process.env.STACKARR_PORTLESS_TLD || 'stackarr').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+const tld = String(process.env.STACKARR_PORTLESS_TLD || 'stack').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
 const port = Number(process.env.STACKARR_PORTLESS_PORT || 0);
 
 if (!routesFile || !alias || !tld || !port) process.exit(0);
@@ -212,15 +214,30 @@ prune_stale_stackarr_aliases() {
     [[ -f "$routes_file" ]] || return 0
     command -v node >/dev/null 2>&1 || return 0
 
-    STACKARR_PORTLESS_TLD="$tld" STACKARR_PORTLESS_ROUTES_FILE="$routes_file" node <<'NODE'
+    local active_aliases
+    active_aliases="$(IFS=,; printf '%s' "${REGISTERED_ALIASES[*]}")"
+
+    STACKARR_PORTLESS_TLD="$tld" \
+        STACKARR_PORTLESS_ACTIVE_ALIASES="$active_aliases" \
+        STACKARR_PORTLESS_ROUTES_FILE="$routes_file" \
+        node <<'NODE'
 const fs = require('node:fs');
 
 const routesFile = process.env.STACKARR_PORTLESS_ROUTES_FILE;
-const tld = String(process.env.STACKARR_PORTLESS_TLD || 'stackarr').toLowerCase();
+const tld = String(process.env.STACKARR_PORTLESS_TLD || 'stack').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+const activeAliases = new Set(
+  String(process.env.STACKARR_PORTLESS_ACTIVE_ALIASES || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+);
 const stackarrAliases = new Set([
+  'stackarr',
   'app',
   'transmission',
   'qbittorrent',
+  'qbit',
+  'qb',
   'prowlarr',
   'radarr',
   'sonarr',
@@ -241,6 +258,7 @@ const stackarrAliases = new Set([
   'plex',
   'jellyfin',
 ]);
+const activeHostnames = new Set([...activeAliases].map((alias) => `${alias}.${tld}`));
 
 try {
   const routes = JSON.parse(fs.readFileSync(routesFile, 'utf8'));
@@ -251,7 +269,7 @@ try {
     const parts = hostname.split('.');
     const alias = parts.shift();
     if (!alias || !stackarrAliases.has(alias)) return true;
-    return parts.join('.') === tld;
+    return activeHostnames.has(hostname);
   });
 
   if (next.length === routes.length) process.exit(0);
@@ -387,7 +405,7 @@ case "$cmd" in
         ensure_portless_path
         require_command portless
 
-        tld="${STACKARR_SERVICE_URL_HOST_SUFFIX:-stackarr}"
+        tld="${STACKARR_SERVICE_URL_HOST_SUFFIX:-stack}"
         scheme="${STACKARR_SERVICE_URL_SCHEME:-https}"
 
         print_header "Registering Stackarr Portless aliases"

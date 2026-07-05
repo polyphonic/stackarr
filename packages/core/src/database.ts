@@ -86,13 +86,6 @@ export function readJsonSetting<T>(key: string, fallback: T): T {
 
   if (postgresConfigured('main')) {
     row = readPostgresSetting(key);
-    if (!row?.value && fs.existsSync(appDatabasePath)) {
-      const sqliteRow = readSqliteSetting(key);
-      if (sqliteRow?.value !== undefined) {
-        writePostgresSetting(key, sqliteRow.value);
-        row = sqliteRow;
-      }
-    }
   } else if (fs.existsSync(appDatabasePath)) {
     row = readSqliteSetting(key);
   }
@@ -136,10 +129,7 @@ function writeSqliteSetting(key: string, value: string) {
 
 export function readNotificationRows(): NotificationRow[] {
   if (postgresConfigured('main')) {
-    const rows = readPostgresNotifications();
-    if (rows) {
-      return rows;
-    }
+    return readPostgresNotifications() ?? [];
   }
 
   if (!fs.existsSync(appDatabasePath)) {
@@ -157,6 +147,8 @@ export function insertNotificationRow(notification: Omit<NotificationRow, 'id'>)
     if (id) {
       return id;
     }
+
+    throw new Error('Postgres notification insert failed.');
   }
 
   const result = getSqliteDatabase()
@@ -179,10 +171,7 @@ export function insertNotificationRow(notification: Omit<NotificationRow, 'id'>)
 
 export function readAgentActivityRows(limit = 100): AgentActivityRecord[] | undefined {
   if (postgresConfigured('log')) {
-    const rows = readPostgresAgentActivity(limit);
-    if (rows) {
-      return rows;
-    }
+    return readPostgresAgentActivity(limit);
   }
 
   try {
@@ -213,8 +202,8 @@ export function readAgentActivityRows(limit = 100): AgentActivityRecord[] | unde
 }
 
 export function insertAgentActivityRow(record: AgentActivityRecord) {
-  if (postgresConfigured('log') && insertPostgresAgentActivity(record)) {
-    return true;
+  if (postgresConfigured('log')) {
+    return insertPostgresAgentActivity(record);
   }
 
   try {
@@ -258,8 +247,8 @@ export function insertAgentActivityRow(record: AgentActivityRecord) {
 }
 
 export function updateAgentActivityRow(id: string, patch: Partial<AgentActivityRecord>) {
-  if (postgresConfigured('log') && updatePostgresAgentActivity(id, patch)) {
-    return true;
+  if (postgresConfigured('log')) {
+    return updatePostgresAgentActivity(id, patch);
   }
 
   try {
@@ -295,10 +284,7 @@ export function updateAgentActivityRow(id: string, patch: Partial<AgentActivityR
 
 export function readTaskRows(): StackarrTask[] | undefined {
   if (postgresConfigured('main')) {
-    const rows = readPostgresTasks();
-    if (rows) {
-      return rows;
-    }
+    return readPostgresTasks();
   }
 
   try {
@@ -327,8 +313,8 @@ export function readTaskRows(): StackarrTask[] | undefined {
 }
 
 export function writeTaskRows(tasks: StackarrTask[]) {
-  if (postgresConfigured('main') && writePostgresTasks(tasks)) {
-    return true;
+  if (postgresConfigured('main')) {
+    return writePostgresTasks(tasks);
   }
 
   const db = getSqliteDatabase();

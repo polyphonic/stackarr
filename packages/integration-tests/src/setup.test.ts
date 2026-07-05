@@ -186,7 +186,8 @@ test('dry-run setup records Tracearr config for the monitoring service', async (
   assert.equal(result.plan.config.TRACEARR_POSTGRES_USER, 'tracearr');
   assert.equal(result.plan.config.TRACEARR_POSTGRES_PASSWORD, '********');
   assert.equal(result.plan.config.DATABASE_IMAGE, 'timescale/timescaledb-ha:pg18.1-ts2.25.0');
-  assert.equal(result.plan.config.REDIS_IMAGE, 'redis:8-alpine');
+  assert.equal(result.plan.config.DATABASE_PGDATA, '/var/lib/postgresql/data');
+  assert.equal(result.plan.config.REDIS_IMAGE, 'redis:8.8.0-alpine');
 });
 
 test('dry-run setup lets music root differ from media root', async () => {
@@ -383,11 +384,12 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   );
   assert.match(compose, /REDIS_URL: redis:\/\/redis:6379/);
   assert.match(compose, /container_name: redis/);
-  assert.match(compose, /image: \$\{REDIS_IMAGE:-redis:8-alpine\}/);
+  assert.match(compose, /image: \$\{REDIS_IMAGE:-redis:8\.8\.0-alpine\}/);
   assert.doesNotMatch(compose, /container_name: database-init/);
   assert.match(common, /stackarr_compose --profile database exec -T/);
   assert.match(compose, /container_name: immich/);
-  assert.match(compose, /container_name: immich-machine-learning/);
+  assert.match(compose, /container_name: immich-ml/);
+  assert.match(compose, /IMMICH_MACHINE_LEARNING_URL: http:\/\/immich-ml:3003/);
   assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);
   assert.match(compose, /DB_HOSTNAME: database/);
   assert.match(compose, /REDIS_HOSTNAME: redis/);
@@ -425,6 +427,8 @@ test('Stackarr dashboard uses mounted runtime config inside Docker', async () =>
   assert.match(compose, /STACKARR_REPO_ROOT: \/app/);
   assert.match(compose, /STACKARR_DATABASE_FILE: \/stackarr-config\/stackarr\.db/);
   assert.match(compose, /\$\{STACKARR_DATABASE_DIR:-\.\/\.stackarr\/config\}:\/stackarr-config/);
+  assert.match(compose, /^  app:$/m);
+  assert.match(compose, /container_name: app/);
   assert.doesNotMatch(compose, /STACKARR_DATABASE_FILE: \$\{STACKARR_DATABASE_FILE/);
   assert.doesNotMatch(compose, /\.\.:\/stackarr-workspace/);
 });

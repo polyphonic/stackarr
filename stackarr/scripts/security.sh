@@ -122,7 +122,7 @@ security_service_list() {
     fi
     if optional_service_enabled immich; then
         services+=("immich")
-        services+=("immich-machine-learning")
+        services+=("immich-ml")
         services+=("redis")
     fi
     if optional_service_enabled romm; then
@@ -138,6 +138,9 @@ security_service_list() {
     if optional_service_enabled tracearr; then
         services+=("tracearr")
         services+=("redis")
+    fi
+    if flag_enabled "${STACKARR_WEB_ENABLED:-false}"; then
+        services+=("app")
     fi
 
     for service in "${services[@]}"; do

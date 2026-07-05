@@ -289,6 +289,7 @@ const hostOnlyCommands = new Set([
   'CloudflareStart',
   'CloudflareStop',
   'CloudflareStatus',
+  'CloudflareSync',
   'CloudflareRotate',
   'CloudflareDelete',
   'CloudflareUninstall',

@@ -89,6 +89,27 @@ test('runtime config writes update only the active Postgres row when Postgres is
   }
 });
 
+test('runtime config reads do not promote SQLite bootstrap rows into Postgres', async () => {
+  const fixture = await createFakePostgresFixture('stackarr.runtimeConfig');
+  writeSqliteSetting(
+    fixture.databaseFile,
+    'stackarr.runtimeConfig',
+    JSON.stringify({ STACKARR_WEB_PORT: '7777', KEEP: 'sqlite' })
+  );
+
+  try {
+    const stackarrDb = requireFreshStackarrDb(fixture);
+    const value = stackarrDb.readSetting('stackarr.runtimeConfig');
+    const log = await readFile(fixture.psqlLog, 'utf8');
+
+    assert.equal(value, undefined);
+    assert.doesNotMatch(log, /insert into app_settings[\s\S]*KEEP[\s\S]*sqlite/);
+  } finally {
+    fixture.restoreEnv();
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 function writeSqliteSetting(databaseFile: string, key: string, value: string) {
   const db = new DatabaseSync(databaseFile);
   try {
@@ -115,11 +136,12 @@ function readSqliteSetting(databaseFile: string, key: string) {
   }
 }
 
-async function createFakePostgresFixture(settingKey: string, postgresValue: unknown) {
+async function createFakePostgresFixture(settingKey: string, postgresValue?: unknown) {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-settings-store-test-'));
   const binDir = path.join(root, 'bin');
   const psqlLog = path.join(root, 'psql.log');
   const databaseFile = path.join(root, 'stackarr.db');
+  const hasPostgresValue = arguments.length > 1;
   await mkdir(binDir, { recursive: true });
   await writeFile(psqlLog, '');
 
@@ -130,7 +152,7 @@ async function createFakePostgresFixture(settingKey: string, postgresValue: unkn
 const fs = require('node:fs');
 const input = fs.readFileSync(0, 'utf8');
 fs.appendFileSync(process.env.FAKE_PSQL_LOG, input + '\\n---\\n');
-if (input.includes("select value from app_settings where key = '${settingKey.replace(/'/g, "''")}'")) {
+if (${JSON.stringify(hasPostgresValue)} && input.includes("select value from app_settings where key = '${settingKey.replace(/'/g, "''")}'")) {
   process.stdout.write(${JSON.stringify(JSON.stringify(postgresValue))});
 }
 `

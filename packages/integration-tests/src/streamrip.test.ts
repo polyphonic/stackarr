@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { readJsonSetting } from '../../core/src/database';
+import { readJsonSetting, writeJsonSetting } from '../../core/src/database';
 
 const stateDir = mkdtempSync(path.join(tmpdir(), 'stackarr-streamrip-test-'));
 process.env.STACKARR_DATABASE_FILE = path.join(stateDir, 'stackarr.db');
@@ -74,4 +74,26 @@ test('Streamrip config normalizes copied Deezer ARL assignments', async () => {
 
   const { renderStreamripToml } = await core();
   assert.match(renderStreamripToml(), /arl = "wrapped-cookie"/);
+});
+
+test('Streamrip config ignores undecryptable restored secrets', async () => {
+  const { getServiceConfigAction, getStreamripConfigAction } = await core();
+
+  writeJsonSetting('stackarr.streamripConfig', {
+    deezer: {
+      arl: 'stackarr:v1:not-valid:not-valid:not-valid'
+    }
+  });
+
+  const publicConfig = getStreamripConfigAction().config;
+  assert.equal(publicConfig.deezer.arl, '');
+
+  const model = getServiceConfigAction({ service: 'streamrip' });
+  assert.ok('groups' in model);
+  assert.equal(
+    model.groups
+      .find((group) => group.title === 'Deezer')
+      ?.fields.find((field) => field.id === 'deezer.arl')?.value,
+    ''
+  );
 });
