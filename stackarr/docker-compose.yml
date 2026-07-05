@@ -15,11 +15,13 @@ services:
     profiles:
       - database
     container_name: database
-    image: ${DATABASE_IMAGE:-pgvector/pgvector:pg18-trixie}
+    image: ${DATABASE_IMAGE:-timescale/timescaledb-ha:pg18.1-ts2.25.0}
+    command: postgres -c timescaledb.license=timescale -c timescaledb.max_tuples_decompressed_per_dml_transaction=0 -c max_locks_per_transaction=4096 -c timescaledb.telemetry_level=off
     environment:
       POSTGRES_USER: ${DATABASE_SUPERUSER:-postgres}
       POSTGRES_PASSWORD: ${DATABASE_SUPERUSER_PASSWORD:-stackarr}
       POSTGRES_DB: ${DATABASE_NAME:-postgres}
+      PGDATA: ${DATABASE_PGDATA:-/var/lib/postgresql/data}
     volumes:
       - "${APP_ROOT:-./.stackarr}/config/database:/var/lib/postgresql"
     ports:
@@ -36,76 +38,6 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  database-init:
-    profiles:
-      - database
-    container_name: database-init
-    image: ${DATABASE_IMAGE:-pgvector/pgvector:pg18-trixie}
-    depends_on:
-      database:
-        condition: service_healthy
-    environment:
-      DATABASE_HOST: database
-      DATABASE_CONTAINER_PORT: 5432
-      DATABASE_SUPERUSER: ${DATABASE_SUPERUSER:-postgres}
-      DATABASE_SUPERUSER_PASSWORD: ${DATABASE_SUPERUSER_PASSWORD:-stackarr}
-      DATABASE_NAME: ${DATABASE_NAME:-postgres}
-      STACKARR_DATABASE_MODE: ${STACKARR_DATABASE_MODE:-app-default}
-      ENABLE_MOVIES: ${ENABLE_MOVIES:-true}
-      ENABLE_TV_SHOWS: ${ENABLE_TV_SHOWS:-true}
-      ENABLE_4K_SERVARR: ${ENABLE_4K_SERVARR:-false}
-      ENABLE_BAZARR: ${ENABLE_BAZARR:-true}
-      ENABLE_LIDARR: ${ENABLE_LIDARR:-true}
-      ENABLE_BOOKORBIT: ${ENABLE_BOOKORBIT:-false}
-      ENABLE_SEERR: ${ENABLE_SEERR:-false}
-      ENABLE_PULSARR: ${ENABLE_PULSARR:-true}
-      STACKARR_POSTGRES_DATABASE: ${STACKARR_POSTGRES_DATABASE:-stackarr-main}
-      STACKARR_POSTGRES_MAIN_DATABASE: ${STACKARR_POSTGRES_MAIN_DATABASE:-stackarr-main}
-      STACKARR_POSTGRES_LOG_DATABASE: ${STACKARR_POSTGRES_LOG_DATABASE:-stackarr-log}
-      STACKARR_POSTGRES_USER: ${STACKARR_POSTGRES_USER:-stackarr}
-      STACKARR_POSTGRES_PASSWORD: ${STACKARR_POSTGRES_PASSWORD:-stackarr}
-      BOOKORBIT_POSTGRES_DATABASE: ${BOOKORBIT_POSTGRES_DATABASE:-bookorbit}
-      BOOKORBIT_POSTGRES_USER: ${BOOKORBIT_POSTGRES_USER:-bookorbit}
-      BOOKORBIT_POSTGRES_PASSWORD: ${BOOKORBIT_POSTGRES_PASSWORD:-stackarr}
-      SEERR_POSTGRES_DATABASE: ${SEERR_POSTGRES_DATABASE:-seerr}
-      SEERR_POSTGRES_USER: ${SEERR_POSTGRES_USER:-seerr}
-      SEERR_POSTGRES_PASSWORD: ${SEERR_POSTGRES_PASSWORD:-stackarr}
-      PULSARR_POSTGRES_DATABASE: ${PULSARR_POSTGRES_DATABASE:-pulsarr}
-      PULSARR_POSTGRES_USER: ${PULSARR_POSTGRES_USER:-pulsarr}
-      PULSARR_POSTGRES_PASSWORD: ${PULSARR_POSTGRES_PASSWORD:-stackarr}
-      PULSARR_DB_TYPE: ${PULSARR_DB_TYPE:-sqlite}
-      BAZARR_POSTGRES_DATABASE: ${BAZARR_POSTGRES_DATABASE:-bazarr}
-      BAZARR_POSTGRES_USER: ${BAZARR_POSTGRES_USER:-bazarr}
-      BAZARR_POSTGRES_PASSWORD: ${BAZARR_POSTGRES_PASSWORD:-stackarr}
-      PROWLARR_POSTGRES_MAIN_DATABASE: ${PROWLARR_POSTGRES_MAIN_DATABASE:-prowlarr-main}
-      PROWLARR_POSTGRES_LOG_DATABASE: ${PROWLARR_POSTGRES_LOG_DATABASE:-prowlarr-log}
-      PROWLARR_POSTGRES_USER: ${PROWLARR_POSTGRES_USER:-prowlarr}
-      PROWLARR_POSTGRES_PASSWORD: ${PROWLARR_POSTGRES_PASSWORD:-stackarr}
-      RADARR_POSTGRES_MAIN_DATABASE: ${RADARR_POSTGRES_MAIN_DATABASE:-radarr-main}
-      RADARR_POSTGRES_LOG_DATABASE: ${RADARR_POSTGRES_LOG_DATABASE:-radarr-log}
-      RADARR_POSTGRES_USER: ${RADARR_POSTGRES_USER:-radarr}
-      RADARR_POSTGRES_PASSWORD: ${RADARR_POSTGRES_PASSWORD:-stackarr}
-      RADARR4K_POSTGRES_MAIN_DATABASE: ${RADARR4K_POSTGRES_MAIN_DATABASE:-radarr4k-main}
-      RADARR4K_POSTGRES_LOG_DATABASE: ${RADARR4K_POSTGRES_LOG_DATABASE:-radarr4k-log}
-      RADARR4K_POSTGRES_USER: ${RADARR4K_POSTGRES_USER:-radarr4k}
-      RADARR4K_POSTGRES_PASSWORD: ${RADARR4K_POSTGRES_PASSWORD:-stackarr}
-      SONARR_POSTGRES_MAIN_DATABASE: ${SONARR_POSTGRES_MAIN_DATABASE:-sonarr-main}
-      SONARR_POSTGRES_LOG_DATABASE: ${SONARR_POSTGRES_LOG_DATABASE:-sonarr-log}
-      SONARR_POSTGRES_USER: ${SONARR_POSTGRES_USER:-sonarr}
-      SONARR_POSTGRES_PASSWORD: ${SONARR_POSTGRES_PASSWORD:-stackarr}
-      SONARR4K_POSTGRES_MAIN_DATABASE: ${SONARR4K_POSTGRES_MAIN_DATABASE:-sonarr4k-main}
-      SONARR4K_POSTGRES_LOG_DATABASE: ${SONARR4K_POSTGRES_LOG_DATABASE:-sonarr4k-log}
-      SONARR4K_POSTGRES_USER: ${SONARR4K_POSTGRES_USER:-sonarr4k}
-      SONARR4K_POSTGRES_PASSWORD: ${SONARR4K_POSTGRES_PASSWORD:-stackarr}
-      LIDARR_POSTGRES_MAIN_DATABASE: ${LIDARR_POSTGRES_MAIN_DATABASE:-lidarr-main}
-      LIDARR_POSTGRES_LOG_DATABASE: ${LIDARR_POSTGRES_LOG_DATABASE:-lidarr-log}
-      LIDARR_POSTGRES_USER: ${LIDARR_POSTGRES_USER:-lidarr}
-      LIDARR_POSTGRES_PASSWORD: ${LIDARR_POSTGRES_PASSWORD:-stackarr}
-    volumes:
-      - "./scripts/database-init.sh:/stackarr/database-init.sh:ro"
-    command: ["sh", "/stackarr/database-init.sh"]
-    restart: "no"
-
   stackarr:
     profiles:
       - stackarr
@@ -118,8 +50,8 @@ services:
       PORT: ${STACKARR_WEB_PORT:-7777}
       TZ: ${TIMEZONE:-Etc/UTC}
       STACKARR_WEB_PORT: ${STACKARR_WEB_PORT:-7777}
-      STACKARR_REPO_ROOT: /stackarr-workspace
-      STACKARR_DATABASE_FILE: ${STACKARR_DATABASE_FILE:-/stackarr-workspace/stackarr/config/stackarr.db}
+      STACKARR_REPO_ROOT: /app
+      STACKARR_DATABASE_FILE: /stackarr-config/stackarr.db
       STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
       STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
       STACKARR_COMPOSE_PROJECT_NAME: ${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}
@@ -133,10 +65,10 @@ services:
       STREAMRIP_STATE_ROOT: /stackarr-state/streamrip
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
-      - "..:/stackarr-workspace"
       - "stackarr-state:/stackarr-state"
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "${CONFIG_ROOT:-./.stackarr/config}:${CONFIG_ROOT:-/stackarr-config}"
+      - "${STACKARR_DATABASE_DIR:-./.stackarr/config}:/stackarr-config"
+      - "${CONFIG_ROOT:-./.stackarr/config}:${CONFIG_ROOT:-/stackarr-host-config}"
       - "${STATE_ROOT:-./.stackarr/state}:${STATE_ROOT:-/stackarr-runtime-state}"
       - "${LOG_ROOT:-./.stackarr/logs}:${LOG_ROOT:-/stackarr-logs}"
       - "${MEDIA_ROOT:-./.stackarr/media}:${MEDIA_ROOT:-/stackarr-media}:ro"
@@ -477,6 +409,58 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  tracearr:
+    profiles:
+      - tracearr
+    container_name: tracearr
+    image: ${TRACEARR_IMAGE:-ghcr.io/connorgallopo/tracearr:latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      TZ: ${TIMEZONE:-Etc/UTC}
+      DATABASE_URL: postgres://${TRACEARR_POSTGRES_USER:-tracearr}:${TRACEARR_POSTGRES_PASSWORD:-${TRACEARR_DB_PASSWORD:-stackarr}}@database:5432/${TRACEARR_POSTGRES_DATABASE:-tracearr}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${TRACEARR_JWT_SECRET:-}
+      COOKIE_SECRET: ${TRACEARR_COOKIE_SECRET:-}
+      CORS_ORIGIN: ${TRACEARR_CORS_ORIGIN:-*}
+      LOG_LEVEL: ${TRACEARR_LOG_LEVEL:-info}
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - "${APP_ROOT:-./.stackarr}/config/tracearr/backups:/data/backup"
+    ports:
+      - "${TRACEARR_BIND_IP:-127.0.0.1}:${TRACEARR_PORT:-3000}:3000"
+    labels:
+      org.opencontainers.image.title: Tracearr
+      org.opencontainers.image.description: Real-time monitoring and analytics for Plex, Jellyfin, and Emby.
+      org.opencontainers.image.source: https://github.com/connorgallopo/Tracearr
+      org.opencontainers.image.documentation: https://docs.tracearr.com/
+      homepage.name: Tracearr
+      homepage.description: Media-server monitoring
+      homepage.href: http://127.0.0.1:${TRACEARR_PORT:-3000}
+    restart: unless-stopped
+
+  redis:
+    profiles:
+      - tracearr
+      - immich
+      - romm
+    container_name: redis
+    image: ${REDIS_IMAGE:-redis:8-alpine}
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   seerr:
     profiles:
       - seerr
@@ -663,5 +647,108 @@ services:
       retries: 3
       start_period: 20s
 
+  romm:
+    profiles:
+      - romm
+    container_name: romm
+    image: ${ROMM_IMAGE:-rommapp/romm:latest}
+    restart: unless-stopped
+    environment:
+      ROMM_DB_DRIVER: ${ROMM_DB_DRIVER:-postgresql}
+      DB_HOST: ${ROMM_DB_HOST:-database}
+      DB_PORT: ${ROMM_DB_PORT:-5432}
+      DB_NAME: ${ROMM_DB_NAME:-romm}
+      DB_USER: ${ROMM_DB_USER:-romm}
+      DB_PASSWD: ${ROMM_DB_PASSWORD:-stackarr}
+      DB_QUERY_JSON: ${ROMM_DB_QUERY_JSON:-}
+      REDIS_HOST: ${ROMM_REDIS_HOST:-redis}
+      REDIS_PORT: ${ROMM_REDIS_PORT:-6379}
+      ROMM_AUTH_SECRET_KEY: ${ROMM_AUTH_SECRET_KEY:-romm-local-secret-change-me}
+      IGDB_CLIENT_ID: ${ROMM_IGDB_CLIENT_ID:-}
+      IGDB_CLIENT_SECRET: ${ROMM_IGDB_CLIENT_SECRET:-}
+      MOBYGAMES_API_KEY: ${ROMM_MOBYGAMES_API_KEY:-}
+      SCREENSCRAPER_USER: ${ROMM_SCREENSCRAPER_USER:-}
+      SCREENSCRAPER_PASSWORD: ${ROMM_SCREENSCRAPER_PASSWORD:-}
+      RETROACHIEVEMENTS_API_KEY: ${ROMM_RETROACHIEVEMENTS_API_KEY:-}
+      STEAMGRIDDB_API_KEY: ${ROMM_STEAMGRIDDB_API_KEY:-}
+      HASHEOUS_API_ENABLED: ${ROMM_HASHEOUS_API_ENABLED:-true}
+      PLAYMATCH_API_ENABLED: ${ROMM_PLAYMATCH_API_ENABLED:-false}
+      LAUNCHBOX_API_ENABLED: ${ROMM_LAUNCHBOX_API_ENABLED:-false}
+      FLASHPOINT_API_ENABLED: ${ROMM_FLASHPOINT_API_ENABLED:-false}
+      HLTB_API_ENABLED: ${ROMM_HLTB_API_ENABLED:-false}
+    volumes:
+      - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
+      - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"
+      - "${ROMM_ASSETS_ROOT:-./.stackarr/config/romm/assets}:/romm/assets"
+      - "${ROMM_CONFIG_ROOT:-./.stackarr/config/romm/config}:/romm/config"
+    ports:
+      - "${ROMM_BIND_IP:-127.0.0.1}:${ROMM_WEB_PORT:-7583}:${ROMM_CONTAINER_PORT:-8080}"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      org.opencontainers.image.title: RomM
+      org.opencontainers.image.description: Private ROM manager and browser-play game library for Stackarr.
+      org.opencontainers.image.source: https://github.com/rommapp/romm
+      org.opencontainers.image.documentation: https://docs.romm.app/latest/Getting-Started/Quick-Start-Guide/
+      homepage.name: RomM
+      homepage.description: Private game library
+      homepage.href: ${ROMM_URL:-http://127.0.0.1:7583}
+
+  immich:
+    profiles:
+      - immich
+    container_name: immich
+    image: ${IMMICH_SERVER_IMAGE:-ghcr.io/immich-app/immich-server}:${IMMICH_VERSION:-release}
+    environment:
+      TZ: ${TIMEZONE:-Etc/UTC}
+      DB_HOSTNAME: database
+      DB_PORT: 5432
+      DB_USERNAME: ${IMMICH_DB_USERNAME:-immich}
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD:-stackarr}
+      DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME:-immich}
+      DB_VECTOR_EXTENSION: ${IMMICH_DB_VECTOR_EXTENSION:-pgvector}
+      REDIS_HOSTNAME: redis
+      REDIS_PORT: 6379
+      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+    volumes:
+      - "${IMMICH_UPLOAD_LOCATION:-./.stackarr/media/Pictures}:/data"
+      - "/etc/localtime:/etc/localtime:ro"
+    ports:
+      - "${IMMICH_BIND_IP:-127.0.0.1}:${IMMICH_WEB_PORT:-2283}:${IMMICH_CONTAINER_PORT:-2283}"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      org.opencontainers.image.title: Immich
+      org.opencontainers.image.description: Self-hosted photo and video backup for Stackarr.
+      org.opencontainers.image.source: https://github.com/immich-app/immich
+      org.opencontainers.image.documentation: https://docs.immich.app/install/docker-compose/
+      homepage.name: Immich
+      homepage.description: Photo and video backup
+      homepage.href: ${IMMICH_URL:-http://127.0.0.1:2283}
+    healthcheck:
+      disable: false
+    restart: unless-stopped
+
+  immich-machine-learning:
+    profiles:
+      - immich
+    container_name: immich-machine-learning
+    image: ${IMMICH_MACHINE_LEARNING_IMAGE:-ghcr.io/immich-app/immich-machine-learning}:${IMMICH_VERSION:-release}
+    environment:
+      TZ: ${TIMEZONE:-Etc/UTC}
+    volumes:
+      - immich-model-cache:/cache
+    healthcheck:
+      disable: false
+    restart: unless-stopped
+
 volumes:
   stackarr-state:
+  redis-data:
+  immich-model-cache:

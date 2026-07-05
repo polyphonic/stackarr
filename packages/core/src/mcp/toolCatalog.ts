@@ -156,6 +156,24 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Send the opt-in telemetry heartbeat to the configured first-party endpoint.'
   },
   {
+    name: 'stackarr_get_cloudflare_access',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return Cloudflare Access allowlist settings and the required Cloudflare API token permissions.'
+  },
+  {
+    name: 'stackarr_update_cloudflare_access',
+    category: 'stack',
+    scopes: ['stack:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Update Cloudflare Access allowlist emails, session duration, and default enablement.'
+  },
+  {
     name: 'stackarr_get_cloudflare_routes',
     category: 'stack',
     scopes: ['stack:read'],
@@ -171,7 +189,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     risk: 'write',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
-    description: 'Update Cloudflare tunnel hostname routes for Stackarr services.'
+    description:
+      'Update Cloudflare tunnel hostname routes and per-route Cloudflare Access protection for Stackarr services.'
   },
   {
     name: 'stackarr_get_recent_activity',

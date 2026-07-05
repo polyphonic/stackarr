@@ -11,12 +11,7 @@ DEFAULT_TOKEN_FILE="$STATE_ROOT/cloudflared-token"
 LOG_DIR="$LOG_ROOT/cloudflared"
 
 TOKEN_FILE="${CLOUDFLARED_TOKEN_FILE:-$DEFAULT_TOKEN_FILE}"
-if [[ ! -f "$TOKEN_FILE" && -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then
-    mkdir -p "$(dirname "$TOKEN_FILE")"
-    umask 077
-    printf '%s\n' "$CLOUDFLARE_TUNNEL_TOKEN" > "$TOKEN_FILE"
-fi
-[[ -f "$TOKEN_FILE" ]] || fail "Missing Cloudflare tunnel token. Run 'stackarr cloudflare install' first."
+[[ -f "$TOKEN_FILE" ]] || fail "Missing Cloudflare connector token. Run 'stackarr cloudflare install --api-token <token>' first."
 
 if [[ -n "${CLOUDFLARED_BIN:-}" && -x "${CLOUDFLARED_BIN:-}" ]]; then
     CLOUDFLARED_CMD="$CLOUDFLARED_BIN"

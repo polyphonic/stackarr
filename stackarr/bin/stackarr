@@ -67,6 +67,14 @@ case "$cmd" in
         shift || true
         exec "$ROOT_DIR/scripts/bookorbit.sh" "$@"
         ;;
+    immich)
+        shift || true
+        exec "$ROOT_DIR/scripts/immich.sh" "$@"
+        ;;
+    romm)
+        shift || true
+        exec "$ROOT_DIR/scripts/romm.sh" "$@"
+        ;;
     requests)
         shift || true
         exec "$ROOT_DIR/scripts/requests.sh" "$@"
@@ -198,6 +206,8 @@ Stackarr commands:
   stackarr downloads apply
   stackarr security apply
   stackarr database ensure|status
+  stackarr immich status|url|open|enable|disable
+  stackarr romm status|url|open|enable|disable
   stackarr requests apply|clear
   stackarr doctor
   stackarr plex-check

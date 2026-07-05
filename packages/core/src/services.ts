@@ -34,7 +34,11 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
   },
   database: {
     displayName: 'Database',
-    description: 'Shared PostgreSQL service for Stackarr and supported app configuration.'
+    description: 'Shared PostgreSQL and TimescaleDB service for Stackarr and supported app configuration.'
+  },
+  redis: {
+    displayName: 'Redis',
+    description: 'Shared Redis cache and background queue service for supported apps.'
   },
   transmission: {
     displayName: 'Transmission',
@@ -76,6 +80,14 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'BookOrbit',
     description: 'Book library management and reader sync for the local Books folder.'
   },
+  immich: {
+    displayName: 'Immich',
+    description: 'Self-hosted photo and video backup, browsing, and mobile sync for the photo library.'
+  },
+  romm: {
+    displayName: 'RomM',
+    description: 'Self-hosted ROM manager and browser-playable game library for emulator collections.'
+  },
   bazarr: {
     displayName: 'Bazarr',
     description: 'Subtitle management for Radarr and Sonarr libraries.'
@@ -107,6 +119,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
   maintainerr: {
     displayName: 'Maintainerr',
     description: 'Plex/Jellyfin library cleanup planner and collection manager.'
+  },
+  tracearr: {
+    displayName: 'Tracearr',
+    description: 'Real-time Plex, Jellyfin, and Emby monitoring with analytics and account-sharing detection.'
   },
   plex: {
     displayName: 'Plex',
@@ -187,6 +203,10 @@ export function getServices(): ServiceSummary[] {
   const env = readEnv();
   const settings = readSettings();
   const fourKMode = flag(env.ENABLE_4K_SERVARR, false) ? 'docker' : 'disabled';
+  const sharedRedisMode =
+    flag(env.ENABLE_IMMICH, false) || flag(env.ENABLE_ROMM, false) || flag(env.ENABLE_TRACEARR, false)
+      ? 'docker'
+      : 'disabled';
 
   return [
     service('stackarr', 'stack', 'docker', Number(env.STACKARR_WEB_PORT ?? 7777), settings, {
@@ -195,7 +215,9 @@ export function getServices(): ServiceSummary[] {
     service('database', 'support', 'docker', Number(env.DATABASE_HOST_PORT ?? 5433), settings, {
       localUrl: undefined,
       browserUrl: undefined,
-      notes: ['PostgreSQL 18 with pgvector; Stackarr creates separate databases for itself and supported apps.']
+      notes: [
+        'PostgreSQL 18 with TimescaleDB and pgvector; Stackarr creates separate databases for itself and supported apps.'
+      ]
     }),
     service(
       'transmission',
@@ -231,6 +253,18 @@ export function getServices(): ServiceSummary[] {
       Number(env.BOOKORBIT_WEB_PORT ?? 7582),
       settings
     ),
+    service('immich', 'media', optionalMode(env.ENABLE_IMMICH), Number(env.IMMICH_WEB_PORT ?? 2283), settings, {
+      configPath: env.IMMICH_UPLOAD_LOCATION,
+      notes: [
+        'Photo-library backup and browsing using the shared Postgres and Redis services. First-run owner setup happens in Immich or the iOS app after the container is reachable.'
+      ]
+    }),
+    service('romm', 'media', optionalMode(env.ENABLE_ROMM), Number(env.ROMM_WEB_PORT ?? 7583), settings, {
+      configPath: env.ROMM_LIBRARY_ROOT ?? env.GAMES_ROOT,
+      notes: [
+        'Private game-library browsing and browser play through RomM using the shared Postgres and Redis services. Public exposure is opt-in only; Stackarr binds it to loopback by default.'
+      ]
+    }),
     service('bazarr', 'support', optionalMode(env.ENABLE_BAZARR), 6767, settings),
     service('tinymediamanager', 'support', optionalMode(env.ENABLE_TINYMEDIAMANAGER), 4000, settings),
     service('recyclarr', 'support', optionalMode(env.ENABLE_RECYCLARR), undefined, settings, {
@@ -242,8 +276,23 @@ export function getServices(): ServiceSummary[] {
     service('pulsarr', 'support', optionalMode(env.ENABLE_PULSARR), Number(env.PULSARR_PORT ?? 3003), settings, {
       notes: ['Plex watchlist automation and Arr routing managed by Pulsarr.']
     }),
-    service('maintainerr', 'support', optionalMode(env.ENABLE_MAINTAINERR), Number(env.MAINTAINERR_PORT ?? 6246), settings, {
-      notes: ['Cleanup rules are created inside Maintainerr; Stackarr only starts and links the app.']
+    service(
+      'maintainerr',
+      'support',
+      optionalMode(env.ENABLE_MAINTAINERR),
+      Number(env.MAINTAINERR_PORT ?? 6246),
+      settings,
+      {
+        notes: ['Cleanup rules are created inside Maintainerr; Stackarr only starts and links the app.']
+      }
+    ),
+    service('tracearr', 'support', optionalMode(env.ENABLE_TRACEARR), Number(env.TRACEARR_PORT ?? 3000), settings, {
+      notes: ['Tracearr monitors Plex/Jellyfin/Emby activity using the shared Postgres/TimescaleDB and Redis services.']
+    }),
+    service('redis', 'support', sharedRedisMode, undefined, settings, {
+      browserUrl: undefined,
+      localUrl: undefined,
+      notes: ['Shared Redis container used by Immich, RomM, Tracearr, and other supported services.']
     }),
     mediaServer('plex', mode(env.PLEX_INSTALL_MODE, 'native'), 32400, env.PLEX_CONFIG_PATH, env, settings),
     mediaServer('jellyfin', mode(env.JELLYFIN_INSTALL_MODE, 'disabled'), 8096, env.JELLYFIN_CONFIG_PATH, env, settings),
@@ -383,7 +432,13 @@ function browserUrl(name: string, port: number, settings?: StackarrSettings) {
   if (mode === 'portless') {
     const scheme = settings?.ui.serviceUrlScheme === 'http' ? 'http' : 'https';
     const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stackarr');
-    return `${scheme}://${hostnameLabel(name)}.${suffix}${path}`;
+    const directUrl = `${scheme}://${hostnameLabel(name)}.${suffix}${path}`;
+
+    if (name !== 'stackarr' && settings?.ui.unifyServiceUrls !== false) {
+      return `${scheme}://${hostnameLabel('stackarr')}.${suffix}/${serviceRouteSlug(name)}`;
+    }
+
+    return directUrl;
   }
 
   if (mode === 'loopback') {
@@ -391,6 +446,41 @@ function browserUrl(name: string, port: number, settings?: StackarrSettings) {
   }
 
   return `http://localhost:${port}${path}`;
+}
+
+export function directPortlessBrowserUrl(name: string, settings?: StackarrSettings, pathOverride?: string) {
+  const scheme = settings?.ui.serviceUrlScheme === 'http' ? 'http' : 'https';
+  const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stackarr');
+  const path = pathOverride ?? browserPath(name);
+
+  return `${scheme}://${hostnameLabel(name)}.${suffix}${path}`;
+}
+
+export function serviceRouteSlug(name: string) {
+  return hostnameLabel(name);
+}
+
+export function serviceNameFromRouteSlug(slug: string) {
+  const normalized = slug
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const aliases: Record<string, string> = {
+    app: 'stackarr',
+    tinymm: 'tinymediamanager',
+    radarr4k: 'radarr4k',
+    sonarr4k: 'sonarr4k',
+    'radarr-4k': 'radarr4k',
+    'sonarr-4k': 'sonarr4k',
+    qb: 'qbittorrent',
+    qbit: 'qbittorrent'
+  };
+
+  return aliases[normalized] ?? normalized;
+}
+
+export function serviceBrowserPath(name: string) {
+  return browserPath(name);
 }
 
 function browserPath(name: string) {
@@ -465,7 +555,8 @@ function normalizeHostSuffix(suffix: string) {
       .toLowerCase()
       .replace(/^https?:\/\//, '')
       .replace(/\/.*$/, '')
-      .replace(/^\.+|\.+$/g, '') || 'localhost'
+      .replace(/:\d+$/, '')
+      .replace(/^\.+|\.+$/g, '') || 'stackarr'
   );
 }
 

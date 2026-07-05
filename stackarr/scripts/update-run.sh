@@ -22,7 +22,7 @@ stackarr_compose "${profile_args[@]}" pull
 
 "$ROOT_DIR/scripts/naming.sh" prestart || true
 stackarr_compose "${profile_args[@]}" up -d --remove-orphans
-stackarr_compose --profile database rm -f -s database-init >/dev/null 2>&1 || true
+remove_database_init_sidecar
 refresh_stackarr_web_storage_mounts "${profile_args[@]}"
 remove_inactive_torrent_client_container
 "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true

@@ -133,8 +133,26 @@ export function getConnections(): StackarrConnection[] {
       target: 'maintainerr',
       kind: 'api',
       status: flag(env.ENABLE_MAINTAINERR, false) ? 'configured' : 'optional',
-      description: 'Connects Plex/Jellyfin cleanup planning to media-server, Arr, Seerr, and supported download-client settings.',
+      description:
+        'Connects Plex/Jellyfin cleanup planning to media-server, Arr, Seerr, and supported download-client settings.',
       managedFields: ['Media server', 'Radarr/Sonarr services', 'Seerr', 'qBittorrent', 'Cleanup preset notes']
+    },
+    {
+      name: 'Tracearr',
+      target: 'tracearr',
+      kind: 'api',
+      status: flag(env.ENABLE_TRACEARR, false) ? 'configured' : 'optional',
+      description: 'Monitors real-time Plex, Jellyfin, and Emby sessions with analytics, maps, and detection rules.',
+      managedFields: ['Base URL', 'TimescaleDB', 'Redis', 'Media-server connections', 'Alerts']
+    },
+    {
+      name: 'RomM',
+      target: 'romm',
+      kind: 'api',
+      status: flag(env.ENABLE_ROMM, false) ? 'configured' : 'optional',
+      description:
+        'Keeps a private ROM library, artwork, metadata, saves, states, and browser-play workflows in the Stackarr service map.',
+      managedFields: ['Base URL', 'Game library', 'MariaDB', 'Metadata providers']
     },
     {
       name: 'Cloudflare Tunnel',
@@ -340,6 +358,38 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       ]
     },
     {
+      implementation: 'Tracearr',
+      name: 'Tracearr',
+      target: 'tracearr',
+      kind: 'api',
+      description:
+        'Connect Plex, Jellyfin, or Emby monitoring to Tracearr after Stackarr starts its app, TimescaleDB, and Redis services.',
+      fields: [
+        urlField('Base URL', 'http://tracearr:3000'),
+        { name: 'mediaServers', label: 'Media Servers', type: 'text', placeholder: 'Plex, Jellyfin, Emby' },
+        { name: 'plexToken', label: 'Plex Token', type: 'password' },
+        { name: 'jellyfinApiKey', label: 'Jellyfin API Key', type: 'password' },
+        { name: 'alerts', label: 'Alerts', type: 'select', options: ['Discord/Webhook', 'Apprise', 'None'] }
+      ]
+    },
+    {
+      implementation: 'RomM',
+      name: 'RomM',
+      target: 'romm',
+      kind: 'api',
+      description: 'Connect a private ROM library and metadata-provider credentials to RomM.',
+      fields: [
+        urlField('Base URL', 'http://romm:8080'),
+        { name: 'libraryPath', label: 'Game Library Path', type: 'text', placeholder: '/romm/library' },
+        {
+          name: 'metadataProviders',
+          label: 'Metadata Providers',
+          type: 'text',
+          placeholder: 'Hasheous, ScreenScraper, RetroAchievements, SteamGridDB'
+        }
+      ]
+    },
+    {
       implementation: 'Plex',
       name: 'Plex',
       target: 'plex',
@@ -398,7 +448,7 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
           name: 'service',
           label: 'Stackarr service',
           type: 'select',
-          options: ['pulsarr', 'seerr', 'bookorbit', 'maintainerr'],
+          options: ['pulsarr', 'seerr', 'bookorbit', 'immich', 'romm', 'maintainerr', 'tracearr'],
           required: true
         },
         { name: 'apiToken', label: 'API Token', type: 'password' }

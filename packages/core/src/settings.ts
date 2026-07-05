@@ -23,6 +23,7 @@ export type StackarrSettings = {
     serviceUrlMode: 'localhost' | 'loopback' | 'portless';
     serviceUrlScheme: 'http' | 'https';
     serviceUrlHostSuffix: string;
+    unifyServiceUrls: boolean;
     serviceFavorites: string[];
   };
   host: {
@@ -56,6 +57,8 @@ export type StackarrSettings = {
     enableBazarr: boolean;
     enableLidarr: boolean;
     enableBookOrbit: boolean;
+    enableImmich: boolean;
+    enableRomm: boolean;
     enableTinyMediaManager: boolean;
     enableRecyclarr: boolean;
     enableFlaresolverr: boolean;
@@ -63,6 +66,7 @@ export type StackarrSettings = {
     enableSeerr: boolean;
     enablePulsarr: boolean;
     enableMaintainerr: boolean;
+    enableTracearr: boolean;
   };
   metadata: {
     tinyMediaManagerEnabled: boolean;
@@ -101,6 +105,7 @@ export const defaultSettings: StackarrSettings = {
     serviceUrlMode: 'localhost',
     serviceUrlScheme: 'https',
     serviceUrlHostSuffix: 'stackarr',
+    unifyServiceUrls: true,
     serviceFavorites: []
   },
   host: {
@@ -134,13 +139,16 @@ export const defaultSettings: StackarrSettings = {
     enableBazarr: true,
     enableLidarr: true,
     enableBookOrbit: false,
+    enableImmich: false,
+    enableRomm: false,
     enableTinyMediaManager: true,
     enableRecyclarr: true,
     enableFlaresolverr: true,
     enableTidarr: true,
     enableSeerr: true,
     enablePulsarr: true,
-    enableMaintainerr: false
+    enableMaintainerr: false,
+    enableTracearr: false
   },
   metadata: {
     tinyMediaManagerEnabled: true,
@@ -224,13 +232,16 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableBazarr: envFlag(env.ENABLE_BAZARR, defaultSettings.services.enableBazarr),
       enableLidarr: envFlag(env.ENABLE_LIDARR, defaultSettings.services.enableLidarr),
       enableBookOrbit: envFlag(env.ENABLE_BOOKORBIT, defaultSettings.services.enableBookOrbit),
+      enableImmich: envFlag(env.ENABLE_IMMICH, defaultSettings.services.enableImmich),
+      enableRomm: envFlag(env.ENABLE_ROMM, defaultSettings.services.enableRomm),
       enableTinyMediaManager: envFlag(env.ENABLE_TINYMEDIAMANAGER, defaultSettings.services.enableTinyMediaManager),
       enableRecyclarr: envFlag(env.ENABLE_RECYCLARR, defaultSettings.services.enableRecyclarr),
       enableFlaresolverr: envFlag(env.ENABLE_FLARESOLVERR, defaultSettings.services.enableFlaresolverr),
       enableTidarr: envFlag(env.ENABLE_TIDARR, defaultSettings.services.enableTidarr),
       enableSeerr: envFlag(env.ENABLE_SEERR, defaultSettings.services.enableSeerr),
       enablePulsarr: envFlag(env.ENABLE_PULSARR, defaultSettings.services.enablePulsarr),
-      enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr)
+      enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr),
+      enableTracearr: envFlag(env.ENABLE_TRACEARR, defaultSettings.services.enableTracearr)
     },
     metadata: {
       ...defaultSettings.metadata,

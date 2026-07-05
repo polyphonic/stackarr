@@ -27,7 +27,7 @@ Override with `STACKARR_WEB_PORT` when needed.
 
 Agents should start with `stackarr_get_setup_profile`. It returns the small set of user-facing questions and the opinionated defaults. In normal use, ask only for decisions that materially affect the install, especially:
 
-- libraries to set up: `movies`, `tv`, and/or `music`
+- libraries to set up: `movies`, `tv`, `music`, `books`, `photos`, and/or `games`
 - torrent client: `transmission` or `qbittorrent`
 - media root
 - downloads root
@@ -102,4 +102,4 @@ Development checkouts can also run the compiled MCP entrypoint directly after `p
 
 ## Plex and downtime
 
-Plex V1 uses the Plex API only. Stackarr does not install or run Tautulli for MCP. Avoid invoking stack stop/update/restart tools during live verification unless you intentionally want downtime.
+Plex V1 uses the Plex API directly; Tracearr is the optional managed monitoring service for richer media-server analytics. Avoid invoking stack stop/update/restart tools during live verification unless you intentionally want downtime.

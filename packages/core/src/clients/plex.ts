@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from './http';
 import { serviceApiKey, serviceBaseUrl } from './serviceConfig';
 
-export type WatchAnalyticsProvider = 'plex' | 'tautulli';
+export type WatchAnalyticsProvider = 'plex' | 'tracearr';
 function token() {
   const apiKey = serviceApiKey('plex');
   if (!apiKey) throw new Error('Missing Plex token in Stackarr configuration.');

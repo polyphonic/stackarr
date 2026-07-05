@@ -19,6 +19,7 @@ type Props = {
 type CloudflareRoute = {
   hostname: string;
   service: string;
+  access?: boolean;
 };
 
 type SelectOption = string | { value: string; label: string };
@@ -41,6 +42,7 @@ const globalDatabasePasswordKeys = [
   'BOOKORBIT_POSTGRES_PASSWORD',
   'SEERR_POSTGRES_PASSWORD',
   'PULSARR_POSTGRES_PASSWORD',
+  'TRACEARR_DB_PASSWORD',
   'BAZARR_POSTGRES_PASSWORD',
   'PROWLARR_POSTGRES_PASSWORD',
   'RADARR_POSTGRES_PASSWORD',
@@ -139,6 +141,25 @@ const securityServices: SecurityServiceTarget[] = [
     databaseKeys: ['SEERR_POSTGRES_PASSWORD']
   },
   {
+    id: 'tracearr',
+    label: 'Tracearr',
+    description: 'Tracearr shared-Postgres role password.',
+    databaseKeys: ['TRACEARR_DB_PASSWORD', 'TRACEARR_POSTGRES_PASSWORD']
+  },
+  {
+    id: 'immich',
+    label: 'Immich',
+    description: 'Immich shared-Postgres role password.',
+    databaseKeys: ['IMMICH_DB_PASSWORD']
+  },
+  {
+    id: 'romm',
+    label: 'RomM',
+    description: 'RomM shared-Postgres role, first-run admin, and app secret credentials.',
+    databaseKeys: ['ROMM_DB_PASSWORD'],
+    accessKeys: ['ROMM_ADMIN_PASSWORD', 'ROMM_AUTH_SECRET_KEY']
+  },
+  {
     id: 'stackarr-postgres',
     label: 'Stackarr Postgres',
     description: 'Stackarr application database role password.',
@@ -154,7 +175,10 @@ const securityServices: SecurityServiceTarget[] = [
 const cloudflareServiceOptions = [
   'pulsarr',
   'maintainerr',
+  'tracearr',
   'bookorbit',
+  'immich',
+  'romm',
   'stackarr',
   'seerr',
   'transmission',
@@ -360,7 +384,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
   async function rotateTunnelToken() {
     const confirmed = window.confirm(
-      'Rotate the Cloudflare tunnel token by recreating the Cloudflare tunnel and saving the new runtime credential?'
+      'Rotate the Cloudflare connector credential by recreating the Cloudflare tunnel and saving the new runtime credential?'
     );
 
     if (!confirmed) {
@@ -375,7 +399,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
     if (!response.ok) {
       setRotateState('error');
       const errorMessage =
-        typeof body.error === 'string' ? body.error : 'Save failed. The tunnel token was not rotated.';
+        typeof body.error === 'string' ? body.error : 'Save failed. The connector credential was not rotated.';
       setMessage(errorMessage);
       toast.error(errorMessage, { id: toastId });
       return;
@@ -389,8 +413,8 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
     setRotateState(rotateResponse.ok ? 'queued' : 'error');
     const nextMessage = rotateResponse.ok
-      ? 'Saved. Cloudflare tunnel token rotation queued.'
-      : 'Saved, but tunnel token rotation failed to queue.';
+      ? 'Saved. Cloudflare connector credential rotation queued.'
+      : 'Saved, but connector credential rotation failed to queue.';
     setMessage(nextMessage);
     toast[rotateResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
   }
@@ -398,7 +422,9 @@ export function SettingsEditor({ section, env, settings }: Props) {
   async function applyCloudflareRoutes() {
     const publicRoutes = cloudflareRoutes.filter((route) => route.hostname);
     if (draftSettings.connect.warnBeforePublicExposure && publicRoutes.length > 0) {
-      const confirmed = window.confirm(cloudflareExposureWarning(publicRoutes));
+      const confirmed = window.confirm(
+        cloudflareExposureWarning(publicRoutes, envBool('CLOUDFLARE_ACCESS_ENABLED', false))
+      );
 
       if (!confirmed) {
         return;
@@ -533,7 +559,11 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
   function updateCloudflareRoutes(routes: CloudflareRoute[]) {
     const normalized = routes
-      .map((route) => ({ hostname: normalizeHostname(route.hostname), service: route.service || 'pulsarr' }))
+      .map((route) => ({
+        hostname: normalizeHostname(route.hostname),
+        service: route.service || 'pulsarr',
+        access: route.access ?? defaultCloudflareRouteAccess(route.service)
+      }))
       .filter((route) => route.hostname || route.service);
 
     updateEnv('CLOUDFLARE_TUNNEL_ROUTES', JSON.stringify(normalized));
@@ -547,7 +577,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
   }
 
   function addCloudflareRoute() {
-    updateCloudflareRoutes([...cloudflareRoutes, { hostname: '', service: 'pulsarr' }]);
+    updateCloudflareRoutes([...cloudflareRoutes, { hostname: '', service: 'pulsarr', access: true }]);
   }
 
   function removeCloudflareRoute(index: number) {
@@ -793,6 +823,22 @@ export function SettingsEditor({ section, env, settings }: Props) {
             }}
           />
           <Check
+            label="Immich Photos"
+            checked={envBool('ENABLE_IMMICH', draftSettings.services.enableImmich)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_IMMICH', value);
+              updateSettings('services', 'enableImmich', value);
+            }}
+          />
+          <Check
+            label="RomM Games"
+            checked={envBool('ENABLE_ROMM', draftSettings.services.enableRomm)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_ROMM', value);
+              updateSettings('services', 'enableRomm', value);
+            }}
+          />
+          <Check
             label="TinyMediaManager Metadata"
             checked={envBool('ENABLE_TINYMEDIAMANAGER', draftSettings.services.enableTinyMediaManager)}
             onChange={(value) => {
@@ -848,6 +894,14 @@ export function SettingsEditor({ section, env, settings }: Props) {
               updateSettings('services', 'enableMaintainerr', value);
             }}
           />
+          <Check
+            label="Tracearr Monitoring"
+            checked={envBool('ENABLE_TRACEARR', draftSettings.services.enableTracearr)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_TRACEARR', value);
+              updateSettings('services', 'enableTracearr', value);
+            }}
+          />
           <Text
             label="Maintainerr Cleanup Presets"
             value={envValue('MAINTAINERR_CLEANUP_PRESETS')}
@@ -867,6 +921,100 @@ export function SettingsEditor({ section, env, settings }: Props) {
             label="Maintainerr qBittorrent URL"
             value={envValue('MAINTAINERR_QBITTORRENT_URL')}
             onChange={(value) => updateEnv('MAINTAINERR_QBITTORRENT_URL', value)}
+          />
+          <Text
+            label="Immich URL"
+            value={envValue('IMMICH_URL')}
+            onChange={(value) => updateEnv('IMMICH_URL', value)}
+          />
+          <Text
+            label="Immich Bind IP"
+            value={envValue('IMMICH_BIND_IP')}
+            onChange={(value) => updateEnv('IMMICH_BIND_IP', value)}
+          />
+          <Text
+            label="Immich Port"
+            value={envValue('IMMICH_WEB_PORT')}
+            onChange={(value) => updateEnv('IMMICH_WEB_PORT', value)}
+          />
+          <Text
+            label="Immich Upload Location"
+            value={envValue('IMMICH_UPLOAD_LOCATION')}
+            onChange={(value) => updateEnv('IMMICH_UPLOAD_LOCATION', value)}
+          />
+          <Text label="RomM URL" value={envValue('ROMM_URL')} onChange={(value) => updateEnv('ROMM_URL', value)} />
+          <Text
+            label="RomM Bind IP"
+            value={envValue('ROMM_BIND_IP')}
+            onChange={(value) => updateEnv('ROMM_BIND_IP', value)}
+          />
+          <Text
+            label="RomM Port"
+            value={envValue('ROMM_WEB_PORT')}
+            onChange={(value) => updateEnv('ROMM_WEB_PORT', value)}
+          />
+          <Text
+            label="RomM Library Root"
+            value={envValue('ROMM_LIBRARY_ROOT') || envValue('GAMES_ROOT')}
+            onChange={(value) => {
+              updateEnv('ROMM_LIBRARY_ROOT', value);
+              updateEnv('GAMES_ROOT', value);
+            }}
+          />
+          <Text
+            label="Tracearr URL"
+            value={envValue('TRACEARR_URL')}
+            onChange={(value) => updateEnv('TRACEARR_URL', value)}
+          />
+          <Text
+            label="Tracearr Bind IP"
+            value={envValue('TRACEARR_BIND_IP')}
+            onChange={(value) => updateEnv('TRACEARR_BIND_IP', value)}
+          />
+          <Text
+            label="Tracearr Port"
+            value={envValue('TRACEARR_PORT')}
+            onChange={(value) => updateEnv('TRACEARR_PORT', value)}
+          />
+          <Check
+            label="Tracearr Auto-configure"
+            checked={envBool('TRACEARR_AUTO_CONFIGURE', true)}
+            onChange={(value) => updateEnvBool('TRACEARR_AUTO_CONFIGURE', value)}
+          />
+          <Text
+            label="Tracearr Owner Username"
+            value={envValue('TRACEARR_ADMIN_USERNAME')}
+            onChange={(value) => updateEnv('TRACEARR_ADMIN_USERNAME', value)}
+          />
+          <Text
+            label="Tracearr Owner Email"
+            value={envValue('TRACEARR_ADMIN_EMAIL')}
+            onChange={(value) => updateEnv('TRACEARR_ADMIN_EMAIL', value)}
+          />
+          <Password
+            label="Tracearr Owner Password"
+            value={envValue('TRACEARR_ADMIN_PASSWORD')}
+            onChange={(value) => updateEnv('TRACEARR_ADMIN_PASSWORD', value)}
+          />
+          <Password
+            label="Tracearr Claim Code"
+            value={envValue('TRACEARR_CLAIM_CODE')}
+            onChange={(value) => updateEnv('TRACEARR_CLAIM_CODE', value)}
+          />
+          <Text
+            label="Tracearr Plex URL"
+            value={envValue('TRACEARR_PLEX_SERVER_URL')}
+            onChange={(value) => updateEnv('TRACEARR_PLEX_SERVER_URL', value)}
+          />
+          <Text
+            label="Tracearr Jellyfin URL"
+            value={envValue('TRACEARR_JELLYFIN_SERVER_URL')}
+            onChange={(value) => updateEnv('TRACEARR_JELLYFIN_SERVER_URL', value)}
+          />
+          <Text
+            label="Tracearr Emby URL"
+            value={envValue('TRACEARR_EMBY_SERVER_URL')}
+            onChange={(value) => updateEnv('TRACEARR_EMBY_SERVER_URL', value)}
           />
         </FormGrid>
       )}
@@ -906,11 +1054,10 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
       {section === 'connect' && (
         <FormGrid>
-          <Password
-            label="Cloudflare Tunnel Token"
-            value={envValue('CLOUDFLARE_TUNNEL_TOKEN')}
-            onChange={(value) => updateEnv('CLOUDFLARE_TUNNEL_TOKEN', value)}
-          />
+          <div className={styles.note}>
+            Use a Cloudflare account API token with Tunnel Edit, Access Policies Edit, Zero Trust Edit, Zone Read, and
+            DNS Edit. Stackarr creates the tunnel, connector credential, DNS records, and Access apps automatically.
+          </div>
           <Password
             label="Cloudflare API Token"
             value={envValue('CLOUDFLARE_API_TOKEN')}
@@ -936,6 +1083,21 @@ export function SettingsEditor({ section, env, settings }: Props) {
             value={envValue('CLOUDFLARED_TUNNEL_ID')}
             onChange={(value) => updateEnv('CLOUDFLARED_TUNNEL_ID', value)}
           />
+          <Check
+            label="Protect Routes with Access"
+            checked={envBool('CLOUDFLARE_ACCESS_ENABLED', false)}
+            onChange={(value) => updateEnvBool('CLOUDFLARE_ACCESS_ENABLED', value)}
+          />
+          <Text
+            label="Access Allowed Emails"
+            value={envValue('CLOUDFLARE_ACCESS_ALLOWED_EMAILS')}
+            onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_ALLOWED_EMAILS', value)}
+          />
+          <Text
+            label="Access Session Duration"
+            value={envValue('CLOUDFLARE_ACCESS_SESSION_DURATION') || '720h'}
+            onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_SESSION_DURATION', value)}
+          />
           <div className={styles.routeEditor}>
             <div className={styles.routeHeader}>
               <span>Cloudflare Routes</span>
@@ -948,14 +1110,19 @@ export function SettingsEditor({ section, env, settings }: Props) {
               <div className={styles.routeRow} key={`${route.hostname}-${index}`}>
                 <input
                   aria-label="Public hostname"
-                  placeholder="request.example.com"
+                  placeholder="books.example.com"
                   value={route.hostname}
                   onChange={(event) => updateCloudflareRoute(index, { hostname: event.target.value })}
                 />
                 <select
                   aria-label="Stackarr service"
                   value={route.service}
-                  onChange={(event) => updateCloudflareRoute(index, { service: event.target.value })}
+                  onChange={(event) =>
+                    updateCloudflareRoute(index, {
+                      service: event.target.value,
+                      access: defaultCloudflareRouteAccess(event.target.value)
+                    })
+                  }
                 >
                   {cloudflareServiceOptions.map((service) => (
                     <option key={service} value={service}>
@@ -963,6 +1130,15 @@ export function SettingsEditor({ section, env, settings }: Props) {
                     </option>
                   ))}
                 </select>
+                <label className={styles.routeAccess}>
+                  <input
+                    aria-label={`Protect ${route.hostname || route.service || 'route'} with Access`}
+                    checked={route.access ?? defaultCloudflareRouteAccess(route.service)}
+                    onChange={(event) => updateCloudflareRoute(index, { access: event.target.checked })}
+                    type="checkbox"
+                  />
+                  <span>Access</span>
+                </label>
                 <button onClick={() => removeCloudflareRoute(index)} type="button">
                   Remove
                 </button>
@@ -988,7 +1164,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
                     ? 'Queued'
                     : rotateState === 'error'
                       ? 'Failed'
-                      : 'Rotate token'}
+                      : 'Rotate connector'}
               </button>
             </span>
           </div>
@@ -1267,6 +1443,11 @@ export function SettingsEditor({ section, env, settings }: Props) {
             onChange={(value) => updateSettings('ui', 'serviceUrlHostSuffix', value)}
           />
           <Check
+            label="Unify Service URLs"
+            checked={draftSettings.ui.unifyServiceUrls}
+            onChange={(value) => updateSettings('ui', 'unifyServiceUrls', value)}
+          />
+          <Check
             label="Show Advanced Settings"
             checked={draftSettings.ui.showAdvanced}
             onChange={(value) => updateSettings('ui', 'showAdvanced', value)}
@@ -1307,13 +1488,21 @@ function portlessSaveMessage(task: unknown) {
   return 'Saved. Portless setup queued.';
 }
 
-function cloudflareExposureWarning(routes: CloudflareRoute[]) {
+function cloudflareExposureWarning(routes: CloudflareRoute[], accessEnabled: boolean) {
   const services = new Set(routes.map((route) => route.service));
   const hasDownloader = services.has('transmission') || services.has('qbittorrent');
-  const routeList = routes.map((route) => `${route.hostname} -> ${route.service}`).join('\n');
+  const publicRoutes = routes.filter((route) => !(route.access ?? defaultCloudflareRouteAccess(route.service)));
+  const routeList = routes
+    .map((route) => {
+      const protection = (route.access ?? defaultCloudflareRouteAccess(route.service)) ? 'Access' : 'public/mobile';
+      return `${route.hostname} -> ${route.service} (${protection})`;
+    })
+    .join('\n');
 
   return [
     `Apply ${routes.length} public Cloudflare route${routes.length === 1 ? '' : 's'}?`,
+    accessEnabled ? '' : 'Cloudflare Access protection is off; public routes will rely only on each app login.',
+    publicRoutes.length ? 'Routes marked public/mobile will not get a Cloudflare Access app.' : '',
     hasDownloader ? 'Downloader web UIs should be protected with Cloudflare Access and strong app credentials.' : '',
     routeList
   ]
@@ -1512,7 +1701,7 @@ function passwordConfirmationError(label: string, password: string, confirmation
 function isSecretEnvKey(key: string) {
   const normalized = key.toUpperCase();
   return (
-    ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY'].some((fragment) => normalized.includes(fragment)) ||
+    ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY', 'CLAIM_CODE'].some((fragment) => normalized.includes(fragment)) ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
     normalized.endsWith('_DB_URL')
@@ -1539,6 +1728,7 @@ function isCurrentPasswordProtectedEnvKey(key: string) {
   return (
     normalized === 'PASSWORD' ||
     normalized.endsWith('_PASSWORD') ||
+    normalized.includes('CLAIM_CODE') ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
     normalized.endsWith('_DB_URL')
@@ -1610,7 +1800,8 @@ function parseCloudflareRoutes(value: string): CloudflareRoute[] {
     return parsed
       .map((item) => ({
         hostname: normalizeHostname(String(item?.hostname ?? '')),
-        service: String(item?.service ?? 'pulsarr').toLowerCase()
+        service: String(item?.service ?? 'pulsarr').toLowerCase(),
+        access: parseCloudflareRouteAccess(item?.access, String(item?.service ?? 'pulsarr'))
       }))
       .filter((route) => route.hostname || route.service);
   } catch {
@@ -1624,4 +1815,28 @@ function normalizeHostname(value: string) {
     .split('/')[0]
     .trim()
     .toLowerCase();
+}
+
+function defaultCloudflareRouteAccess(service: string) {
+  return !['immich', 'photos', 'pics'].includes(service.trim().toLowerCase());
+}
+
+function parseCloudflareRouteAccess(value: unknown, service: string) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  const token = String(value ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (['1', 'true', 'yes', 'on', 'access', 'protected'].includes(token)) {
+    return true;
+  }
+
+  if (['0', 'false', 'no', 'off', 'public', 'mobile', 'none'].includes(token)) {
+    return false;
+  }
+
+  return defaultCloudflareRouteAccess(service);
 }

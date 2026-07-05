@@ -25,8 +25,41 @@ Connect stores explicit integrations between Stackarr and other app APIs.
 - TinyMediaManager naming integration.
 - Generic webhook notification targets.
 
-Cloudflare tunnel routes are the public app exposure model. The route list maps each public hostname to a Stackarr service such as Pulsarr or BookOrbit.
+Cloudflare tunnel routes are the public app exposure model. The route list maps each public hostname to a Stackarr service such as Pulsarr, BookOrbit, Immich, or RomM.
 
-Cloudflare API and tunnel tokens saved in the dashboard take precedence over older state files when Stackarr runs Cloudflare tunnel commands. Those commands refresh the state files so background agents continue with the current token.
+Stackarr only supports automated Cloudflare setup. Save a Cloudflare API token, then Stackarr creates or reuses the tunnel, fetches the connector credential internally, writes the tunnel ingress, creates DNS records, and manages Cloudflare Access apps and the reusable policy.
 
-Use the dashboard's Rotate tunnel token action after rotating the Cloudflare API token if you also need to invalidate an existing cloudflared connector credential.
+Use the dashboard's Rotate connector action after rotating the Cloudflare API token if you also need to invalidate the local cloudflared connector credential.
+
+## Cloudflare API Token
+
+Create a custom Cloudflare API token with these permissions:
+
+- Account: **Cloudflare Tunnel** - **Edit**
+- Account: **Access: Policies** - **Edit**
+- Account: **Zero Trust** - **Edit**
+- Zone: **Zone** - **Read**
+- Zone: **DNS** - **Edit**
+
+Limit Account Resources to the account that owns your tunnel. Limit Zone Resources to the zone you want Stackarr to publish, for example `example.com`.
+
+Cloudflare's API token flow lets you choose account or zone resources and warns that token secrets are only shown once. Cloudflare's tunnel API guide specifically requires account-level Cloudflare Tunnel edit plus zone DNS edit for API-created tunnels.
+
+Example CLI setup:
+
+```bash
+bin/stackarr cloudflare install \
+  --api-token <cloudflare-api-token> \
+  --route books.example.com=bookorbit:access \
+  --route photos.example.com=immich:public \
+  --route games.example.com=romm:access \
+  --access-email family@example.com
+```
+
+## Cloudflare Access Protection
+
+Enable **Protect Routes with Access** when publishing browser-facing family services such as books and games. Stackarr creates a reusable Cloudflare Access policy named **Email Allowlist**, ensures One-time PIN login is available, and attaches that allowlist to each route whose **Access** toggle is enabled before the hostname is published through the tunnel.
+
+Use a comma-separated allowlist for family members and keep the session duration reasonably long for home services, for example `720h`. If Access setup fails, route publishing stops so the app is not accidentally exposed without the extra login layer.
+
+Routes can opt out of Access for native mobile clients. Immich defaults to public/mobile because the iOS and Android apps expect to talk to the Immich server and Immich's own OAuth setup includes mobile redirect URI handling. For photo sharing, use strong Immich accounts or Immich OAuth, keep self-registration closed, and add Cloudflare WAF/rate limiting to slow brute-force attempts on the public hostname.

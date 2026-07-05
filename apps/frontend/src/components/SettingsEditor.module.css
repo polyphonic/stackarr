@@ -123,7 +123,7 @@
 .routeRow {
   grid-column: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(140px, 0.6fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(140px, 0.6fr) auto auto;
   gap: 8px;
 }
 
@@ -136,6 +136,21 @@
   border-radius: 4px;
   background: var(--inputBackground);
   color: var(--textColor);
+}
+
+.routeAccess {
+  display: inline-grid;
+  grid-template-columns: 16px auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  color: var(--mutedTextColor);
+  white-space: nowrap;
+}
+
+.routeAccess input {
+  min-height: 16px;
+  padding: 0;
 }
 
 .routeEditor button,

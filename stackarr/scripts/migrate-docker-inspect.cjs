@@ -21,6 +21,8 @@ process.stdin.on('end', () => {
     seerr: ['/app/config', '/config'],
     pulsarr: ['/app/data', '/config'],
     maintainerr: ['/opt/data'],
+    tracearr: ['/data/backup', '/app/data', '/data'],
+    romm: ['/romm/config', '/romm/assets', '/romm/resources'],
     tinymediamanager: ['/data', '/config'],
     tidarr: ['/shared', '/config'],
     bookorbit: ['/data', '/config']
@@ -59,6 +61,8 @@ function serviceName(value) {
     ['seerr', ['jellyseerr', 'overseerr', 'seerr']],
     ['pulsarr', ['pulsarr']],
     ['maintainerr', ['maintainerr']],
+    ['tracearr', ['tracearr']],
+    ['romm', ['romm']],
     ['transmission', ['transmission']],
     ['qbittorrent', ['qbittorrent', 'qbit']],
     ['tinymediamanager', ['tiny-media-manager', 'tinymediamanager', 'tinymm']],

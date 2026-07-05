@@ -32,13 +32,19 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.ok(questionIds.includes('agentPluginIntegrations'));
   assert.ok(!questionIds.includes('pulsarrHdLiteUsers'));
   const requestManagersQuestion = profile.questions.find((question) => question.id === 'requestManagers');
+  const mediaTypesQuestion = profile.questions.find((question) => question.id === 'enabledMediaTypes');
   const enabledServicesQuestion = profile.questions.find((question) => question.id === 'enabledServices');
   assert.deepEqual(requestManagersQuestion?.choices, ['seerr', 'pulsarr']);
   assert.deepEqual(requestManagersQuestion?.default, ['pulsarr']);
+  assert.equal((mediaTypesQuestion?.choices as string[]).includes('photos'), true);
+  assert.equal((mediaTypesQuestion?.choices as string[]).includes('games'), true);
   assert.ok(enabledServicesQuestion?.choices);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('seerr'), false);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('pulsarr'), false);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('maintainerr'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('tracearr'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('immich'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('romm'), true);
   assert.equal(profile.defaults.globalUsername, 'admin');
   assert.equal(profile.defaults.globalEmail, '');
   assert.equal(profile.defaults.databaseMode, 'app-default');
@@ -51,6 +57,9 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.configureSeerr, false);
   assert.equal(profile.defaults.enablePulsarr, true);
   assert.equal(profile.defaults.enableMaintainerr, false);
+  assert.equal(profile.defaults.enableTracearr, false);
+  assert.equal(profile.defaults.enableImmich, false);
+  assert.equal(profile.defaults.enableRomm, false);
   assert.deepEqual(profile.defaults.maintainerrCleanupPresets, []);
   assert.equal(profile.defaults.backupRetentionCount, 52);
   assert.equal('pulsarrHdLiteUsers' in profile.defaults, false);
@@ -88,30 +97,96 @@ test('dry-run setup config carries shared credentials without personal Pulsarr r
   assert.equal(result.plan.config.STACKARR_CONFIGURE_SEERR, 'false');
   assert.equal(result.plan.config.ENABLE_PULSARR, 'true');
   assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'false');
+  assert.equal(result.plan.config.ENABLE_TRACEARR, 'false');
+  assert.equal(result.plan.config.ENABLE_IMMICH, 'false');
+  assert.equal(result.plan.config.ENABLE_ROMM, 'false');
   assert.equal(result.plan.config.MAINTAINERR_CLEANUP_PRESETS, '');
+  assert.equal(result.plan.config.TRACEARR_JWT_SECRET, '********');
+  assert.equal(result.plan.config.TRACEARR_COOKIE_SECRET, '********');
   assert.equal(result.plan.config.PULSARR_HD_LITE_USERS, undefined);
   assert.match(result.plan.notes.join('\n'), /Pulsarr first-run admin/i);
   assert.match(result.plan.notes.join('\n'), /Maintainerr is wired to the selected media server/i);
+  assert.match(result.plan.notes.join('\n'), /Tracearr uses the shared Postgres\/TimescaleDB/i);
+  assert.match(result.plan.notes.join('\n'), /Immich is optional photo-library functionality/i);
+  assert.match(result.plan.notes.join('\n'), /RomM is optional private game-library functionality/i);
+});
+
+test('dry-run setup records Immich config for optional photo libraries', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    mediaRoot: '/srv/media',
+    enabledMediaTypes: ['movies', 'tv', 'music', 'photos'],
+    enabledServices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'immich']
+  });
+
+  assert.equal(result.plan.config.ENABLE_IMMICH, 'true');
+  assert.equal(result.plan.config.IMMICH_URL, 'http://127.0.0.1:2283');
+  assert.equal(result.plan.config.IMMICH_UPLOAD_LOCATION, '/srv/media/Pictures');
+  assert.equal(result.plan.config.IMMICH_DB_USERNAME, 'immich');
+  assert.equal(result.plan.config.IMMICH_DB_DATABASE_NAME, 'immich');
+  assert.equal(result.plan.config.IMMICH_DB_VECTOR_EXTENSION, 'pgvector');
+  assert.equal(result.plan.config.IMMICH_DB_PASSWORD, '********');
+});
+
+test('dry-run setup records RomM config for optional private game libraries', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    mediaRoot: '/srv/media',
+    enabledMediaTypes: ['movies', 'tv', 'music', 'games'],
+    enabledServices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'romm']
+  });
+
+  assert.equal(result.plan.config.ENABLE_ROMM, 'true');
+  assert.equal(result.plan.config.ROMM_URL, 'http://127.0.0.1:7583');
+  assert.equal(result.plan.config.ROMM_BIND_IP, '127.0.0.1');
+  assert.equal(result.plan.config.GAMES_ROOT, '/srv/media/Games');
+  assert.equal(result.plan.config.ROMM_LIBRARY_ROOT, '/srv/media/Games');
+  assert.equal(result.plan.config.ROMM_DB_DRIVER, 'postgresql');
+  assert.equal(result.plan.config.ROMM_DB_HOST, 'database');
+  assert.equal(result.plan.config.ROMM_DB_PORT, '5432');
+  assert.equal(result.plan.config.ROMM_DB_NAME, 'romm');
+  assert.equal(result.plan.config.ROMM_DB_USER, 'romm');
+  assert.equal(result.plan.config.ROMM_DB_PASSWORD, '********');
+  assert.equal(result.plan.config.ROMM_AUTH_SECRET_KEY, '********');
+  assert.equal(result.plan.config.ROMM_REDIS_HOST, 'redis');
+  assert.equal(result.plan.config.ROMM_REDIS_PORT, '6379');
+  assert.equal(result.plan.config.ROMM_AUTO_CONFIGURE, 'false');
+  assert.equal(result.plan.config.ROMM_ADMIN_USERNAME, '');
+  assert.equal(result.plan.config.ROMM_ADMIN_PASSWORD, '********');
+  assert.equal(result.plan.config.ROMM_HASHEOUS_API_ENABLED, 'true');
 });
 
 test('dry-run setup records Maintainerr cleanup preset ideas for the wired service', async () => {
   const result = await setupMediaServerAction({
     dryRun: true,
-    enabledServices: [
-      'bazarr',
-      'tinymediamanager',
-      'lidarr',
-      'recyclarr',
-      'flaresolverr',
-      'tidarr',
-      'maintainerr'
-    ],
+    enabledServices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'maintainerr'],
     maintainerrCleanupPresets: ['watched-movies', 'stale-requests']
   });
 
   assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'true');
   assert.equal(result.plan.config.MAINTAINERR_CLEANUP_PRESETS, 'watched-movies,stale-requests');
   assert.equal(result.plan.config.MAINTAINERR_URL, 'http://127.0.0.1:6246');
+});
+
+test('dry-run setup records Tracearr config for the monitoring service', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'tracearr']
+  });
+
+  assert.equal(result.plan.config.ENABLE_TRACEARR, 'true');
+  assert.equal(result.plan.config.TRACEARR_URL, 'http://127.0.0.1:3000');
+  assert.equal(result.plan.config.TRACEARR_AUTO_CONFIGURE, 'true');
+  assert.equal(result.plan.config.TRACEARR_ADMIN_PASSWORD, '********');
+  assert.equal(result.plan.config.TRACEARR_CLAIM_CODE, '********');
+  assert.equal(result.plan.config.TRACEARR_JWT_SECRET, '********');
+  assert.equal(result.plan.config.TRACEARR_COOKIE_SECRET, '********');
+  assert.equal(result.plan.config.TRACEARR_DB_PASSWORD, result.plan.config.DATABASE_SUPERUSER_PASSWORD);
+  assert.equal(result.plan.config.TRACEARR_POSTGRES_DATABASE, 'tracearr');
+  assert.equal(result.plan.config.TRACEARR_POSTGRES_USER, 'tracearr');
+  assert.equal(result.plan.config.TRACEARR_POSTGRES_PASSWORD, '********');
+  assert.equal(result.plan.config.DATABASE_IMAGE, 'timescale/timescaledb-ha:pg18.1-ts2.25.0');
+  assert.equal(result.plan.config.REDIS_IMAGE, 'redis:8-alpine');
 });
 
 test('dry-run setup lets music root differ from media root', async () => {
@@ -263,6 +338,8 @@ test('dry-run setup includes selected agent plugin install commands', async () =
 test('configure script bootstraps Pulsarr but does not create personal router rules for new users', async () => {
   const configure = await readFile(new URL('../../../stackarr/scripts/configure.sh', import.meta.url), 'utf8');
   const common = await readFile(new URL('../../../stackarr/lib/common.sh', import.meta.url), 'utf8');
+  const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
+  const databaseInit = await readFile(new URL('../../../stackarr/scripts/database-init.sh', import.meta.url), 'utf8');
 
   assert.match(configure, /configure_pulsarr_stack\(\)/);
   assert.match(configure, /PlexOnlineMail/);
@@ -287,6 +364,45 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /configure_maintainerr_stack \|\| true/);
   assert.match(configure, /Maintainerr first-run setup is complete/);
   assert.match(configure, /Maintainerr cleanup preset ideas recorded/);
+  assert.match(configure, /optional_service_enabled tracearr/);
+  assert.match(configure, /configure_tracearr_stack \|\| true/);
+  assert.match(configure, /configure_romm_stack \|\| true/);
+  assert.match(configure, /RomM setup is manual/);
+  assert.doesNotMatch(configure, /\/api\/users/);
+  assert.doesNotMatch(configure, /romm_csrftoken/);
+  assert.doesNotMatch(configure, /x-csrftoken/);
+  assert.match(common, /optional_service_enabled.*immich/s);
+  assert.match(configure, /API = '\/api\/v1'/);
+  assert.match(configure, /request\('GET', '\/setup\/status'/);
+  assert.match(configure, /request\('POST', '\/servers', payload, token=token/);
+  assert.match(configure, /'type': 'plex'[\s\S]*'token': token/);
+  assert.match(configure, /Tracearr auto-configuration disabled/);
+  assert.match(
+    compose,
+    /DATABASE_URL: postgres:\/\/\$\{TRACEARR_POSTGRES_USER:-tracearr\}:\$\{TRACEARR_POSTGRES_PASSWORD:-\$\{TRACEARR_DB_PASSWORD:-stackarr\}\}@database:5432\/\$\{TRACEARR_POSTGRES_DATABASE:-tracearr\}/
+  );
+  assert.match(compose, /REDIS_URL: redis:\/\/redis:6379/);
+  assert.match(compose, /container_name: redis/);
+  assert.match(compose, /image: \$\{REDIS_IMAGE:-redis:8-alpine\}/);
+  assert.doesNotMatch(compose, /container_name: database-init/);
+  assert.match(common, /stackarr_compose --profile database exec -T/);
+  assert.match(compose, /container_name: immich/);
+  assert.match(compose, /container_name: immich-machine-learning/);
+  assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);
+  assert.match(compose, /DB_HOSTNAME: database/);
+  assert.match(compose, /REDIS_HOSTNAME: redis/);
+  assert.doesNotMatch(compose, /container_name: immich-postgres/);
+  assert.doesNotMatch(compose, /container_name: immich-redis/);
+  assert.match(compose, /ROMM_DB_DRIVER: \$\{ROMM_DB_DRIVER:-postgresql\}/);
+  assert.match(compose, /DB_HOST: \$\{ROMM_DB_HOST:-database\}/);
+  assert.match(compose, /REDIS_HOST: \$\{ROMM_REDIS_HOST:-redis\}/);
+  assert.doesNotMatch(compose, /container_name: mariadb/);
+  assert.doesNotMatch(compose, /container_name: romm-db/);
+  assert.match(databaseInit, /ensure_app_database "\$\{TRACEARR_POSTGRES_DATABASE:-tracearr\}"/);
+  assert.match(databaseInit, /ensure_app_database "\$\{IMMICH_DB_DATABASE_NAME:-immich\}"/);
+  assert.match(databaseInit, /ensure_app_database "\$\{ROMM_DB_NAME:-romm\}"/);
+  assert.doesNotMatch(compose, /tracearr-timescale/);
+  assert.doesNotMatch(compose, /tracearr-redis/);
   assert.doesNotMatch(configure, /HD Lite watchlist users/);
   assert.doesNotMatch(configure, /PULSARR_HD_LITE_USERS/);
   assert.doesNotMatch(common, /PULSARR_HD_LITE_USERS/);
@@ -301,4 +417,14 @@ test('Lidarr is configured as download-only for manually curated music libraries
   assert.match(configure, /Lidarr completed download handling disabled[\s\S]*"\$LIDARR_KEY" false/);
   assert.match(downloads, /Lidarr completed download handling disabled[\s\S]*"\$wait_for_ready" false/);
   assert.doesNotMatch(configure, /Lidarr completed download handling enabled/);
+});
+
+test('Stackarr dashboard uses mounted runtime config inside Docker', async () => {
+  const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
+
+  assert.match(compose, /STACKARR_REPO_ROOT: \/app/);
+  assert.match(compose, /STACKARR_DATABASE_FILE: \/stackarr-config\/stackarr\.db/);
+  assert.match(compose, /\$\{STACKARR_DATABASE_DIR:-\.\/\.stackarr\/config\}:\/stackarr-config/);
+  assert.doesNotMatch(compose, /STACKARR_DATABASE_FILE: \$\{STACKARR_DATABASE_FILE/);
+  assert.doesNotMatch(compose, /\.\.:\/stackarr-workspace/);
 });

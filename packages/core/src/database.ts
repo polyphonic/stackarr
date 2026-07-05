@@ -82,17 +82,19 @@ export function readJsonSetting<T>(key: string, fallback: T): T {
     return fallback;
   }
 
-  const sqliteRow = fs.existsSync(appDatabasePath) ? readSqliteSetting(key) : undefined;
-  const postgresRow = postgresConfigured('main') ? readPostgresSetting(key) : undefined;
-  let row = sqliteRow;
+  let row: { value?: string } | undefined;
 
-  if (sqliteRow?.value !== undefined) {
-    if (postgresConfigured('main') && postgresRow?.value !== sqliteRow.value) {
-      writePostgresSetting(key, sqliteRow.value);
+  if (postgresConfigured('main')) {
+    row = readPostgresSetting(key);
+    if (!row?.value && fs.existsSync(appDatabasePath)) {
+      const sqliteRow = readSqliteSetting(key);
+      if (sqliteRow?.value !== undefined) {
+        writePostgresSetting(key, sqliteRow.value);
+        row = sqliteRow;
+      }
     }
-  } else if (postgresRow?.value !== undefined) {
-    writeSqliteSetting(key, postgresRow.value);
-    row = postgresRow;
+  } else if (fs.existsSync(appDatabasePath)) {
+    row = readSqliteSetting(key);
   }
 
   if (!row?.value) {
@@ -109,11 +111,11 @@ export function readJsonSetting<T>(key: string, fallback: T): T {
 export function writeJsonSetting<T>(key: string, value: T) {
   const jsonValue = JSON.stringify(value);
 
-  writeSqliteSetting(key, jsonValue);
-
-  if (postgresConfigured('main')) {
-    writePostgresSetting(key, jsonValue);
+  if (postgresConfigured('main') && writePostgresSetting(key, jsonValue)) {
+    return;
   }
+
+  writeSqliteSetting(key, jsonValue);
 }
 
 function readSqliteSetting(key: string): { value?: string } | undefined {

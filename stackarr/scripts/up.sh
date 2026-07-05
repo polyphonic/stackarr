@@ -19,7 +19,7 @@ while IFS= read -r profile_arg; do
 done < <(compose_profile_args)
 "$ROOT_DIR/scripts/naming.sh" prestart || true
 stackarr_compose "${profile_args[@]}" up -d --remove-orphans
-stackarr_compose rm -f -s database-init >/dev/null 2>&1 || true
+remove_database_init_sidecar
 refresh_stackarr_web_storage_mounts "${profile_args[@]}"
 remove_inactive_torrent_client_container
 remove_disabled_optional_containers

@@ -18,6 +18,7 @@ import {
   downloadLidarrAlbumWithStreamripAction,
   getArrQueueAction,
   getBackupStatusAction,
+  getCloudflareAccessAction,
   getCloudflareRoutesAction,
   getCommonIssuesAction,
   getDiskUsageAction,
@@ -97,6 +98,7 @@ import {
   triggerArrSearchAction,
   unmonitorMovieAction,
   unmonitorSeriesAction,
+  updateCloudflareAccessAction,
   updateCloudflareRoutesAction,
   updateServiceConfigAction,
   updateStackConfigAction,
@@ -138,8 +140,9 @@ const tools: ToolDef[] = [
       backupRoot: z.string().optional(),
       backupRetentionCount: z.number().int().positive().optional(),
       plexInstallMode: z.enum(['disabled', 'native', 'docker']).optional(),
+      plexToken: z.string().optional(),
       jellyfinInstallMode: z.enum(['disabled', 'native', 'docker']).optional(),
-      enabledMediaTypes: z.array(z.enum(['movies', 'tv', 'music', 'books'])).optional(),
+      enabledMediaTypes: z.array(z.enum(['movies', 'tv', 'music', 'books', 'photos', 'games'])).optional(),
       requestManagers: z.array(z.enum(['seerr', 'pulsarr'])).optional(),
       enabledServices: z
         .array(
@@ -148,10 +151,13 @@ const tools: ToolDef[] = [
             'tinymediamanager',
             'lidarr',
             'bookorbit',
+            'immich',
+            'romm',
             'recyclarr',
             'flaresolverr',
             'tidarr',
-            'maintainerr'
+            'maintainerr',
+            'tracearr'
           ])
         )
         .optional(),
@@ -161,11 +167,14 @@ const tools: ToolDef[] = [
       enableBazarr: z.boolean().optional(),
       enableLidarr: z.boolean().optional(),
       enableBookOrbit: z.boolean().optional(),
+      enableImmich: z.boolean().optional(),
+      enableRomm: z.boolean().optional(),
       enableTinyMediaManager: z.boolean().optional(),
       enableRecyclarr: z.boolean().optional(),
       enableFlaresolverr: z.boolean().optional(),
       enableTidarr: z.boolean().optional(),
       enableMaintainerr: z.boolean().optional(),
+      enableTracearr: z.boolean().optional(),
       maintainerrCleanupPresets: z.array(z.enum(['watched-movies', 'abandoned-shows', 'stale-requests'])).optional(),
       movieProfilePreset: z.enum(['lite', 'balanced']).optional(),
       movie4kProfilePreset: z.enum(['lite', 'balanced']).optional(),
@@ -301,6 +310,23 @@ const tools: ToolDef[] = [
     handler: sendTelemetryAction
   },
   {
+    name: 'stackarr_get_cloudflare_access',
+    description: 'Get Cloudflare Access allowlist settings and required token permissions.',
+    shape: empty,
+    handler: getCloudflareAccessAction
+  },
+  {
+    name: 'stackarr_update_cloudflare_access',
+    description:
+      'Update Cloudflare Access protection defaults. Route-level access is controlled by stackarr_update_cloudflare_routes.',
+    shape: {
+      enabled: z.boolean().optional(),
+      allowedEmails: z.union([z.array(z.string().email()), z.string()]).optional(),
+      sessionDuration: z.string().optional()
+    },
+    handler: updateCloudflareAccessAction
+  },
+  {
     name: 'stackarr_get_cloudflare_routes',
     description: 'Get configured Cloudflare tunnel routes.',
     shape: empty,
@@ -309,7 +335,7 @@ const tools: ToolDef[] = [
   {
     name: 'stackarr_update_cloudflare_routes',
     description:
-      'Update Cloudflare tunnel routes. Each route maps a public hostname to a Stackarr service such as pulsarr or bookorbit.',
+      'Update Cloudflare tunnel routes. Each route maps a public hostname to a Stackarr service and can opt in or out of Cloudflare Access.',
     shape: {
       routes: z.array(
         z.object({
@@ -318,8 +344,13 @@ const tools: ToolDef[] = [
             'stackarr',
             'pulsarr',
             'maintainerr',
+            'tracearr',
             'bookorbit',
+            'immich',
+            'romm',
             'seerr',
+            'transmission',
+            'qbittorrent',
             'plex',
             'jellyfin',
             'tinymm',
@@ -328,7 +359,8 @@ const tools: ToolDef[] = [
             'lidarr',
             'prowlarr',
             'bazarr'
-          ])
+          ]),
+          access: z.boolean().optional()
         })
       )
     },
@@ -676,7 +708,7 @@ const tools: ToolDef[] = [
   {
     name: 'stackarr_get_plex_watch_summary',
     description: 'Get Plex watch summary.',
-    shape: { provider: z.enum(['plex', 'tautulli']).optional() },
+    shape: { provider: z.enum(['plex', 'tracearr']).optional() },
     handler: getPlexWatchSummaryAction
   },
   {

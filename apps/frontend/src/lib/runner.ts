@@ -26,13 +26,11 @@ export function runQueuedTask(task: StackarrTask, command: CommandDefinition) {
   if (process.env.STACKARR_RUNTIME === 'docker' && hostOnlyCommands.has(command.name)) {
     const terminalCommand = `stackarr ${command.args.join(' ')}`;
     const sourceCheckoutCommand = `bin/stackarr ${command.args.join(' ')}`;
-    const appBundleCommand = `/Applications/Stackarr.app/Contents/MacOS/Stackarr ${command.args.join(' ')}`;
     const output = [
       'Host approval required.',
       `${command.label} needs macOS host access, so Docker queued the request and paused here.`,
       'Open Terminal and paste:',
       `  ${terminalCommand}`,
-      `App archive fallback: ${appBundleCommand}`,
       `Source checkouts can use: ${sourceCheckoutCommand}`,
       'Enter your Mac password if the command asks.',
       'This runs the requested host-level Stackarr action outside Docker.'
@@ -275,14 +273,12 @@ function stepNameFromArgs(args: string[]) {
 function hostApprovalMessage(step: SetupStep) {
   const terminalCommand = `stackarr ${step.args.join(' ')}`;
   const sourceCheckoutCommand = `bin/stackarr ${step.args.join(' ')}`;
-  const appBundleCommand = `/Applications/Stackarr.app/Contents/MacOS/Stackarr ${step.args.join(' ')}`;
 
   return (
     [
       `${step.label} needs host access and cannot be completed from the Docker container.`,
       'Run one of these on the host after the stack is online:',
       `  ${terminalCommand}`,
-      `  ${appBundleCommand}`,
       `  ${sourceCheckoutCommand}`
     ].join('\n') + '\n'
   );

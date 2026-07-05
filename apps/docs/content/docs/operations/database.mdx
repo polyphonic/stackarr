@@ -6,13 +6,17 @@ title: Database
 
 Stackarr can run one shared Postgres service named `database` for Stackarr runtime config and apps that support external Postgres configuration.
 
-The database image defaults to `pgvector/pgvector:pg18-trixie`. It is a PostgreSQL 18 image with the pgvector extension preinstalled, which BookOrbit requires for its `vector` extension. Avoid `latest` tags for database images.
+Stackarr initializes those shared databases by executing the checked-in `database-init.sh` script inside the running `database` container. It does not keep a separate `database-init` sidecar container around.
 
-By default, onboarding uses `app-default` database mode. In that mode Stackarr keeps each app on its native database choice, and the database container is only started when an enabled service requires it, such as BookOrbit.
+The database image defaults to `timescale/timescaledb-ha:pg18.1-ts2.25.0`. It is a PostgreSQL 18 image with TimescaleDB and pgvector available, covering Tracearr's time-series tables plus Immich and BookOrbit vector search. Avoid `latest` tags for database images.
+
+By default, onboarding uses `app-default` database mode. In that mode Stackarr keeps legacy Arr services on their native database choice, and the database container is only started when an enabled service requires it, such as BookOrbit, Immich, RomM, or Tracearr.
 
 Advanced onboarding can switch to `postgres` mode. In that mode Stackarr creates separate logical databases and users for enabled supported apps:
 
 - `bookorbit`
+- `immich`, only when Immich is enabled, with `cube`, `earthdistance`, and `vector` enabled by default
+- `romm`, only when RomM is enabled
 - `stackarr-main` for Stackarr runtime settings, tasks, and notifications
 - `stackarr-log` for Stackarr agent/audit activity
 - `prowlarr-main` and `prowlarr-log`
@@ -22,8 +26,9 @@ Advanced onboarding can switch to `postgres` mode. In that mode Stackarr creates
 - `bazarr`
 - `pulsarr`
 - `seerr`, only when Seerr is enabled
+- `tracearr`, only when Tracearr is enabled, with `timescaledb` enabled
 
-Plex is not part of this database setup. It stays on its native database and config paths.
+Plex is not part of this shared Postgres setup and stays on its native database and config paths. Immich, RomM, and Tracearr use the shared Redis service when enabled.
 
 The legacy single database named `stackarr` is not created by current onboarding. New shared-Postgres installs use `stackarr-main` and `stackarr-log`.
 
@@ -61,4 +66,4 @@ Use `bin/stackarr db-info` or the Stackarr UI to print the active redacted conne
 
 Stackarr backups include the pieces needed to restore the managed stack. When Postgres mode is enabled, backups include database dumps from the shared `database` container. Lite mode excludes rebuildable logs, caches, generated cover art, old app-internal backups, and other bulky data that the apps can recreate. Full mode includes more runtime metadata and can be much larger.
 
-Plex stays outside the shared Postgres setup. Stackarr backs up Plex according to the selected backup mode and configured Plex paths.
+Plex stays outside the shared Postgres setup for upstream compatibility. Stackarr backs up Plex according to the selected backup mode and configured Plex paths. RomM state lives in its logical database inside the shared Postgres container, while its library, assets, config, and fetched resources stay on the configured filesystem paths.

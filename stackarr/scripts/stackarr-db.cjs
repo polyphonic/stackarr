@@ -7,74 +7,74 @@ const scriptRoot = path.resolve(__dirname, '..');
 const composePath = path.join(scriptRoot, 'docker-compose.yml');
 
 function readSetting(key) {
-  const sqliteValue = readSqliteSetting(key);
-  const postgresValue = withPostgres(() => readPostgresSetting(key));
+  if (postgresConfigured()) {
+    const postgresValue = withPostgres(() => readPostgresSetting(key));
+    if (postgresValue !== undefined) {
+      return postgresValue;
+    }
 
-  if (sqliteValue !== undefined) {
-    if (process.env.STACKARR_DATABASE_URL && postgresValue !== sqliteValue) {
+    const sqliteValue = readSqliteSetting(key);
+    if (sqliteValue !== undefined) {
       withPostgres(() => writePostgresRawSetting(key, sqliteValue));
+      return sqliteValue;
     }
-    return sqliteValue;
+
+    return undefined;
   }
 
-  if (postgresValue !== undefined) {
-    try {
-      writeSqliteRawSetting(key, postgresValue);
-    } catch {
-      // Keep reads available during recovery even if the bootstrap DB is not writable yet.
-    }
-    return postgresValue;
-  }
-
-  return undefined;
+  return readSqliteSetting(key);
 }
 
 function writeSettings(patch) {
-  writeSqliteSettings(patch);
-  const sqliteValue = readSqliteSetting('stackarr.runtimeConfig');
-  const wrotePostgres = Boolean(
-    sqliteValue !== undefined && withPostgres(() => writePostgresRawSetting('stackarr.runtimeConfig', sqliteValue))
-  );
-
-  if (wrotePostgres) {
-    return 'sqlite+postgres';
+  if (postgresConfigured()) {
+    const currentValue = readSetting('stackarr.runtimeConfig');
+    let current = {};
+    if (currentValue) {
+      try {
+        current = JSON.parse(currentValue);
+      } catch {
+        current = {};
+      }
+    }
+    writePostgresRawSetting('stackarr.runtimeConfig', JSON.stringify({ ...current, ...patch }));
+    return 'postgres';
   }
 
+  writeSqliteSettings(patch);
   return 'sqlite';
 }
 
 function writeRawSetting(key, value) {
-  writeSqliteRawSetting(key, value);
-  const wrotePostgres = Boolean(withPostgres(() => writePostgresRawSetting(key, value)));
-
-  if (wrotePostgres) {
-    return 'sqlite+postgres';
+  if (postgresConfigured()) {
+    writePostgresRawSetting(key, value);
+    return 'postgres';
   }
 
+  writeSqliteRawSetting(key, value);
   return 'sqlite';
 }
 
 function upsertTask(task) {
-  const wrotePostgres = Boolean(withPostgres(() => upsertPostgresTask(task)));
-  upsertSqliteTask(task);
-  pruneTasks();
-
-  if (wrotePostgres) {
-    return 'postgres+sqlite';
+  if (postgresConfigured()) {
+    upsertPostgresTask(task);
+    pruneTasks();
+    return 'postgres';
   }
 
+  upsertSqliteTask(task);
+  pruneTasks();
   return 'sqlite';
 }
 
 function patchTask(id, patch) {
-  const wrotePostgres = Boolean(withPostgres(() => patchPostgresTask(id, patch)));
-  patchSqliteTask(id, patch);
-  pruneTasks();
-
-  if (wrotePostgres) {
-    return 'postgres+sqlite';
+  if (postgresConfigured()) {
+    patchPostgresTask(id, patch);
+    pruneTasks();
+    return 'postgres';
   }
 
+  patchSqliteTask(id, patch);
+  pruneTasks();
   return 'sqlite';
 }
 
@@ -555,12 +555,20 @@ function prunePostgresTasks(limit = 100) {
 }
 
 function pruneTasks() {
-  withPostgres(() => prunePostgresTasks());
+  if (postgresConfigured()) {
+    prunePostgresTasks();
+    return;
+  }
+
   pruneSqliteTasks();
 }
 
+function postgresConfigured() {
+  return Boolean(process.env.STACKARR_DATABASE_URL);
+}
+
 function withPostgres(callback) {
-  if (!process.env.STACKARR_DATABASE_URL) {
+  if (!postgresConfigured()) {
     return undefined;
   }
 
@@ -617,9 +625,38 @@ function runPsql(sql, variables = {}, tuplesOnly = true) {
         connection.database,
         ...queryArgs
       ],
-      { encoding: 'utf8', input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf8', env: dockerEnv(), input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
     ).trim();
   }
+}
+
+function dockerEnv() {
+  const env = { ...process.env };
+  const requestedContext = env.STACKARR_DOCKER_CONTEXT || env.DOCKER_CONTEXT;
+  if (requestedContext) {
+    env.DOCKER_CONTEXT = requestedContext;
+    delete env.DOCKER_HOST;
+    return env;
+  }
+
+  if ((env.DOCKER_HOST || '').includes('arcbox')) {
+    env.DOCKER_CONTEXT = 'orbstack';
+    delete env.DOCKER_HOST;
+    return env;
+  }
+
+  try {
+    const currentContext = execFileSync('docker', ['context', 'show'], { encoding: 'utf8', env }).trim();
+    if (currentContext.includes('arcbox')) {
+      execFileSync('docker', ['context', 'inspect', 'orbstack'], { encoding: 'utf8', env, stdio: 'ignore' });
+      env.DOCKER_CONTEXT = 'orbstack';
+      delete env.DOCKER_HOST;
+    }
+  } catch {
+    // Leave the caller's Docker environment untouched if context probing is unavailable.
+  }
+
+  return env;
 }
 
 function sqlLiteral(value) {

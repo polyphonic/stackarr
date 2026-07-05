@@ -151,6 +151,9 @@ LITE_CONFIG_EXCLUDES=(
     "logs.db*"
     "database/"
     "postgres/"
+    "mysql/"
+    "romm/redis/"
+    "romm/resources/"
     "*.db.bak*"
     "*.db-wal.bak*"
     "*.db-shm.bak*"
@@ -563,7 +566,7 @@ lite_config_path_excluded() {
     local rel="$1"
 
     case "$rel" in
-        MediaCover/*|*/MediaCover/*|Backups/*|*/Backups/*|backups/*|*/backups/*|backup/*|*/backup/*|addons/*|*/addons/*|Cache/*|*/Cache/*|Caches/*|*/Caches/*|cache/*|*/cache/*|Sentry/*|*/Sentry/*|Logs/*|*/Logs/*|logs/*|*/logs/*|log/*|*/log/*|UpdateLogs/*|*/UpdateLogs/*|blocklists/*|*/blocklists/*|repair-*/*|*/repair-*/*|repair-backups/*|*/repair-backups/*|restore-safety-*/*|*/restore-safety-*/*|recyclarr/resources/*|database/*|*/database/*|postgres/*|*/postgres/*|*.log|logs.db*|*/logs.db*|*.db.bak*|*/*.db.bak*|*.db-wal.bak*|*/*.db-wal.bak*|*.db-shm.bak*|*/*.db-shm.bak*|*.db-journal.bak*|*/*.db-journal.bak*|*.db.corrupt*|*/*.db.corrupt*|*.sqlite.bak*|*/*.sqlite.bak*|*.sqlite-wal.bak*|*/*.sqlite-wal.bak*|*.sqlite-shm.bak*|*/*.sqlite-shm.bak*|*.sqlite-journal.bak*|*/*.sqlite-journal.bak*|*.sqlite.corrupt*|*/*.sqlite.corrupt*|*.sqlite3.bak*|*/*.sqlite3.bak*|*.sqlite3-wal.bak*|*/*.sqlite3-wal.bak*|*.sqlite3-shm.bak*|*/*.sqlite3-shm.bak*|*.sqlite3-journal.bak*|*/*.sqlite3-journal.bak*|*.sqlite3.corrupt*|*/*.sqlite3.corrupt*)
+        MediaCover/*|*/MediaCover/*|Backups/*|*/Backups/*|backups/*|*/backups/*|backup/*|*/backup/*|addons/*|*/addons/*|Cache/*|*/Cache/*|Caches/*|*/Caches/*|cache/*|*/cache/*|Sentry/*|*/Sentry/*|Logs/*|*/Logs/*|logs/*|*/logs/*|log/*|*/log/*|UpdateLogs/*|*/UpdateLogs/*|blocklists/*|*/blocklists/*|repair-*/*|*/repair-*/*|repair-backups/*|*/repair-backups/*|restore-safety-*/*|*/restore-safety-*/*|recyclarr/resources/*|romm/redis/*|romm/resources/*|database/*|*/database/*|postgres/*|*/postgres/*|mysql/*|*/mysql/*|*.log|logs.db*|*/logs.db*|*.db.bak*|*/*.db.bak*|*.db-wal.bak*|*/*.db-wal.bak*|*.db-shm.bak*|*/*.db-shm.bak*|*.db-journal.bak*|*/*.db-journal.bak*|*.db.corrupt*|*/*.db.corrupt*|*.sqlite.bak*|*/*.sqlite.bak*|*.sqlite-wal.bak*|*/*.sqlite-wal.bak*|*.sqlite-shm.bak*|*/*.sqlite-shm.bak*|*.sqlite-journal.bak*|*/*.sqlite-journal.bak*|*.sqlite.corrupt*|*/*.sqlite.corrupt*|*.sqlite3.bak*|*/*.sqlite3.bak*|*.sqlite3-wal.bak*|*/*.sqlite3-wal.bak*|*.sqlite3-shm.bak*|*/*.sqlite3-shm.bak*|*.sqlite3-journal.bak*|*/*.sqlite3-journal.bak*|*.sqlite3.corrupt*|*/*.sqlite3.corrupt*)
             return 0
             ;;
         *)
@@ -713,12 +716,12 @@ if [[ "$PLEX_BACKUP_MODE_NORMALIZED" == "lite" ]]; then
     cat >> "$STAGING/manifest.txt" <<'EOF'
 plex_excluded_rebuildable_paths=Codecs,Crash Reports,Diagnostics,Logs,Media,Metadata,Scanners,Plug-in Support/Caches,dated Plex database snapshots,Updates
 plex_lite_included_metadata_paths=Metadata/Collections/*/Uploads
-config_excluded_rebuildable_paths=MediaCover,Backups,backups,backup,addons,Cache,Caches,cache,Sentry,Logs,logs,log,UpdateLogs,blocklists,repair-*,repair-backups,restore-safety-*,recyclarr/resources,database,postgres,*.log,logs.db*,*.db.bak*,*.db.corrupt*,sqlite_wal_shm_journal,*.pid,*.lock
+config_excluded_rebuildable_paths=MediaCover,Backups,backups,backup,addons,Cache,Caches,cache,Sentry,Logs,logs,log,UpdateLogs,blocklists,repair-*,repair-backups,restore-safety-*,recyclarr/resources,romm/redis,romm/resources,database,postgres,mysql,*.log,logs.db*,*.db.bak*,*.db.corrupt*,sqlite_wal_shm_journal,*.pid,*.lock
 EOF
 else
     cat >> "$STAGING/manifest.txt" <<'EOF'
 plex_excluded_rebuildable_paths=Codecs,Crash Reports,Diagnostics,Logs,Scanners,Plug-in Support/Caches,dated Plex database snapshots,Updates
-config_excluded_rebuildable_paths=MediaCover,Backups,backups,backup,addons,Cache,Caches,cache,Sentry,Logs,logs,log,UpdateLogs,blocklists,repair-*,repair-backups,restore-safety-*,recyclarr/resources,database,postgres,*.log,logs.db*,*.db.bak*,*.db.corrupt*,sqlite_wal_shm_journal,*.pid,*.lock
+config_excluded_rebuildable_paths=MediaCover,Backups,backups,backup,addons,Cache,Caches,cache,Sentry,Logs,logs,log,UpdateLogs,blocklists,repair-*,repair-backups,restore-safety-*,recyclarr/resources,romm/redis,romm/resources,database,postgres,mysql,*.log,logs.db*,*.db.bak*,*.db.corrupt*,sqlite_wal_shm_journal,*.pid,*.lock
 EOF
 fi
 

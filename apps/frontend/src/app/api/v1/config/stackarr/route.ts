@@ -116,6 +116,15 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     unredactedConfigValue('DATABASE_SUPERUSER_PASSWORD') || current.DATABASE_SUPERUSER_PASSWORD || stackPassword;
   const databaseMode = normalizeDatabaseMode(config.STACKARR_DATABASE_MODE || current.STACKARR_DATABASE_MODE);
   const postgresMode = databaseMode === 'postgres';
+  const tracearrEnabled = String(config.ENABLE_TRACEARR ?? current.ENABLE_TRACEARR ?? '').toLowerCase() === 'true';
+  const immichEnabled = String(config.ENABLE_IMMICH ?? current.ENABLE_IMMICH ?? '').toLowerCase() === 'true';
+  const rommEnabled = String(config.ENABLE_ROMM ?? current.ENABLE_ROMM ?? '').toLowerCase() === 'true';
+  const requestedDatabaseImage =
+    config.DATABASE_IMAGE || current.DATABASE_IMAGE || 'timescale/timescaledb-ha:pg18.1-ts2.25.0';
+  const databaseImage =
+    tracearrEnabled && requestedDatabaseImage === 'pgvector/pgvector:pg18-trixie'
+      ? 'timescale/timescaledb-ha:pg18.1-ts2.25.0'
+      : requestedDatabaseImage;
   const requestedStackarrDatabaseUrl = isLegacyStackarrPostgresUrl(unredactedConfigValue('STACKARR_DATABASE_URL'))
     ? ''
     : unredactedConfigValue('STACKARR_DATABASE_URL');
@@ -130,6 +139,35 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   const currentStackarrLogDatabaseUrl = isLegacyStackarrPostgresUrl(current.STACKARR_LOG_DATABASE_URL)
     ? ''
     : current.STACKARR_LOG_DATABASE_URL;
+  const requestedRommDbDriver =
+    !config.ROMM_DB_DRIVER || ['mysql', 'mariadb'].includes(config.ROMM_DB_DRIVER)
+      ? 'postgresql'
+      : config.ROMM_DB_DRIVER;
+  const currentRommDbDriver =
+    !current.ROMM_DB_DRIVER || ['mysql', 'mariadb'].includes(current.ROMM_DB_DRIVER)
+      ? 'postgresql'
+      : current.ROMM_DB_DRIVER;
+  const requestedRommDbHost =
+    !config.ROMM_DB_HOST || ['romm-db', 'mysql', 'mariadb'].includes(config.ROMM_DB_HOST)
+      ? 'database'
+      : config.ROMM_DB_HOST;
+  const currentRommDbHost =
+    !current.ROMM_DB_HOST || ['romm-db', 'mysql', 'mariadb'].includes(current.ROMM_DB_HOST)
+      ? 'database'
+      : current.ROMM_DB_HOST;
+  const requestedRommDbImage =
+    config.ROMM_DB_IMAGE === 'mysql:8' ||
+    config.ROMM_DB_IMAGE === 'mysql:latest' ||
+    config.ROMM_DB_IMAGE?.startsWith('mariadb:')
+      ? ''
+      : config.ROMM_DB_IMAGE;
+  const currentRommDbImage =
+    current.ROMM_DB_IMAGE === 'mysql:8' ||
+    current.ROMM_DB_IMAGE === 'mysql:latest' ||
+    current.ROMM_DB_IMAGE?.startsWith('mariadb:')
+      ? ''
+      : current.ROMM_DB_IMAGE;
+  const requestedImmichDbUser = config.IMMICH_DB_USERNAME || current.IMMICH_DB_USERNAME || 'immich';
   const next: StackarrEnv = {
     ...config,
     STACKARR_API_KEY:
@@ -138,6 +176,7 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       nodeCrypto.randomBytes(24).toString('hex'),
     STACKARR_DATABASE_MODE: databaseMode,
     PASSWORD: unredactedConfigValue('PASSWORD') || current.PASSWORD || stackPassword,
+    DATABASE_IMAGE: databaseImage,
     DATABASE_SUPERUSER_PASSWORD: databasePassword,
     STACKARR_POSTGRES_MAIN_DATABASE:
       config.STACKARR_POSTGRES_MAIN_DATABASE ||
@@ -155,6 +194,62 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     BOOKORBIT_POSTGRES_USER: config.BOOKORBIT_POSTGRES_USER || current.BOOKORBIT_POSTGRES_USER || 'bookorbit',
     BOOKORBIT_POSTGRES_PASSWORD:
       unredactedConfigValue('BOOKORBIT_POSTGRES_PASSWORD') || current.BOOKORBIT_POSTGRES_PASSWORD || databasePassword,
+    IMMICH_DB_USERNAME: requestedImmichDbUser === 'postgres' ? 'immich' : requestedImmichDbUser,
+    IMMICH_DB_DATABASE_NAME: config.IMMICH_DB_DATABASE_NAME || current.IMMICH_DB_DATABASE_NAME || 'immich',
+    IMMICH_DB_PASSWORD:
+      unredactedConfigValue('IMMICH_DB_PASSWORD') ||
+      current.IMMICH_DB_PASSWORD ||
+      (immichEnabled ? nodeCrypto.randomBytes(24).toString('hex') : ''),
+    IMMICH_DB_VECTOR_EXTENSION: config.IMMICH_DB_VECTOR_EXTENSION || current.IMMICH_DB_VECTOR_EXTENSION || 'pgvector',
+    GAMES_ROOT: config.GAMES_ROOT || current.GAMES_ROOT || `${config.MEDIA_ROOT || current.MEDIA_ROOT || ''}/Games`,
+    ROMM_URL: config.ROMM_URL || current.ROMM_URL || 'http://127.0.0.1:7583',
+    ROMM_BIND_IP: config.ROMM_BIND_IP || current.ROMM_BIND_IP || '127.0.0.1',
+    ROMM_WEB_PORT: config.ROMM_WEB_PORT || current.ROMM_WEB_PORT || '7583',
+    ROMM_CONTAINER_PORT: config.ROMM_CONTAINER_PORT || current.ROMM_CONTAINER_PORT || '8080',
+    ROMM_LIBRARY_ROOT:
+      config.ROMM_LIBRARY_ROOT || current.ROMM_LIBRARY_ROOT || config.GAMES_ROOT || current.GAMES_ROOT || '',
+    ROMM_ASSETS_ROOT: config.ROMM_ASSETS_ROOT || current.ROMM_ASSETS_ROOT || '',
+    ROMM_CONFIG_ROOT: config.ROMM_CONFIG_ROOT || current.ROMM_CONFIG_ROOT || '',
+    ROMM_RESOURCES_ROOT: config.ROMM_RESOURCES_ROOT || current.ROMM_RESOURCES_ROOT || '',
+    ROMM_REDIS_DATA_ROOT: config.ROMM_REDIS_DATA_ROOT || current.ROMM_REDIS_DATA_ROOT || '',
+    ROMM_REDIS_HOST: config.ROMM_REDIS_HOST || current.ROMM_REDIS_HOST || 'redis',
+    ROMM_REDIS_PORT: config.ROMM_REDIS_PORT || current.ROMM_REDIS_PORT || '6379',
+    ROMM_DB_DATA_LOCATION: config.ROMM_DB_DATA_LOCATION || current.ROMM_DB_DATA_LOCATION || '',
+    ROMM_DB_DRIVER: requestedRommDbDriver || currentRommDbDriver || 'postgresql',
+    ROMM_DB_HOST: requestedRommDbHost || currentRommDbHost || 'database',
+    ROMM_DB_PORT: config.ROMM_DB_PORT || current.ROMM_DB_PORT || '5432',
+    ROMM_DB_IMAGE: requestedRommDbImage || currentRommDbImage || '',
+    ROMM_DB_NAME: config.ROMM_DB_NAME || current.ROMM_DB_NAME || 'romm',
+    ROMM_DB_USER: config.ROMM_DB_USER || current.ROMM_DB_USER || 'romm',
+    ROMM_DB_PASSWORD:
+      unredactedConfigValue('ROMM_DB_PASSWORD') ||
+      current.ROMM_DB_PASSWORD ||
+      (rommEnabled ? nodeCrypto.randomBytes(24).toString('hex') : ''),
+    ROMM_DB_ROOT_PASSWORD: '',
+    ROMM_DB_QUERY_JSON: config.ROMM_DB_QUERY_JSON || current.ROMM_DB_QUERY_JSON || '',
+    ROMM_AUTH_SECRET_KEY:
+      unredactedConfigValue('ROMM_AUTH_SECRET_KEY') ||
+      current.ROMM_AUTH_SECRET_KEY ||
+      (rommEnabled ? nodeCrypto.randomBytes(32).toString('hex') : ''),
+    ROMM_AUTO_CONFIGURE: 'false',
+    ROMM_ADMIN_USERNAME: '',
+    ROMM_ADMIN_EMAIL: '',
+    ROMM_ADMIN_PASSWORD: '',
+    ROMM_IGDB_CLIENT_ID: config.ROMM_IGDB_CLIENT_ID || current.ROMM_IGDB_CLIENT_ID || '',
+    ROMM_IGDB_CLIENT_SECRET: unredactedConfigValue('ROMM_IGDB_CLIENT_SECRET') || current.ROMM_IGDB_CLIENT_SECRET || '',
+    ROMM_MOBYGAMES_API_KEY: unredactedConfigValue('ROMM_MOBYGAMES_API_KEY') || current.ROMM_MOBYGAMES_API_KEY || '',
+    ROMM_SCREENSCRAPER_USER: config.ROMM_SCREENSCRAPER_USER || current.ROMM_SCREENSCRAPER_USER || '',
+    ROMM_SCREENSCRAPER_PASSWORD:
+      unredactedConfigValue('ROMM_SCREENSCRAPER_PASSWORD') || current.ROMM_SCREENSCRAPER_PASSWORD || '',
+    ROMM_RETROACHIEVEMENTS_API_KEY:
+      unredactedConfigValue('ROMM_RETROACHIEVEMENTS_API_KEY') || current.ROMM_RETROACHIEVEMENTS_API_KEY || '',
+    ROMM_STEAMGRIDDB_API_KEY:
+      unredactedConfigValue('ROMM_STEAMGRIDDB_API_KEY') || current.ROMM_STEAMGRIDDB_API_KEY || '',
+    ROMM_HASHEOUS_API_ENABLED: config.ROMM_HASHEOUS_API_ENABLED || current.ROMM_HASHEOUS_API_ENABLED || 'true',
+    ROMM_PLAYMATCH_API_ENABLED: config.ROMM_PLAYMATCH_API_ENABLED || current.ROMM_PLAYMATCH_API_ENABLED || 'false',
+    ROMM_LAUNCHBOX_API_ENABLED: config.ROMM_LAUNCHBOX_API_ENABLED || current.ROMM_LAUNCHBOX_API_ENABLED || 'false',
+    ROMM_FLASHPOINT_API_ENABLED: config.ROMM_FLASHPOINT_API_ENABLED || current.ROMM_FLASHPOINT_API_ENABLED || 'false',
+    ROMM_HLTB_API_ENABLED: config.ROMM_HLTB_API_ENABLED || current.ROMM_HLTB_API_ENABLED || 'false',
     SEERR_DB_TYPE: config.SEERR_DB_TYPE || current.SEERR_DB_TYPE || 'postgres',
     SEERR_POSTGRES_DATABASE: config.SEERR_POSTGRES_DATABASE || current.SEERR_POSTGRES_DATABASE || 'seerr',
     SEERR_POSTGRES_USER: config.SEERR_POSTGRES_USER || current.SEERR_POSTGRES_USER || 'seerr',
@@ -164,6 +259,14 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     PULSARR_POSTGRES_USER: config.PULSARR_POSTGRES_USER || current.PULSARR_POSTGRES_USER || 'pulsarr',
     PULSARR_POSTGRES_PASSWORD:
       unredactedConfigValue('PULSARR_POSTGRES_PASSWORD') || current.PULSARR_POSTGRES_PASSWORD || databasePassword,
+    TRACEARR_POSTGRES_DATABASE: config.TRACEARR_POSTGRES_DATABASE || current.TRACEARR_POSTGRES_DATABASE || 'tracearr',
+    TRACEARR_POSTGRES_USER: config.TRACEARR_POSTGRES_USER || current.TRACEARR_POSTGRES_USER || 'tracearr',
+    TRACEARR_POSTGRES_PASSWORD:
+      unredactedConfigValue('TRACEARR_POSTGRES_PASSWORD') ||
+      current.TRACEARR_POSTGRES_PASSWORD ||
+      unredactedConfigValue('TRACEARR_DB_PASSWORD') ||
+      current.TRACEARR_DB_PASSWORD ||
+      databasePassword,
     PULSARR_DB_TYPE: postgresMode ? 'postgres' : config.PULSARR_DB_TYPE || current.PULSARR_DB_TYPE || 'sqlite',
     PULSARR_DB_PATH: config.PULSARR_DB_PATH || current.PULSARR_DB_PATH || '/app/data/db/pulsarr.db',
     PULSARR_DB_HOST: postgresMode ? 'database' : '',
@@ -240,6 +343,14 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     next[key] = unredactedConfigValue(key) || current[key] || stackPassword;
   }
 
+  next.TRACEARR_AUTO_CONFIGURE = config.TRACEARR_AUTO_CONFIGURE || current.TRACEARR_AUTO_CONFIGURE || 'true';
+  next.TRACEARR_ADMIN_USERNAME =
+    config.TRACEARR_ADMIN_USERNAME || current.TRACEARR_ADMIN_USERNAME || next.USERNAME || 'stackarr';
+  next.TRACEARR_ADMIN_EMAIL = config.TRACEARR_ADMIN_EMAIL || current.TRACEARR_ADMIN_EMAIL || next.USER_EMAIL || '';
+  next.TRACEARR_ADMIN_PASSWORD =
+    unredactedConfigValue('TRACEARR_ADMIN_PASSWORD') || current.TRACEARR_ADMIN_PASSWORD || next.PASSWORD || '';
+  next.TRACEARR_CLAIM_CODE = unredactedConfigValue('TRACEARR_CLAIM_CODE') || current.TRACEARR_CLAIM_CODE || '';
+
   next.STACKARR_POSTGRES_DATABASE = next.STACKARR_POSTGRES_MAIN_DATABASE;
 
   const generatedStackarrDatabaseUrl = buildPostgresUrl(
@@ -274,6 +385,37 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       : generatedStackarrLogDatabaseUrl
     : '';
   next.BOOKORBIT_DATABASE_URL = `postgres://${encodeURIComponent(next.BOOKORBIT_POSTGRES_USER ?? 'bookorbit')}:${encodeURIComponent(next.BOOKORBIT_POSTGRES_PASSWORD ?? databasePassword)}@database:5432/${encodeURIComponent(next.BOOKORBIT_POSTGRES_DATABASE ?? 'bookorbit')}`;
+
+  if (tracearrEnabled) {
+    next.TRACEARR_DB_PASSWORD =
+      unredactedConfigValue('TRACEARR_DB_PASSWORD') || current.TRACEARR_DB_PASSWORD || databasePassword;
+    next.TRACEARR_POSTGRES_PASSWORD =
+      unredactedConfigValue('TRACEARR_POSTGRES_PASSWORD') ||
+      current.TRACEARR_POSTGRES_PASSWORD ||
+      next.TRACEARR_DB_PASSWORD;
+    next.TRACEARR_JWT_SECRET =
+      unredactedConfigValue('TRACEARR_JWT_SECRET') ||
+      current.TRACEARR_JWT_SECRET ||
+      nodeCrypto.randomBytes(32).toString('hex');
+    next.TRACEARR_COOKIE_SECRET =
+      unredactedConfigValue('TRACEARR_COOKIE_SECRET') ||
+      current.TRACEARR_COOKIE_SECRET ||
+      nodeCrypto.randomBytes(32).toString('hex');
+  }
+
+  if (rommEnabled) {
+    next.ROMM_DB_PASSWORD =
+      unredactedConfigValue('ROMM_DB_PASSWORD') ||
+      current.ROMM_DB_PASSWORD ||
+      nodeCrypto.randomBytes(24).toString('hex');
+    next.ROMM_AUTH_SECRET_KEY =
+      unredactedConfigValue('ROMM_AUTH_SECRET_KEY') ||
+      current.ROMM_AUTH_SECRET_KEY ||
+      nodeCrypto.randomBytes(32).toString('hex');
+    next.ROMM_ADMIN_USERNAME = '';
+    next.ROMM_ADMIN_EMAIL = '';
+    next.ROMM_ADMIN_PASSWORD = '';
+  }
 
   if (String(config.ENABLE_BOOKORBIT ?? '').toLowerCase() !== 'true') {
     return next;
@@ -425,6 +567,7 @@ function isCurrentPasswordProtectedConfigKey(key: string) {
   return (
     normalized === 'PASSWORD' ||
     normalized.endsWith('_PASSWORD') ||
+    normalized.includes('CLAIM_CODE') ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
     normalized.endsWith('_DB_URL')

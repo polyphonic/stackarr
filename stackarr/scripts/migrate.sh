@@ -51,8 +51,8 @@ Discovery:
 
 Supported targets:
   Radarr, Radarr 4K, Sonarr, Sonarr 4K, Prowlarr, Lidarr, Bazarr, Seerr/Overseerr/Jellyseerr,
-  Pulsarr, Transmission, qBittorrent, Plex, Jellyfin, TinyMediaManager, Recyclarr, Tidarr,
-  and BookOrbit.
+  Pulsarr, Tracearr, RomM, Transmission, qBittorrent, Plex, Jellyfin, TinyMediaManager, Recyclarr,
+  Tidarr, and BookOrbit.
 EOF
             exit 0
             ;;
@@ -101,6 +101,12 @@ normalize_service_name() {
             ;;
         *maintainerr*)
             printf '%s\n' "maintainerr"
+            ;;
+        *tracearr*)
+            printf '%s\n' "tracearr"
+            ;;
+        *romm*)
+            printf '%s\n' "romm"
             ;;
         *transmission*)
             printf '%s\n' "transmission"
@@ -409,6 +415,7 @@ flag("ENABLE_TIDARR", "tidarr" in services)
 flag("ENABLE_SEERR", "seerr" in services)
 flag("ENABLE_PULSARR", "pulsarr" in services)
 flag("ENABLE_MAINTAINERR", "maintainerr" in services)
+flag("ENABLE_TRACEARR", "tracearr" in services)
 
 if "qbittorrent" in services:
     patch["PREFERRED_TORRENT_CLIENT"] = "qbittorrent"

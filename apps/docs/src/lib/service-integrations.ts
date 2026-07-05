@@ -206,6 +206,51 @@ export const serviceIntegrations = [
       'Stackarr can run Maintainerr, persist its data, link it through localhost or Portless, include it in backups, and wire Plex/Jellyfin, Radarr/Sonarr, Seerr, and qBittorrent when available while leaving destructive cleanup rules user-controlled.'
   },
   {
+    slug: 'tracearr',
+    name: 'Tracearr',
+    logo: 'tracearr',
+    category: 'Monitoring',
+    role: 'Media-server analytics',
+    hero: 'Tracearr monitors Plex, Jellyfin, and Emby sessions in real time with analytics and detection rules.',
+    whatItDoes: [
+      'Tracks active streams, watch history, bandwidth, devices, and playback locations across media servers.',
+      'Uses the shared Postgres service with TimescaleDB plus shared Redis for analytics, rules, and real-time updates.',
+      'Can import legacy watch-history data while keeping future monitoring in one self-hosted dashboard.'
+    ],
+    stackarr:
+      'Stackarr can start Tracearr against the shared Postgres/TimescaleDB and Redis services, persist built-in backups under the Stackarr config root, expose localhost/Portless links, and wire the first owner plus media server during onboarding when credentials are available.'
+  },
+  {
+    slug: 'immich',
+    name: 'Immich',
+    logo: 'immich',
+    category: 'Photos',
+    role: 'Photo and video backup app',
+    hero: 'Immich brings self-hosted photo and video backup, browsing, and mobile sync into the Stackarr service model.',
+    whatItDoes: [
+      'Backs up camera-roll photos and videos from iOS and Android clients.',
+      'Provides a fast private photo library with albums, people, search, and sharing workflows.',
+      'Runs a dedicated server and machine-learning worker while using Stackarr shared Redis and Postgres with pgvector.'
+    ],
+    stackarr:
+      'Stackarr can enable Immich as optional photo-library functionality, persist uploads under the configured media root, provision its shared Postgres role/database, expose service links and Cloudflare routes, and surface the config through dashboard and MCP tools.'
+  },
+  {
+    slug: 'romm',
+    name: 'RomM',
+    logo: 'romm',
+    category: 'Games',
+    role: 'Private ROM and game-library manager',
+    hero: 'RomM organizes emulator game libraries with metadata, artwork, saves, states, and browser-play workflows.',
+    whatItDoes: [
+      'Scans a structured ROM library and presents games by platform with artwork and metadata.',
+      'Stores uploaded saves, states, custom assets, and config separately from the library folder.',
+      'Uses Stackarr shared Postgres and Redis plus local resources paths so the game-library app state stays durable.'
+    ],
+    stackarr:
+      'Stackarr can enable RomM as optional private game-library functionality, mount the configured Games folder, persist assets/resources under local app storage, expose localhost/Portless service links, and keep public routing opt-in only.'
+  },
+  {
     slug: 'bookorbit',
     name: 'BookOrbit',
     logo: 'bookorbit',

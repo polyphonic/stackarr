@@ -295,7 +295,7 @@ fi
 
 CLOUDFLARED_PLIST="$HOME/Library/LaunchAgents/com.stackarr.cloudflared.plist"
 CLOUDFLARED_TOKEN_PATH="${CLOUDFLARED_TOKEN_FILE:-${STATE_ROOT:-$HOME/Library/Application Support/Stackarr/state}/cloudflared-token}"
-if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" || -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then
+if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
 
     if find_cloudflared_bin >/dev/null 2>&1; then
         pass "cloudflared is installed"
@@ -309,10 +309,10 @@ if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" || -n "${CLOUDF
         warning "Cloudflare tunnel runtime config exists but launch agent is missing"
     fi
 
-    if [[ -f "$CLOUDFLARED_TOKEN_PATH" || -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then
-        pass "Cloudflare tunnel token is available"
+    if [[ -f "$CLOUDFLARED_TOKEN_PATH" ]]; then
+        pass "Cloudflare connector token file exists"
     else
-        warning "Cloudflare tunnel token file is missing"
+        warning "Cloudflare connector token file is missing"
     fi
 
     if launchctl print "gui/$(id -u)/com.stackarr.cloudflared" >/dev/null 2>&1; then

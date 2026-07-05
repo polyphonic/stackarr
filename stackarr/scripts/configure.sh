@@ -41,6 +41,8 @@ BAZARR_URL="$(service_url bazarr "$BAZARR_URL" 6767)"
 SEERR_URL="$(service_url seerr "$SEERR_URL" 5055)"
 PULSARR_URL="$(service_url pulsarr "$PULSARR_URL" "${PULSARR_PORT:-3003}")"
 MAINTAINERR_URL="$(service_url maintainerr "$MAINTAINERR_URL" "${MAINTAINERR_PORT:-6246}")"
+TRACEARR_URL="$(service_url tracearr "$TRACEARR_URL" "${TRACEARR_PORT:-3000}")"
+ROMM_URL="$(service_url romm "${ROMM_URL:-http://127.0.0.1:${ROMM_WEB_PORT:-7583}}" "${ROMM_WEB_PORT:-7583}")"
 FLARESOLVERR_URL="$(service_url flaresolverr "${FLARESOLVERR_URL:-http://127.0.0.1:8191}" 8191)"
 TRANSMISSION_URL="$(service_url transmission "$TRANSMISSION_URL" 9091)/transmission/web/"
 QBITTORRENT_URL="$(service_url qbittorrent "$QBITTORRENT_URL" "${QBITTORRENT_WEBUI_PORT:-8081}")"
@@ -3219,6 +3221,313 @@ except Exception as exc:
 PY
 }
 
+configure_tracearr_stack() {
+    if ! optional_service_enabled tracearr; then
+        warn "Tracearr configuration skipped because Tracearr is disabled"
+        return 0
+    fi
+
+    if [[ "${TRACEARR_AUTO_CONFIGURE:-true}" != "true" && "${TRACEARR_AUTO_CONFIGURE:-true}" != "1" ]]; then
+        ok "Tracearr auto-configuration disabled; open $TRACEARR_URL and connect your media server manually"
+        return 0
+    fi
+
+    python3 - <<'PY'
+import json
+import os
+import plistlib
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+TRACEARR = os.environ.get('TRACEARR_URL', 'http://127.0.0.1:3000').rstrip('/')
+API = '/api/v1'
+CONFIG_ROOT = Path(os.environ.get('CONFIG_ROOT', ''))
+PLEX_PREFS_PATH = Path(os.environ.get('PLEX_PREFS_PATH', ''))
+PLEX_INSTALL_MODE = os.environ.get('PLEX_INSTALL_MODE', 'native').strip().lower()
+JELLYFIN_INSTALL_MODE = os.environ.get('JELLYFIN_INSTALL_MODE', 'disabled').strip().lower()
+
+# Tracearr wiring treats Plex as read-only. It may read the signed-in Plex
+# token/prefs or call Plex identity endpoints, but Plex settings must not be
+# mutated from this helper.
+
+def note(kind, message):
+    print(f"{kind}: {message}")
+
+
+def flag(value, default=False):
+    if value is None or value == '':
+        return default
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def request(method, path, payload=None, token='', ok=(200, 201, 204)):
+    data = None
+    headers = {}
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        headers['Content-Type'] = 'application/json'
+    req = urllib.request.Request(f"{TRACEARR}{API}{path}", data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = resp.read().decode()
+            parsed = parse_body(body)
+            if resp.status not in ok:
+                raise RuntimeError(f"{method} {path} returned HTTP {resp.status}")
+            return resp.status, parsed
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode()
+        parsed = parse_body(body)
+        if exc.code in ok:
+            return exc.code, parsed
+        message = str(parsed.get('message') or parsed.get('error') or body[:200] or '').strip()
+        suffix = f": {message}" if message else ''
+        raise RuntimeError(f"{method} {path} failed with HTTP {exc.code}{suffix}") from exc
+
+
+def parse_body(body):
+    if not body:
+        return {}
+    try:
+        return json.loads(body)
+    except Exception:
+        return {'message': body}
+
+
+def normalize_url(url, default_scheme='http'):
+    value = (url or '').strip()
+    if not value:
+        return ''
+    if '://' not in value:
+        value = f"{default_scheme}://{value}"
+    return value.rstrip('/')
+
+
+def container_url(override, local_url, docker_url, default_port):
+    value = normalize_url(override)
+    if value:
+        return value
+    if docker_url:
+        return docker_url
+    parsed = urllib.parse.urlparse(normalize_url(local_url) or f"http://127.0.0.1:{default_port}")
+    hostname = parsed.hostname or 'host.docker.internal'
+    if hostname in ('localhost', '127.0.0.1', '::1'):
+        hostname = 'host.docker.internal'
+    port = parsed.port or default_port
+    scheme = parsed.scheme or 'http'
+    return f"{scheme}://{hostname}:{port}"
+
+
+def read_plex_token():
+    token = os.environ.get('PLEX_TOKEN', '').strip()
+    if token:
+        return token
+    if not PLEX_PREFS_PATH.exists():
+        return ''
+    try:
+        with PLEX_PREFS_PATH.open('rb') as fh:
+            prefs = plistlib.load(fh)
+        return str(prefs.get('PlexOnlineToken') or '').strip()
+    except Exception:
+        return ''
+
+
+def plex_account_email():
+    if not PLEX_PREFS_PATH.exists():
+        return ''
+    try:
+        with PLEX_PREFS_PATH.open('rb') as fh:
+            prefs = plistlib.load(fh)
+        for key in ('PlexOnlineMail', 'PlexOnlineUsername'):
+            value = str(prefs.get(key) or '').strip()
+            if '@' in value:
+                return value
+    except Exception:
+        return ''
+    return ''
+
+
+def plex_local_url():
+    if PLEX_INSTALL_MODE == 'docker':
+        return f"http://127.0.0.1:{os.environ.get('PLEX_DOCKER_PORT', '32400')}"
+    return normalize_url(os.environ.get('PLEX_URL', 'http://127.0.0.1:32400'))
+
+
+def plex_container_url():
+    docker_url = 'http://plex:32400' if PLEX_INSTALL_MODE == 'docker' else ''
+    return container_url(
+        os.environ.get('TRACEARR_PLEX_SERVER_URL', ''),
+        os.environ.get('PLEX_URL', 'http://127.0.0.1:32400'),
+        docker_url,
+        32400,
+    )
+
+
+def jellyfin_container_url():
+    docker_url = 'http://jellyfin:8096' if JELLYFIN_INSTALL_MODE == 'docker' else ''
+    return container_url(
+        os.environ.get('TRACEARR_JELLYFIN_SERVER_URL', ''),
+        os.environ.get('JELLYFIN_URL', 'http://127.0.0.1:8096'),
+        docker_url,
+        8096,
+    )
+
+
+def emby_container_url():
+    return container_url(
+        os.environ.get('TRACEARR_EMBY_SERVER_URL', ''),
+        os.environ.get('EMBY_URL', 'http://127.0.0.1:8096'),
+        '',
+        8096,
+    )
+
+
+def plex_identity(token):
+    name = os.environ.get('TRACEARR_PLEX_SERVER_NAME', '').strip()
+    if name:
+        return name
+    if not token:
+        return 'Plex'
+    url = f"{plex_local_url()}/?X-Plex-Token={urllib.parse.quote(token)}"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            root = ET.fromstring(resp.read())
+        return (
+            root.get('friendlyName')
+            or root.get('serverName')
+            or root.get('name')
+            or root.get('machineIdentifier')
+            or 'Plex'
+        )
+    except Exception:
+        return 'Plex'
+
+
+def tracearr_credentials():
+    username = os.environ.get('TRACEARR_ADMIN_USERNAME', '').strip() or os.environ.get('USERNAME', 'stackarr').strip() or 'stackarr'
+    email = (
+        os.environ.get('TRACEARR_ADMIN_EMAIL', '').strip()
+        or os.environ.get('USER_EMAIL', '').strip()
+        or plex_account_email()
+        or 'stackarr@localhost.invalid'
+    )
+    password = os.environ.get('TRACEARR_ADMIN_PASSWORD', '') or os.environ.get('PASSWORD', '')
+    claim_code = os.environ.get('TRACEARR_CLAIM_CODE', '').strip()
+    return username, email, password, claim_code
+
+
+def auth_token(status):
+    username, email, password, claim_code = tracearr_credentials()
+    if status.get('needsSetup'):
+        if not email or not password:
+            note('WARN', 'Tracearr owner setup skipped because TRACEARR_ADMIN_EMAIL/USER_EMAIL or a password is missing')
+            return ''
+        payload = {'username': username, 'email': email, 'password': password}
+        if status.get('requiresClaimCode'):
+            if not claim_code:
+                note('WARN', 'Tracearr owner setup requires TRACEARR_CLAIM_CODE')
+                return ''
+            payload['claimCode'] = claim_code
+        _, result = request('POST', '/auth/signup', payload, ok=(200, 201, 409))
+        token = str(result.get('accessToken') or '').strip()
+        if token:
+            note('OK', 'Tracearr owner account created')
+            return token
+
+    if not email or not password:
+        note('WARN', 'Tracearr login skipped because TRACEARR_ADMIN_EMAIL/USER_EMAIL or a password is missing')
+        return ''
+    _, result = request('POST', '/auth/login', {'type': 'local', 'email': email, 'password': password}, ok=(200,))
+    token = str(result.get('accessToken') or '').strip()
+    if token:
+        note('OK', 'Tracearr owner login succeeded')
+    return token
+
+
+def media_server_payload():
+    if PLEX_INSTALL_MODE != 'disabled':
+        token = read_plex_token()
+        if token:
+            return {
+                'name': plex_identity(token),
+                'type': 'plex',
+                'url': plex_container_url(),
+                'token': token,
+            }
+        note('WARN', 'Tracearr Plex wiring skipped because no Plex token is available')
+
+    jellyfin_token = os.environ.get('TRACEARR_JELLYFIN_API_KEY', '').strip() or os.environ.get('JELLYFIN_API_KEY', '').strip()
+    if JELLYFIN_INSTALL_MODE != 'disabled' and jellyfin_token:
+        return {
+            'name': os.environ.get('TRACEARR_JELLYFIN_SERVER_NAME', '').strip() or 'Jellyfin',
+            'type': 'jellyfin',
+            'url': jellyfin_container_url(),
+            'token': jellyfin_token,
+        }
+    if JELLYFIN_INSTALL_MODE != 'disabled':
+        note('WARN', 'Tracearr Jellyfin wiring skipped because JELLYFIN_API_KEY is not set')
+
+    emby_token = os.environ.get('TRACEARR_EMBY_API_KEY', '').strip() or os.environ.get('EMBY_API_KEY', '').strip()
+    if emby_token:
+        return {
+            'name': os.environ.get('TRACEARR_EMBY_SERVER_NAME', '').strip() or 'Emby',
+            'type': 'emby',
+            'url': emby_container_url(),
+            'token': emby_token,
+        }
+
+    return None
+
+
+def configure_server(token):
+    _, servers = request('GET', '/servers', token=token, ok=(200,))
+    items = servers.get('data') if isinstance(servers, dict) else servers
+    if not isinstance(items, list):
+        items = []
+    if items:
+        note('OK', 'Tracearr already has a media server configured')
+        return
+
+    payload = media_server_payload()
+    if not payload:
+        note('WARN', 'Tracearr media-server wiring skipped; open Tracearr and connect Plex, Jellyfin, or Emby manually')
+        return
+
+    try:
+        request('POST', '/servers', payload, token=token, ok=(200, 201, 409))
+        note('OK', f"Tracearr connected to {payload['name']}")
+    except Exception as exc:
+        note('WARN', f'Tracearr media-server wiring skipped: {exc}')
+
+
+try:
+    _, status = request('GET', '/setup/status', ok=(200,))
+    if status.get('hasServers'):
+        note('OK', 'Tracearr already has a media server configured')
+    else:
+        token = auth_token(status)
+        if token:
+            configure_server(token)
+        else:
+            note('WARN', f'Tracearr manual setup required at {TRACEARR}')
+except Exception as exc:
+    note('WARN', f'Tracearr configuration skipped: {exc}')
+PY
+}
+
+configure_romm_stack() {
+    if ! optional_service_enabled romm; then
+        warn "RomM configuration skipped because RomM is disabled"
+        return 0
+    fi
+
+    ok "RomM setup is manual; open $ROMM_URL and complete owner setup, library choices, and first scan in RomM"
+}
+
 if optional_service_enabled movies; then
     wait_for_http "Radarr" "$RADARR_URL"
 fi
@@ -3243,6 +3552,14 @@ if optional_service_enabled maintainerr; then
     else
         ok "Maintainerr enabled with no cleanup presets configured"
     fi
+fi
+if optional_service_enabled tracearr; then
+    wait_for_http "Tracearr" "$TRACEARR_URL"
+    configure_tracearr_stack || true
+fi
+if optional_service_enabled romm; then
+    wait_for_http "RomM" "$ROMM_URL"
+    configure_romm_stack || true
 fi
 wait_for_http "Prowlarr" "$PROWLARR_URL"
 if optional_service_enabled lidarr; then

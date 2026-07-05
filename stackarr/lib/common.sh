@@ -164,6 +164,7 @@ load_browser_link_runtime_settings() {
     : "${STACKARR_SERVICE_URL_MODE:=localhost}"
     : "${STACKARR_SERVICE_URL_SCHEME:=https}"
     : "${STACKARR_SERVICE_URL_HOST_SUFFIX:=stackarr}"
+    : "${STACKARR_UNIFY_SERVICE_URLS:=true}"
 
     [[ -f "$db_file" ]] || return 0
     [[ -f "$exporter" ]] || return 0
@@ -176,6 +177,25 @@ load_browser_link_runtime_settings() {
 
     [[ -n "$exports" ]] || return 0
     eval "$exports"
+}
+
+configure_docker_environment() {
+    local requested_context="${STACKARR_DOCKER_CONTEXT:-${DOCKER_CONTEXT:-}}"
+    local current_context=""
+
+    if [[ -z "$requested_context" && "$(uname -s 2>/dev/null || true)" == "Darwin" && "$(command -v docker || true)" ]]; then
+        current_context="$(docker context show 2>/dev/null || true)"
+        if [[ "${DOCKER_HOST:-}" == *arcbox* || "$current_context" == *arcbox* ]]; then
+            if docker context inspect orbstack >/dev/null 2>&1; then
+                requested_context="orbstack"
+            fi
+        fi
+    fi
+
+    if [[ -n "$requested_context" ]]; then
+        export DOCKER_CONTEXT="$requested_context"
+        unset DOCKER_HOST
+    fi
 }
 
 is_loopback_url() {
@@ -195,24 +215,34 @@ browser_service_url() {
 
 apply_browser_link_runtime_defaults() {
     local public_bookorbit_url
+    local public_immich_url
 
     public_bookorbit_url="$(browser_service_url bookorbit || true)"
-    [[ -n "$public_bookorbit_url" ]] || return 0
+    public_immich_url="$(browser_service_url immich || true)"
 
-    if is_loopback_url "${BOOKORBIT_URL:-}"; then
+    if [[ -n "$public_bookorbit_url" ]] && is_loopback_url "${BOOKORBIT_URL:-}"; then
         BOOKORBIT_URL="$public_bookorbit_url"
     fi
-    if is_loopback_url "${BOOKORBIT_APP_URL:-}"; then
+    if [[ -n "$public_bookorbit_url" ]] && is_loopback_url "${BOOKORBIT_APP_URL:-}"; then
         BOOKORBIT_APP_URL="$public_bookorbit_url"
     fi
-    if is_loopback_url "${BOOKORBIT_CLIENT_URL:-}"; then
+    if [[ -n "$public_bookorbit_url" ]] && is_loopback_url "${BOOKORBIT_CLIENT_URL:-}"; then
         BOOKORBIT_CLIENT_URL="$public_bookorbit_url"
+    fi
+    if [[ -n "$public_immich_url" ]] && is_loopback_url "${IMMICH_URL:-}"; then
+        IMMICH_URL="$public_immich_url"
     fi
 }
 
 load_env() {
+    : "${STACKARR_REPO_ROOT:=$REPO_ROOT}"
     : "${STACKARR_DATABASE_FILE:=$(default_stackarr_database_file)}"
+    : "${STACKARR_DATABASE_DIR:=$(dirname "$STACKARR_DATABASE_FILE")}"
+    configure_docker_environment
     load_sqlite_runtime_config
+    if [[ -n "${STACKARR_DATABASE_URL:-}" ]]; then
+        load_sqlite_runtime_config
+    fi
     load_browser_link_runtime_settings
 
     if [[ -z "${APP_ROOT:-}" ]]; then
@@ -247,6 +277,8 @@ load_env() {
     : "${ENABLE_BAZARR:=true}"
     : "${ENABLE_LIDARR:=true}"
     : "${ENABLE_BOOKORBIT:=false}"
+    : "${ENABLE_IMMICH:=false}"
+    : "${ENABLE_ROMM:=false}"
     : "${ENABLE_TINYMEDIAMANAGER:=true}"
     : "${ENABLE_RECYCLARR:=true}"
     : "${ENABLE_FLARESOLVERR:=true}"
@@ -255,6 +287,7 @@ load_env() {
     : "${STACKARR_CONFIGURE_SEERR:=false}"
     : "${ENABLE_PULSARR:=true}"
     : "${ENABLE_MAINTAINERR:=false}"
+    : "${ENABLE_TRACEARR:=false}"
     if [[ -z "${STACKARR_DATABASE_MODE:-}" && -n "${STACKARR_DATABASE_URL:-}" ]]; then
         STACKARR_DATABASE_MODE="postgres"
     fi
@@ -282,6 +315,8 @@ load_env() {
     : "${STACKARR_TV_4K_DEFAULT_PROFILE:=4K Lite}"
     : "${STACKARR_MUSIC_DEFAULT_PROFILE:=Lossless}"
     : "${STACKARR_API_KEY:=}"
+    : "${STACKARR_DOCKER_CONTEXT:=}"
+    configure_docker_environment
     : "${USERNAME:=admin}"
     : "${PASSWORD:=}"
     : "${USER_EMAIL:=}"
@@ -319,10 +354,76 @@ load_env() {
         : "${BOOKORBIT_SETUP_TOKEN:=${PASSWORD:-$(random_secret 32)}}"
     fi
     : "${BOOKS_ROOT:=$MEDIA_ROOT/Books}"
+    : "${IMMICH_BIND_IP:=127.0.0.1}"
+    : "${IMMICH_WEB_PORT:=2283}"
+    : "${IMMICH_CONTAINER_PORT:=2283}"
+    : "${IMMICH_URL:=http://127.0.0.1:${IMMICH_WEB_PORT}}"
+    : "${IMMICH_UPLOAD_LOCATION:=$MEDIA_ROOT/Pictures}"
+    : "${IMMICH_VERSION:=release}"
+    : "${IMMICH_DB_USERNAME:=immich}"
+    : "${IMMICH_DB_DATABASE_NAME:=immich}"
+    : "${IMMICH_DB_VECTOR_EXTENSION:=pgvector}"
+    if flag_enabled "${ENABLE_IMMICH:-false}"; then
+        : "${IMMICH_DB_PASSWORD:=$(random_secret 24)}"
+    else
+        : "${IMMICH_DB_PASSWORD:=}"
+    fi
+    : "${GAMES_ROOT:=$MEDIA_ROOT/Games}"
+    : "${ROMM_BIND_IP:=127.0.0.1}"
+    : "${ROMM_WEB_PORT:=7583}"
+    : "${ROMM_CONTAINER_PORT:=8080}"
+    : "${ROMM_URL:=http://127.0.0.1:${ROMM_WEB_PORT}}"
+    : "${ROMM_LIBRARY_ROOT:=$GAMES_ROOT}"
+    : "${ROMM_ASSETS_ROOT:=$CONFIG_ROOT/romm/assets}"
+    : "${ROMM_CONFIG_ROOT:=$CONFIG_ROOT/romm/config}"
+    : "${ROMM_RESOURCES_ROOT:=$CONFIG_ROOT/romm/resources}"
+    : "${ROMM_REDIS_DATA_ROOT:=$CONFIG_ROOT/romm/redis}"
+    : "${ROMM_REDIS_HOST:=redis}"
+    : "${ROMM_REDIS_PORT:=6379}"
+    : "${ROMM_DB_DATA_LOCATION:=$CONFIG_ROOT/romm/mysql}"
+    : "${ROMM_DB_DRIVER:=postgresql}"
+    : "${ROMM_DB_HOST:=database}"
+    : "${ROMM_DB_PORT:=5432}"
+    : "${ROMM_DB_NAME:=romm}"
+    : "${ROMM_DB_USER:=romm}"
+    : "${ROMM_DB_QUERY_JSON:=}"
+    : "${ROMM_AUTO_CONFIGURE:=false}"
+    : "${ROMM_ADMIN_USERNAME:=}"
+    : "${ROMM_ADMIN_EMAIL:=}"
+    : "${ROMM_ADMIN_PASSWORD:=}"
+    : "${ROMM_IGDB_CLIENT_ID:=}"
+    : "${ROMM_IGDB_CLIENT_SECRET:=}"
+    : "${ROMM_MOBYGAMES_API_KEY:=}"
+    : "${ROMM_SCREENSCRAPER_USER:=}"
+    : "${ROMM_SCREENSCRAPER_PASSWORD:=}"
+    : "${ROMM_RETROACHIEVEMENTS_API_KEY:=}"
+    : "${ROMM_STEAMGRIDDB_API_KEY:=}"
+    : "${ROMM_HASHEOUS_API_ENABLED:=true}"
+    : "${ROMM_PLAYMATCH_API_ENABLED:=false}"
+    : "${ROMM_LAUNCHBOX_API_ENABLED:=false}"
+    : "${ROMM_FLASHPOINT_API_ENABLED:=false}"
+    : "${ROMM_HLTB_API_ENABLED:=false}"
+    if flag_enabled "${ENABLE_ROMM:-false}"; then
+        : "${ROMM_DB_PASSWORD:=$(random_secret 24)}"
+        : "${ROMM_AUTH_SECRET_KEY:=$(random_secret 32)}"
+    else
+        : "${ROMM_DB_PASSWORD:=}"
+        : "${ROMM_DB_ROOT_PASSWORD:=}"
+        : "${ROMM_AUTH_SECRET_KEY:=}"
+    fi
     : "${BAZARR_URL:=http://127.0.0.1:6767}"
     : "${SEERR_URL:=http://127.0.0.1:5055}"
     : "${PULSARR_URL:=http://127.0.0.1:3003}"
     : "${MAINTAINERR_URL:=http://127.0.0.1:6246}"
+    : "${TRACEARR_URL:=http://127.0.0.1:3000}"
+    : "${TRACEARR_AUTO_CONFIGURE:=true}"
+    : "${TRACEARR_ADMIN_USERNAME:=}"
+    : "${TRACEARR_ADMIN_EMAIL:=}"
+    : "${TRACEARR_ADMIN_PASSWORD:=}"
+    : "${TRACEARR_CLAIM_CODE:=}"
+    : "${TRACEARR_PLEX_SERVER_URL:=}"
+    : "${TRACEARR_JELLYFIN_SERVER_URL:=}"
+    : "${TRACEARR_EMBY_SERVER_URL:=}"
     : "${PLEX_URL:=http://127.0.0.1:32400}"
     : "${JELLYFIN_URL:=http://127.0.0.1:8096}"
     : "${TINYMEDIAMANAGER_URL:=http://127.0.0.1:4000}"
@@ -335,12 +436,33 @@ load_env() {
     : "${BAZARR_IMAGE:=lscr.io/linuxserver/bazarr:latest}"
     : "${SEERR_IMAGE:=ghcr.io/seerr-team/seerr:latest}"
     : "${MAINTAINERR_IMAGE:=ghcr.io/maintainerr/maintainerr:latest}"
+    : "${TRACEARR_IMAGE:=ghcr.io/connorgallopo/tracearr:latest}"
+    : "${REDIS_IMAGE:=redis:8-alpine}"
     : "${RECYCLARR_IMAGE:=ghcr.io/recyclarr/recyclarr:latest}"
     : "${FLARESOLVERR_IMAGE:=ghcr.io/flaresolverr/flaresolverr:latest}"
     : "${LIDARR_IMAGE:=lscr.io/linuxserver/lidarr:latest}"
     : "${TIDARR_IMAGE:=cstaelen/tidarr:latest}"
     : "${BOOKORBIT_IMAGE:=ghcr.io/bookorbit/bookorbit:latest}"
-    : "${DATABASE_IMAGE:=pgvector/pgvector:pg18-trixie}"
+    : "${IMMICH_SERVER_IMAGE:=ghcr.io/immich-app/immich-server}"
+    : "${IMMICH_MACHINE_LEARNING_IMAGE:=ghcr.io/immich-app/immich-machine-learning}"
+    : "${ROMM_IMAGE:=rommapp/romm:latest}"
+    : "${ROMM_DB_IMAGE:=}"
+    if [[ "${ROMM_DB_HOST:-}" == "romm-db" || "${ROMM_DB_HOST:-}" == "mysql" || "${ROMM_DB_HOST:-}" == "mariadb" || -z "${ROMM_DB_HOST:-}" ]]; then
+        ROMM_DB_HOST="database"
+    fi
+    if [[ "${ROMM_DB_DRIVER:-}" == "mysql" || "${ROMM_DB_DRIVER:-}" == "mariadb" || -z "${ROMM_DB_DRIVER:-}" ]]; then
+        ROMM_DB_DRIVER="postgresql"
+    fi
+    if [[ "${ROMM_DB_PORT:-}" == "3306" || -z "${ROMM_DB_PORT:-}" ]]; then
+        ROMM_DB_PORT="5432"
+    fi
+    if [[ "${ROMM_DB_IMAGE:-}" == "mysql:8" || "${ROMM_DB_IMAGE:-}" == "mysql:latest" || "${ROMM_DB_IMAGE:-}" == mariadb:* ]]; then
+        ROMM_DB_IMAGE=""
+    fi
+    : "${DATABASE_IMAGE:=timescale/timescaledb-ha:pg18.1-ts2.25.0}"
+    if flag_enabled "${ENABLE_TRACEARR:-false}" && [[ "$DATABASE_IMAGE" == "pgvector/pgvector:pg18-trixie" ]]; then
+        DATABASE_IMAGE="timescale/timescaledb-ha:pg18.1-ts2.25.0"
+    fi
     : "${DATABASE_BIND_IP:=127.0.0.1}"
     : "${DATABASE_HOST_PORT:=5433}"
     : "${DATABASE_NAME:=postgres}"
@@ -484,6 +606,30 @@ load_env() {
     : "${MAINTAINERR_PLEX_SERVER_URL:=}"
     : "${MAINTAINERR_JELLYFIN_SERVER_URL:=}"
     : "${MAINTAINERR_QBITTORRENT_URL:=}"
+    : "${TRACEARR_BIND_IP:=127.0.0.1}"
+    : "${TRACEARR_PORT:=3000}"
+    : "${TRACEARR_AUTO_CONFIGURE:=true}"
+    : "${TRACEARR_ADMIN_USERNAME:=${USERNAME:-stackarr}}"
+    : "${TRACEARR_ADMIN_EMAIL:=${USER_EMAIL:-}}"
+    : "${TRACEARR_ADMIN_PASSWORD:=${PASSWORD:-}}"
+    : "${TRACEARR_CLAIM_CODE:=}"
+    : "${TRACEARR_PLEX_SERVER_URL:=}"
+    : "${TRACEARR_JELLYFIN_SERVER_URL:=}"
+    : "${TRACEARR_EMBY_SERVER_URL:=}"
+    : "${TRACEARR_LOG_LEVEL:=info}"
+    : "${TRACEARR_CORS_ORIGIN:=*}"
+    if flag_enabled "${ENABLE_TRACEARR:-false}"; then
+        : "${TRACEARR_DB_PASSWORD:=${DATABASE_SUPERUSER_PASSWORD:-$(random_secret 24)}}"
+        : "${TRACEARR_JWT_SECRET:=$(random_hex_secret 32)}"
+        : "${TRACEARR_COOKIE_SECRET:=$(random_hex_secret 32)}"
+    else
+        : "${TRACEARR_DB_PASSWORD:=}"
+        : "${TRACEARR_JWT_SECRET:=}"
+        : "${TRACEARR_COOKIE_SECRET:=}"
+    fi
+    : "${TRACEARR_POSTGRES_DATABASE:=tracearr}"
+    : "${TRACEARR_POSTGRES_USER:=tracearr}"
+    : "${TRACEARR_POSTGRES_PASSWORD:=${TRACEARR_DB_PASSWORD:-$DATABASE_SUPERUSER_PASSWORD}}"
     : "${PREFERRED_TORRENT_CLIENT:=transmission}"
     : "${ENABLE_BACKUP:=true}"
     : "${BACKUP_ROOT:=$APP_ROOT/backups}"
@@ -503,7 +649,6 @@ load_env() {
     : "${SONARR_4K_CATEGORY:=tv-sonarr-uhd}"
     : "${LIDARR_CATEGORY:=lidarr}"
     : "${PLEX_BACKUP_MODE:=lite}"
-    : "${CLOUDFLARE_TUNNEL_TOKEN:=}"
     : "${CLOUDFLARE_API_TOKEN:=}"
     : "${CLOUDFLARE_ACCOUNT_ID:=}"
     : "${CLOUDFLARE_ZONE_ID:=}"
@@ -515,6 +660,9 @@ load_env() {
     : "${CLOUDFLARED_KEEP_LAN:=true}"
     : "${CLOUDFLARE_ROUTE_MANAGED:=false}"
     : "${CLOUDFLARE_TUNNEL_ROUTES:=}"
+    : "${CLOUDFLARE_ACCESS_ENABLED:=false}"
+    : "${CLOUDFLARE_ACCESS_ALLOWED_EMAILS:=}"
+    : "${CLOUDFLARE_ACCESS_SESSION_DURATION:=720h}"
     : "${SEERR_ORIGIN_URL:=http://127.0.0.1:5055}"
     apply_browser_link_runtime_defaults
     case "$(lowercase "$PREFERRED_TORRENT_CLIENT")" in
@@ -525,8 +673,11 @@ load_env() {
             PREFERRED_TORRENT_CLIENT="transmission"
             ;;
     esac
-    export STACKARR_DATABASE_FILE STACKARR_DATABASE_MODE STACKARR_DATABASE_URL STACKARR_LOG_DATABASE_URL STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD COMPOSE_PROJECT_NAME TIMEZONE PUID PGID MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH PLEX_INSTALL_MODE JELLYFIN_INSTALL_MODE JELLYFIN_CONFIG_PATH ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT BOOKORBIT_JWT_SECRET BOOKORBIT_SETUP_TOKEN BOOKORBIT_DATABASE_URL BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD BOOKORBIT_IMAGE BOOKORBIT_BIND_IP BOOKORBIT_WEB_PORT BOOKORBIT_CONTAINER_PORT BOOKORBIT_URL BOOKORBIT_APP_URL BOOKORBIT_CLIENT_URL BOOKS_ROOT DATABASE_IMAGE DATABASE_BIND_IP DATABASE_HOST_PORT DATABASE_NAME DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD SEERR_DB_TYPE SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD PULSARR_DB_TYPE PULSARR_DB_PATH PULSARR_DB_HOST PULSARR_DB_PORT PULSARR_DB_NAME PULSARR_DB_USER PULSARR_DB_PASSWORD PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD BAZARR_POSTGRES_ENABLED BAZARR_POSTGRES_HOST BAZARR_POSTGRES_PORT BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD PROWLARR_POSTGRES_HOST PROWLARR_POSTGRES_PORT PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD RADARR_POSTGRES_HOST RADARR_POSTGRES_PORT RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD RADARR4K_POSTGRES_HOST RADARR4K_POSTGRES_PORT RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD SONARR_POSTGRES_HOST SONARR_POSTGRES_PORT SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD SONARR4K_POSTGRES_HOST SONARR4K_POSTGRES_PORT SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD LIDARR_POSTGRES_HOST LIDARR_POSTGRES_PORT LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD ENABLE_TINYMEDIAMANAGER ENABLE_RECYCLARR ENABLE_FLARESOLVERR ENABLE_TIDARR ENABLE_SEERR STACKARR_CONFIGURE_SEERR ENABLE_PULSARR STACKARR_MOVIE_PROFILE_PRESET STACKARR_MOVIE_4K_PROFILE_PRESET STACKARR_TV_PROFILE_PRESET STACKARR_TV_4K_PROFILE_PRESET STACKARR_MUSIC_PROFILE_PRESET STACKARR_MOVIE_DEFAULT_PROFILE STACKARR_MOVIE_4K_DEFAULT_PROFILE STACKARR_TV_DEFAULT_PROFILE STACKARR_TV_4K_DEFAULT_PROFILE STACKARR_MUSIC_DEFAULT_PROFILE ENABLE_BACKUP STACKARR_API_KEY USERNAME PASSWORD USER_EMAIL TRANSMISSION_URL QBITTORRENT_URL PROWLARR_URL RADARR_URL RADARR_4K_URL RADARR4K_URL SONARR_URL SONARR_4K_URL SONARR4K_URL LIDARR_URL BAZARR_URL SEERR_URL PULSARR_URL PLEX_URL JELLYFIN_URL TINYMEDIAMANAGER_URL FLARESOLVERR_URL TRANSMISSION_IMAGE QBITTORRENT_IMAGE RADARR_IMAGE SONARR_IMAGE PROWLARR_IMAGE BAZARR_IMAGE SEERR_IMAGE RECYCLARR_IMAGE FLARESOLVERR_IMAGE LIDARR_IMAGE TIDARR_IMAGE TINYMEDIAMANAGER_IMAGE TRANSMISSION_BIND_IP TRANSMISSION_TORRENT_PORT QBITTORRENT_BIND_IP QBITTORRENT_WEBUI_PORT QBITTORRENT_TORRENT_PORT PLEX_IMAGE PLEX_DOCKER_PORT JELLYFIN_IMAGE JELLYFIN_DOCKER_PORT STACKARR_WEB_ENABLED STACKARR_IMAGE STACKARR_BIND_IP STACKARR_WEB_PORT STACKARR_TELEMETRY_FEATURE_ENABLED STACKARR_TELEMETRY_ENABLED STACKARR_TELEMETRY_ENDPOINT STACKARR_TELEMETRY_CHANNEL STACKARR_TELEMETRY_INGEST_KEY PULSARR_IMAGE SEERR_BIND_IP PULSARR_BIND_IP PULSARR_PORT PULSARR_AUTHENTICATION_METHOD PULSARR_COOKIE_SECURED PREFERRED_TORRENT_CLIENT BACKUP_ROOT BACKUP_STAGING_ROOT BACKUP_TIME BACKUP_SCHEDULE BACKUP_WEEKDAY BACKUP_RETENTION_COUNT ENABLE_SCHEDULED_UPDATES UPDATE_TIME UPDATE_WEEKDAY DOWNLOAD_INCOMPLETE_NAME DOWNLOAD_COMPLETE_NAME RADARR_CATEGORY RADARR_4K_CATEGORY SONARR_CATEGORY SONARR_4K_CATEGORY LIDARR_CATEGORY PLEX_BACKUP_MODE CLOUDFLARE_TUNNEL_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARED_TUNNEL_NAME CLOUDFLARED_TUNNEL_ID CLOUDFLARED_METRICS_PORT CLOUDFLARED_BIN CLOUDFLARED_TOKEN_FILE CLOUDFLARED_KEEP_LAN CLOUDFLARE_ROUTE_MANAGED CLOUDFLARE_TUNNEL_ROUTES SEERR_ORIGIN_URL STACKARR_SERVICE_URL_MODE STACKARR_SERVICE_URL_SCHEME STACKARR_SERVICE_URL_HOST_SUFFIX
+    export STACKARR_REPO_ROOT STACKARR_DATABASE_FILE STACKARR_DATABASE_DIR STACKARR_DATABASE_MODE STACKARR_DATABASE_URL STACKARR_LOG_DATABASE_URL STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD COMPOSE_PROJECT_NAME TIMEZONE PUID PGID MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH PLEX_INSTALL_MODE JELLYFIN_INSTALL_MODE JELLYFIN_CONFIG_PATH ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM BOOKORBIT_JWT_SECRET BOOKORBIT_SETUP_TOKEN BOOKORBIT_DATABASE_URL BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD BOOKORBIT_IMAGE BOOKORBIT_BIND_IP BOOKORBIT_WEB_PORT BOOKORBIT_CONTAINER_PORT BOOKORBIT_URL BOOKORBIT_APP_URL BOOKORBIT_CLIENT_URL BOOKS_ROOT DATABASE_IMAGE DATABASE_BIND_IP DATABASE_HOST_PORT DATABASE_NAME DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD REDIS_IMAGE SEERR_DB_TYPE SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD PULSARR_DB_TYPE PULSARR_DB_PATH PULSARR_DB_HOST PULSARR_DB_PORT PULSARR_DB_NAME PULSARR_DB_USER PULSARR_DB_PASSWORD PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD BAZARR_POSTGRES_ENABLED BAZARR_POSTGRES_HOST BAZARR_POSTGRES_PORT BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD PROWLARR_POSTGRES_HOST PROWLARR_POSTGRES_PORT PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD RADARR_POSTGRES_HOST RADARR_POSTGRES_PORT RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD RADARR4K_POSTGRES_HOST RADARR4K_POSTGRES_PORT RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD SONARR_POSTGRES_HOST SONARR_POSTGRES_PORT SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD SONARR4K_POSTGRES_HOST SONARR4K_POSTGRES_PORT SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD LIDARR_POSTGRES_HOST LIDARR_POSTGRES_PORT LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD ENABLE_TINYMEDIAMANAGER ENABLE_RECYCLARR ENABLE_FLARESOLVERR ENABLE_TIDARR ENABLE_SEERR STACKARR_CONFIGURE_SEERR ENABLE_PULSARR ENABLE_TRACEARR STACKARR_MOVIE_PROFILE_PRESET STACKARR_MOVIE_4K_PROFILE_PRESET STACKARR_TV_PROFILE_PRESET STACKARR_TV_4K_PROFILE_PRESET STACKARR_MUSIC_PROFILE_PRESET STACKARR_MOVIE_DEFAULT_PROFILE STACKARR_MOVIE_4K_DEFAULT_PROFILE STACKARR_TV_DEFAULT_PROFILE STACKARR_TV_4K_DEFAULT_PROFILE STACKARR_MUSIC_DEFAULT_PROFILE ENABLE_BACKUP STACKARR_API_KEY STACKARR_DOCKER_CONTEXT USERNAME PASSWORD USER_EMAIL TRANSMISSION_URL QBITTORRENT_URL PROWLARR_URL RADARR_URL RADARR_4K_URL RADARR4K_URL SONARR_URL SONARR_4K_URL SONARR4K_URL LIDARR_URL BAZARR_URL SEERR_URL PULSARR_URL TRACEARR_URL PLEX_URL JELLYFIN_URL TINYMEDIAMANAGER_URL FLARESOLVERR_URL TRANSMISSION_IMAGE QBITTORRENT_IMAGE RADARR_IMAGE SONARR_IMAGE PROWLARR_IMAGE BAZARR_IMAGE SEERR_IMAGE RECYCLARR_IMAGE FLARESOLVERR_IMAGE LIDARR_IMAGE TIDARR_IMAGE TINYMEDIAMANAGER_IMAGE TRANSMISSION_BIND_IP TRANSMISSION_TORRENT_PORT QBITTORRENT_BIND_IP QBITTORRENT_WEBUI_PORT QBITTORRENT_TORRENT_PORT PLEX_IMAGE PLEX_DOCKER_PORT JELLYFIN_IMAGE JELLYFIN_DOCKER_PORT STACKARR_WEB_ENABLED STACKARR_IMAGE STACKARR_BIND_IP STACKARR_WEB_PORT STACKARR_TELEMETRY_FEATURE_ENABLED STACKARR_TELEMETRY_ENABLED STACKARR_TELEMETRY_ENDPOINT STACKARR_TELEMETRY_CHANNEL STACKARR_TELEMETRY_INGEST_KEY PULSARR_IMAGE SEERR_BIND_IP PULSARR_BIND_IP PULSARR_PORT PULSARR_AUTHENTICATION_METHOD PULSARR_COOKIE_SECURED PREFERRED_TORRENT_CLIENT BACKUP_ROOT BACKUP_STAGING_ROOT BACKUP_TIME BACKUP_SCHEDULE BACKUP_WEEKDAY BACKUP_RETENTION_COUNT ENABLE_SCHEDULED_UPDATES UPDATE_TIME UPDATE_WEEKDAY DOWNLOAD_INCOMPLETE_NAME DOWNLOAD_COMPLETE_NAME RADARR_CATEGORY RADARR_4K_CATEGORY SONARR_CATEGORY SONARR_4K_CATEGORY LIDARR_CATEGORY PLEX_BACKUP_MODE CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARED_TUNNEL_NAME CLOUDFLARED_TUNNEL_ID CLOUDFLARED_METRICS_PORT CLOUDFLARED_BIN CLOUDFLARED_TOKEN_FILE CLOUDFLARED_KEEP_LAN CLOUDFLARE_ROUTE_MANAGED CLOUDFLARE_TUNNEL_ROUTES CLOUDFLARE_ACCESS_ENABLED CLOUDFLARE_ACCESS_ALLOWED_EMAILS CLOUDFLARE_ACCESS_SESSION_DURATION SEERR_ORIGIN_URL STACKARR_SERVICE_URL_MODE STACKARR_SERVICE_URL_SCHEME STACKARR_SERVICE_URL_HOST_SUFFIX STACKARR_UNIFY_SERVICE_URLS
     export ENABLE_MAINTAINERR MAINTAINERR_URL MAINTAINERR_IMAGE MAINTAINERR_BIND_IP MAINTAINERR_PORT MAINTAINERR_BASE_PATH MAINTAINERR_GITHUB_TOKEN MAINTAINERR_CLEANUP_PRESETS MAINTAINERR_PLEX_SERVER_URL MAINTAINERR_JELLYFIN_SERVER_URL MAINTAINERR_QBITTORRENT_URL
+    export IMMICH_URL IMMICH_SERVER_IMAGE IMMICH_MACHINE_LEARNING_IMAGE IMMICH_BIND_IP IMMICH_WEB_PORT IMMICH_CONTAINER_PORT IMMICH_UPLOAD_LOCATION IMMICH_VERSION IMMICH_DB_USERNAME IMMICH_DB_PASSWORD IMMICH_DB_DATABASE_NAME IMMICH_DB_VECTOR_EXTENSION
+    export GAMES_ROOT ROMM_URL ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED
+    export TRACEARR_URL TRACEARR_IMAGE TRACEARR_BIND_IP TRACEARR_PORT TRACEARR_DB_PASSWORD TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_JWT_SECRET TRACEARR_COOKIE_SECRET TRACEARR_LOG_LEVEL TRACEARR_CORS_ORIGIN
     export TRANSMISSION_PASSWORD QBITTORRENT_PASSWORD PROWLARR_PASSWORD RADARR_PASSWORD RADARR4K_PASSWORD SONARR_PASSWORD SONARR4K_PASSWORD LIDARR_PASSWORD BAZARR_PASSWORD PULSARR_PASSWORD BOOKORBIT_PASSWORD TINYMEDIAMANAGER_PASSWORD
 }
 
@@ -549,9 +700,9 @@ from pathlib import Path
 
 target = Path(sys.argv[1])
 include = re.compile(
-    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
+    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
-    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|MAINTAINERR_.*|BAZARR_.*|"
+    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|MAINTAINERR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
@@ -657,6 +808,32 @@ random_secret() {
     printf '%s\n' "$secret"
 }
 
+random_hex_secret() {
+    local bytes="${1:-32}"
+
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex "$bytes"
+        return 0
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import secrets, sys; print(secrets.token_hex(int(sys.argv[1])))' "$bytes"
+        return 0
+    fi
+
+    if command -v node >/dev/null 2>&1; then
+        node -e 'const crypto = require("node:crypto"); process.stdout.write(crypto.randomBytes(Number(process.argv[1])).toString("hex"))' "$bytes"
+        return 0
+    fi
+
+    local chars=$((bytes * 2))
+    (
+        set +o pipefail
+        LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c "$chars"
+    )
+    printf '\n'
+}
+
 lowercase() {
     printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
@@ -750,6 +927,9 @@ service_default_port() {
         maintainerr)
             printf '%s\n' "${MAINTAINERR_PORT:-6246}"
             ;;
+        tracearr)
+            printf '%s\n' "${TRACEARR_PORT:-3000}"
+            ;;
         transmission)
             printf '%s\n' "9091"
             ;;
@@ -777,6 +957,12 @@ service_default_port() {
         bookorbit)
             printf '%s\n' "${BOOKORBIT_WEB_PORT:-7582}"
             ;;
+        immich)
+            printf '%s\n' "${IMMICH_WEB_PORT:-2283}"
+            ;;
+        romm)
+            printf '%s\n' "${ROMM_WEB_PORT:-7583}"
+            ;;
         *)
             return 1
             ;;
@@ -793,6 +979,12 @@ service_container_port() {
             ;;
         bookorbit)
             printf '%s\n' "${BOOKORBIT_CONTAINER_PORT:-7582}"
+            ;;
+        immich)
+            printf '%s\n' "${IMMICH_CONTAINER_PORT:-2283}"
+            ;;
+        romm)
+            printf '%s\n' "${ROMM_CONTAINER_PORT:-8080}"
             ;;
         *)
             service_default_port "$1"
@@ -897,6 +1089,14 @@ database_required() {
         return 0
     fi
 
+    if flag_enabled "${ENABLE_IMMICH:-false}"; then
+        return 0
+    fi
+
+    if flag_enabled "${ENABLE_ROMM:-false}"; then
+        return 0
+    fi
+
     if flag_enabled "${ENABLE_SEERR:-false}"; then
         return 0
     fi
@@ -905,18 +1105,71 @@ database_required() {
         return 0
     fi
 
+    if flag_enabled "${ENABLE_TRACEARR:-false}"; then
+        return 0
+    fi
+
     return 1
+}
+
+database_init_env_args() {
+    local key
+
+    printf -- '-e\nDATABASE_HOST=127.0.0.1\n'
+    printf -- '-e\nDATABASE_CONTAINER_PORT=5432\n'
+
+    for key in \
+        DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD DATABASE_NAME STACKARR_DATABASE_MODE \
+        ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM ENABLE_SEERR ENABLE_PULSARR ENABLE_TRACEARR PULSARR_DB_TYPE \
+        STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD \
+        BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD \
+        IMMICH_DB_USERNAME IMMICH_DB_DATABASE_NAME IMMICH_DB_PASSWORD IMMICH_DB_VECTOR_EXTENSION \
+        ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD \
+        SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD \
+        PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD \
+        BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD \
+        TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_DB_PASSWORD \
+        PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD \
+        RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD \
+        RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD \
+        SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD \
+        SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD \
+        LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD; do
+        printf -- '-e\n%s\n' "$key"
+    done
+}
+
+run_shared_database_init() {
+    local env_args=()
+    local arg
+
+    while IFS= read -r arg; do
+        [[ -n "$arg" ]] || continue
+        env_args+=("$arg")
+    done < <(database_init_env_args)
+
+    stackarr_compose --profile database exec -T "${env_args[@]}" database sh -s < "$ROOT_DIR/scripts/database-init.sh"
+}
+
+remove_database_init_sidecar() {
+    if command -v docker >/dev/null 2>&1; then
+        docker rm -f database-init >/dev/null 2>&1 || true
+    fi
+}
+
+ensure_shared_database() {
+    stackarr_compose --profile database up -d database
+    run_shared_database_init
+    remove_database_init_sidecar
 }
 
 ensure_database_if_required() {
     if ! database_required; then
-        stackarr_compose --profile database rm -f -s database-init >/dev/null 2>&1 || true
+        remove_database_init_sidecar
         return 0
     fi
 
-    stackarr_compose --profile database up -d database
-    stackarr_compose --profile database up --force-recreate database-init
-    stackarr_compose --profile database rm -f -s database-init >/dev/null 2>&1 || true
+    ensure_shared_database
 }
 
 optional_service_enabled() {
@@ -944,6 +1197,12 @@ optional_service_enabled() {
         bookorbit)
             flag_enabled "$ENABLE_BOOKORBIT"
             ;;
+        immich)
+            flag_enabled "$ENABLE_IMMICH"
+            ;;
+        romm)
+            flag_enabled "$ENABLE_ROMM"
+            ;;
         tinymediamanager)
             flag_enabled "$ENABLE_TINYMEDIAMANAGER"
             ;;
@@ -964,6 +1223,9 @@ optional_service_enabled() {
             ;;
         maintainerr)
             flag_enabled "$ENABLE_MAINTAINERR"
+            ;;
+        tracearr)
+            flag_enabled "$ENABLE_TRACEARR"
             ;;
         *)
             return 0
@@ -996,7 +1258,7 @@ compose_profile_args() {
         [[ -n "$profile" ]] || continue
         printf -- '--profile\n%s\n' "$profile"
     done < <(selected_media_server_profiles)
-    for profile in movies tv radarr4k sonarr4k bazarr lidarr bookorbit tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr; do
+    for profile in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr tracearr; do
         if optional_service_enabled "$profile"; then
             printf -- '--profile\n%s\n' "$profile"
         fi
@@ -1013,11 +1275,22 @@ remove_inactive_torrent_client_container() {
 remove_disabled_optional_containers() {
     local service
 
-    for service in movies tv radarr4k sonarr4k bazarr lidarr bookorbit tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr; do
+    for service in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr tracearr; do
         if ! optional_service_enabled "$service"; then
             stackarr_compose --profile "$service" rm -f -s "$service" >/dev/null 2>&1 || true
         fi
     done
+
+    if ! optional_service_enabled immich; then
+        stackarr_compose --profile immich rm -f -s immich-machine-learning >/dev/null 2>&1 || true
+        if command -v docker >/dev/null 2>&1; then
+            docker rm -f immich-redis immich-postgres >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if ! optional_service_enabled romm; then
+        stackarr_compose --profile romm rm -f -s mariadb mysql romm-db >/dev/null 2>&1 || true
+    fi
 }
 
 parse_api_key_xml() {
@@ -1094,6 +1367,7 @@ wait_for_http() {
 
 ensure_docker_runtime() {
     require_command docker
+    configure_docker_environment
 
     docker info >/dev/null 2>&1 || fail "Docker runtime is not ready. Start a Docker-compatible engine before running Stackarr."
     ok "Docker runtime is ready"
@@ -1140,6 +1414,7 @@ prepare_compose_runtime_file() {
 stackarr_compose() {
     local project_dir compose_file
 
+    configure_docker_environment
     prepare_compose_runtime_file
     project_dir="$(stackarr_compose_project_dir)"
     compose_file="$(stackarr_compose_file)"
@@ -1202,6 +1477,9 @@ wait_for_stackarr_storage() {
         )
     fi
     [[ -n "${MUSIC_ROOT:-}" ]] && required+=("$MUSIC_ROOT")
+    if flag_enabled "${ENABLE_ROMM:-false}" && [[ -n "${GAMES_ROOT:-}" ]]; then
+        required+=("$GAMES_ROOT")
+    fi
 
     case "$(lowercase "${ENABLE_BACKUP:-true}")" in
         0|false|no|off|disabled)
@@ -1233,7 +1511,7 @@ refresh_stackarr_web_storage_mounts() {
         return 0
     fi
 
-    for path in "${MEDIA_ROOT:-}" "${MUSIC_ROOT:-}" "${DOWNLOADS_ROOT:-}" "${BACKUP_ROOT:-}"; do
+    for path in "${MEDIA_ROOT:-}" "${MUSIC_ROOT:-}" "${GAMES_ROOT:-}" "${DOWNLOADS_ROOT:-}" "${BACKUP_ROOT:-}"; do
         [[ -n "$path" ]] || continue
         [[ -e "$path" ]] || continue
 
