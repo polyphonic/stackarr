@@ -2,7 +2,14 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { promisify } from 'node:util';
 import { databaseExists } from '../database';
-import { editableEnvKeys, readEnv, redactEnv, type StackarrEnv, writeEnvConfig } from '../env';
+import {
+  editableEnvKeys,
+  protectedEnvConfigChanged,
+  readEnv,
+  redactEnv,
+  type StackarrEnv,
+  writeEnvConfig
+} from '../env';
 import { appDatabasePath, repoRoot } from '../paths';
 import { redactSecrets } from '../safety/redaction';
 import { getSystemStatus } from '../services';
@@ -19,12 +26,21 @@ export function getStackConfigSummaryAction() {
 }
 
 export function updateStackConfigAction(input: { values: Record<string, unknown> }) {
+  const current = readEnv();
   const patch: StackarrEnv = {};
 
   for (const [key, value] of Object.entries(input.values ?? {})) {
     if (editableEnvKeys.includes(key)) {
       patch[key] = String(value ?? '');
     }
+  }
+
+  if (protectedEnvConfigChanged(patch, current)) {
+    return {
+      accepted: false,
+      updatedKeys: [],
+      error: 'Protected account and secret fields cannot be changed through the generic stack config action.'
+    };
   }
 
   const env = writeEnvConfig(patch);

@@ -213,8 +213,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_start_stack',
     category: 'stack',
-    scopes: ['stack:write'],
-    risk: 'write',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Start the Docker-managed Stackarr stack.'

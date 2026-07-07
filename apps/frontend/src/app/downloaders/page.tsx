@@ -2,8 +2,11 @@ import { listServiceConfigsAction } from '@stackarr/core';
 import { PageBody, Toolbar } from '../../components/AppFrame';
 import { DownloadersDirectory } from '../../components/DownloadersDirectory';
 import { Panel } from '../../components/ui';
+import { requireDashboardAuth } from '../../lib/serverAuth';
 
-export default function DownloadersPage() {
+export default async function DownloadersPage() {
+  await requireDashboardAuth('/downloaders');
+
   const configs = listServiceConfigsAction().filter((config) => config.service.name === 'streamrip');
 
   return (

@@ -6,7 +6,8 @@ import {
   serviceNameFromRouteSlug,
   serviceRouteSlug
 } from '@stackarr/core';
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
+import { requireApiKey } from '../../../lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,13 @@ type RouteParams = {
   path?: string[];
 };
 
-export async function GET(request: Request, { params }: { params: Promise<RouteParams> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
+  const auth = requireApiKey(request);
+
+  if (auth) {
+    return auth;
+  }
+
   const settings = readSettings();
 
   if (settings.ui.serviceUrlMode !== 'portless') {

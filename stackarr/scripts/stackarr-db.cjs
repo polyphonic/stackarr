@@ -3,9 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 
-const scriptRoot = path.resolve(__dirname, '..');
-const composePath = path.join(scriptRoot, 'docker-compose.yml');
-
 function readSetting(key) {
   if (postgresConfigured()) {
     const postgresValue = withPostgres(() => readPostgresSetting(key));
@@ -589,69 +586,11 @@ function runPsql(sql, variables = {}, tuplesOnly = true) {
     PGSSLMODE: connection.sslmode
   };
 
-  try {
-    return execFileSync(
-      'psql',
-      ['-h', connection.host, '-p', connection.port, '-U', connection.user, '-d', connection.database, ...queryArgs],
-      { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
-    ).trim();
-  } catch {
-    return execFileSync(
-      'docker',
-      [
-        'compose',
-        '-f',
-        composePath,
-        'exec',
-        '-T',
-        '-e',
-        `PGPASSWORD=${connection.password}`,
-        '-e',
-        `PGSSLMODE=${connection.sslmode}`,
-        'database',
-        'psql',
-        '-h',
-        '127.0.0.1',
-        '-p',
-        '5432',
-        '-U',
-        connection.user,
-        '-d',
-        connection.database,
-        ...queryArgs
-      ],
-      { encoding: 'utf8', env: dockerEnv(), input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
-    ).trim();
-  }
-}
-
-function dockerEnv() {
-  const env = { ...process.env };
-  const requestedContext = env.STACKARR_DOCKER_CONTEXT || env.DOCKER_CONTEXT;
-  if (requestedContext) {
-    env.DOCKER_CONTEXT = requestedContext;
-    delete env.DOCKER_HOST;
-    return env;
-  }
-
-  if ((env.DOCKER_HOST || '').includes('arcbox')) {
-    env.DOCKER_CONTEXT = 'orbstack';
-    delete env.DOCKER_HOST;
-    return env;
-  }
-
-  try {
-    const currentContext = execFileSync('docker', ['context', 'show'], { encoding: 'utf8', env }).trim();
-    if (currentContext.includes('arcbox')) {
-      execFileSync('docker', ['context', 'inspect', 'orbstack'], { encoding: 'utf8', env, stdio: 'ignore' });
-      env.DOCKER_CONTEXT = 'orbstack';
-      delete env.DOCKER_HOST;
-    }
-  } catch {
-    // Leave the caller's Docker environment untouched if context probing is unavailable.
-  }
-
-  return env;
+  return execFileSync(
+    'psql',
+    ['-h', connection.host, '-p', connection.port, '-U', connection.user, '-d', connection.database, ...queryArgs],
+    { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
+  ).trim();
 }
 
 function sqlLiteral(value) {

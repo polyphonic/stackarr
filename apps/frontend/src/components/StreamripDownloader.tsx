@@ -69,7 +69,7 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
   );
 
   const refreshStatus = useCallback(async () => {
-    const response = await fetch('/api/v1/downloaders/streamrip');
+    const response = await stackarrFetch('/api/v1/downloaders/streamrip');
     const body = await response.json().catch(() => null);
     if (body) setStatus(body);
   }, []);
@@ -85,7 +85,7 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
         offset: String(nextOffset)
       });
       if (query.trim()) params.set('query', query.trim());
-      const response = await fetch(`/api/v1/downloaders/streamrip/lidarr?${params}`);
+      const response = await stackarrFetch(`/api/v1/downloaders/streamrip/lidarr?${params}`);
       const body = (await response.json().catch(() => ({}))) as LidarrAlbumPage;
       setLoadingAlbums(false);
 

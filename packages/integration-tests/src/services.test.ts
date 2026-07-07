@@ -151,6 +151,54 @@ test('Disabled optional services do not publish Portless browser URLs', async ()
   }
 });
 
+test('Docker runtime service URLs use reachable hosts and skip non-network helpers', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { getServiceStatusAction } = await import('./packages/core/src/actions/services.ts');
+          const { maybeServiceBaseUrl, serviceBaseUrl } = await import('./packages/core/src/clients/serviceConfig.ts');
+
+          writeEnvConfig({ ENABLE_4K_SERVARR: 'true' });
+
+          console.log(JSON.stringify({
+            radarr4k: serviceBaseUrl('radarr4k'),
+            bazarr: serviceBaseUrl('bazarr'),
+            plex: serviceBaseUrl('plex'),
+            recyclarr: maybeServiceBaseUrl('recyclarr') ?? null,
+            recyclarrStatus: await getServiceStatusAction({ service: 'recyclarr' })
+          }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_RUNTIME: 'docker',
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.radarr4k, 'http://radarr4k:7878');
+    assert.equal(result.bazarr, 'http://bazarr:6767');
+    assert.equal(result.plex, 'http://host.docker.internal:32400');
+    assert.equal(result.recyclarr, null);
+    assert.equal(result.recyclarrStatus.unsupported, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Portless script registers configured tld aliases before host sync', async () => {
   const script = await readFile(path.join(repoRoot, 'stackarr/scripts/portless.sh'), 'utf8');
 
@@ -298,4 +346,17 @@ test('Cloudflare route installer protects Access routes before publishing hostna
   assert.ok(accessIndex > -1, 'Access app creation should be wired into install');
   assert.ok(publishIndex > -1, 'Public hostname creation should still be wired into install');
   assert.ok(accessIndex < publishIndex, 'Access app should be created before the public hostname is published');
+});
+
+test('Cloudflare route apply uses route-only command outside host-only runner gate', async () => {
+  const commands = await readFile(path.join(repoRoot, 'packages/core/src/commands.ts'), 'utf8');
+  const settingsEditor = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.tsx'), 'utf8');
+  const runner = await readFile(path.join(repoRoot, 'apps/frontend/src/lib/runner.ts'), 'utf8');
+  const script = await readFile(path.join(repoRoot, 'stackarr/scripts/cloudflare.sh'), 'utf8');
+
+  assert.match(commands, /CloudflareApplyRoutes/);
+  assert.match(commands, /args: \['cloudflare', 'routes', 'apply'\]/);
+  assert.match(settingsEditor, /name: 'CloudflareApplyRoutes'/);
+  assert.match(script, /apply_cloudflare_routes\(\)/);
+  assert.doesNotMatch(runner, /'CloudflareApplyRoutes'/);
 });

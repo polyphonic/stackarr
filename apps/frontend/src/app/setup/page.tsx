@@ -1,8 +1,11 @@
 import { readEnv } from '@stackarr/core';
 import { PageBody, Toolbar } from '../../components/AppFrame';
 import { SetupWizard } from '../../components/SetupWizard';
+import { requireDashboardAuth } from '../../lib/serverAuth';
 
-export default function SetupPage() {
+export default async function SetupPage() {
+  await requireDashboardAuth('/setup', { allowUnconfigured: true });
+
   const env = readEnv();
 
   return (

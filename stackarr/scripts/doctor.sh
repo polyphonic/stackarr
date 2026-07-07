@@ -25,6 +25,9 @@ failure() {
 }
 
 print_header "Stackarr Doctor"
+load_env
+configure_docker_environment
+STACKARR_BIN="$(find_stackarr_bin || true)"
 
 native_plex_setting_value_from_xml() {
     local xml="$1"
@@ -178,8 +181,6 @@ if [[ -f "$DB_FILE" ]]; then
 else
     warn "Stackarr runtime config database is missing; defaults will be used until setup or init writes config"
 fi
-load_env
-STACKARR_BIN="$(find_stackarr_bin || true)"
 
 for dir in "${MEDIA_ROOT:-}" "${MUSIC_ROOT:-}" "${CONFIG_ROOT:-}" "${DOWNLOADS_ROOT:-}" "${BACKUP_ROOT:-}"; do
     [[ -n "$dir" ]] || continue

@@ -3,6 +3,7 @@ import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { SettingsEditor } from '../../../components/SettingsEditor';
 import { SubNav } from '../../../components/SubNav';
 import { Badge, Panel, Table } from '../../../components/ui';
+import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +27,13 @@ const navItems = Object.entries(titles).map(([slug, label]) => ({
 }));
 
 export default async function SettingsSectionPage({ params }: { params: Promise<{ section: string }> }) {
+  const { section } = await params;
+  await requireDashboardAuth(`/settings/${section}`);
+
   const env = readEnv();
   const safeEnv = redactEnv(env);
   const settings = readSettings();
   const mediaServers = getServices().filter((service) => service.category === 'media');
-  const { section } = await params;
   const title = titles[section] ?? 'Settings';
 
   return (

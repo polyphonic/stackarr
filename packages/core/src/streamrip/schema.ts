@@ -53,7 +53,7 @@ const sections: SectionInput[] = [
     text('email_or_userid', '', 'Email, or user id when use_auth_token is enabled.'),
     password('password_or_token', '', 'Password hash or auth token.'),
     password('app_id', '', 'Qobuz app id. Usually discovered by Streamrip.'),
-    json('secrets', [], 'Qobuz app secrets. Usually discovered by Streamrip.')
+    secretJson('secrets', [], 'Qobuz app secrets. Usually discovered by Streamrip.')
   ]),
   section('Tidal', 'tidal', [
     select('quality', 3, qualityOptions.tidal, '0=256 AAC, 1=320 AAC, 2=HiFi FLAC, 3=MQA/HiRes FLAC.'),
@@ -179,4 +179,7 @@ function select(name: string, defaultValue: string | number, options: string[], 
 }
 function json(name: string, defaultValue: unknown, description?: string): FieldInput {
   return { name, type: 'json', defaultValue, description };
+}
+function secretJson(name: string, defaultValue: unknown, description?: string): FieldInput {
+  return { name, type: 'json', defaultValue, description, secret: true };
 }

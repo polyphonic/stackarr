@@ -14,7 +14,8 @@ export function readServiceFavorites(): ServiceFavorite[] {
 }
 
 export async function loadServiceFavorites(): Promise<ServiceFavorite[]> {
-  const response = await fetch('/api/v1/services/favorites', { cache: 'no-store' });
+  const { stackarrFetch } = await import('./clientApi');
+  const response = await stackarrFetch('/api/v1/services/favorites', { cache: 'no-store' });
   const body = await response.json().catch(() => ({}));
   const favorites = normalizeFavorites(body.favorites);
 

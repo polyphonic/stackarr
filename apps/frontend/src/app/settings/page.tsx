@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { PageBody, Toolbar } from '../../components/AppFrame';
 import { SubNav } from '../../components/SubNav';
 import { Panel } from '../../components/ui';
+import { requireDashboardAuth } from '../../lib/serverAuth';
 
 const settings = [
   [
@@ -21,7 +22,9 @@ const settings = [
   ['ui', 'UI', 'Theme and display preferences']
 ];
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  await requireDashboardAuth('/settings');
+
   return (
     <>
       <Toolbar title="Settings" />

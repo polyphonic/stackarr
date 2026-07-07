@@ -1,4 +1,13 @@
-import { managedEnvDefaults, readEnv, redactEnv, type StackarrEnv, writeEnvConfig } from './env';
+import * as nodeCrypto from 'node:crypto';
+import {
+  isCurrentPasswordProtectedConfigKey,
+  managedEnvDefaults,
+  protectedEnvConfigChanged,
+  readEnv,
+  redactEnv,
+  type StackarrEnv,
+  writeEnvConfig
+} from './env';
 import { presetFiles, readJsonPreset, writeJsonPreset } from './presets';
 import {
   mediaProfileNameFromPreset,
@@ -8,7 +17,8 @@ import {
 } from './profilePresets';
 import { getServices, type ServiceSummary } from './services';
 import { readSettings, type StackarrSettings, type StackarrSettingsPatch, writeSettings } from './settings';
-import { getStreamripServiceConfigGroups } from './streamrip/config';
+import { getStreamripServiceConfigGroups, updateStreamripConfig } from './streamrip/config';
+import { findStreamripField } from './streamrip/schema';
 
 type PresetName = keyof typeof presetFiles;
 type FieldType = 'text' | 'password' | 'number' | 'checkbox' | 'select' | 'json' | 'path';
@@ -27,6 +37,7 @@ export type ServiceConfigField = {
   options?: string[];
   description?: string;
   secret?: boolean;
+  protected?: boolean;
 };
 
 export type ServiceConfigGroup = {
@@ -38,6 +49,7 @@ export type ServiceConfigGroup = {
 export type ServiceConfigModel = {
   service: ServiceSummary;
   groups: ServiceConfigGroup[];
+  currentPasswordRequiredForProtectedChanges?: boolean;
 };
 
 type FieldDefinition = Omit<ServiceConfigField, 'value'>;
@@ -602,7 +614,11 @@ export function getServiceConfigAction({ service }: { service: string }) {
   return buildModel(summary);
 }
 
-export function updateServiceConfigAction(input: { service: string; values: Record<string, unknown> }) {
+export function updateServiceConfigAction(input: {
+  service: string;
+  values: Record<string, unknown>;
+  currentPassword?: unknown;
+}) {
   const summary = findService(input.service);
 
   if (!summary) {
@@ -611,6 +627,10 @@ export function updateServiceConfigAction(input: { service: string; values: Reco
       accepted: false,
       error: 'Service is not configurable from the Stackarr service catalog.'
     };
+  }
+
+  if (summary.name === 'streamrip') {
+    return updateStreamripServiceConfig(summary, input);
   }
 
   const definitions = serviceGroups[summary.name] ?? [];
@@ -638,6 +658,21 @@ export function updateServiceConfigAction(input: { service: string; values: Reco
   }
 
   if (Object.keys(envPatch).length > 0) {
+    const currentEnv = readEnv();
+    const currentPasswordError = validateCurrentPasswordForProtectedConfigChange(
+      protectedEnvConfigChanged(envPatch, currentEnv),
+      currentEnv,
+      input.currentPassword
+    );
+    if (currentPasswordError) {
+      return {
+        service: input.service,
+        accepted: false,
+        error: currentPasswordError,
+        config: buildModel(findService(summary.name) ?? summary)
+      };
+    }
+
     writeEnvConfig(envPatch);
     settingsPatch = mergeSettingsPatch(settingsPatch, settingsPatchFromEnv(envPatch));
   }
@@ -657,9 +692,12 @@ export function updateServiceConfigAction(input: { service: string; values: Reco
 }
 
 function buildModel(service: ServiceSummary): ServiceConfigModel {
+  const env = readEnv();
+
   if (service.name === 'streamrip') {
     return {
       service,
+      currentPasswordRequiredForProtectedChanges: Boolean(env.PASSWORD),
       groups: getStreamripServiceConfigGroups().map((groupDefinition) => ({
         title: groupDefinition.title,
         description: groupDefinition.description,
@@ -671,13 +709,13 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
           value: field.defaultValue,
           options: field.options,
           description: field.description,
-          secret: field.secret
+          secret: field.secret,
+          protected: Boolean(field.secret)
         }))
       }))
     };
   }
 
-  const env = readEnv();
   const safeEnv = redactEnv(env);
   const settings = readSettings();
   const presets: Partial<Record<PresetName, unknown>> = {
@@ -688,6 +726,7 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
 
   return {
     service,
+    currentPasswordRequiredForProtectedChanges: Boolean(env.PASSWORD),
     groups: (serviceGroups[service.name] ?? [])
       .map((groupDefinition) => ({
         ...groupDefinition,
@@ -695,11 +734,106 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
           .filter((field) => visibleField(service.name, field, safeEnv))
           .map((field) => ({
             ...field,
-            value: fieldValue(field, safeEnv, settings, presets)
+            value: fieldValue(field, safeEnv, settings, presets),
+            protected: isProtectedServiceField(field)
           }))
       }))
       .filter((groupDefinition) => groupDefinition.fields.length > 0)
   };
+}
+
+function updateStreamripServiceConfig(
+  summary: ServiceSummary,
+  input: { service: string; values: Record<string, unknown>; currentPassword?: unknown }
+) {
+  const values: Record<string, unknown> = {};
+
+  for (const group of getStreamripServiceConfigGroups()) {
+    for (const field of group.fields) {
+      if (!Object.prototype.hasOwnProperty.call(input.values, field.id)) {
+        continue;
+      }
+      values[field.id] = input.values[field.id];
+    }
+  }
+
+  const currentEnv = readEnv();
+  const currentPasswordError = validateCurrentPasswordForProtectedConfigChange(
+    streamripSecretConfigChanged(values),
+    currentEnv,
+    input.currentPassword
+  );
+  if (currentPasswordError) {
+    return {
+      service: input.service,
+      accepted: false,
+      error: currentPasswordError,
+      config: buildModel(summary)
+    };
+  }
+
+  try {
+    updateStreamripConfig(values);
+  } catch (error) {
+    return {
+      service: input.service,
+      accepted: false,
+      error: error instanceof Error ? error.message : String(error),
+      config: buildModel(summary)
+    };
+  }
+
+  return {
+    accepted: true,
+    config: buildModel(findService(summary.name) ?? summary)
+  };
+}
+
+function streamripSecretConfigChanged(values: Record<string, unknown>) {
+  for (const [fieldId, value] of Object.entries(values)) {
+    const field = findStreamripField(fieldId);
+    if (!field?.secret || isRedactedSecretValue(value) || String(value ?? '').trim() === '') {
+      continue;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function validateCurrentPasswordForProtectedConfigChange(
+  protectedChange: boolean,
+  current: StackarrEnv,
+  currentPassword: unknown
+) {
+  if (!protectedChange || !current.PASSWORD) {
+    return undefined;
+  }
+
+  if (typeof currentPassword !== 'string' || !currentPassword) {
+    return 'Current admin password is required to change protected account or secret fields.';
+  }
+
+  if (!constantTimeStringEqual(currentPassword, current.PASSWORD)) {
+    return 'Current admin password is incorrect.';
+  }
+
+  return undefined;
+}
+
+function isProtectedServiceField(field: FieldDefinition) {
+  const source = field.source;
+  return source.source === 'env' && isCurrentPasswordProtectedConfigKey(source.key);
+}
+
+function isRedactedSecretValue(value: unknown) {
+  return typeof value === 'string' && /^\*+$/.test(value);
+}
+
+function constantTimeStringEqual(left: string, right: string) {
+  const leftHash = nodeCrypto.createHash('sha256').update(left).digest();
+  const rightHash = nodeCrypto.createHash('sha256').update(right).digest();
+  return nodeCrypto.timingSafeEqual(leftHash, rightHash);
 }
 
 function visibleField(serviceName: string, field: FieldDefinition, env: StackarrEnv) {
@@ -951,10 +1085,6 @@ function envSelect(id: string, label: string, key: string, options: string[], de
 
 function settingsText(id: string, label: string, path: string[], description?: string): FieldDefinition {
   return { id, label, type: 'text', source: { source: 'settings', path }, description };
-}
-
-function settingsCheckbox(id: string, label: string, path: string[], description?: string): FieldDefinition {
-  return { id, label, type: 'checkbox', source: { source: 'settings', path }, description };
 }
 
 function settingsSelect(

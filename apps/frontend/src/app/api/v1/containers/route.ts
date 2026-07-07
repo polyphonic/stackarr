@@ -4,7 +4,13 @@ import { json, requireApiKey } from '../../../../lib/api';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireApiKey(request);
+
+  if (auth) {
+    return auth;
+  }
+
   return json(await getDockerOverviewAction());
 }
 

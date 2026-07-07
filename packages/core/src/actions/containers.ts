@@ -309,6 +309,8 @@ export async function manageDockerResourceAction(input: DockerResourceActionInpu
     input.action === 'pruneExited' ||
     input.action === 'pruneDangling' ||
     input.action === 'pruneUnused' ||
+    input.action === 'stop' ||
+    input.action === 'restart' ||
     input.deleteVolumes === true;
 
   if (needsConfirmation) {

@@ -14,6 +14,7 @@ import { CommandButton } from '../../../components/CommandButton';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
 import { ActionGrid, Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
+import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,9 @@ const navItems = Object.entries(titles).map(([slug, label]) => ({
 type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'purple';
 
 export default async function SystemSectionPage({ params }: { params: Promise<{ section: string }> }) {
+  const { section } = await params;
+  await requireDashboardAuth(`/system/${section}`);
+
   const status = getSystemStatus();
   const env = readEnv();
   const metrics = getStackMetrics([
@@ -44,7 +48,6 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
     env.BACKUP_ROOT ?? ''
   ]);
   const tasks = readTasks();
-  const { section } = await params;
   const backupStatus = getBackupStatus(env, tasks);
 
   return (

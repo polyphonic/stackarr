@@ -137,10 +137,7 @@ test('compose env can bootstrap Postgres mode without a SQLite config file', asy
       }
     );
 
-    assert.equal(
-      stdout,
-      'postgres\npostgres://stackarr:secret@database:5432/stackarr-main\nfalse\n'
-    );
+    assert.equal(stdout, 'postgres\npostgres://stackarr:secret@database:5432/stackarr-main\nfalse\n');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

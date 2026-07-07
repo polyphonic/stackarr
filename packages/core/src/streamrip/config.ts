@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { readJsonSetting, writeJsonSetting } from '../database';
 import { readEnv } from '../env';
 import { decryptSecret, encryptSecret } from '../vault';
@@ -73,16 +74,17 @@ function mergeStreamripConfig(stored: Partial<StreamripConfig>) {
 
 function applyRuntimeDefaults(config: StreamripConfig) {
   const env = readEnv();
-  const stateRoot = getStreamripStateRoot(env);
   const forceManagedDatabasePaths =
     Boolean(process.env.STREAMRIP_STATE_ROOT) || (env.STACKARR_RUNTIME ?? process.env.STACKARR_RUNTIME) === 'docker';
   config.downloads.folder ||= `${env.DOWNLOADS_ROOT ?? `${env.APP_ROOT ?? '.stackarr'}/downloads`}/streamrip`;
-  if (forceManagedDatabasePaths || !config.database.downloads_path) {
-    config.database.downloads_path = `${stateRoot}/downloads.db`;
-  }
-  if (forceManagedDatabasePaths || !config.database.failed_downloads_path) {
-    config.database.failed_downloads_path = `${stateRoot}/failed_downloads.db`;
-  }
+  config.database.downloads_path = normalizeStreamripDatabasePath(
+    forceManagedDatabasePaths ? '' : config.database.downloads_path,
+    'downloads.db'
+  );
+  config.database.failed_downloads_path = normalizeStreamripDatabasePath(
+    forceManagedDatabasePaths ? '' : config.database.failed_downloads_path,
+    'failed_downloads.db'
+  );
 }
 
 export function getStreamripStateRoot(env = readEnv()) {
@@ -98,10 +100,35 @@ export function getStreamripStateRoot(env = readEnv()) {
   return `${stateRoot}/streamrip`;
 }
 
+export function normalizeStreamripDatabasePath(
+  value: unknown,
+  fallbackFileName: 'downloads.db' | 'failed_downloads.db',
+  options: { strict?: boolean } = {}
+) {
+  const root = path.resolve(getStreamripStateRoot());
+  const fallback = path.join(root, fallbackFileName);
+  const raw = String(value ?? '').trim();
+  const candidate = raw ? (path.isAbsolute(raw) ? raw : path.join(root, raw)) : fallback;
+  const resolved = path.resolve(candidate);
+
+  if (!isSubpath(root, resolved)) {
+    if (options.strict) {
+      throw new Error('Streamrip database paths must stay under the managed Streamrip state root.');
+    }
+    return fallback;
+  }
+
+  return resolved;
+}
+
+export function isManagedStreamripDatabasePath(value: string) {
+  return isSubpath(path.resolve(getStreamripStateRoot()), path.resolve(value));
+}
+
 function redactStreamripConfig(config: StreamripConfig) {
   const safe = structuredClone(config) as StreamripConfig;
   for (const field of streamripConfigFields) {
-    if (field.secret && safe[field.section]?.[field.name]) {
+    if (field.secret && hasSecretValue(safe[field.section]?.[field.name])) {
       safe[field.section][field.name] = redactedSecretValue;
     }
   }
@@ -111,8 +138,8 @@ function redactStreamripConfig(config: StreamripConfig) {
 function encryptStreamripSecrets(config: StreamripConfig) {
   const encrypted = structuredClone(config) as StreamripConfig;
   for (const field of streamripConfigFields) {
-    if (field.secret && encrypted[field.section]?.[field.name]) {
-      encrypted[field.section][field.name] = encryptSecret(encrypted[field.section][field.name]);
+    if (field.secret && hasSecretValue(encrypted[field.section]?.[field.name])) {
+      encrypted[field.section][field.name] = encryptStreamripSecretValue(field, encrypted[field.section][field.name]);
     }
   }
   return encrypted;
@@ -123,7 +150,10 @@ function decryptStreamripSecrets(config: Partial<StreamripConfig>) {
   for (const field of streamripConfigFields) {
     if (field.secret && decrypted[field.section]?.[field.name]) {
       try {
-        decrypted[field.section]![field.name] = decryptSecret(decrypted[field.section]![field.name]);
+        decrypted[field.section]![field.name] = decryptStreamripSecretValue(
+          field,
+          decrypted[field.section]![field.name]
+        );
       } catch {
         decrypted[field.section]![field.name] = '';
       }
@@ -133,6 +163,12 @@ function decryptStreamripSecrets(config: Partial<StreamripConfig>) {
 }
 
 function normalizeStreamripValue(field: { id?: string; type: string; defaultValue: unknown }, value: unknown) {
+  if (field.id === 'database.downloads_path') {
+    return normalizeStreamripDatabasePath(value, 'downloads.db', { strict: true });
+  }
+  if (field.id === 'database.failed_downloads_path') {
+    return normalizeStreamripDatabasePath(value, 'failed_downloads.db', { strict: true });
+  }
   if (field.type === 'checkbox') return Boolean(value);
   if (field.type === 'number') return Number(value) || 0;
   if (field.type === 'select' && typeof field.defaultValue === 'number') return Number(value) || 0;
@@ -145,11 +181,51 @@ function isRedactedSecret(value: unknown) {
   return typeof value === 'string' && /^\*+$/.test(value);
 }
 
+function hasSecretValue(value: unknown) {
+  if (typeof value === 'string') {
+    return value.length > 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+  return Boolean(value);
+}
+
 function normalizeDeezerArl(value: unknown) {
   const text = String(value ?? '').trim();
   const assignment = /^arl\s*=\s*(.+)$/i.exec(text);
   const candidate = assignment?.[1]?.trim() ?? text;
   return candidate.replace(/^['"]|['"]$/g, '').trim();
+}
+
+function encryptStreamripSecretValue(field: { type: string }, value: unknown) {
+  if (field.type === 'json') {
+    return encryptSecret(JSON.stringify(value ?? []));
+  }
+
+  return encryptSecret(value);
+}
+
+function decryptStreamripSecretValue(field: { type: string; defaultValue: unknown }, value: unknown) {
+  const decrypted = decryptSecret(value);
+
+  if (field.type !== 'json' || typeof decrypted !== 'string') {
+    return decrypted;
+  }
+
+  try {
+    return JSON.parse(decrypted);
+  } catch {
+    return field.defaultValue;
+  }
+}
+
+function isSubpath(root: string, candidate: string) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function tomlValue(value: unknown): string {

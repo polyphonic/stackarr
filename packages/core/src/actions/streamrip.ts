@@ -5,12 +5,15 @@ import { readJsonSetting, writeJsonSetting } from '../database';
 import { readEnv } from '../env';
 import {
   getStreamripStateRoot,
+  isManagedStreamripDatabasePath,
+  normalizeStreamripDatabasePath,
   readStreamripConfig,
   renderStreamripToml,
   updateStreamripConfig
 } from '../streamrip/config';
 
 const jobsKey = 'stackarr.streamripJobs';
+const allowedStreamripUrlDomains = ['qobuz.com', 'tidal.com', 'deezer.com', 'soundcloud.com'];
 type SQLiteModule = typeof import('node:sqlite');
 type SQLiteDatabase = InstanceType<SQLiteModule['DatabaseSync']>;
 
@@ -114,9 +117,9 @@ async function testDeezerArl(): Promise<DeezerArlStatus> {
 }
 
 export async function startStreamripDownloadAction(input: { url: string }) {
-  if (!/^https?:\/\//i.test(input.url)) throw new Error('Streamrip download requires an http(s) URL.');
-  const job: StreamripJob = createJob({ type: 'url', url: input.url });
-  return startStreamripJob(job, ['--config-path', await writeStreamripConfigFile(), 'url', input.url]);
+  const url = normalizeStreamripDownloadUrl(input.url);
+  const job: StreamripJob = createJob({ type: 'url', url });
+  return startStreamripJob(job, ['--config-path', await writeStreamripConfigFile(), 'url', url]);
 }
 
 export async function startStreamripSearchDownloadAction(input: {
@@ -226,11 +229,37 @@ async function repairStreamripDatabases() {
 async function ensureStreamripDatabase(databasePath: string, expectedTable: string) {
   if (!databasePath) return;
 
-  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
-  if (!fs.existsSync(databasePath)) return;
+  const fallbackFileName = expectedTable === 'downloads' ? 'downloads.db' : 'failed_downloads.db';
+  const managedPath = normalizeStreamripDatabasePath(databasePath, fallbackFileName, { strict: true });
 
-  if (fs.statSync(databasePath).size === 0) {
-    fs.rmSync(databasePath, { force: true });
+  if (!isManagedStreamripDatabasePath(managedPath)) {
+    throw new Error('Streamrip database paths must stay under the managed Streamrip state root.');
+  }
+
+  const stateRoot = getStreamripStateRoot();
+  fs.mkdirSync(stateRoot, { recursive: true });
+  fs.mkdirSync(path.dirname(managedPath), { recursive: true });
+  const stateRootReal = fs.realpathSync(stateRoot);
+  const parentReal = fs.realpathSync(path.dirname(managedPath));
+
+  if (!isRealSubpath(stateRootReal, parentReal)) {
+    throw new Error('Streamrip database paths must stay under the managed Streamrip state root.');
+  }
+
+  if (!fs.existsSync(managedPath)) return;
+
+  const stat = fs.lstatSync(managedPath);
+  if (stat.isSymbolicLink()) {
+    fs.rmSync(managedPath, { force: true });
+    return;
+  }
+
+  if (!stat.isFile()) {
+    throw new Error('Streamrip database path must be a file.');
+  }
+
+  if (stat.size === 0) {
+    fs.rmSync(managedPath, { force: true });
     return;
   }
 
@@ -238,7 +267,7 @@ async function ensureStreamripDatabase(databasePath: string, expectedTable: stri
   let invalid = false;
   try {
     const { DatabaseSync } = await import('node:sqlite');
-    db = new DatabaseSync(databasePath);
+    db = new DatabaseSync(managedPath);
     const row = db.prepare("select name from sqlite_master where type = 'table' and name = ?").get(expectedTable) as
       | { name?: string }
       | undefined;
@@ -251,8 +280,13 @@ async function ensureStreamripDatabase(databasePath: string, expectedTable: stri
     db?.close();
   }
   if (invalid) {
-    fs.rmSync(databasePath, { force: true });
+    fs.rmSync(managedPath, { force: true });
   }
+}
+
+function isRealSubpath(root: string, candidate: string) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function streamripCommand() {
@@ -268,6 +302,32 @@ function normalizeSource(source: string): StreamripSource {
 function normalizeMediaType(mediaType: string): StreamripMediaType {
   if (['album', 'track', 'playlist', 'artist'].includes(mediaType)) return mediaType as StreamripMediaType;
   throw new Error(`Unsupported Streamrip media type: ${mediaType}`);
+}
+
+function normalizeStreamripDownloadUrl(value: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Streamrip download requires a valid provider URL.');
+  }
+
+  if (url.protocol !== 'https:') {
+    throw new Error('Streamrip download URLs must use HTTPS.');
+  }
+
+  if (url.username || url.password || url.port) {
+    throw new Error('Streamrip download URLs cannot include credentials or custom ports.');
+  }
+
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+  const allowed = allowedStreamripUrlDomains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+
+  if (!allowed) {
+    throw new Error('Streamrip download URL must be for Qobuz, Tidal, Deezer, or SoundCloud.');
+  }
+
+  return url.toString();
 }
 
 function finishJob(id: string, status: StreamripJobStatus, patch: Partial<StreamripJob>) {

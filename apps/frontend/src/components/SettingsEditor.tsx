@@ -474,7 +474,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
     const applyResponse = await stackarrFetch('/api/v1/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'CloudflareInstall' })
+      body: JSON.stringify({ name: 'CloudflareApplyRoutes' })
     });
 
     setCloudflareApplyState(applyResponse.ok ? 'queued' : 'error');
@@ -1876,16 +1876,7 @@ function protectedEnvChangeRequiresCurrentPassword(draftEnv: StackarrEnv, curren
 function isCurrentPasswordProtectedEnvKey(key: string) {
   const normalized = key.toUpperCase();
 
-  return (
-    normalized === 'USERNAME' ||
-    normalized === 'USER_EMAIL' ||
-    normalized === 'PASSWORD' ||
-    normalized.endsWith('_PASSWORD') ||
-    normalized.includes('CLAIM_CODE') ||
-    normalized === 'DATABASE_URL' ||
-    normalized.endsWith('_DATABASE_URL') ||
-    normalized.endsWith('_DB_URL')
-  );
+  return normalized === 'USERNAME' || normalized === 'USER_EMAIL' || isSecretEnvKey(normalized);
 }
 
 function isPortablePasswordEnvKey(key: string) {

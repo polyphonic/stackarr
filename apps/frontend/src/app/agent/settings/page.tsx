@@ -1,8 +1,11 @@
 import { localTrustedPolicy, remoteRestrictedPolicy } from '@stackarr/core';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { Panel } from '../../../components/ui';
+import { requireDashboardAuth } from '../../../lib/serverAuth';
 
-export default function AgentSettingsPage() {
+export default async function AgentSettingsPage() {
+  await requireDashboardAuth('/agent/settings');
+
   const example = `mcp_servers:
   stackarr:
     command: "node"

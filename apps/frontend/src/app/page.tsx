@@ -2,10 +2,13 @@ import { getServices, getStackMetrics, getSystemStatus, readEnv, readTasks } fro
 import { PageBody, Toolbar } from '../components/AppFrame';
 import { CommandButton } from '../components/CommandButton';
 import { DashboardClient } from '../components/DashboardClient';
+import { requireDashboardAuth } from '../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  await requireDashboardAuth('/');
+
   const status = getSystemStatus();
   const services = getServices();
   const env = readEnv();

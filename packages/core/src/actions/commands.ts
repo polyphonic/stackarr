@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { type CommandName, commandRegistry } from '../commands';
 import { repoRoot, stackarrBin } from '../paths';
 import { type DangerousConfirmation, requireDangerousConfirmation } from '../safety/dangerous';
-import { createQueuedTask, readTasks, type StackarrTask, writeTasks } from '../tasks';
+import { createQueuedTask, type StackarrTask, updateTask } from '../tasks';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +19,8 @@ export async function runStackarrCommandAction(
   return { command: definition.name, label: definition.label, stdout, stderr };
 }
 
-export const startStackAction = () => runStackarrCommandAction({ command: 'StackStart' });
+export const startStackAction = (input: DangerousConfirmation) =>
+  runStackarrCommandAction({ command: 'StackStart', ...input });
 export const stopStackAction = (input: DangerousConfirmation) =>
   runStackarrCommandAction({ command: 'StackStop', ...input });
 export const runUpdateAction = (input: DangerousConfirmation) =>
@@ -86,10 +87,4 @@ export function queueStackarrCommandAction(input: { command: CommandName; args?:
     status: 'running',
     note: 'Command queued. Poll stackarr_get_tasks or the Stackarr UI task list for progress.'
   };
-}
-
-function updateTask(id: string, patch: Partial<StackarrTask>) {
-  const tasks = readTasks();
-  const next = tasks.map((task) => (task.id === id ? { ...task, ...patch } : task));
-  writeTasks(next);
 }

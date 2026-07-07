@@ -237,7 +237,7 @@ const tools: ToolDef[] = [
   {
     name: 'stackarr_update_service_config',
     description: 'Update service config values using UI field ids.',
-    shape: { service: z.string(), values: z.record(z.string(), z.unknown()) },
+    shape: { service: z.string(), values: z.record(z.string(), z.unknown()), currentPassword: z.string().optional() },
     handler: updateServiceConfigAction
   },
   {
@@ -383,7 +383,12 @@ const tools: ToolDef[] = [
       return typeof i.limit === 'number' ? tasks.slice(0, i.limit) : tasks;
     }
   },
-  { name: 'stackarr_start_stack', description: 'Start Stackarr stack.', shape: empty, handler: startStackAction },
+  {
+    name: 'stackarr_start_stack',
+    description: 'Start Stackarr stack; dangerous.',
+    shape: dangerous,
+    handler: startStackAction
+  },
   {
     name: 'stackarr_stop_stack',
     description: 'Stop Stackarr stack; dangerous.',

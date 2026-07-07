@@ -36,8 +36,7 @@ export function LoginForm() {
     }
 
     toast.success('Signed in.');
-    const next = searchParams.get('next') || '/';
-    router.replace(next.startsWith('/') ? next : '/');
+    router.replace(safeNextPath(searchParams.get('next')));
     router.refresh();
   }
 
@@ -77,4 +76,12 @@ export function LoginForm() {
       </section>
     </div>
   );
+}
+
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
+    return '/';
+  }
+
+  return value;
 }

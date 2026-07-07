@@ -29,6 +29,7 @@ export function ServiceDirectory({
   const [items, setItems] = useState(configs);
   const [activeName, setActiveName] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftValues>({});
+  const [currentPassword, setCurrentPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [favorites, setFavorites] = useState(() => [] as ReturnType<typeof readServiceFavorites>);
@@ -36,6 +37,9 @@ export function ServiceDirectory({
   const active = useMemo(() => items.find((item) => item.service.name === activeName) ?? null, [activeName, items]);
   const orderedItems = useMemo(() => [...items].sort(compareServiceConfigs), [items]);
   const favoriteNames = useMemo(() => new Set(favorites.map((favorite) => favorite.name)), [favorites]);
+  const currentPasswordRequired = Boolean(
+    active?.currentPasswordRequiredForProtectedChanges && protectedDraftChangeRequiresCurrentPassword(active, draft)
+  );
 
   useEffect(() => {
     let active = true;
@@ -62,6 +66,13 @@ export function ServiceDirectory({
   function openConfig(config: ServiceConfigModel) {
     setActiveName(config.service.name);
     setDraft(valuesFromConfig(config));
+    setCurrentPassword('');
+    setError('');
+  }
+
+  function closeConfig() {
+    setActiveName(null);
+    setCurrentPassword('');
     setError('');
   }
 
@@ -114,6 +125,13 @@ export function ServiceDirectory({
       return;
     }
 
+    if (currentPasswordRequired && !currentPassword.trim()) {
+      const message = 'Current admin password is required to change protected account or secret fields.';
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
     setSaving(true);
     setError('');
     const toastId = toast.loading(`Saving ${active.service.displayName} settings...`);
@@ -121,7 +139,10 @@ export function ServiceDirectory({
     const response = await stackarrFetch(`/api/v1/services/config/${active.service.name}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ values: payload.values })
+      body: JSON.stringify({
+        values: payload.values,
+        ...(currentPasswordRequired ? { currentPassword } : {})
+      })
     });
     const body = await response.json().catch(() => ({}));
 
@@ -136,7 +157,7 @@ export function ServiceDirectory({
 
     const nextConfig = body.config as ServiceConfigModel;
     setItems((current) => current.map((item) => (item.service.name === nextConfig.service.name ? nextConfig : item)));
-    setActiveName(null);
+    closeConfig();
     toast.success(`${active.service.displayName} settings saved.`, { id: toastId });
   }
 
@@ -233,7 +254,7 @@ export function ServiceDirectory({
       </div>
 
       {active && (
-        <div className={styles.overlay} role="presentation" onMouseDown={() => setActiveName(null)}>
+        <div className={styles.overlay} role="presentation" onMouseDown={closeConfig}>
           <section
             aria-modal="true"
             className={styles.modal}
@@ -245,12 +266,7 @@ export function ServiceDirectory({
                 <h2>Configure {active.service.displayName}</h2>
                 <p>{active.service.description}</p>
               </div>
-              <button
-                className={styles.closeButton}
-                onClick={() => setActiveName(null)}
-                type="button"
-                aria-label="Close"
-              >
+              <button className={styles.closeButton} onClick={closeConfig} type="button" aria-label="Close">
                 x
               </button>
             </header>
@@ -273,11 +289,24 @@ export function ServiceDirectory({
                   </div>
                 </section>
               ))}
+              {currentPasswordRequired && (
+                <section className={styles.currentPasswordGate}>
+                  <label className={styles.field}>
+                    <span>Current admin password</span>
+                    <input
+                      autoComplete="current-password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </label>
+                </section>
+              )}
             </div>
 
             <footer className={styles.modalFooter}>
               {error && <span className={styles.error}>{error}</span>}
-              <button onClick={() => setActiveName(null)} type="button">
+              <button onClick={closeConfig} type="button">
                 Cancel
               </button>
               <button className={styles.primary} disabled={saving} onClick={save} type="button">
@@ -360,8 +389,11 @@ function valuesFromConfig(config: ServiceConfigModel): DraftValues {
 
   for (const group of config.groups) {
     for (const field of group.fields) {
-      values[field.id] =
-        field.type === 'json' ? JSON.stringify(field.value ?? {}, null, 2) : field.secret ? '' : field.value;
+      values[field.id] = field.secret
+        ? ''
+        : field.type === 'json'
+          ? JSON.stringify(field.value ?? {}, null, 2)
+          : field.value;
     }
   }
 
@@ -375,6 +407,10 @@ function normalizeDraft(config: ServiceConfigModel, draft: DraftValues): { value
     for (const field of group.fields) {
       const value = draft[field.id];
 
+      if (field.secret && !String(value ?? '').trim()) {
+        continue;
+      }
+
       if (field.type === 'json') {
         try {
           values[field.id] = value ? JSON.parse(String(value)) : {};
@@ -385,8 +421,6 @@ function normalizeDraft(config: ServiceConfigModel, draft: DraftValues): { value
         values[field.id] = truthy(value);
       } else if (field.type === 'number') {
         values[field.id] = Number(value) || 0;
-      } else if (field.secret && !String(value ?? '').trim()) {
-        continue;
       } else {
         values[field.id] = value;
       }
@@ -394,6 +428,42 @@ function normalizeDraft(config: ServiceConfigModel, draft: DraftValues): { value
   }
 
   return { values };
+}
+
+function protectedDraftChangeRequiresCurrentPassword(config: ServiceConfigModel, draft: DraftValues) {
+  for (const group of config.groups) {
+    for (const field of group.fields) {
+      if (!field.protected) {
+        continue;
+      }
+
+      const value = draft[field.id];
+      if (field.secret) {
+        if (String(value ?? '').trim()) {
+          return true;
+        }
+        continue;
+      }
+
+      if (!sameDraftValue(field, value, field.value)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function sameDraftValue(field: ServiceConfigField, draftValue: unknown, savedValue: unknown) {
+  if (field.type === 'checkbox') {
+    return truthy(draftValue) === truthy(savedValue);
+  }
+
+  if (field.type === 'number') {
+    return (Number(draftValue) || 0) === (Number(savedValue) || 0);
+  }
+
+  return String(draftValue ?? '') === String(savedValue ?? '');
 }
 
 function truthy(value: unknown) {

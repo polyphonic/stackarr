@@ -13,6 +13,8 @@ RESTORE_NATIVE_PLEX="ask"
 RESTORE_PLEX_PREFS="ask"
 MARK_ONBOARDING_COMPLETE=false
 DELETE_ARCHIVE_AFTER_RESTORE=false
+CONSTRAIN_RUNTIME_ROOTS=false
+RESTORE_APP_ROOT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -46,6 +48,14 @@ while [[ $# -gt 0 ]]; do
         --delete-archive-after-restore)
             DELETE_ARCHIVE_AFTER_RESTORE=true
             ;;
+        --constrain-runtime-roots)
+            CONSTRAIN_RUNTIME_ROOTS=true
+            ;;
+        --restore-app-root)
+            shift
+            [[ $# -gt 0 && -n "$1" ]] || fail "--restore-app-root requires an absolute path"
+            RESTORE_APP_ROOT="$1"
+            ;;
         --help|-h)
             cat <<'EOF'
 Usage: stackarr backup restore <archive.tar.gz|archive.tgz|archive.zip> [options]
@@ -62,6 +72,8 @@ Options:
   --mark-onboarding-complete  Mark the Stackarr setup wizard complete after restore.
   --delete-archive-after-restore
                               Delete the input archive after the restore attempt.
+  --constrain-runtime-roots   Remap restored runtime roots under the current app root.
+  --restore-app-root <path>   App root to use with --constrain-runtime-roots.
 EOF
             exit 0
             ;;
@@ -167,6 +179,7 @@ RESTORE_ROOT="$(find_restore_root)"
 RESTORE_MANIFEST="$RESTORE_ROOT/manifest.txt"
 RESTORE_PLEX_BACKUP_MODE="full"
 DB_FILE="${STACKARR_DATABASE_FILE:-$(default_stackarr_database_file)}"
+TRUSTED_RESTORE_APP_ROOT="${RESTORE_APP_ROOT:-${APP_ROOT:-$(default_app_root)}}"
 
 if [[ -f "$RESTORE_MANIFEST" ]]; then
     RESTORE_PLEX_BACKUP_MODE="$(sed -n 's/^plex_backup_mode=//p' "$RESTORE_MANIFEST" | head -1)"
@@ -181,6 +194,49 @@ if [[ -f "$RESTORE_ROOT/stackarr/stackarr.db" && ( ! -f "$DB_FILE" || "$FORCE_RU
 fi
 
 load_env
+constrain_runtime_roots() {
+    local app_root="$1"
+    [[ -n "$app_root" && "$app_root" = /* ]] || fail "Constrained restore app root must be an absolute path"
+    [[ "$app_root" != "/" ]] || fail "Refusing to constrain restore roots to /"
+    require_command node
+
+    APP_ROOT="$app_root"
+    CONFIG_ROOT="$APP_ROOT/config"
+    STATE_ROOT="$APP_ROOT/state"
+    LOG_ROOT="$APP_ROOT/logs"
+    BACKUP_ROOT="$APP_ROOT/backups"
+    BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-}"
+    PLEX_CONFIG_PATH="$APP_ROOT/plex-native"
+    PLEX_PREFS_PATH="$APP_ROOT/plex-preferences/com.plexapp.plexmediaserver.plist"
+    export APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
+
+    local patch_file="$TMP_DIR/constrained-runtime-config.json"
+    node - "$patch_file" <<'NODE'
+const fs = require('node:fs');
+
+const keys = [
+  'APP_ROOT',
+  'CONFIG_ROOT',
+  'STATE_ROOT',
+  'LOG_ROOT',
+  'BACKUP_ROOT',
+  'BACKUP_STAGING_ROOT',
+  'PLEX_CONFIG_PATH',
+  'PLEX_PREFS_PATH'
+];
+
+fs.writeFileSync(
+  process.argv[2],
+  JSON.stringify(Object.fromEntries(keys.map((key) => [key, process.env[key] || ''])))
+);
+NODE
+    STACKARR_DATABASE_FILE="$DB_FILE" node "$ROOT_DIR/scripts/runtime-config-write.cjs" "$patch_file"
+    ok "Constrained restore destinations under $APP_ROOT"
+}
+
+if [[ "$CONSTRAIN_RUNTIME_ROOTS" == true ]]; then
+    constrain_runtime_roots "$TRUSTED_RESTORE_APP_ROOT"
+fi
 write_compose_env_file
 
 if command -v docker >/dev/null 2>&1 && stackarr_compose ps -q >/dev/null 2>&1; then
