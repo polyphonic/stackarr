@@ -84,9 +84,15 @@ export async function dispatchNotification(event: WebhookEvent, payload: Record<
   );
 
   await Promise.allSettled(
-    notifications.map((notification) =>
-      fetch(notification.url as string, {
+    notifications.map((notification) => {
+      const url = normalizeWebhookUrl(notification.url);
+      if (!url) {
+        return Promise.resolve();
+      }
+
+      return fetch(url, {
         method: 'POST',
+        redirect: 'manual',
         headers: {
           'content-type': 'application/json',
           'x-stackarr-event': event
@@ -97,9 +103,22 @@ export async function dispatchNotification(event: WebhookEvent, payload: Record<
           applicationUrl: 'http://localhost:7777',
           ...payload
         })
-      })
-    )
+      });
+    })
   );
+}
+
+function normalizeWebhookUrl(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function readSqliteNotifications(): Notification[] {

@@ -1,5 +1,5 @@
 import { requestJson } from '../clients/http';
-import { serviceApiKey, serviceBaseUrl } from '../clients/serviceConfig';
+import { maybeServiceBaseUrl, serviceApiKey } from '../clients/serviceConfig';
 import { getServiceConfigAction, listServiceConfigsAction, updateServiceConfigAction } from '../serviceCatalog';
 import { listServiceFavoritesAction, updateServiceFavoritesAction } from '../serviceFavorites';
 import { getServices } from '../services';
@@ -20,7 +20,10 @@ export async function getServiceStatusAction({ service }: { service: string }) {
   const summary = getServices().find((item) => item.name === service);
   if (!summary) return { service, status: 'unknown', error: 'Service is not in Stackarr service catalog.' };
   if (summary.mode === 'disabled') return { ...summary, reachable: false };
-  const baseUrl = serviceBaseUrl(service);
+  const baseUrl = maybeServiceBaseUrl(service);
+  if (!baseUrl) {
+    return { ...summary, reachable: false, unsupported: true, error: 'Service does not expose an HTTP endpoint.' };
+  }
   const apiKey = serviceApiKey(service);
   let endpoint = baseUrl;
   if (['sonarr', 'sonarr4k', 'radarr', 'radarr4k'].includes(service) && apiKey) {

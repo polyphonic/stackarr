@@ -43,6 +43,8 @@ services:
       - stackarr
     container_name: app
     image: ${STACKARR_IMAGE:-polyphonic/stackarr:alpha}
+    group_add:
+      - "${STACKARR_DOCKER_GID:-0}"
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"

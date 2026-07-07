@@ -4,6 +4,12 @@ import { json, requireApiKey } from '../../../../../../lib/api';
 import { queuePortlessSetupIfNeeded } from '../../../../../../lib/portlessSetup';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ service: string }> }) {
+  const auth = requireApiKey(_request);
+
+  if (auth) {
+    return auth;
+  }
+
   const { service } = await params;
   return json(getServiceConfigAction({ service }));
 }
@@ -20,7 +26,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const beforeSettings = readSettings();
   const result = updateServiceConfigAction({
     service,
-    values: body.values && typeof body.values === 'object' ? body.values : {}
+    values: body.values && typeof body.values === 'object' ? body.values : {},
+    currentPassword: body.currentPassword
   });
   const afterSettings = readSettings();
 

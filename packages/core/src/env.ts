@@ -419,6 +419,34 @@ export function redactEnv(env: StackarrEnv): StackarrEnv {
   ) as StackarrEnv;
 }
 
+export function protectedEnvConfigChanged(config: StackarrEnv, current: StackarrEnv) {
+  const redactedCurrent = redactEnv(current);
+
+  for (const [key, value] of Object.entries(config)) {
+    if (!isCurrentPasswordProtectedConfigKey(key)) {
+      continue;
+    }
+
+    const nextValue = value == null ? '' : String(value);
+    const currentValue = current[key] ?? '';
+    const redactedValue = redactedCurrent[key] ?? '';
+
+    if (nextValue === currentValue || nextValue === redactedValue) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+export function isCurrentPasswordProtectedConfigKey(key: string) {
+  const normalized = key.toUpperCase();
+
+  return normalized === 'USERNAME' || normalized === 'USER_EMAIL' || isSecretKey(normalized);
+}
+
 export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): StackarrEnv {
   const merged = { ...current };
 

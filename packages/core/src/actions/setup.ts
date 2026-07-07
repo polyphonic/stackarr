@@ -582,7 +582,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
 
   writeEnvConfig(envPatch);
   writeSettings({
-    setup: { onboardingComplete: true, installMode: 'fresh' },
+    setup: { onboardingComplete: false, installMode: 'fresh' },
     services: {
       enableMovies: merged.enableMovies,
       enableTvShows: merged.enableTvShows,
@@ -638,6 +638,10 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       return { accepted: true, completed: false, plan, results };
     }
   }
+
+  writeSettings({
+    setup: { onboardingComplete: true, installMode: 'fresh' }
+  });
 
   return { accepted: true, completed: true, plan, results };
 }

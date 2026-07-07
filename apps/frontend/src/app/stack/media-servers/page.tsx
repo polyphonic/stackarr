@@ -1,10 +1,13 @@
 import { getServices, getSystemStatus, readEnv } from '@stackarr/core';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
+import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 
-export default function MediaServersPage() {
+export default async function MediaServersPage() {
+  await requireDashboardAuth('/stack/media-servers');
+
   const env = readEnv();
   const status = getSystemStatus();
   const mediaServers = getServices().filter((service) => service.category === 'media');

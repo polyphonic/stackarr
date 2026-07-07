@@ -2,10 +2,13 @@ import { listServiceConfigsAction } from '@stackarr/core';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { ServiceDirectory } from '../../../components/ServiceDirectory';
 import { Panel } from '../../../components/ui';
+import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 
-export default function StackPage() {
+export default async function StackPage() {
+  await requireDashboardAuth('/stack/services');
+
   const configs = listServiceConfigsAction();
 
   return (

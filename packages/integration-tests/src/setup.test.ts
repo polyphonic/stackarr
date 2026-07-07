@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { execFile as execFileCallback } from 'node:child_process';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { getMediaServerSetupProfileAction, setupMediaServerAction } from '../../core/src/actions/setup.ts';
+
+const execFile = promisify(execFileCallback);
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
 test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   const profile = getMediaServerSetupProfileAction();
@@ -210,6 +219,64 @@ test('dry-run setup rejects global passwords that need connection-string escapin
 
   assert.equal(result.accepted, false);
   assert.match(result.error ?? '', /may only use letters, numbers, dot, underscore, and hyphen/);
+});
+
+test('confirmed setup does not mark onboarding complete when a setup command fails', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-setup-failure-test-'));
+  const fakeRepoRoot = path.join(root, 'repo');
+  const fakeBinDir = path.join(fakeRepoRoot, 'bin');
+  const fakeStackarr = path.join(fakeBinDir, 'stackarr');
+
+  try {
+    await mkdir(fakeBinDir, { recursive: true });
+    await writeFile(fakeStackarr, '#!/bin/sh\nexit 42\n');
+    await chmod(fakeStackarr, 0o755);
+
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { setupMediaServerAction } = await import('./packages/core/src/actions/setup.ts');
+          const { readSettings } = await import('./packages/core/src/settings.ts');
+
+          const result = await setupMediaServerAction({
+            dryRun: false,
+            confirmSetup: true,
+            startStack: true,
+            configureServices: false,
+            applyPresets: false,
+            installStartup: false,
+            installBackup: false,
+            installUpdates: false,
+            openBrowser: false,
+            globalPassword: 'Portable435'
+          });
+
+          console.log(JSON.stringify({ result, setup: readSettings().setup }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db'),
+          STACKARR_REPO_ROOT: fakeRepoRoot
+        }
+      }
+    );
+
+    const { result, setup } = JSON.parse(stdout);
+    assert.equal(result.accepted, true);
+    assert.equal(result.completed, false);
+    assert.equal(setup.installMode, 'fresh');
+    assert.equal(setup.onboardingComplete, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('dry-run setup can place supported apps in shared Postgres mode', async () => {

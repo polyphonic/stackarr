@@ -208,3 +208,69 @@ test('restore accepts zip archives and can run non-interactively from onboarding
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('constrained restore ignores archive-controlled host roots', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-restore-constrained-test-'));
+  const appRoot = path.join(root, 'app');
+  const safeConfigRoot = path.join(appRoot, 'config');
+  const safeStateRoot = path.join(appRoot, 'state');
+  const maliciousRoot = path.join(root, 'attacker-root');
+  const backupName = 'stackarr-backup-20260624-140000';
+  const backupRootFixture = path.join(root, 'fixture', backupName);
+  const archivePath = path.join(root, `${backupName}.tar.gz`);
+  const composeEnvFile = path.join(root, 'compose.env');
+  const databaseFile = path.join(root, 'stackarr.db');
+
+  try {
+    await mkdir(path.join(backupRootFixture, 'config/radarr'), { recursive: true });
+    await mkdir(path.join(backupRootFixture, 'state/tasks'), { recursive: true });
+    await mkdir(path.join(backupRootFixture, 'stackarr'), { recursive: true });
+    await writeFile(path.join(backupRootFixture, 'manifest.txt'), 'plex_backup_mode=lite\n');
+    await writeFile(path.join(backupRootFixture, 'config/radarr/config.xml'), '<Config />');
+    await writeFile(path.join(backupRootFixture, 'state/tasks/task.json'), '{}');
+    writeRuntimeConfigDatabase(path.join(backupRootFixture, 'stackarr/stackarr.db'), {
+      APP_ROOT: path.join(maliciousRoot, 'app'),
+      CONFIG_ROOT: path.join(maliciousRoot, 'config'),
+      STATE_ROOT: path.join(maliciousRoot, 'state'),
+      LOG_ROOT: path.join(maliciousRoot, 'logs'),
+      MEDIA_ROOT: path.join(maliciousRoot, 'media'),
+      MUSIC_ROOT: path.join(maliciousRoot, 'media/Music'),
+      DOWNLOADS_ROOT: path.join(maliciousRoot, 'downloads'),
+      BACKUP_ROOT: path.join(maliciousRoot, 'backups'),
+      PLEX_CONFIG_PATH: path.join(maliciousRoot, 'plex'),
+      PLEX_PREFS_PATH: path.join(maliciousRoot, 'prefs.plist'),
+      STACKARR_WEB_ENABLED: 'true'
+    });
+
+    await execFile('tar', ['-czf', archivePath, '-C', path.join(root, 'fixture'), backupName]);
+    await execFile(
+      'bash',
+      [
+        '-c',
+        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --constrain-runtime-roots --restore-app-root "$3" --skip-postgres --skip-native-plex --skip-plex-preferences',
+        'bash',
+        restoreScript,
+        archivePath,
+        appRoot
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+          STACKARR_DATABASE_FILE: databaseFile,
+          HOME: path.join(root, 'home')
+        }
+      }
+    );
+
+    assert.equal(await readFile(path.join(safeConfigRoot, 'radarr/config.xml'), 'utf8'), '<Config />');
+    assert.equal(await readFile(path.join(safeStateRoot, 'tasks/task.json'), 'utf8'), '{}');
+    await assert.rejects(readFile(path.join(maliciousRoot, 'config/radarr/config.xml'), 'utf8'));
+    await assert.rejects(readFile(path.join(maliciousRoot, 'state/tasks/task.json'), 'utf8'));
+    assert.equal(readRuntimeConfig(databaseFile).CONFIG_ROOT, safeConfigRoot);
+    assert.equal(readRuntimeConfig(databaseFile).STATE_ROOT, safeStateRoot);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

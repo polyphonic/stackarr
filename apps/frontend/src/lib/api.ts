@@ -4,6 +4,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const sessionCookieName = 'stackarr_session';
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
+const loginWindowMs = 15 * 60 * 1000;
+const loginBlockMs = 15 * 60 * 1000;
+const loginMaxFailures = 5;
+const loginAttemptBuckets = new Map<
+  string,
+  {
+    failures: number;
+    resetAt: number;
+    blockedUntil: number;
+  }
+>();
 
 export function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, init);
@@ -69,6 +80,59 @@ export function validateStackarrLogin(identifier: string, password: string) {
   };
 }
 
+export function checkStackarrLoginRateLimit(request: NextRequest, identifier: string) {
+  const key = loginRateLimitKey(request, identifier);
+  const bucket = loginAttemptBuckets.get(key);
+  const now = Date.now();
+
+  if (!bucket) {
+    return null;
+  }
+
+  if (bucket.resetAt <= now) {
+    loginAttemptBuckets.delete(key);
+    return null;
+  }
+
+  if (bucket.blockedUntil > now) {
+    const retryAfter = Math.max(1, Math.ceil((bucket.blockedUntil - now) / 1000));
+    return {
+      retryAfter,
+      message: 'Too many failed sign-in attempts. Try again later.'
+    };
+  }
+
+  return null;
+}
+
+export function recordStackarrLoginAttempt(request: NextRequest, identifier: string, ok: boolean) {
+  const key = loginRateLimitKey(request, identifier);
+
+  if (ok) {
+    loginAttemptBuckets.delete(key);
+    return;
+  }
+
+  const now = Date.now();
+  const existing = loginAttemptBuckets.get(key);
+  const bucket =
+    existing && existing.resetAt > now
+      ? existing
+      : {
+          failures: 0,
+          resetAt: now + loginWindowMs,
+          blockedUntil: 0
+        };
+
+  bucket.failures += 1;
+  if (bucket.failures >= loginMaxFailures) {
+    bucket.blockedUntil = now + loginBlockMs;
+  }
+
+  loginAttemptBuckets.set(key, bucket);
+  pruneLoginAttemptBuckets(now);
+}
+
 export function setStackarrSessionCookie(response: NextResponse, request: NextRequest, username: string) {
   const env = readEnv();
   const token = signSessionToken(username, env);
@@ -99,20 +163,19 @@ export function stackarrAuthStatus(request: NextRequest) {
   const env = readEnv();
   const settings = readSettingsSafe();
   const authenticationMethod = settings?.host.authenticationMethod ?? 'apikey';
+  const authenticated = authenticationMethod === 'none' || validStackarrSession(request, env);
 
   return {
     authenticationMethod,
-    authenticated: authenticationMethod === 'none' || validStackarrSession(request, env),
-    username: env.USERNAME?.trim() || '',
-    email: env.USER_EMAIL?.trim() || '',
+    authenticated,
+    username: authenticated ? env.USERNAME?.trim() || '' : '',
+    email: authenticated ? env.USER_EMAIL?.trim() || '' : '',
     apiKeyConfigured: Boolean(env.STACKARR_API_KEY?.trim()),
     passwordConfigured: Boolean(env.PASSWORD?.trim())
   };
 }
 
-function validStackarrSession(request: NextRequest, env: ReturnType<typeof readEnv>) {
-  const token = request.cookies.get(sessionCookieName)?.value;
-
+export function validStackarrSessionToken(token: string | undefined, env = readEnv()) {
   if (!token) {
     return false;
   }
@@ -122,7 +185,12 @@ function validStackarrSession(request: NextRequest, env: ReturnType<typeof readE
     return false;
   }
 
-  const expected = signPayload(payload, sessionSecret(env));
+  const secret = sessionSecret(env);
+  if (!secret) {
+    return false;
+  }
+
+  const expected = signPayload(payload, secret);
   if (!secretEqual(signature, expected)) {
     return false;
   }
@@ -134,9 +202,7 @@ function validStackarrSession(request: NextRequest, env: ReturnType<typeof readE
     };
     const username = typeof data.username === 'string' ? data.username.trim().toLowerCase() : '';
     const expiresAt = typeof data.expiresAt === 'number' ? data.expiresAt : 0;
-    const allowedUsers = [env.USERNAME, env.USER_EMAIL]
-      .map((value) => value?.trim().toLowerCase())
-      .filter(Boolean);
+    const allowedUsers = [env.USERNAME, env.USER_EMAIL].map((value) => value?.trim().toLowerCase()).filter(Boolean);
 
     return Boolean(username && allowedUsers.includes(username) && expiresAt > Date.now());
   } catch {
@@ -144,7 +210,16 @@ function validStackarrSession(request: NextRequest, env: ReturnType<typeof readE
   }
 }
 
+function validStackarrSession(request: NextRequest, env: ReturnType<typeof readEnv>) {
+  return validStackarrSessionToken(request.cookies.get(sessionCookieName)?.value, env);
+}
+
 function signSessionToken(username: string, env: ReturnType<typeof readEnv>) {
+  const secret = sessionSecret(env);
+  if (!secret) {
+    throw new Error('Stackarr session secret is not configured.');
+  }
+
   const payload = Buffer.from(
     JSON.stringify({
       username: username.trim().toLowerCase(),
@@ -152,7 +227,7 @@ function signSessionToken(username: string, env: ReturnType<typeof readEnv>) {
     })
   ).toString('base64url');
 
-  return `${payload}.${signPayload(payload, sessionSecret(env))}`;
+  return `${payload}.${signPayload(payload, secret)}`;
 }
 
 function signPayload(payload: string, secret: string) {
@@ -160,7 +235,7 @@ function signPayload(payload: string, secret: string) {
 }
 
 function sessionSecret(env: ReturnType<typeof readEnv>) {
-  return env.STACKARR_API_KEY?.trim() || env.PASSWORD?.trim() || 'stackarr-session-bootstrap';
+  return env.STACKARR_API_KEY?.trim() || env.PASSWORD?.trim() || null;
 }
 
 function secretEqual(actual: string, expected: string) {
@@ -179,5 +254,37 @@ function readSettingsSafe() {
     return readSettings();
   } catch {
     return null;
+  }
+}
+
+function loginRateLimitKey(request: NextRequest, identifier: string) {
+  const userPart = identifier.trim().toLowerCase().slice(0, 128) || '<empty>';
+  return crypto
+    .createHash('sha256')
+    .update(`${clientAddress(request)}:${userPart}`)
+    .digest('hex');
+}
+
+function clientAddress(request: NextRequest) {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip')?.trim() ||
+    'unknown'
+  );
+}
+
+function pruneLoginAttemptBuckets(now: number) {
+  if (loginAttemptBuckets.size <= 500) {
+    return;
+  }
+
+  for (const [key, bucket] of loginAttemptBuckets) {
+    if (bucket.resetAt <= now || bucket.blockedUntil <= now) {
+      loginAttemptBuckets.delete(key);
+    }
+
+    if (loginAttemptBuckets.size <= 400) {
+      return;
+    }
   }
 }

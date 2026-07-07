@@ -29,6 +29,10 @@ test('Streamrip config exposes typed fields and redacts secrets', async () => {
   assert.equal(deezer.fields.find((field) => field.id === 'deezer.arl')?.type, 'password');
   assert.equal(deezer.fields.find((field) => field.id === 'deezer.arl')?.secret, true);
 
+  const qobuz = model.groups.find((group) => group.title === 'Qobuz');
+  assert.ok(qobuz);
+  assert.equal(qobuz.fields.find((field) => field.id === 'qobuz.secrets')?.secret, true);
+
   const artwork = model.groups.find((group) => group.title === 'Artwork');
   assert.ok(artwork);
   assert.equal(artwork.fields.find((field) => field.id === 'artwork.embed_size')?.type, 'select');
@@ -37,14 +41,16 @@ test('Streamrip config exposes typed fields and redacts secrets', async () => {
     values: {
       'deezer.arl': 'secret-cookie',
       'deezer.quality': '1',
+      'qobuz.secrets': ['qobuz-secret-one', 'qobuz-secret-two'],
       'artwork.embed_size': 'large',
-      'database.downloads_path': '/repo/state/streamrip/downloads.db',
-      'database.failed_downloads_path': '/repo/state/streamrip/failed_downloads.db',
+      'database.downloads_path': path.join(stateDir, 'streamrip-state', 'downloads.db'),
+      'database.failed_downloads_path': path.join(stateDir, 'streamrip-state', 'failed_downloads.db'),
       'conversion.enabled': true
     }
   });
   const publicConfig = getStreamripConfigAction().config;
   assert.equal(publicConfig.deezer.arl, '********');
+  assert.equal(publicConfig.qobuz.secrets, '********');
   assert.equal(publicConfig.deezer.quality, 1);
   assert.equal(publicConfig.artwork.embed_size, 'large');
   assert.equal(publicConfig.conversion.enabled, true);
@@ -54,11 +60,72 @@ test('Streamrip config exposes typed fields and redacts secrets', async () => {
   assert.match(toml, /\[deezer\]/);
   assert.match(toml, /quality = 1/);
   assert.match(toml, /arl = "secret-cookie"/);
+  assert.match(toml, /secrets = \["qobuz-secret-one", "qobuz-secret-two"\]/);
   assert.match(toml, /embed_size = "large"/);
 
   const stored = readJsonSetting<Record<string, Record<string, unknown>>>('stackarr.streamripConfig', {});
   assert.match(String(stored.deezer.arl), /^stackarr:v1:/);
+  assert.match(String(stored.qobuz.secrets), /^stackarr:v1:/);
   assert.notEqual(stored.deezer.arl, 'secret-cookie');
+  assert.notDeepEqual(stored.qobuz.secrets, ['qobuz-secret-one', 'qobuz-secret-two']);
+});
+
+test('Streamrip database paths must stay under the managed state root', async () => {
+  const { getStreamripConfigAction, updateStreamripConfigAction } = await core();
+
+  assert.throws(
+    () =>
+      updateStreamripConfigAction({
+        values: { 'database.downloads_path': path.join(stateDir, 'outside-downloads.db') }
+      }),
+    /managed Streamrip state root/
+  );
+
+  updateStreamripConfigAction({
+    values: { 'database.downloads_path': path.join(stateDir, 'streamrip-state', 'nested', 'downloads.db') }
+  });
+
+  assert.equal(
+    getStreamripConfigAction().config.database.downloads_path,
+    path.join(stateDir, 'streamrip-state', 'downloads.db')
+  );
+});
+
+test('audit redaction masks Streamrip field-id secrets', async () => {
+  const { redactSecrets } = await core();
+
+  assert.deepEqual(
+    redactSecrets({
+      values: {
+        'deezer.arl': 'secret-cookie',
+        'qobuz.app_id': 'app-secret',
+        'soundcloud.client_id': 'client-secret',
+        'deezer.quality': '1'
+      }
+    }),
+    {
+      values: {
+        'deezer.arl': '********',
+        'qobuz.app_id': '********',
+        'soundcloud.client_id': '********',
+        'deezer.quality': '1'
+      }
+    }
+  );
+});
+
+test('Streamrip URL downloads reject non-provider and non-HTTPS URLs', async () => {
+  const { startStreamripDownloadAction } = await core();
+
+  await assert.rejects(
+    () => startStreamripDownloadAction({ url: 'https://127.0.0.1/internal' }),
+    /Qobuz, Tidal, Deezer, or SoundCloud/
+  );
+  await assert.rejects(() => startStreamripDownloadAction({ url: 'http://www.deezer.com/album/1' }), /must use HTTPS/);
+  await assert.rejects(
+    () => startStreamripDownloadAction({ url: 'https://www.qobuz.com:8443/album/test' }),
+    /credentials or custom ports/
+  );
 });
 
 test('Streamrip config normalizes copied Deezer ARL assignments', async () => {
@@ -91,9 +158,7 @@ test('Streamrip config ignores undecryptable restored secrets', async () => {
   const model = getServiceConfigAction({ service: 'streamrip' });
   assert.ok('groups' in model);
   assert.equal(
-    model.groups
-      .find((group) => group.title === 'Deezer')
-      ?.fields.find((field) => field.id === 'deezer.arl')?.value,
+    model.groups.find((group) => group.title === 'Deezer')?.fields.find((field) => field.id === 'deezer.arl')?.value,
     ''
   );
 });

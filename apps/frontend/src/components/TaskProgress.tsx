@@ -2,6 +2,7 @@
 
 import type { StackarrTask } from '@stackarr/core';
 import { useEffect, useMemo, useState } from 'react';
+import { stackarrFetch } from './clientApi';
 import styles from './TaskProgress.module.css';
 
 type LiveTaskOptions = {
@@ -23,7 +24,7 @@ export function useLiveTasks(initialTasks: StackarrTask[], options: LiveTaskOpti
 
     async function refresh() {
       try {
-        const response = await fetch('/api/v1/task', { cache: 'no-store' });
+        const response = await stackarrFetch('/api/v1/task', { cache: 'no-store' });
         if (!response.ok) {
           return;
         }

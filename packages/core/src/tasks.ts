@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CommandName } from './commands';
-import { readTaskRows, writeTaskRows } from './database';
+import { insertTaskRow, readTaskRows, updateTaskRow, writeTaskRows } from './database';
 import { taskStatePath } from './paths';
 
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'blocked';
@@ -49,10 +49,24 @@ export function createQueuedTask(commandName: CommandName, commandLabel: string)
     queuedAt: new Date().toISOString()
   };
 
-  const tasks = [task, ...readTasks()].slice(0, 100);
-  writeTasks(tasks);
+  migrateTaskFileToDatabase();
+  if (!insertTaskRow(task)) {
+    const tasks = [task, ...readTaskFile()].slice(0, 100);
+    writeTaskFile(tasks);
+  }
 
   return task;
+}
+
+export function updateTask(id: string, patch: Partial<StackarrTask>) {
+  migrateTaskFileToDatabase();
+  if (updateTaskRow(id, patch)) {
+    return;
+  }
+
+  const tasks = readTaskFile();
+  const next = tasks.map((task) => (task.id === id ? { ...task, ...patch } : task));
+  writeTaskFile(next);
 }
 
 function migrateTaskFileToDatabase() {

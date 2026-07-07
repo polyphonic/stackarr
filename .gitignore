@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .hermes/
+.deepsec/
 .stackarr/
 .turbo/
 .pnpm-store/

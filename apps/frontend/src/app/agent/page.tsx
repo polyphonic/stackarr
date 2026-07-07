@@ -2,8 +2,11 @@ import { getToolCatalog, listAgentActivityRecords } from '@stackarr/core';
 import Link from 'next/link';
 import { PageBody, Toolbar } from '../../components/AppFrame';
 import { Grid, Panel, Stat } from '../../components/ui';
+import { requireDashboardAuth } from '../../lib/serverAuth';
 
 export default async function AgentPage() {
+  await requireDashboardAuth('/agent');
+
   const tools = getToolCatalog();
   const activity = await listAgentActivityRecords(25);
   return (

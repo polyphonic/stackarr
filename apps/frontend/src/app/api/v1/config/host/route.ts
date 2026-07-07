@@ -3,7 +3,13 @@ import { readEnv, readSettings, writeEnvConfig, writeSettings } from '@stackarr/
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../../lib/api';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireApiKey(request);
+
+  if (auth) {
+    return auth;
+  }
+
   const env = readEnv();
   const settings = readSettings();
 

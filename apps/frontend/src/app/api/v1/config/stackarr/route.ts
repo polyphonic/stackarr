@@ -1,6 +1,7 @@
 import * as nodeCrypto from 'node:crypto';
 import {
   portablePasswordValidationError,
+  protectedEnvConfigChanged,
   readEnv,
   readJsonPreset,
   readSettings,
@@ -29,7 +30,13 @@ const accessPasswordKeys = [
   'TINYMEDIAMANAGER_PASSWORD'
 ] as const;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireApiKey(request);
+
+  if (auth) {
+    return auth;
+  }
+
   const env = readEnv();
 
   return json({
@@ -524,7 +531,7 @@ function validateCurrentPasswordForProtectedConfigChange(
   current: StackarrEnv,
   currentPassword: unknown
 ) {
-  if (!protectedConfigChanged(config, current)) {
+  if (!protectedEnvConfigChanged(config, current)) {
     return undefined;
   }
 
@@ -541,43 +548,6 @@ function validateCurrentPasswordForProtectedConfigChange(
   }
 
   return undefined;
-}
-
-function protectedConfigChanged(config: StackarrEnv, current: StackarrEnv) {
-  const redactedCurrent = redactEnv(current);
-
-  for (const [key, value] of Object.entries(config)) {
-    if (!isCurrentPasswordProtectedConfigKey(key)) {
-      continue;
-    }
-
-    const nextValue = value == null ? '' : String(value);
-    const currentValue = current[key] ?? '';
-    const redactedValue = redactedCurrent[key] ?? '';
-
-    if (nextValue === currentValue || nextValue === redactedValue) {
-      continue;
-    }
-
-    return true;
-  }
-
-  return false;
-}
-
-function isCurrentPasswordProtectedConfigKey(key: string) {
-  const normalized = key.toUpperCase();
-
-  return (
-    normalized === 'USERNAME' ||
-    normalized === 'USER_EMAIL' ||
-    normalized === 'PASSWORD' ||
-    normalized.endsWith('_PASSWORD') ||
-    normalized.includes('CLAIM_CODE') ||
-    normalized === 'DATABASE_URL' ||
-    normalized.endsWith('_DATABASE_URL') ||
-    normalized.endsWith('_DB_URL')
-  );
 }
 
 function constantTimeStringEqual(left: string, right: string) {

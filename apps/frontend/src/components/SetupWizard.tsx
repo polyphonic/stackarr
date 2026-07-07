@@ -182,6 +182,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const [restorePostgres, setRestorePostgres] = useState(true);
   const [restoreNativePlex, setRestoreNativePlex] = useState(false);
   const [restorePlexPreferences, setRestorePlexPreferences] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState('');
   const [migrateSourceRoot, setMigrateSourceRoot] = useState('');
   const [migrateStopSourceContainers, setMigrateStopSourceContainers] = useState(true);
@@ -437,10 +438,14 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
 
   async function saveSetup({
     loadingMessage = 'Saving setup choices...',
-    successMessage = 'Setup choices saved.'
+    successMessage = 'Setup choices saved.',
+    onboardingComplete = true,
+    installMode = 'fresh'
   }: {
     loadingMessage?: string;
     successMessage?: string;
+    onboardingComplete?: boolean;
+    installMode?: 'fresh' | 'restore' | 'migrate';
   } = {}) {
     if (passwordValidationMessage) {
       setMessage(passwordValidationMessage);
@@ -455,7 +460,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         config: setupConfig,
-        settings: { setup: { onboardingComplete: true, installMode: 'fresh' } }
+        settings: { setup: { onboardingComplete, installMode } }
       })
     });
     const body = await response.json().catch(() => ({}));
@@ -532,13 +537,32 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       return;
     }
 
+    if (!confirmRestore) {
+      setRestoreMessage('Confirm that the restore may replace Stackarr config and state.');
+      toast.error('Confirm that the restore may replace Stackarr config and state.');
+      return;
+    }
+
     setRestoreMessage('Queueing restore...');
+    const saved = await saveSetup({
+      loadingMessage: 'Saving restore setup choices...',
+      successMessage: 'Restore setup choices saved. Queueing restore...',
+      onboardingComplete: false,
+      installMode: 'restore'
+    });
+
+    if (!saved) {
+      setRestoreMessage('Restore setup choices could not be saved.');
+      return;
+    }
+
     const toastId = toast.loading('Queueing restore...');
     const form = new FormData();
     form.set('archive', restoreFile);
     form.set('restorePostgres', String(restorePostgres));
     form.set('restoreNativePlex', String(restoreNativePlex));
     form.set('restorePlexPreferences', String(restorePlexPreferences));
+    form.set('confirmRestore', String(confirmRestore));
     form.set('forceConfig', 'true');
 
     const response = await stackarrFetch('/api/v1/onboarding/restore', {
@@ -561,6 +585,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
 
   async function previewMigration() {
     setMigrateMessage('Scanning for supported services...');
+    const saved = await saveSetup({
+      loadingMessage: 'Saving migration setup choices...',
+      successMessage: 'Migration setup choices saved. Scanning for supported services...',
+      onboardingComplete: false,
+      installMode: 'migrate'
+    });
+
+    if (!saved) {
+      setMigrateMessage('Migration setup choices could not be saved.');
+      return;
+    }
+
     const toastId = toast.loading('Scanning for supported services...');
     const response = await stackarrFetch('/api/v1/onboarding/migrate', {
       method: 'POST',
@@ -587,6 +623,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
 
   async function runMigration() {
     setMigrateMessage('Queueing migration...');
+    const saved = await saveSetup({
+      loadingMessage: 'Saving migration setup choices...',
+      successMessage: 'Migration setup choices saved. Queueing migration...',
+      onboardingComplete: false,
+      installMode: 'migrate'
+    });
+
+    if (!saved) {
+      setMigrateMessage('Migration setup choices could not be saved.');
+      return;
+    }
+
     const toastId = toast.loading('Queueing migration...');
     const response = await stackarrFetch('/api/v1/onboarding/migrate', {
       method: 'POST',
@@ -681,6 +729,14 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                       onChange={(event) => setRestorePlexPreferences(event.target.checked)}
                     />{' '}
                     Restore native macOS Plex preferences
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={confirmRestore}
+                      onChange={(event) => setConfirmRestore(event.target.checked)}
+                    />{' '}
+                    I understand this restore may replace Stackarr config and state
                   </label>
                 </div>
                 <button className={styles.primary} onClick={restoreBackup} type="button">

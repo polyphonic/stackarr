@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { AgentActivityRecord } from './actions/agentActivity';
-import { appDatabasePath, composePath } from './paths';
+import { appDatabasePath } from './paths';
 import type { StackarrTask } from './tasks';
 
 type Database = InstanceType<typeof DatabaseSync>;
 type StackarrDatabaseTarget = 'main' | 'log';
+type SqliteInputValue = string | number | bigint | Uint8Array | null;
 
 let database: Database | undefined;
 let postgresMainMigrated = false;
@@ -70,8 +71,8 @@ function getSqliteDatabase() {
 }
 
 export function databaseExists() {
-  if (postgresConfigured('main') && migratePostgres('main')) {
-    return true;
+  if (postgresConfigured('main')) {
+    return migratePostgres('main');
   }
 
   return fs.existsSync(appDatabasePath);
@@ -104,7 +105,11 @@ export function readJsonSetting<T>(key: string, fallback: T): T {
 export function writeJsonSetting<T>(key: string, value: T) {
   const jsonValue = JSON.stringify(value);
 
-  if (postgresConfigured('main') && writePostgresSetting(key, jsonValue)) {
+  if (postgresConfigured('main')) {
+    if (!writePostgresSetting(key, jsonValue)) {
+      throw new Error(`Postgres setting write failed for ${key}.`);
+    }
+
     return;
   }
 
@@ -284,7 +289,7 @@ export function updateAgentActivityRow(id: string, patch: Partial<AgentActivityR
 
 export function readTaskRows(): StackarrTask[] | undefined {
   if (postgresConfigured('main')) {
-    return readPostgresTasks();
+    return readPostgresTasks() ?? [];
   }
 
   try {
@@ -314,21 +319,91 @@ export function readTaskRows(): StackarrTask[] | undefined {
 
 export function writeTaskRows(tasks: StackarrTask[]) {
   if (postgresConfigured('main')) {
-    return writePostgresTasks(tasks);
+    if (!writePostgresTasks(tasks)) {
+      throw new Error('Postgres task write failed.');
+    }
+
+    return true;
   }
 
   const db = getSqliteDatabase();
   try {
     db.exec('begin immediate');
-    if (tasks.length > 0) {
-      db.prepare(`delete from tasks where id not in (${tasks.map(() => '?').join(', ')})`).run(
-        ...tasks.map((task) => task.id)
-      );
-    } else {
-      db.exec('delete from tasks');
+    for (const task of tasks) {
+      upsertSqliteTask(task);
+    }
+    pruneSqliteTasks();
+    db.exec('commit');
+    return true;
+  } catch {
+    try {
+      db.exec('rollback');
+    } catch {
+      // Ignore rollback failures; callers will fall back to file storage.
+    }
+    return false;
+  }
+}
+
+export function insertTaskRow(task: StackarrTask) {
+  if (postgresConfigured('main')) {
+    if (!insertPostgresTask(task)) {
+      throw new Error('Postgres task insert failed.');
     }
 
-    const statement = db.prepare(`
+    return true;
+  }
+
+  const db = getSqliteDatabase();
+  try {
+    db.exec('begin immediate');
+    upsertSqliteTask(task);
+    pruneSqliteTasks();
+    db.exec('commit');
+    return true;
+  } catch {
+    try {
+      db.exec('rollback');
+    } catch {
+      // Ignore rollback failures; callers will fall back to file storage.
+    }
+    return false;
+  }
+}
+
+export function updateTaskRow(id: string, patch: Partial<StackarrTask>) {
+  if (postgresConfigured('main')) {
+    if (!updatePostgresTask(id, patch)) {
+      throw new Error('Postgres task update failed.');
+    }
+
+    return true;
+  }
+
+  const entries = taskPatchSqliteEntries(patch);
+  if (entries.length === 0) {
+    return true;
+  }
+
+  try {
+    const assignments = entries.map(([column]) => `${column} = ?`).join(', ');
+    const result = getSqliteDatabase()
+      .prepare(`
+        update tasks
+        set ${assignments},
+          updated_at = datetime('now')
+        where id = ?
+      `)
+      .run(...entries.map(([, value]) => value), id);
+    return Number(result.changes ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+function upsertSqliteTask(task: StackarrTask) {
+  getSqliteDatabase()
+    .prepare(`
       insert into tasks (
         id,
         command_name,
@@ -354,20 +429,17 @@ export function writeTaskRows(tasks: StackarrTask[]) {
         output = excluded.output,
         error = excluded.error,
         updated_at = excluded.updated_at
-    `);
-    for (const task of tasks) {
-      statement.run(...taskSqliteValues(task));
-    }
-    db.exec('commit');
-    return true;
-  } catch {
-    try {
-      db.exec('rollback');
-    } catch {
-      // Ignore rollback failures; callers will fall back to file storage.
-    }
-    return false;
-  }
+    `)
+    .run(...taskSqliteValues(task));
+}
+
+function pruneSqliteTasks() {
+  getSqliteDatabase().exec(`
+    delete from tasks
+    where id not in (
+      select id from tasks order by queued_at desc limit 100
+    )
+  `);
 }
 
 function migrate(db: Database) {
@@ -800,10 +872,6 @@ function writePostgresTasks(tasks: StackarrTask[]) {
     return false;
   }
 
-  const deleteSql =
-    tasks.length > 0
-      ? `delete from tasks where id not in (${tasks.map((task) => sqlLiteral(task.id)).join(', ')});`
-      : 'delete from tasks;';
   const insertSql =
     tasks.length > 0
       ? `
@@ -839,9 +907,43 @@ function writePostgresTasks(tasks: StackarrTask[]) {
     runPsql(
       `
         begin;
-        ${deleteSql}
         ${insertSql}
+        delete from tasks
+        where id in (
+          select id from tasks order by queued_at desc offset 100
+        );
         commit;
+      `,
+      {},
+      false
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function insertPostgresTask(task: StackarrTask) {
+  return writePostgresTasks([task]);
+}
+
+function updatePostgresTask(id: string, patch: Partial<StackarrTask>) {
+  if (!migratePostgres('main')) {
+    return false;
+  }
+
+  const entries = taskPatchPostgresEntries(patch);
+  if (entries.length === 0) {
+    return true;
+  }
+
+  try {
+    runPsql(
+      `
+        update tasks
+        set ${entries.map(([column, value]) => `${column} = ${value}`).join(', ')},
+          updated_at = now()
+        where id = ${sqlLiteral(id)};
       `,
       {},
       false
@@ -898,6 +1000,34 @@ function taskPostgresValues(task: StackarrTask) {
     ${sqlNullableText(task.error)},
     now()
   )`;
+}
+
+function taskPatchSqliteEntries(patch: Partial<StackarrTask>): Array<[string, SqliteInputValue]> {
+  const entries: Array<[string, SqliteInputValue]> = [];
+  if (patch.commandName !== undefined) entries.push(['command_name', patch.commandName]);
+  if (patch.commandLabel !== undefined) entries.push(['command_label', patch.commandLabel]);
+  if (patch.status !== undefined) entries.push(['status', patch.status]);
+  if (patch.queuedAt !== undefined) entries.push(['queued_at', patch.queuedAt]);
+  if (patch.startedAt !== undefined) entries.push(['started_at', patch.startedAt ?? null]);
+  if (patch.endedAt !== undefined) entries.push(['ended_at', patch.endedAt ?? null]);
+  if (patch.exitCode !== undefined) entries.push(['exit_code', patch.exitCode ?? null]);
+  if (patch.output !== undefined) entries.push(['output', patch.output ?? null]);
+  if (patch.error !== undefined) entries.push(['error', patch.error ?? null]);
+  return entries;
+}
+
+function taskPatchPostgresEntries(patch: Partial<StackarrTask>): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  if (patch.commandName !== undefined) entries.push(['command_name', sqlLiteral(patch.commandName)]);
+  if (patch.commandLabel !== undefined) entries.push(['command_label', sqlLiteral(patch.commandLabel)]);
+  if (patch.status !== undefined) entries.push(['status', sqlLiteral(patch.status)]);
+  if (patch.queuedAt !== undefined) entries.push(['queued_at', `${sqlLiteral(patch.queuedAt)}::timestamptz`]);
+  if (patch.startedAt !== undefined) entries.push(['started_at', sqlNullableTimestamp(patch.startedAt)]);
+  if (patch.endedAt !== undefined) entries.push(['ended_at', sqlNullableTimestamp(patch.endedAt)]);
+  if (patch.exitCode !== undefined) entries.push(['exit_code', sqlNullableInteger(patch.exitCode)]);
+  if (patch.output !== undefined) entries.push(['output', sqlNullableText(patch.output)]);
+  if (patch.error !== undefined) entries.push(['error', sqlNullableText(patch.error)]);
+  return entries;
 }
 
 function agentActivityFromDbRow(row: AgentActivityDbRow): AgentActivityRecord {
@@ -1003,40 +1133,11 @@ function runPsql(
     PGSSLMODE: connection.sslmode
   };
 
-  try {
-    return execFileSync(
-      'psql',
-      ['-h', connection.host, '-p', connection.port, '-U', connection.user, '-d', connection.database, ...queryArgs],
-      { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
-    ).trim();
-  } catch {
-    return execFileSync(
-      'docker',
-      [
-        'compose',
-        '-f',
-        composePath,
-        'exec',
-        '-T',
-        '-e',
-        `PGPASSWORD=${connection.password}`,
-        '-e',
-        `PGSSLMODE=${connection.sslmode}`,
-        'database',
-        'psql',
-        '-h',
-        '127.0.0.1',
-        '-p',
-        '5432',
-        '-U',
-        connection.user,
-        '-d',
-        connection.database,
-        ...queryArgs
-      ],
-      { encoding: 'utf8', input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
-    ).trim();
-  }
+  return execFileSync(
+    'psql',
+    ['-h', connection.host, '-p', connection.port, '-U', connection.user, '-d', connection.database, ...queryArgs],
+    { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
+  ).trim();
 }
 
 function sqlLiteral(value: unknown) {

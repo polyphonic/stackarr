@@ -1,10 +1,11 @@
 const secretKeyPattern =
   /(api[_-]?key|token|password|passwd|secret|credential|auth|plex[_-]?token|cookie|claim[_-]?code)/i;
+const streamripSecretFieldKeys = new Set(['deezer.arl', 'qobuz.app_id', 'soundcloud.client_id']);
 const tokenValuePattern = /([?&](?:apikey|api_key|token|X-Plex-Token)=)[^&\s]+/gi;
 const urlPasswordPattern = /([a-z][a-z0-9+.-]*:\/\/[^:/\s]+:)[^@\s]+(@)/gi;
 
 export function isSensitiveKey(key: string): boolean {
-  return secretKeyPattern.test(key);
+  return streamripSecretFieldKeys.has(key.toLowerCase()) || secretKeyPattern.test(key);
 }
 
 export function redactString(value: string): string {

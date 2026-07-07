@@ -27,6 +27,7 @@ export type CommandName =
   | 'CloudflareStop'
   | 'CloudflareStatus'
   | 'CloudflareSync'
+  | 'CloudflareApplyRoutes'
   | 'CloudflareRotate'
   | 'CloudflareDelete'
   | 'CloudflareUninstall'
@@ -237,6 +238,13 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
     name: 'CloudflareSync',
     label: 'Sync Cloudflare settings',
     args: ['cloudflare', 'sync'],
+    disruptive: false,
+    event: 'Configure'
+  },
+  CloudflareApplyRoutes: {
+    name: 'CloudflareApplyRoutes',
+    label: 'Apply Cloudflare routes',
+    args: ['cloudflare', 'routes', 'apply'],
     disruptive: false,
     event: 'Configure'
   },

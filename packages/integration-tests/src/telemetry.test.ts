@@ -26,23 +26,21 @@ test('telemetry preview is opt-in and excludes host paths and secrets', async ()
           const {
             getTelemetryStatusAction,
             previewTelemetryPayloadAction,
-            updateStackConfigAction,
-            updateTelemetryConfigAction
+            updateTelemetryConfigAction,
+            writeEnvConfig
           } = await import('./packages/core/src/index.ts');
 
-          updateStackConfigAction({
-            values: {
-              STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
-              MEDIA_ROOT: '/srv/private-media',
-              BACKUP_ROOT: '/mnt/private-backup/stackarr',
-              PASSWORD: 'super-secret-password',
-              PLEX_TOKEN: 'plex-token-value',
-              PLEX_INSTALL_MODE: 'native',
-              JELLYFIN_INSTALL_MODE: 'disabled',
-              STACKARR_DATABASE_MODE: 'postgres',
-              ENABLE_BACKUP: 'true',
-              BACKUP_RETENTION_COUNT: '52'
-            }
+          writeEnvConfig({
+            STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
+            MEDIA_ROOT: '/srv/private-media',
+            BACKUP_ROOT: '/mnt/private-backup/stackarr',
+            PASSWORD: 'super-secret-password',
+            PLEX_TOKEN: 'plex-token-value',
+            PLEX_INSTALL_MODE: 'native',
+            JELLYFIN_INSTALL_MODE: 'disabled',
+            STACKARR_DATABASE_MODE: 'postgres',
+            ENABLE_BACKUP: 'true',
+            BACKUP_RETENTION_COUNT: '52'
           });
 
           const before = getTelemetryStatusAction();
@@ -129,16 +127,14 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
           const {
             getTelemetryStatusAction,
             maybeSendTelemetryHeartbeatAction,
-            updateStackConfigAction,
-            updateTelemetryConfigAction
+            updateTelemetryConfigAction,
+            writeEnvConfig
           } = await import('./packages/core/src/index.ts');
 
-          updateStackConfigAction({
-            values: {
-              STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
-              STACKARR_TELEMETRY_INGEST_KEY: 'test-ingest-key',
-              STACKARR_DATABASE_MODE: 'app-default'
-            }
+          writeEnvConfig({
+            STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
+            STACKARR_TELEMETRY_INGEST_KEY: 'test-ingest-key',
+            STACKARR_DATABASE_MODE: 'app-default'
           });
 
           const configured = updateTelemetryConfigAction({

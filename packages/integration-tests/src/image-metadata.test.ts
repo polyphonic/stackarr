@@ -29,6 +29,10 @@ test('release metadata points at the public Stackarr logo URL', async () => {
   assert.match(dockerfile, new RegExp(escapeRegExp(productDescription)));
   assert.match(dockerfile, new RegExp(escapeRegExp(imageUrl)));
   assert.match(dockerfile, new RegExp(escapeRegExp(iconUrl)));
+  assert.match(dockerfile, /FROM node:22-alpine3\.20@sha256:[a-f0-9]{64} AS deps/);
+  assert.match(dockerfile, /FROM node:22-alpine3\.20@sha256:[a-f0-9]{64} AS runner/);
+  assert.doesNotMatch(dockerfile, /streamrip\/archive\/refs\/heads\/dev\.tar\.gz/);
+  assert.match(dockerfile, /\nUSER node\n/);
   assert.match(
     await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8'),
     new RegExp(escapeRegExp(iconUrl))

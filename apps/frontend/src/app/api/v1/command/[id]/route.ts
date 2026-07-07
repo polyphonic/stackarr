@@ -1,7 +1,14 @@
 import { readTasks } from '@stackarr/core';
-import { json } from '../../../../../lib/api';
+import type { NextRequest } from 'next/server';
+import { json, requireApiKey } from '../../../../../lib/api';
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const auth = requireApiKey(request);
+
+  if (auth) {
+    return auth;
+  }
+
   const params = await context.params;
   const task = readTasks().find((item) => item.id === params.id);
 
