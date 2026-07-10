@@ -5,8 +5,10 @@ import {
   isMcpClientId,
   type McpProfile,
   resolveMcpGroups,
+  runDueRoutinesAction,
   type ToolCategory
 } from '@stackarr/core';
+import { startStackarrMcpHttpServer } from './httpServer';
 import { createStackarrMcpServer } from './server';
 
 const command = process.argv[2] ?? 'serve';
@@ -17,8 +19,14 @@ if (command === 'config') {
 } else if (command === 'serve') {
   const server = createStackarrMcpServer();
   await server.connect(new StdioServerTransport());
+} else if (command === 'routines' && process.argv[3] === 'run-due') {
+  process.stdout.write(`${JSON.stringify(await runDueRoutinesAction())}\n`);
+} else if (command === 'serve-http') {
+  await startStackarrMcpHttpServer();
 } else {
-  throw new Error('Usage: stackarr mcp serve | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS]');
+  throw new Error(
+    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due'
+  );
 }
 
 function connectionKitFromArgs(args: string[]) {

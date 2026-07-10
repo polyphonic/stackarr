@@ -18,4 +18,4 @@ Keep Stackarr local until auth is configured. The default dashboard binding is l
 
 ## MCP
 
-The MCP server is local stdio only. Do not expose it over the public internet.
+The default MCP server is local stdio. Stackarr also includes an optional authenticated Streamable HTTP endpoint at `/mcp`. It is disabled by default and requires a named connection-policy bearer token. Keep it behind TLS and private-network access; do not expose it directly to the public internet.

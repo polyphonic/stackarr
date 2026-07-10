@@ -13,7 +13,8 @@ You decide how much authority an agent receives. Stackarr enforces that choice i
 - Stackarr does not expose a generic shell or generic Docker exec tool.
 - Apps are controlled through typed Stackarr actions and native app APIs.
 - Disabled apps do not appear in the tool catalog.
-- Credentials cannot be changed through MCP calls.
+- App credentials cannot be changed through MCP calls.
+- Remote connections use named, revocable policies; Stackarr stores only token hashes.
 - Destructive actions fail closed when the chat client cannot show an approval prompt.
 
 ## When Stackarr asks
@@ -26,7 +27,7 @@ Read-only inspection and ordinary non-destructive management do not interrupt th
 
 Use `STACKARR_MCP_PROFILE=unrestricted` when you intentionally want autonomous operation without per-action approval prompts. This includes disruptive and destructive actions available to the full catalog.
 
-Treat that profile like administrator access to the Docker host. Keep the MCP transport local and review Agent Activity regularly.
+Treat that profile like administrator access to the Docker host. Prefer local stdio or a private tunnel. If remote MCP is enabled, use TLS, a private network, and a dedicated revocable policy. Review Agent Activity regularly.
 
 ## Take over at any time
 

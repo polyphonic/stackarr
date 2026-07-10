@@ -1,10 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { resolveMcpProfile } from '@stackarr/core';
+import { type McpProfile, resolveMcpProfile, type ToolCategory } from '@stackarr/core';
 import { getRegisteredControlPlaneSummary, registerStackarrTools } from './registry';
 
-export function createStackarrMcpServer() {
-  const profile = resolveMcpProfile();
-  const summary = getRegisteredControlPlaneSummary(profile);
+export function createStackarrMcpServer(
+  options: { profile?: McpProfile; groups?: ToolCategory[]; caller?: `mcp-remote:${string}` | 'mcp-local' } = {}
+) {
+  const profile = options.profile ?? resolveMcpProfile();
+  const summary = getRegisteredControlPlaneSummary(profile, { groups: options.groups });
   const server = new McpServer(
     { name: 'stackarr', version: '0.3.0-alpha.1' },
     {
@@ -21,6 +23,6 @@ export function createStackarrMcpServer() {
       ].join('\n')
     }
   );
-  registerStackarrTools(server, profile);
+  registerStackarrTools(server, profile, { groups: options.groups, caller: options.caller });
   return server;
 }

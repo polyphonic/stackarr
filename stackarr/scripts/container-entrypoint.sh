@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEDULER_PID=""
 SERVER_PID=""
+MCP_HTTP_PID=""
 
 shutdown() {
     trap - INT TERM
@@ -13,8 +14,12 @@ shutdown() {
     if [[ -n "$SERVER_PID" ]]; then
         kill "$SERVER_PID" 2>/dev/null || true
     fi
+    if [[ -n "$MCP_HTTP_PID" ]]; then
+        kill "$MCP_HTTP_PID" 2>/dev/null || true
+    fi
     wait "$SCHEDULER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
+    wait "$MCP_HTTP_PID" 2>/dev/null || true
 }
 
 trap shutdown INT TERM
@@ -31,8 +36,15 @@ esac
 node apps/frontend/server.js &
 SERVER_PID="$!"
 
-if [[ -n "$SCHEDULER_PID" ]]; then
+STACKARR_MCP_HTTP_LISTEN_HOST=127.0.0.1 node packages/mcp/dist/index.js serve-http &
+MCP_HTTP_PID="$!"
+
+if [[ -n "$SCHEDULER_PID" && -n "$MCP_HTTP_PID" ]]; then
+    wait -n "$SERVER_PID" "$SCHEDULER_PID" "$MCP_HTTP_PID"
+elif [[ -n "$SCHEDULER_PID" ]]; then
     wait -n "$SERVER_PID" "$SCHEDULER_PID"
+elif [[ -n "$MCP_HTTP_PID" ]]; then
+    wait -n "$SERVER_PID" "$MCP_HTTP_PID"
 else
     wait "$SERVER_PID"
 fi

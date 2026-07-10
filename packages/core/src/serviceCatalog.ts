@@ -61,6 +61,13 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
     group('Dashboard Runtime', [
       envText('stackarrBindIp', 'Bind IP', 'STACKARR_BIND_IP'),
       envNumber('stackarrWebPort', 'Web Port', 'STACKARR_WEB_PORT'),
+      envCheckbox('stackarrMcpHttpEnabled', 'Enable Authenticated Remote MCP', 'STACKARR_MCP_HTTP_ENABLED'),
+      envText(
+        'stackarrMcpHttpAllowedOrigins',
+        'Allowed Browser Origins',
+        'STACKARR_MCP_HTTP_ALLOWED_ORIGINS',
+        'Optional comma-separated origins. Server-to-server MCP clients do not send an Origin header.'
+      ),
       envPassword('stackarrApiKey', 'API Key', 'STACKARR_API_KEY'),
       envText('stackarrImage', 'Docker Image', 'STACKARR_IMAGE')
     ]),
@@ -282,7 +289,8 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('immichUploadLocation', 'Upload/Library Location', 'IMMICH_UPLOAD_LOCATION'),
       envText('immichVersion', 'Immich Version Tag', 'IMMICH_VERSION'),
       envText('immichServerImage', 'Server Image', 'IMMICH_SERVER_IMAGE'),
-      envText('immichMachineLearningImage', 'Machine Learning Image', 'IMMICH_MACHINE_LEARNING_IMAGE')
+      envText('immichMachineLearningImage', 'Machine Learning Image', 'IMMICH_MACHINE_LEARNING_IMAGE'),
+      envPassword('immichApiKey', 'API Key for Agent Access', 'IMMICH_API_KEY')
     ]),
     group('Immich Database', [
       envText('immichDbUsername', 'Database User', 'IMMICH_DB_USERNAME'),

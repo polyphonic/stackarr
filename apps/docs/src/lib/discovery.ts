@@ -199,13 +199,19 @@ export function mcpServerCard() {
       title: 'Stackarr MCP Server',
       version: siteVersion
     },
-    description: 'Private Docker stdio MCP server for trusted agents that configure and maintain Stackarr.',
+    description: 'Chat control plane for trusted agents that configure and maintain a Stackarr homelab.',
     documentationUrl: absoluteUrl('/docs/agent/mcp'),
     transports: [
       {
         type: 'stdio',
         command: 'docker',
         args: ['exec', '-i', '-e', 'STACKARR_MCP_PROFILE=manage', 'app', '/app/bin/stackarr', 'mcp', 'serve']
+      },
+      {
+        type: 'streamable-http',
+        url: 'https://YOUR_PRIVATE_STACKARR_HOST/mcp',
+        authorization: 'Bearer token from a named Stackarr connection policy',
+        disabledByDefault: true
       }
     ],
     connectionGenerator: 'docker exec app /app/bin/stackarr mcp config <client> --profile <profile>',
