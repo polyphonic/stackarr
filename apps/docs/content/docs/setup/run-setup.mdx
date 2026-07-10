@@ -21,11 +21,12 @@ Agent setup should dry-run first:
 }
 ```
 
-Apply only with explicit confirmation:
+Apply after reviewing the dry-run:
 
 ```json
 {
-  "dryRun": false,
-  "confirmSetup": true
+  "dryRun": false
 }
 ```
+
+The MCP client then presents Stackarr's interactive approval prompt before execution. Use the `admin` profile for setup.

@@ -38,7 +38,7 @@ export async function migrateCurrentStackAction(input: MigrateCurrentStackInput 
       stdout,
       stderr,
       nextStep:
-        'Review the plan, then call stackarr_migrate_current_stack with dryRun: false, confirmDangerous: true, and a reason.'
+        'Review the plan, then call stackarr_migrate_current_stack with dryRun: false. The MCP client will request approval before execution.'
     };
   }
 

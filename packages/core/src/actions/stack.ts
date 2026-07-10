@@ -3,8 +3,9 @@ import os from 'node:os';
 import { promisify } from 'node:util';
 import { databaseExists } from '../database';
 import {
+  controlPlaneBoundaryEnvConfigChanged,
+  credentialEnvConfigChanged,
   editableEnvKeys,
-  protectedEnvConfigChanged,
   readEnv,
   redactEnv,
   type StackarrEnv,
@@ -25,7 +26,10 @@ export function getStackConfigSummaryAction() {
   return redactSecrets({ databasePath: appDatabasePath, configured: databaseExists(), editableEnvKeys, env });
 }
 
-export function updateStackConfigAction(input: { values: Record<string, unknown> }) {
+export function updateStackConfigAction(input: {
+  values: Record<string, unknown>;
+  trustedControlPlaneApproval?: boolean;
+}) {
   const current = readEnv();
   const patch: StackarrEnv = {};
 
@@ -35,11 +39,19 @@ export function updateStackConfigAction(input: { values: Record<string, unknown>
     }
   }
 
-  if (protectedEnvConfigChanged(patch, current)) {
+  if (credentialEnvConfigChanged(patch, current)) {
     return {
       accepted: false,
       updatedKeys: [],
-      error: 'Protected account and secret fields cannot be changed through the generic stack config action.'
+      error: 'Account credentials and secrets cannot be changed through the MCP stack config action.'
+    };
+  }
+
+  if (controlPlaneBoundaryEnvConfigChanged(patch, current) && !input.trustedControlPlaneApproval) {
+    return {
+      accepted: false,
+      updatedKeys: [],
+      error: 'Endpoint, bind-address, and image changes require trusted control-plane approval.'
     };
   }
 

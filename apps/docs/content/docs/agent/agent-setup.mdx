@@ -4,17 +4,27 @@ title: Agent Setup
 
 # Agent Setup
 
-Agent setup uses the same setup model as the UI: inspect defaults, dry-run, then apply only after confirmation.
+This is the recommended way to start Stackarr. Connect the chat surface you already use, let the agent inspect the homelab, and approve a dry-run before it changes anything. The browser UI stays available as an optional manual control surface.
+
+Agent setup uses the same underlying actions as the UI, API, and CLI: inspect defaults, dry-run, then apply only after confirmation.
 
 Stackarr ships an agent skill at `skills/stackarr/SKILL.md`. Include that folder in installer payloads and agent-skill directories so local agents know the safe setup flow.
 
 ## Fast Start
 
 1. Install Stackarr.
-2. Add `stackarr mcp serve` to the agent's MCP configuration.
-3. Ask the agent to read the setup profile and dry-run recommended defaults.
-4. Review the plan.
-5. Approve the apply step.
+2. [Add `stackarr mcp serve` to an MCP client](/docs/agent/mcp), or [install the Hermes/OpenClaw plugin](/docs/agent/plugins).
+3. Launch with `STACKARR_MCP_PROFILE=manage` for day-to-day control or `admin` for first-time infrastructure setup.
+4. Ask the agent to read the setup profile and dry-run recommended defaults.
+5. Review the folders, enabled services, network exposure, backups, and planned commands.
+6. Approve the apply step in chat.
+7. Keep using chat, or open the dashboard whenever you want to intervene manually.
+
+## A good first message
+
+> Inspect my Stackarr setup. Recommend safe local defaults, show me a dry-run, and ask before applying changes or interrupting any media service.
+
+For complete autonomous control, the person configuring the MCP client can select the `unrestricted` profile. Agents cannot change or promote their own profile.
 
 ## Recommended Flow
 
@@ -23,8 +33,9 @@ Stackarr ships an agent skill at `skills/stackarr/SKILL.md`. Include that folder
 3. If choices are needed, ask only material multiple-choice questions: database mode, media server mode, torrent client, public access mode, backup mode, and paths.
 4. Call `stackarr_setup_media_server` with `dryRun: true`.
 5. Review the saved configuration patch and command sequence.
-6. Apply with `dryRun: false` and `confirmSetup: true`.
+6. Apply with `dryRun: false` and approve the MCP elicitation in the chat client.
 7. Verify with `stackarr_get_system_status`, `stackarr_get_tasks`, and service health checks.
+8. Move from the `admin` profile back to `manage` if ongoing use does not need setup or infrastructure controls.
 
 ## Question Style
 

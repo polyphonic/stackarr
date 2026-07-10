@@ -3,6 +3,7 @@
     "stackarr": {
       "command": "stackarr",
       "args": ["mcp", "serve"],
+      "env": { "STACKARR_MCP_PROFILE": "manage" },
       "timeout": 120,
       "connect_timeout": 30,
       "sampling": { "enabled": false }

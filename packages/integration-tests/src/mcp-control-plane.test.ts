@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  getMcpToolCatalog,
+  isControlPlaneBoundaryConfigKey,
+  isCredentialConfigKey,
+  resolveMcpGroups,
+  resolveMcpProfile
+} from '@stackarr/core';
+
+const enabledServices = [
+  'stackarr',
+  'transmission',
+  'prowlarr',
+  'radarr',
+  'sonarr',
+  'plex',
+  'seerr',
+  'streamrip',
+  'lidarr'
+];
+
+test('MCP profiles narrow authority without allowing in-band promotion', () => {
+  assert.equal(resolveMcpProfile(undefined), 'manage');
+  assert.equal(resolveMcpProfile('ADMIN'), 'admin');
+  assert.equal(resolveMcpProfile('unknown'), 'manage');
+
+  const observe = getMcpToolCatalog({ profile: 'observe', enabledServices });
+  const manage = getMcpToolCatalog({ profile: 'manage', enabledServices });
+  const admin = getMcpToolCatalog({ profile: 'admin', enabledServices });
+
+  assert.ok(observe.every((tool) => tool.risk === 'read'));
+  assert.ok(manage.some((tool) => tool.name === 'stackarr_add_movie'));
+  assert.ok(manage.some((tool) => tool.name === 'stackarr_remove_download'));
+  assert.ok(!manage.some((tool) => tool.name === 'stackarr_update_stack_config'));
+  assert.ok(!manage.some((tool) => tool.name === 'stackarr_update_streamrip_config'));
+  assert.ok(!manage.some((tool) => tool.name === 'stackarr_restore_backup'));
+  assert.ok(!manage.some((tool) => tool.name === 'stackarr_manage_container_resource'));
+  assert.ok(admin.some((tool) => tool.name === 'stackarr_update_stack_config'));
+  assert.ok(admin.some((tool) => tool.name === 'stackarr_manage_container_resource'));
+});
+
+test('MCP catalog removes actions for services that are not installed', () => {
+  const tools = getMcpToolCatalog({
+    profile: 'manage',
+    enabledServices: ['stackarr', 'transmission', 'radarr', 'prowlarr']
+  });
+
+  assert.ok(tools.some((tool) => tool.name === 'stackarr_add_movie'));
+  assert.ok(tools.some((tool) => tool.name === 'stackarr_search_releases'));
+  assert.ok(!tools.some((tool) => tool.category === 'plex'));
+  assert.ok(!tools.some((tool) => tool.category === 'seerr'));
+  assert.ok(!tools.some((tool) => tool.name === 'stackarr_add_series'));
+  assert.ok(!tools.some((tool) => tool.name.includes('streamrip')));
+});
+
+test('MCP groups let small-model clients load only relevant action families', () => {
+  assert.deepEqual(resolveMcpGroups('stack,downloads,unknown'), ['stack', 'downloads']);
+  const tools = getMcpToolCatalog({
+    profile: 'manage',
+    enabledServices,
+    groups: ['stack', 'downloads']
+  });
+
+  assert.ok(tools.length > 0);
+  assert.ok(tools.every((tool) => tool.category === 'stack' || tool.category === 'downloads'));
+  assert.ok(!tools.some((tool) => tool.category === 'arr'));
+});
+
+test('control-plane endpoints are protected separately from credentials', () => {
+  assert.equal(isControlPlaneBoundaryConfigKey('RADARR_URL'), true);
+  assert.equal(isControlPlaneBoundaryConfigKey('STACKARR_BIND_IP'), true);
+  assert.equal(isControlPlaneBoundaryConfigKey('SONARR_IMAGE'), true);
+  assert.equal(isControlPlaneBoundaryConfigKey('RADARR_API_KEY'), false);
+  assert.equal(isCredentialConfigKey('RADARR_API_KEY'), true);
+  assert.equal(isCredentialConfigKey('PASSWORD'), true);
+});

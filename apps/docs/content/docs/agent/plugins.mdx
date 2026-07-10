@@ -11,7 +11,7 @@ Stackarr ships local plugin bundles that point agents at the same MCP server:
 - `packages/agent-plugins/openclaw/stackarr`
 - `skills/stackarr/SKILL.md`
 
-The plugins are convenience wrappers. The important part is still the local MCP command:
+The integrations all launch the same local MCP command:
 
 ```bash
 stackarr mcp serve
@@ -22,11 +22,11 @@ stackarr mcp serve
 Use Stackarr's plugin installer when available:
 
 ```bash
-stackarr plugins install hermes
-stackarr plugins install openclaw
+stackarr plugins install hermes --profile manage
+stackarr plugins install openclaw --profile manage
 ```
 
-The installer copies the plugin bundle to the target agent runtime and rewrites the plugin config so it calls the current Stackarr executable.
+Hermes is configured through its native MCP client so its approval UI and per-tool schemas remain intact. OpenClaw receives a direct MCP bundle. Docker installs generate a host-side `docker exec -i` command.
 
 ## Manual MCP Config
 
@@ -38,6 +38,7 @@ Any MCP-capable client can use the server directly:
     "stackarr": {
       "command": "stackarr",
       "args": ["mcp", "serve"],
+      "env": { "STACKARR_MCP_PROFILE": "manage" },
       "timeout": 120,
       "connect_timeout": 30
     }
@@ -56,4 +57,4 @@ Agents can:
 - manage Cloudflare routes when configured
 - troubleshoot download clients, indexers, Plex, and Arr services
 
-Destructive or disruptive tools require explicit confirmation fields. Agents should show the user the planned changes before applying setup, restore, stop, update, route, or repair actions.
+Destructive or disruptive tools pause for a client-mediated approval prompt in `manage` and `admin`. Unsupported clients fail closed. The user can choose `unrestricted` at launch when complete autonomous control is desired.

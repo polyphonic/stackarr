@@ -31,11 +31,12 @@ Docker is the preferred install when Stackarr should run beside the services it 
 docker run -d \
   --name stackarr \
   --restart unless-stopped \
-  -p 7777:7777 \
+  -p 127.0.0.1:7777:7777 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD:/stackarr-workspace" \
   -e STACKARR_REPO_ROOT=/stackarr-workspace \
   -e STACKARR_DATABASE_FILE=/stackarr-workspace/stackarr/config/stackarr.db \
+  -e STACKARR_CONTAINER_NAME=stackarr \
   polyphonic/stackarr:alpha
 ```
 
@@ -126,6 +127,12 @@ stackarr plugins install openclaw
 stackarr plugins install all
 ```
 
-Agents should begin with `stackarr_get_setup_profile`, then use `stackarr_setup_media_server` in dry-run mode before applying changes. The setup profile can include `agentPluginIntegrations: ["hermes", "openclaw"]` so first-run onboarding installs the selected plugins automatically. The MCP server deliberately exposes typed Stackarr actions rather than a generic shell; destructive actions require explicit confirmation flags. Keep the MCP transport local and do not expose it over the public internet.
+Agents should begin with `stackarr_get_setup_profile`, then use `stackarr_setup_media_server` in dry-run mode before applying changes. The setup profile can include `agentPluginIntegrations: ["hermes", "openclaw"]` so first-run onboarding prepares the selected integrations automatically. The MCP server exposes typed Stackarr actions rather than a generic shell; profiles prune the catalog and destructive actions use in-chat MCP approval. Keep the MCP transport local and do not expose it over the public internet.
 
-See `docs/mcp.md` for Hermes/OpenClaw configuration examples and the safety model.
+For Docker installs, run the MCP stdio process through the existing container from the agent host:
+
+```bash
+docker exec -i -e STACKARR_MCP_PROFILE=manage stackarr /app/bin/stackarr mcp serve
+```
+
+See `docs/mcp.md` for Codex, Hermes, OpenClaw, LM Studio, authority profiles, and Compose examples.

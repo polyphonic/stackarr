@@ -1,25 +1,63 @@
 ---
-title: Stackarr Quick Start
+title: Agent-Managed Homelab Quick Start
+description: Run Stackarr and connect a trusted AI agent to manage your homelab from chat.
 ---
 
 <div className="stackarrHero">
 
-# Stackarr Quick Start
+# Manage your homelab from chat
 
-Stackarr helps you set up and maintain a private home media server stack from one dashboard. Use it to connect requests, downloads, libraries, books, backups, and optional remote access without configuring every app from scratch.
+Stackarr is a local-first control plane that lets trusted AI agents set up and operate your homelab through consistent, typed actions. Use Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client to manage requests, downloads, libraries, backups, containers, and remote access from the conversation you already use.
 
-<div className="calloutWarning"><strong>Alpha release:</strong> keep Stackarr bound to <code>127.0.0.1</code> until authentication, Cloudflare, and public URL settings are configured. Avoid stop, update, and restart actions while Plex or Jellyfin must stay uninterrupted.</div>
+The dashboard is optional, not removed: it shows the same control plane and remains available whenever you want to inspect activity, intervene, or work manually.
+
+<div className="calloutWarning"><strong>Alpha release:</strong> keep Stackarr and its stdio MCP server local. Start agents in <code>manage</code>, review approval prompts for disruptive actions, and avoid stop, update, or restart actions while Plex or Jellyfin must stay uninterrupted.</div>
 
 <div className="calloutInfo"><strong>Using Stackarr or watching the alpha?</strong> Please <a href="https://github.com/b-bot/Stackarr" target="_blank" rel="noreferrer">star b-bot/Stackarr on GitHub</a>. Stars help other self-hosters discover the project; watching releases, sharing these docs, and opening focused issues help too.</div>
 
 </div>
+
+## Start with an agent
+
+1. [Install Stackarr](/docs/installation) natively or with Docker.
+2. Connect the local MCP server or install an agent plugin.
+3. Start with the `manage` authority profile.
+4. Ask: **“Inspect my Stackarr setup, recommend the next step, and ask before making disruptive changes.”**
+
+For Codex and other clients that can launch a local stdio MCP server:
+
+```bash
+codex mcp add stackarr \
+  --env STACKARR_MCP_PROFILE=manage \
+  -- stackarr mcp serve
+```
+
+For the bundled Hermes and OpenClaw integrations:
+
+```bash
+stackarr plugins install hermes --profile manage
+stackarr plugins install openclaw --profile manage
+```
+
+<div className="calloutInfo"><strong>Want full autonomy?</strong> Launch with <code>STACKARR_MCP_PROFILE=unrestricted</code>. This deliberately removes per-action approval prompts. The agent cannot promote its own authority; only the person configuring the client can change the profile.</div>
+
+## Choose your chat surface
+
+| Surface | Best connection | Start here |
+| --- | --- | --- |
+| Codex | Local stdio MCP server | [MCP setup](/docs/agent/mcp#codex) |
+| Claude or another MCP client | Local `mcpServers` entry | [Portable MCP config](/docs/agent/mcp#claude-and-other-mcp-clients) |
+| Hermes | Native Stackarr plugin installer | [Hermes plugin](/docs/agent/plugins#preferred-install) |
+| OpenClaw | Generated MCP plugin bundle | [OpenClaw plugin](/docs/agent/plugins#preferred-install) |
+| LM Studio | Local MCP config with a trimmed tool catalog | [LM Studio setup](/docs/agent/mcp#lm-studio) |
+| Browser, API, or CLI | Manual control over the same actions | [Setup](/docs/setup) |
 
 <figure className="docsScreenshot">
   <span className="themeShot">
     <img className="themeShotLight" src="/screenshots/stackarr-dashboard-light.png" alt="Stackarr dashboard in light mode showing service status, resource gauges, storage, and configured services" />
     <img className="themeShotDark" src="/screenshots/stackarr-dashboard-dark.png" alt="" aria-hidden="true" />
   </span>
-  <figcaption>The dashboard opens with setup readiness, service status, resources, storage, and direct links into the managed apps.</figcaption>
+  <figcaption>The optional dashboard shows setup readiness, service status, resources, storage, agent activity, and direct links into managed apps.</figcaption>
 </figure>
 
 ## Supported Install Targets
@@ -31,7 +69,7 @@ Stackarr helps you set up and maintain a private home media server stack from on
 | Windows package + Inno installer | You want to test the native dashboard package while Docker remains the supported Windows alpha backend. |
 | Docker compose service | You want Stackarr and the managed services to start together. |
 
-## Fast Path
+## Docker fast path
 
 ```bash
 docker pull polyphonic/stackarr:alpha
@@ -77,6 +115,10 @@ Stackarr manages the stack around your media server. Plex and Jellyfin can be di
 
 ## Docs Map
 
-- [Getting Started](/docs/getting-started) covers requirements and first decisions.
+- [Agent Setup](/docs/agent/agent-setup) is the recommended first path.
+- [MCP Server](/docs/agent/mcp) connects Codex, Claude, LM Studio, and compatible chat clients.
+- [Agent Plugins](/docs/agent/plugins) installs the shared Hermes and OpenClaw integrations.
+- [Agent Safety](/docs/agent/safety) explains profiles, prompts, audit history, and full-control mode.
+- [Getting Started](/docs/getting-started) covers requirements and first decisions for either chat or manual setup.
 - [Installation](/docs/installation) covers macOS and Docker install paths.
-- [Setup](/docs/setup) covers the onboarding wizard and native-vs-Docker media-server choices.
+- [Setup](/docs/setup) covers the optional onboarding UI and native-vs-Docker media-server choices.

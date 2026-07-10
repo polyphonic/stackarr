@@ -4,28 +4,40 @@ title: MCP Server
 
 # MCP Server
 
-Stackarr includes a local stdio MCP server for trusted agents. It is the preferred automation surface for setup and maintenance because every action goes through Stackarr's typed tools, audit trail, validation, and confirmation checks.
+Stackarr's local stdio MCP server is the chat-first control plane for homelab agents. It exposes typed actions backed by Stackarr and the native APIs of enabled apps; it does not expose a generic shell or Docker exec tool.
 
-The server exposes setup, status, backup, Docker-resource, Cloudflare-route, media-library, download-client, request, Plex, and diagnostic tools. It should be treated as a privileged local maintenance interface because those tools can change running services.
+## Profiles
 
-## Install Path
+Set `STACKARR_MCP_PROFILE` when the MCP client launches the server:
 
-For packaged installs, prefer the CLI entrypoint:
+| Profile | Purpose |
+| --- | --- |
+| `observe` | Read-only inspection and diagnostics |
+| `manage` | Default day-to-day media, request, download, backup, and safe-repair actions |
+| `admin` | Complete setup, configuration, Docker, network, migration, and restore control |
+| `unrestricted` | Complete control without per-action approval prompts |
+
+The agent cannot change its own profile. `manage` and `admin` ask the user to approve destructive calls through MCP elicitation. If the client cannot render elicitation, those calls fail closed. `unrestricted` is an intentional user opt-in for autonomous operation.
+
+## Service-aware tools
+
+Stackarr removes irrelevant tools before the model sees them. Plex, Seerr, Sonarr, Radarr, Prowlarr, downloader, and Streamrip tools appear only when their services are enabled. Restart the MCP connection after changing enabled apps. Call `stackarr_get_mcp_control_plane` to inspect the current profile and grouped catalog.
+
+Small local models can use `STACKARR_MCP_GROUPS=stack,services,arr,downloads,seerr,health` as an additional launch-time group allowlist. Available groups are `stack`, `services`, `containers`, `arr`, `releases`, `downloads`, `plex`, `seerr`, `backups`, and `health`.
+
+## Codex
 
 ```bash
-stackarr mcp serve
+codex mcp add stackarr \
+  --env STACKARR_MCP_PROFILE=manage \
+  -- stackarr mcp serve
 ```
 
-For source installs:
+Use `admin` during agent-led setup. Codex presents Stackarr's destructive tool elicitations inside the active task.
 
-```bash
-pnpm --filter @stackarr/mcp build
-node packages/mcp/dist/index.js
-```
+## Claude and other MCP clients
 
-## Claude or Codex MCP Config
-
-Use this shape in MCP-capable desktop clients, replacing the command only if your install path is different:
+Use the client's standard local `mcpServers` configuration and launch the same shared server:
 
 ```json
 {
@@ -33,48 +45,72 @@ Use this shape in MCP-capable desktop clients, replacing the command only if you
     "stackarr": {
       "command": "stackarr",
       "args": ["mcp", "serve"],
-      "timeout": 120,
-      "connect_timeout": 30
+      "env": {
+        "STACKARR_MCP_PROFILE": "manage"
+      }
     }
   }
 }
 ```
 
-After connecting it, ask:
+Stackarr does not rely on client-specific prompt instructions for enforcement. The launch profile, service-aware catalog, tool annotations, and approval elicitations travel with the MCP server. Clients without elicitation support fail closed for actions that require approval.
 
-```text
-Use Stackarr MCP to inspect the setup profile, dry-run the recommended setup, then show me the plan before applying it.
+## Hermes
+
+```bash
+stackarr plugins install hermes --profile manage
 ```
 
-## Hermes and OpenClaw
+Stackarr registers through Hermes' native MCP client, preserving individual tools and Hermes' CLI, TUI, and messaging approval surfaces.
 
-```yaml
-mcp_servers:
-  stackarr:
-    command: "stackarr"
-    args: ["mcp", "serve"]
-    timeout: 120
-    connect_timeout: 30
-    sampling:
-      enabled: false
+## OpenClaw
+
+```bash
+stackarr plugins install openclaw --profile manage
 ```
 
-Stackarr also ships plugin bundles for Hermes and OpenClaw-style runtimes. See [Agent Plugins](/docs/agent/plugins).
+Import the generated `mcp.json`. OpenClaw gets the same shared server and policy; unsupported elicitation fails closed.
 
-## Discovery
+## LM Studio
 
-The docs site publishes machine-readable discovery files for agents:
+In **Program > Install > Edit mcp.json**:
 
-- `/.well-known/mcp/server-card.json`
-- `/.well-known/agent-skills/index.json`
-- `/auth.md`
-- `/llms.txt`
-- `/llms-full.txt`
+```json
+{
+  "mcpServers": {
+    "stackarr": {
+      "command": "stackarr",
+      "args": ["mcp", "serve"],
+      "env": {
+        "STACKARR_MCP_PROFILE": "manage",
+        "STACKARR_MCP_GROUPS": "stack,services,arr,downloads,seerr,health"
+      }
+    }
+  }
+}
+```
 
-These describe the public docs and local MCP server. They do not expose your local Stackarr install.
+LM Studio's own `allowed_tools` setting can narrow the already-filtered catalog further. If the installed version does not support MCP elicitation, use `manage` for non-destructive actions or deliberately select `unrestricted` for complete autonomy.
 
-## Security Model
+## Docker
 
-The MCP server is local stdio only. Do not put it behind HTTP, Cloudflare Tunnel, Portless, or a public remote bridge.
+Run the MCP process inside the existing container while the client stays on the host:
 
-Agents should use the MCP tools as the primary maintenance surface. If a low-level app change is not represented by a Stackarr tool yet, prefer documenting the missing adapter over quietly editing a downstream app config file.
+```bash
+codex mcp add stackarr -- \
+  docker exec -i \
+    -e STACKARR_MCP_PROFILE=manage \
+    stackarr /app/bin/stackarr mcp serve
+```
+
+For the managed Compose install, replace the container name `stackarr` with `app`. Keep `-i` so stdio stays connected.
+
+## Security model
+
+- Local stdio only; do not expose MCP through a public bridge.
+- Profiles and installed services filter `tools/list`.
+- Tool annotations identify read-only and destructive actions.
+- Destructive calls require client-mediated approval except in `unrestricted`.
+- Credentials are never requested through elicitation and remain on authenticated settings surfaces.
+- Endpoint, bind-address, and image changes are displayed as control-plane changes before approval.
+- Every call and decision is recorded in Agent Activity.
