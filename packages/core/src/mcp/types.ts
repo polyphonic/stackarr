@@ -5,6 +5,9 @@ export type McpProfile = 'observe' | 'manage' | 'admin' | 'unrestricted';
 export type ToolCategory =
   | 'stack'
   | 'services'
+  | 'apps'
+  | 'automations'
+  | 'connections'
   | 'containers'
   | 'arr'
   | 'releases'

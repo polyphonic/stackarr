@@ -1,0 +1,38 @@
+---
+title: Apps & Routines
+description: Let an agent operate enabled homelab apps and schedule safe multi-step routines.
+---
+
+# Apps and routines
+
+Stackarr connects chat to the native APIs of the apps you enabled. The agent sees three shared app tools instead of a separate tool for every endpoint:
+
+- discover the operations available for this installation
+- read an app using a named operation
+- run a safe named management operation
+
+The route, HTTP method, authentication style, and accepted inputs are defined by Stackarr. An agent cannot supply an arbitrary URL, path, method, header, or request body.
+
+Current adapters cover Jellyfin, Immich, RomM, Maintainerr, Tracearr, and BookOrbit. Each adapter starts with a small set of operations that Stackarr can support safely. An app with no verified management operation remains read-only.
+
+## Example conversations
+
+Try prompts such as:
+
+- “Which of my photo, game, book, and media apps can you manage?”
+- “Show me Immich storage and library statistics.”
+- “Refresh the Jellyfin library.”
+- “Check Maintainerr readiness and storage metrics.”
+- “Create a daily routine that checks Immich server health at 08:00.”
+
+## Routines
+
+A routine is a saved list of one to ten named app operations. It can run on demand or on a daily/weekly schedule. Stackarr does not accept shell commands, arbitrary cron expressions, or arbitrary web requests in a routine.
+
+Scheduled runs use the Stackarr container timezone and appear in **Agent Activity** with their results. Disable or delete a routine from chat at any time; the dashboard remains optional.
+
+## App credentials
+
+Add API keys through Stackarr's authenticated settings. They stay in Stackarr and are sent to the selected app using that app's expected authentication header. They are never returned to the agent.
+
+Maintainerr does not provide API authentication, so keep it on a trusted private Docker network. Stackarr does not expose its API as an open-ended proxy.

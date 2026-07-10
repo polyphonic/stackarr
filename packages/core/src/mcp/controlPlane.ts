@@ -9,19 +9,37 @@ type ServiceRequirement = {
   anyOfEach?: string[][];
 };
 
-const appActionCategories = new Set(['arr', 'releases', 'downloads', 'plex', 'seerr', 'backups', 'health']);
+const appActionCategories = new Set([
+  'apps',
+  'automations',
+  'arr',
+  'releases',
+  'downloads',
+  'plex',
+  'seerr',
+  'backups',
+  'health'
+]);
 const adminOnlyTools = new Set([
   'stackarr_restore_backup',
   'stackarr_restore_service_database_from_backup',
-  'stackarr_update_streamrip_config'
+  'stackarr_update_streamrip_config',
+  'stackarr_get_connection_policies',
+  'stackarr_create_connection_policy',
+  'stackarr_update_connection_policy',
+  'stackarr_rotate_connection_token'
 ]);
 const arrServices = ['sonarr', 'sonarr4k', 'radarr', 'radarr4k'];
 const seriesServices = ['sonarr', 'sonarr4k'];
 const movieServices = ['radarr', 'radarr4k'];
 const downloaderServices = ['transmission', 'qbittorrent'];
+const nativeAppServices = ['jellyfin', 'immich', 'romm', 'maintainerr', 'tracearr', 'bookorbit'];
 const toolCategories: ToolCategory[] = [
   'stack',
   'services',
+  'apps',
+  'automations',
+  'connections',
   'containers',
   'arr',
   'releases',
@@ -106,6 +124,8 @@ export function isToolEnabledForProfile(tool: ToolCatalogEntry, profile: McpProf
     return true;
   }
 
+  if (adminOnlyTools.has(tool.name)) return false;
+
   if (profile === 'observe') {
     return tool.risk === 'read';
   }
@@ -117,6 +137,7 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
   const { name, category } = tool;
 
   if (category === 'plex') return { anyOf: ['plex'] };
+  if (category === 'apps') return { anyOf: nativeAppServices };
   if (category === 'seerr') return { anyOf: ['seerr'] };
   if (category === 'releases') return { anyOf: ['prowlarr'] };
   if (category === 'backups') return { anyOf: ['backup'] };

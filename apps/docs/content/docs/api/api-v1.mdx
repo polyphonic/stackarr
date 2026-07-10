@@ -8,6 +8,8 @@ Stackarr exposes its own public endpoints under `/api/v1`.
 
 Stackarr starts at `/api/v1` because this is its first public API. Downstream Servarr apps keep their own API versions; Stackarr does not rewrite those routes.
 
+The optional MCP Streamable HTTP endpoint lives at `/mcp`, outside the REST namespace. It uses a connection-policy bearer token rather than the dashboard API key.
+
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/system/status` | Runtime and configured-state summary. |

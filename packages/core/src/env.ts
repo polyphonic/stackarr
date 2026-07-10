@@ -223,6 +223,7 @@ export const managedEnvDefaults: StackarrEnv = {
   SEERR_API_KEY: '',
   PLEX_TOKEN: '',
   JELLYFIN_API_KEY: '',
+  IMMICH_API_KEY: '',
 
   BACKUP_TIME: '02:00',
   BACKUP_SCHEDULE: 'weekly',
@@ -240,6 +241,9 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_IMAGE: 'polyphonic/stackarr:alpha',
   STACKARR_BIND_IP: '127.0.0.1',
   STACKARR_WEB_PORT: '7777',
+  STACKARR_MCP_HTTP_ENABLED: 'false',
+  STACKARR_MCP_HTTP_PORT: '7780',
+  STACKARR_MCP_HTTP_ALLOWED_ORIGINS: '',
   STACKARR_TELEMETRY_FEATURE_ENABLED: 'false',
   STACKARR_TELEMETRY_ENABLED: 'false',
   STACKARR_TELEMETRY_ENDPOINT: '',

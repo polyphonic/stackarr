@@ -84,6 +84,20 @@ The generated steps keep Stackarr private:
 
 No inbound homelab port or public Stackarr MCP endpoint is required. Tunnel and ChatGPT developer-mode availability depends on the user's OpenAI account and workspace permissions. The OpenAI runtime API key stays on the Docker host and must never be pasted into Stackarr or chat.
 
+## Authenticated remote MCP
+
+For clients that need an HTTP URL, an `admin` or `unrestricted` chat can create a named connection policy. Each policy has its own profile, optional tool groups, revocable bearer token, last-used time, and activity identity. Stackarr shows the token once and stores only its SHA-256 hash.
+
+Enable **Authenticated Remote MCP** in Stackarr settings and connect the client to:
+
+```text
+https://your-private-stackarr-host/mcp
+```
+
+Send the generated token as `Authorization: Bearer …`. The endpoint is disabled by default, accepts stateless MCP `POST` requests only, rejects browser origins unless explicitly allowed, and applies the policy before advertising tools. Put TLS and private-network access in front of it. Prefer the OpenAI Secure MCP Tunnel for ChatGPT when available.
+
+Do not publish `/mcp` directly to the public internet. A token is administrator-issued homelab access, not an OAuth login flow.
+
 ## How the action catalog stays focused
 
 - Before setup, Stackarr advertises only core setup, connection, status, service, and health actions.
@@ -93,12 +107,12 @@ No inbound homelab port or public Stackarr MCP endpoint is required. Tunnel and 
 - Reconnect the MCP client after enabling or disabling apps.
 - `stackarr_get_mcp_connection_kit` can generate another client's configuration directly from an existing chat.
 
-Available groups are `stack`, `services`, `containers`, `arr`, `releases`, `downloads`, `plex`, `seerr`, `backups`, and `health`.
+Available groups are `stack`, `services`, `apps`, `automations`, `connections`, `containers`, `arr`, `releases`, `downloads`, `plex`, `seerr`, `backups`, and `health`. The compact `apps` group routes named operations to enabled Jellyfin, Immich, RomM, Maintainerr, Tracearr, and BookOrbit APIs without exposing an arbitrary HTTP request tool. `automations` contains saved multi-step routines built from those same allowlisted operations. `connections` is admin-only and manages revocable remote policies.
 
 ## Approval behavior
 
 `manage` and `admin` request approval for destructive actions through the chat client's MCP prompt. A client without approval-prompt support cannot run those actions. `unrestricted` is the explicit opt-in for users who want complete autonomy.
 
-Credentials stay on Stackarr's authenticated settings surfaces and are never requested through an MCP approval form.
+App credentials stay on Stackarr's authenticated settings surfaces and are never requested through an MCP approval form. An admin can deliberately create or rotate a remote connection token after a destructive-action approval; that token is returned once.
 
 For Hermes and OpenClaw, continue to [Agent plugins](/docs/agent/plugins).

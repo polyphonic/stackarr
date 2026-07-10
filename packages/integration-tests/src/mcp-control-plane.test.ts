@@ -50,6 +50,7 @@ test('MCP catalog removes actions for services that are not installed', () => {
   assert.ok(tools.some((tool) => tool.name === 'stackarr_search_releases'));
   assert.ok(!tools.some((tool) => tool.category === 'plex'));
   assert.ok(!tools.some((tool) => tool.category === 'seerr'));
+  assert.ok(!tools.some((tool) => tool.category === 'apps'));
   assert.ok(!tools.some((tool) => tool.name === 'stackarr_add_series'));
   assert.ok(!tools.some((tool) => tool.name.includes('streamrip')));
 });
@@ -78,6 +79,17 @@ test('MCP groups let small-model clients load only relevant action families', ()
   assert.ok(tools.length > 0);
   assert.ok(tools.every((tool) => tool.category === 'stack' || tool.category === 'downloads'));
   assert.ok(!tools.some((tool) => tool.category === 'arr'));
+});
+
+test('native app tools appear as one compact group only when a supported app is enabled', () => {
+  const withoutApps = getMcpToolCatalog({ profile: 'manage', enabledServices });
+  const withImmich = getMcpToolCatalog({ profile: 'manage', enabledServices: [...enabledServices, 'immich'] });
+
+  assert.ok(!withoutApps.some((tool) => tool.category === 'apps'));
+  assert.deepEqual(
+    withImmich.filter((tool) => tool.category === 'apps').map((tool) => tool.name),
+    ['stackarr_get_app_capabilities', 'stackarr_read_app', 'stackarr_manage_app']
+  );
 });
 
 test('control-plane endpoints are protected separately from credentials', () => {

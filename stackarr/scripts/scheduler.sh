@@ -169,6 +169,10 @@ run_update_job() {
     return "$exit_code"
 }
 
+run_agent_routines() {
+    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" routines run-due || log_scheduler "agent routines check failed"
+}
+
 log_scheduler "started"
 
 while true; do
@@ -187,6 +191,8 @@ while true; do
                 run_with_lock update "$update_stamp" run_update_job
             fi
         fi
+
+        run_agent_routines
     else
         log_scheduler "runtime config not ready"
     fi

@@ -1,5 +1,5 @@
 {
   "title": "Manage with AI",
   "defaultOpen": false,
-  "pages": ["agent-setup", "mcp", "plugins", "tools", "safety", "activity"]
+  "pages": ["agent-setup", "mcp", "apps-and-routines", "plugins", "tools", "safety", "activity"]
 }

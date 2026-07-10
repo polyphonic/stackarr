@@ -148,11 +148,11 @@ case "$cmd" in
         shift || true
         sub="${1:-serve}"
         case "$sub" in
-            serve)
+            serve|serve-http)
                 shift || true
                 export STACKARR_REPO_ROOT="$REPO_ROOT"
                 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
-                exec node "$REPO_ROOT/packages/mcp/dist/index.js" serve "$@"
+                exec node "$REPO_ROOT/packages/mcp/dist/index.js" "$sub" "$@"
                 ;;
             config)
                 shift || true
@@ -161,7 +161,22 @@ case "$cmd" in
                 exec node "$REPO_ROOT/packages/mcp/dist/index.js" config "$@"
                 ;;
             *)
-                fail "Usage: stackarr mcp serve | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS]"
+                fail "Usage: stackarr mcp serve|serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS]"
+                ;;
+        esac
+        ;;
+    routines)
+        shift || true
+        sub="${1:-help}"
+        case "$sub" in
+            run-due)
+                shift || true
+                export STACKARR_REPO_ROOT="$REPO_ROOT"
+                export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+                exec node "$REPO_ROOT/packages/mcp/dist/index.js" routines run-due "$@"
+                ;;
+            *)
+                fail "Usage: stackarr routines run-due"
                 ;;
         esac
         ;;
@@ -223,7 +238,9 @@ Stackarr commands:
   stackarr backup install|uninstall|permissions|run
   stackarr backup restore <archive>
   stackarr mcp serve
+  stackarr mcp serve-http
   stackarr mcp config <codex|claude|lmstudio|chatgpt|hermes|openclaw|generic>
+  stackarr routines run-due
   stackarr plugins install|export [hermes|openclaw|all]
   stackarr update run|install|uninstall
   stackarr permissions audit|fix

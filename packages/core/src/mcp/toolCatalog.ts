@@ -84,6 +84,105 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Read UI-editable Stackarr configuration for one service.'
   },
   {
+    name: 'stackarr_get_app_capabilities',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List enabled native apps and their allowlisted read/manage operations.'
+  },
+  {
+    name: 'stackarr_read_app',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read an enabled app through a named, allowlisted native API operation.'
+  },
+  {
+    name: 'stackarr_manage_app',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run a safe named management operation through an enabled app native API.'
+  },
+  {
+    name: 'stackarr_get_routines',
+    category: 'automations',
+    scopes: ['automations:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List typed multi-step agent routines and their safe daily or weekly schedules.'
+  },
+  {
+    name: 'stackarr_save_routine',
+    category: 'automations',
+    scopes: ['automations:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Create or update a routine made only from allowlisted native-app operations.'
+  },
+  {
+    name: 'stackarr_delete_routine',
+    category: 'automations',
+    scopes: ['automations:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Delete a named agent routine.'
+  },
+  {
+    name: 'stackarr_run_routine',
+    category: 'automations',
+    scopes: ['automations:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run a saved typed routine now and record its result in Agent Activity.'
+  },
+  {
+    name: 'stackarr_get_connection_policies',
+    category: 'connections',
+    scopes: ['connections:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'List named MCP connection policies without returning their token hashes.'
+  },
+  {
+    name: 'stackarr_create_connection_policy',
+    category: 'connections',
+    scopes: ['connections:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Create a revocable MCP bearer token with bounded profile and tool groups.'
+  },
+  {
+    name: 'stackarr_update_connection_policy',
+    category: 'connections',
+    scopes: ['connections:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Rename, disable, or narrow a named MCP connection policy.'
+  },
+  {
+    name: 'stackarr_rotate_connection_token',
+    category: 'connections',
+    scopes: ['connections:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Revoke a connection token and issue a one-time replacement.'
+  },
+  {
     name: 'stackarr_update_service_config',
     category: 'services',
     scopes: ['services:dangerous'],

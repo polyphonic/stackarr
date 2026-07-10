@@ -11,9 +11,11 @@ import {
   auditStarted,
   cancelStreamripJobAction,
   checkServiceDatabasesAction,
+  createMcpConnectionPolicyAction,
   createRequestAction,
   DangerousActionError,
   declineRequestAction,
+  deleteRoutineAction,
   diagnoseServiceAction,
   downloadLidarrAlbumWithStreamripAction,
   getArrQueueAction,
@@ -34,6 +36,7 @@ import {
   getMediaServerSetupProfileAction,
   getMissingEpisodesAction,
   getMovieStatusAction,
+  getNativeAppCapabilitiesAction,
   getPlexLibrariesAction,
   getPlexServerStatusAction,
   getPlexSessionsAction,
@@ -42,6 +45,7 @@ import {
   getRecentlyWatchedAction,
   getRequestStatusAction,
   getRequestsAction,
+  getRoutinesAction,
   getSeriesStatusAction,
   getServiceConfigAction,
   getServiceStatusAction,
@@ -54,17 +58,20 @@ import {
   listAgentActivityRecords,
   listBackupsAction,
   listLidarrStreamripAlbumsAction,
+  listMcpConnectionPoliciesAction,
   listServiceConfigsAction,
   listServicesAction,
   listStreamripJobsAction,
   type McpProfile,
   manageDockerResourceAction,
+  manageNativeAppAction,
   migrateCurrentStackAction,
   monitorMovieAction,
   monitorSeriesAction,
   pauseDownloadAction,
   prepareLidarrStreamripAlbumAction,
   previewTelemetryPayloadAction,
+  readNativeAppAction,
   readTasks,
   redactSecrets,
   refreshArrItemAction,
@@ -75,11 +82,14 @@ import {
   restoreBackupAction,
   restoreServiceDatabaseFromBackupAction,
   resumeDownloadAction,
+  rotateMcpConnectionPolicyTokenAction,
   runBackupWorkflowAction,
   runDoctorAction,
   runPermissionsAuditAction,
   runPermissionsFixAction,
+  runRoutineAction,
   runUpdateAction,
+  saveRoutineAction,
   scanPlexLibraryAction,
   searchMovieAction,
   searchReleasesAction,
@@ -106,6 +116,7 @@ import {
   unmonitorSeriesAction,
   updateCloudflareAccessAction,
   updateCloudflareRoutesAction,
+  updateMcpConnectionPolicyAction,
   updateServiceConfigAction,
   updateStackConfigAction,
   updateStreamripConfigAction,
@@ -126,6 +137,13 @@ const downloader = { downloader: z.enum(['transmission', 'qbittorrent']).optiona
 const seriesInstance = z.enum(['sonarr', 'sonarr4k']);
 const movieInstance = z.enum(['radarr', 'radarr4k']);
 const arrInstance = z.enum(['sonarr', 'sonarr4k', 'radarr', 'radarr4k']);
+const nativeApp = z.enum(['jellyfin', 'immich', 'romm', 'maintainerr', 'tracearr', 'bookorbit']);
+const routineStep = z.object({
+  kind: z.enum(['read_app', 'manage_app']),
+  app: nativeApp,
+  operation: z.string().min(1),
+  libraryId: z.string().optional()
+});
 
 const tools: ToolDef[] = [
   {
@@ -138,7 +156,8 @@ const tools: ToolDef[] = [
     name: 'stackarr_get_mcp_control_plane',
     description: 'Get the active MCP profile, approval mode, enabled services, and grouped tool catalog.',
     shape: empty,
-    handler: () => getRegisteredControlPlaneSummary()
+    handler: (input) =>
+      getRegisteredControlPlaneSummary(input.__stackarrCallerProfile, { groups: input.__stackarrGroups })
   },
   {
     name: 'stackarr_get_mcp_connection_kit',
@@ -152,6 +171,9 @@ const tools: ToolDef[] = [
           z.enum([
             'stack',
             'services',
+            'apps',
+            'automations',
+            'connections',
             'containers',
             'arr',
             'releases',
@@ -288,6 +310,137 @@ const tools: ToolDef[] = [
     description: 'Get editable config for one service.',
     shape: service,
     handler: getServiceConfigAction
+  },
+  {
+    name: 'stackarr_get_app_capabilities',
+    description: 'List enabled native apps and their named, allowlisted operations.',
+    shape: empty,
+    handler: getNativeAppCapabilitiesAction
+  },
+  {
+    name: 'stackarr_read_app',
+    description: 'Read an enabled app through a named native API operation. Arbitrary paths are not accepted.',
+    shape: { app: nativeApp, operation: z.string().min(1), libraryId: z.string().optional() },
+    handler: readNativeAppAction
+  },
+  {
+    name: 'stackarr_manage_app',
+    description: 'Run a safe named management operation in an enabled app. Arbitrary paths are not accepted.',
+    shape: { app: nativeApp, operation: z.string().min(1), libraryId: z.string().optional() },
+    handler: manageNativeAppAction
+  },
+  {
+    name: 'stackarr_get_routines',
+    description: 'List typed agent routines and their daily or weekly schedules.',
+    shape: empty,
+    handler: getRoutinesAction
+  },
+  {
+    name: 'stackarr_save_routine',
+    description: 'Create or update a routine made only from named native-app operations.',
+    shape: {
+      id: z.string().uuid().optional(),
+      name: z.string().min(1).max(80),
+      enabled: z.boolean().optional(),
+      steps: z.array(routineStep).min(1).max(10),
+      schedule: z
+        .object({
+          frequency: z.enum(['daily', 'weekly']),
+          time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+          weekday: z.number().int().min(0).max(6).optional()
+        })
+        .optional()
+    },
+    handler: saveRoutineAction
+  },
+  {
+    name: 'stackarr_delete_routine',
+    description: 'Delete a saved agent routine.',
+    shape: { id: z.string().uuid() },
+    handler: deleteRoutineAction
+  },
+  {
+    name: 'stackarr_run_routine',
+    description: 'Run a saved typed routine now and record the result.',
+    shape: { id: z.string().uuid() },
+    handler: runRoutineAction
+  },
+  {
+    name: 'stackarr_get_connection_policies',
+    description: 'List named remote MCP policies without returning token hashes.',
+    shape: empty,
+    handler: listMcpConnectionPoliciesAction
+  },
+  {
+    name: 'stackarr_create_connection_policy',
+    description: 'Create a revocable MCP connection token. The token is returned once after user approval.',
+    shape: {
+      name: z.string().min(1).max(80),
+      profile: z.enum(['observe', 'manage', 'admin', 'unrestricted']),
+      groups: z
+        .array(
+          z.enum([
+            'stack',
+            'services',
+            'apps',
+            'automations',
+            'connections',
+            'containers',
+            'arr',
+            'releases',
+            'downloads',
+            'plex',
+            'seerr',
+            'backups',
+            'health'
+          ])
+        )
+        .optional()
+    },
+    handler: (input) =>
+      createMcpConnectionPolicyAction({
+        name: input.name,
+        profile: input.profile,
+        groups: input.groups,
+        callerProfile: input.__stackarrCallerProfile
+      })
+  },
+  {
+    name: 'stackarr_update_connection_policy',
+    description: 'Rename, enable, disable, or narrow a remote MCP policy after user approval.',
+    shape: {
+      id: z.string().uuid(),
+      name: z.string().min(1).max(80).optional(),
+      profile: z.enum(['observe', 'manage', 'admin', 'unrestricted']).optional(),
+      groups: z
+        .array(
+          z.enum([
+            'stack',
+            'services',
+            'apps',
+            'automations',
+            'connections',
+            'containers',
+            'arr',
+            'releases',
+            'downloads',
+            'plex',
+            'seerr',
+            'backups',
+            'health'
+          ])
+        )
+        .optional(),
+      enabled: z.boolean().optional()
+    },
+    handler: (input) => updateMcpConnectionPolicyAction({ ...input, callerProfile: input.__stackarrCallerProfile })
+  },
+  {
+    name: 'stackarr_rotate_connection_token',
+    description: 'Revoke a remote MCP token and issue a one-time replacement after user approval.',
+    shape: { id: z.string().uuid() },
+    handler: (input) =>
+      rotateMcpConnectionPolicyTokenAction({ id: input.id, callerProfile: input.__stackarrCallerProfile })
   },
   {
     name: 'stackarr_update_service_config',
@@ -932,9 +1085,13 @@ const tools: ToolDef[] = [
   }
 ];
 
-export function registerStackarrTools(server: McpServer, profile: McpProfile = resolveMcpProfile()) {
+export function registerStackarrTools(
+  server: McpServer,
+  profile: McpProfile = resolveMcpProfile(),
+  options: { groups?: ToolCategory[]; caller?: `mcp-remote:${string}` | 'mcp-local' } = {}
+) {
   const enabledServices = getEnabledMcpServiceNames();
-  const enabledCatalog = getMcpToolCatalog({ profile, enabledServices });
+  const enabledCatalog = getMcpToolCatalog({ profile, enabledServices, groups: options.groups });
   const enabledTools = new Map(enabledCatalog.map((entry) => [entry.name, entry]));
 
   for (const tool of tools) {
@@ -957,7 +1114,7 @@ export function registerStackarrTools(server: McpServer, profile: McpProfile = r
       async (input) => {
         const started = Date.now();
         const activity = await auditStarted({
-          caller: 'mcp-local',
+          caller: options.caller ?? 'mcp-local',
           toolName: tool.name,
           category: meta.category,
           scopes: meta.scopes,
@@ -976,7 +1133,11 @@ export function registerStackarrTools(server: McpServer, profile: McpProfile = r
             return jsonContent(authorization.result);
           }
 
-          const result = await tool.handler(authorization.input);
+          const result = await tool.handler({
+            ...authorization.input,
+            __stackarrCallerProfile: profile,
+            __stackarrGroups: options.groups
+          });
           await auditFinished(activity.id, {
             status: 'success',
             durationMs: Date.now() - started,
@@ -1141,15 +1302,18 @@ function toolTitle(name: string) {
     .join(' ');
 }
 
-export function getRegisteredControlPlaneSummary(profile: McpProfile = resolveMcpProfile()) {
+export function getRegisteredControlPlaneSummary(
+  profile: McpProfile = resolveMcpProfile(),
+  options: { groups?: ToolCategory[] } = {}
+) {
   const selection = getMcpServiceSelection();
   const enabledServices = selection.enabledServices;
-  const catalog = getMcpToolCatalog({ profile, enabledServices });
+  const catalog = getMcpToolCatalog({ profile, enabledServices, groups: options.groups });
   return {
     profile,
     description: getMcpProfileDescription(profile),
     approvalMode: profile === 'unrestricted' ? 'unrestricted' : 'client-elicitation',
-    selectedGroups: resolveMcpGroups() ?? 'all-relevant',
+    selectedGroups: options.groups ?? resolveMcpGroups() ?? 'all-relevant',
     catalogMode: selection.catalogMode,
     onboardingComplete: selection.onboardingComplete,
     nextStep: selection.onboardingComplete
