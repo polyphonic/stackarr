@@ -28,6 +28,30 @@ print_header "Stackarr Doctor"
 load_env
 configure_docker_environment
 STACKARR_BIN="$(find_stackarr_bin || true)"
+STACKARR_APP_BUNDLE="$(find_stackarr_app_bundle_for_bin "$STACKARR_BIN" || true)"
+
+check_launch_agent_state() {
+    local label="$1"
+    local name="$2"
+    local launch_domain="gui/$(id -u)"
+
+    if ! command -v launchctl >/dev/null 2>&1; then
+        warning "$name launch agent state could not be checked because launchctl is unavailable"
+        return 0
+    fi
+
+    if launchctl print-disabled "$launch_domain" 2>/dev/null | grep -Eq "[\"']?${label}[\"']?[[:space:]]*=>[[:space:]]*disabled"; then
+        failure "$name launch agent is disabled. Reinstall it to restore automation."
+    else
+        pass "$name launch agent is enabled"
+    fi
+
+    if launchctl print "$launch_domain/$label" >/dev/null 2>&1; then
+        pass "$name launch agent is loaded"
+    else
+        failure "$name launch agent is not loaded. Reinstall it to restore automation."
+    fi
+}
 
 native_plex_setting_value_from_xml() {
     local xml="$1"
@@ -225,16 +249,23 @@ fi
 
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.stack.plist" ]]; then
     pass "Startup launch agent installed"
-    if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
-        pass "Startup launch agent is associated with the Stackarr app bundle"
+    if [[ -n "$STACKARR_APP_BUNDLE" ]]; then
+        if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
+            pass "Startup launch agent is associated with the Stackarr app bundle"
+        else
+            warning "Startup launch agent is not associated with the installed Stackarr app bundle. Reinstall it with 'stackarr startup install'."
+        fi
+    elif grep -Fq "<key>AssociatedBundleIdentifiers</key>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
+        warning "Source startup launch agent has an app-bundle association, but no matching Stackarr.app exists. Reinstall it with 'stackarr startup install'."
     else
-        warning "Startup launch agent is not associated with the Stackarr app bundle. Reinstall it with 'stackarr startup install'."
+        pass "Source startup launch agent does not reference a missing app bundle"
     fi
     if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
         pass "Startup launch agent points at this Stackarr executable"
     else
         warning "Startup launch agent points at a different Stackarr executable. Reinstall it with 'stackarr startup install'."
     fi
+    check_launch_agent_state "com.stackarr.stack" "Startup"
 else
     warning "Startup launch agent not installed"
 fi

@@ -28,6 +28,7 @@ usage() {
        stackarr cloudflare stop
        stackarr cloudflare status
        stackarr cloudflare sync
+       stackarr cloudflare routes apply
        stackarr cloudflare rotate [--api-token <api-token>]
        stackarr cloudflare delete [--api-token <api-token>]
        stackarr cloudflare uninstall"
@@ -1915,6 +1916,141 @@ install_cloudflare() {
     rm -f "$routes_file"
 }
 
+apply_cloudflare_routes() {
+    local api_token=""
+    local effective_api_token=""
+    local token=""
+    local account_id=""
+    local tunnel_id=""
+    local tunnel_name="$DEFAULT_TUNNEL_NAME"
+    local details=""
+    local routes_file=""
+    local routes_json=""
+    local route_count=0
+    local access_route_count=0
+    local hostname=""
+    local zone_info=""
+    local resolved_zone_id=""
+    local access_idp_file=""
+    local access_idp_id=""
+    local access_policy_id=""
+    local route_hostname route_service route_access route_service_url route_zone_id route_account_id
+
+    load_cloudflare_state
+
+    if [[ -f "$API_TOKEN_FILE" ]]; then
+        api_token="$(read_secret_file "$API_TOKEN_FILE" || true)"
+    else
+        api_token="$(read_cloudflare_api_token || true)"
+    fi
+    effective_api_token="$api_token"
+    [[ -n "$effective_api_token" ]] || fail "Cloudflare API token is required to apply routes. Save Cloudflare API Token in Settings > Connect first."
+
+    routes_file="$(mktemp)"
+    collect_cloudflare_routes > "$routes_file"
+    routes_json="$(routes_to_json "$routes_file")"
+    route_count="$(grep -cve '^[[:space:]]*$' "$routes_file" || true)"
+    access_route_count="$(cloudflare_access_route_count "$routes_file")"
+    if [[ "$route_count" -gt 0 ]]; then
+        hostname="$(awk -F'\t' 'NF >= 2 && $1 != "" {print $1; exit}' "$routes_file")"
+    fi
+    if [[ "$route_count" -eq 0 || -z "$hostname" ]]; then
+        rm -f "$routes_file"
+        fail "At least one Cloudflare route is required to apply routes. Add a route in Settings > Connect first."
+    fi
+
+    account_id="${CLOUDFLARE_ACCOUNT_ID:-}"
+    tunnel_id="${CLOUDFLARED_TUNNEL_ID:-}"
+    tunnel_name="${CLOUDFLARED_TUNNEL_NAME:-$DEFAULT_TUNNEL_NAME}"
+    token="$(read_cloudflare_tunnel_token || true)"
+    if [[ -n "$token" ]]; then
+        account_id="$(decode_tunnel_token_field "$token" "a" || true)"
+        tunnel_id="$(decode_tunnel_token_field "$token" "t" || true)"
+    fi
+
+    zone_info="$(resolve_zone_info "$hostname" "$effective_api_token" || true)"
+    if [[ -n "$zone_info" ]]; then
+        local local_zone_id=""
+        local local_account_id=""
+        IFS=$'\t' read -r local_zone_id local_account_id <<< "$zone_info"
+        resolved_zone_id="${CLOUDFLARE_ZONE_ID:-$local_zone_id}"
+        [[ -n "$account_id" ]] || account_id="$local_account_id"
+    fi
+    [[ -n "$account_id" ]] || account_id="$(resolve_account_id_from_zone_id "$resolved_zone_id" "$effective_api_token" || true)"
+    if [[ -z "$account_id" ]]; then
+        rm -f "$routes_file"
+        fail "Could not determine the Cloudflare account ID for route apply. Run 'stackarr cloudflare install --api-token <token>' on the host first."
+    fi
+
+    if [[ -z "$tunnel_id" && -n "$tunnel_name" ]]; then
+        details="$(find_cloudflare_tunnel_by_name "$effective_api_token" "$account_id" "$tunnel_name" || true)"
+        if [[ -n "$details" ]]; then
+            IFS=$'\t' read -r tunnel_id tunnel_name <<< "$details"
+        fi
+    fi
+    if [[ -z "$tunnel_id" ]]; then
+        rm -f "$routes_file"
+        fail "Cloudflare tunnel is not installed yet. Run 'stackarr cloudflare install --api-token <token>' on the host first."
+    fi
+
+    if [[ "$access_route_count" -gt 0 ]] && cloudflare_access_enabled; then
+        require_cloudflare_access_allowlist
+        access_idp_file="$(mktemp)"
+        ensure_cloudflare_access_otp_identity_provider "$effective_api_token" "$account_id" "$access_idp_file"
+        access_idp_id="$(cat "$access_idp_file")"
+        if [[ -z "$access_idp_id" ]]; then
+            rm -f "$routes_file" "$access_idp_file"
+            fail "Cloudflare Access One-time PIN identity provider did not return an ID"
+        fi
+        access_policy_id="$(ensure_cloudflare_access_reusable_policy "$effective_api_token" "$account_id")"
+        if [[ -z "$access_policy_id" ]]; then
+            rm -f "$routes_file" "$access_idp_file"
+            fail "Reusable Cloudflare Access policy did not return an ID"
+        fi
+    fi
+
+    while IFS=$'\t' read -r route_hostname route_service route_access; do
+        [[ -n "$route_hostname" && -n "$route_service" ]] || continue
+        route_service_url="$(cloudflare_service_url "$route_service")" || {
+            rm -f "$routes_file" "$access_idp_file"
+            fail "Unknown Cloudflare route service '$route_service'"
+        }
+        zone_info="$(resolve_zone_info "$route_hostname" "$effective_api_token" || true)"
+        if [[ -z "$zone_info" ]]; then
+            rm -f "$routes_file" "$access_idp_file"
+            fail "Could not resolve the Cloudflare zone for $route_hostname. Use a Cloudflare API token with Zone Read, DNS Edit, and Cloudflare Tunnel Edit."
+        fi
+        IFS=$'\t' read -r route_zone_id route_account_id <<< "$zone_info"
+        if [[ -z "$route_zone_id" ]]; then
+            rm -f "$routes_file" "$access_idp_file"
+            fail "Could not resolve the Cloudflare zone for $route_hostname"
+        fi
+        [[ -n "$account_id" ]] || account_id="$route_account_id"
+        if [[ "$route_access" == "true" ]] && cloudflare_access_enabled; then
+            ensure_cloudflare_access_application "$effective_api_token" "$account_id" "$route_hostname" "$route_service" "$access_idp_id" "$access_policy_id"
+        else
+            delete_cloudflare_access_application "$effective_api_token" "$account_id" "$route_hostname"
+        fi
+        ensure_cloudflare_public_hostname "$effective_api_token" "$account_id" "$tunnel_id" "$route_zone_id" "$route_hostname" "$route_service_url"
+        [[ -n "$resolved_zone_id" ]] || resolved_zone_id="$route_zone_id"
+    done < "$routes_file"
+
+    set_env_value "CLOUDFLARE_ACCOUNT_ID" "$account_id"
+    set_env_value "CLOUDFLARED_TUNNEL_ID" "$tunnel_id"
+    set_env_value "CLOUDFLARED_TUNNEL_NAME" "$tunnel_name"
+    set_env_value "CLOUDFLARE_ROUTE_MANAGED" "true"
+    set_env_value "CLOUDFLARE_TUNNEL_ROUTES" "$routes_json"
+    [[ -n "$resolved_zone_id" ]] && set_env_value "CLOUDFLARE_ZONE_ID" "$resolved_zone_id"
+
+    load_env
+    write_compose_env_file
+
+    rm -f "$routes_file" "$access_idp_file"
+    ok "Applied Cloudflare tunnel routes"
+    echo "Routes applied: $route_count"
+    echo "Access-protected routes: $access_route_count"
+}
+
 start_cloudflare() {
     local metrics_port="$DEFAULT_METRICS_PORT"
     local token=""
@@ -2477,6 +2613,19 @@ case "$ACTION" in
     sync)
         print_header "Stackarr Cloudflare"
         sync_cloudflare
+        ;;
+    routes)
+        sub="${1:-help}"
+        shift || true
+        case "$sub" in
+            apply)
+                print_header "Stackarr Cloudflare"
+                apply_cloudflare_routes
+                ;;
+            *)
+                usage
+                ;;
+        esac
         ;;
     rotate)
         print_header "Stackarr Cloudflare"

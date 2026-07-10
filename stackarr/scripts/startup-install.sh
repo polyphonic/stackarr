@@ -23,6 +23,7 @@ fi
 
 STACKARR_BIN="$(find_stackarr_bin || true)"
 [[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
+STACKARR_APP_BUNDLE="$(find_stackarr_app_bundle_for_bin "$STACKARR_BIN" || true)"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/com.stackarr.stack.plist"
 LAUNCH_DOMAIN="gui/$(id -u)"
@@ -34,9 +35,10 @@ unload_agent() {
 }
 
 load_agent() {
+    launchctl enable "$LAUNCH_DOMAIN/com.stackarr.stack"
     launchctl bootstrap "$LAUNCH_DOMAIN" "$PLIST_PATH" 2>/dev/null || launchctl load "$PLIST_PATH"
-    launchctl enable "$LAUNCH_DOMAIN/com.stackarr.stack" 2>/dev/null || true
-    launchctl kickstart -k "$LAUNCH_DOMAIN/com.stackarr.stack" 2>/dev/null || true
+    launchctl print "$LAUNCH_DOMAIN/com.stackarr.stack" >/dev/null 2>&1 || fail "Startup agent was not loaded by launchd"
+    launchctl kickstart -k "$LAUNCH_DOMAIN/com.stackarr.stack"
 }
 
 if [[ "$ACTION" == "uninstall" ]]; then
@@ -44,6 +46,14 @@ if [[ "$ACTION" == "uninstall" ]]; then
     rm -f "$PLIST_PATH"
     $QUIET || ok "Removed startup agent"
     exit 0
+fi
+
+ASSOCIATED_BUNDLE_XML=""
+if [[ -n "$STACKARR_APP_BUNDLE" ]]; then
+    ASSOCIATED_BUNDLE_XML="  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
+  </array>"
 fi
 
 cat > "$PLIST_PATH" <<EOF
@@ -55,10 +65,7 @@ cat > "$PLIST_PATH" <<EOF
   <string>com.stackarr.stack</string>
   <key>ProcessType</key>
   <string>Background</string>
-  <key>AssociatedBundleIdentifiers</key>
-  <array>
-    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
-  </array>
+$ASSOCIATED_BUNDLE_XML
   <key>WorkingDirectory</key>
   <string>$APP_ROOT</string>
   <key>ProgramArguments</key>
@@ -66,8 +73,20 @@ cat > "$PLIST_PATH" <<EOF
     <string>$STACKARR_BIN</string>
     <string>up</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>STACKARR_RUN_SOURCE</key>
+    <string>startup</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
   <key>StandardOutPath</key>
   <string>$LOG_ROOT/launchd/start-stack.out.log</string>
   <key>StandardErrorPath</key>
