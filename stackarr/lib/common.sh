@@ -120,6 +120,29 @@ find_stackarr_bin() {
     return 1
 }
 
+find_stackarr_app_bundle_for_bin() {
+    local bin_path="${1:-}"
+    local candidate=""
+
+    [[ -n "$bin_path" ]] || return 1
+
+    case "$bin_path" in
+        *.app/Contents/MacOS/*)
+            candidate="${bin_path%%.app/Contents/MacOS/*}.app"
+            ;;
+        *)
+            candidate="$(dirname "$bin_path")/Stackarr.app"
+            ;;
+    esac
+
+    if [[ -d "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    return 1
+}
+
 default_stackarr_database_file() {
     if [[ -n "${STACKARR_DATABASE_FILE:-}" ]]; then
         printf '%s\n' "$STACKARR_DATABASE_FILE"
@@ -1261,6 +1284,62 @@ ensure_database_if_required() {
     ensure_shared_database
 }
 
+database_backed_servarr_services() {
+    printf '%s\n' "prowlarr"
+    flag_enabled "${ENABLE_MOVIES:-false}" && printf '%s\n' "radarr"
+    flag_enabled "${ENABLE_TV_SHOWS:-false}" && printf '%s\n' "sonarr"
+    if flag_enabled "${ENABLE_4K_SERVARR:-false}"; then
+        flag_enabled "${ENABLE_MOVIES:-false}" && printf '%s\n' "radarr4k"
+        flag_enabled "${ENABLE_TV_SHOWS:-false}" && printf '%s\n' "sonarr4k"
+    fi
+    flag_enabled "${ENABLE_LIDARR:-false}" && printf '%s\n' "lidarr"
+}
+
+servarr_service_url() {
+    case "$1" in
+        prowlarr)
+            service_url prowlarr "${PROWLARR_URL:-http://127.0.0.1:9696}" 9696
+            ;;
+        radarr)
+            service_url radarr "${RADARR_URL:-http://127.0.0.1:7878}" 7878
+            ;;
+        radarr4k)
+            service_url radarr4k "${RADARR_4K_URL:-${RADARR4K_URL:-http://127.0.0.1:7879}}" 7879
+            ;;
+        sonarr)
+            service_url sonarr "${SONARR_URL:-http://127.0.0.1:8989}" 8989
+            ;;
+        sonarr4k)
+            service_url sonarr4k "${SONARR_4K_URL:-${SONARR4K_URL:-http://127.0.0.1:8990}}" 8990
+            ;;
+        lidarr)
+            service_url lidarr "${LIDARR_URL:-http://127.0.0.1:8686}" 8686
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+recover_database_startup_failures() {
+    local service url recent_logs
+
+    database_required || return 0
+
+    while IFS= read -r service; do
+        [[ -n "$service" ]] || continue
+        stackarr_compose ps --services --status running 2>/dev/null | grep -qx "$service" || continue
+        url="$(servarr_service_url "$service")" || continue
+        http_url_is_reachable "$url" && continue
+
+        recent_logs="$(stackarr_compose logs --tail=250 "$service" 2>&1 || true)"
+        if [[ "$recent_logs" == *"database system is starting up"* ]] && [[ "$recent_logs" == *"Non-recoverable failure"* ]]; then
+            warn "$service is stuck after starting before the database was ready; restarting it"
+            stackarr_compose restart "$service"
+        fi
+    done < <(database_backed_servarr_services)
+}
+
 optional_service_enabled() {
     local service="$1"
 
@@ -1454,12 +1533,45 @@ wait_for_http() {
     fail "$name did not become reachable at $url"
 }
 
+http_url_is_reachable() {
+    local url="$1"
+    local status="000"
+
+    status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo 000)"
+    [[ "$status" =~ ^(200|301|302|303|307|401|403)$ ]]
+}
+
 ensure_docker_runtime() {
     require_command docker
     configure_docker_environment
 
     docker info >/dev/null 2>&1 || fail "Docker runtime is not ready. Start a Docker-compatible engine before running Stackarr."
     ok "Docker runtime is ready"
+}
+
+wait_for_docker_runtime() {
+    local timeout="${1:-600}"
+    local interval="${2:-5}"
+    local deadline=$((SECONDS + timeout))
+
+    require_command docker
+    configure_docker_environment
+
+    if docker info >/dev/null 2>&1; then
+        ok "Docker runtime is ready"
+        return 0
+    fi
+
+    warn "Docker runtime is not ready yet; waiting up to ${timeout} seconds"
+    while [[ "$SECONDS" -lt "$deadline" ]]; do
+        sleep "$interval"
+        if docker info >/dev/null 2>&1; then
+            ok "Docker runtime is ready"
+            return 0
+        fi
+    done
+
+    fail "Docker runtime did not become ready within ${timeout} seconds. The startup agent will retry."
 }
 
 stackarr_compose_project_dir() {

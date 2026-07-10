@@ -9,7 +9,11 @@ print_header "Stackarr Up"
 load_env
 write_compose_env_file
 wait_for_stackarr_storage
-ensure_docker_runtime
+if [[ "${STACKARR_RUN_SOURCE:-}" == "startup" ]]; then
+    wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
+else
+    ensure_docker_runtime
+fi
 
 ensure_database_if_required
 
@@ -19,6 +23,7 @@ while IFS= read -r profile_arg; do
 done < <(compose_profile_args)
 "$ROOT_DIR/scripts/naming.sh" prestart || true
 stackarr_compose "${profile_args[@]}" up -d --remove-orphans
+recover_database_startup_failures
 remove_database_init_sidecar
 refresh_stackarr_web_storage_mounts "${profile_args[@]}"
 remove_inactive_torrent_client_container
