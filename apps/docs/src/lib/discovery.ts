@@ -98,6 +98,26 @@ export const openApiDocument = {
           }
         }
       }
+    },
+    '/agent/tools': {
+      get: {
+        summary: 'List the active agent control plane and available actions',
+        responses: {
+          '200': {
+            description: 'Authority, enabled apps, and filtered action catalog'
+          }
+        }
+      }
+    },
+    '/agent/connections': {
+      get: {
+        summary: 'Generate MCP client connection kits',
+        responses: {
+          '200': {
+            description: 'Copy-ready Docker stdio or private tunnel connection instructions'
+          }
+        }
+      }
     }
   },
   components: {
@@ -179,15 +199,16 @@ export function mcpServerCard() {
       title: 'Stackarr MCP Server',
       version: siteVersion
     },
-    description: 'Local stdio MCP server for trusted agents that configure and maintain Stackarr.',
+    description: 'Private Docker stdio MCP server for trusted agents that configure and maintain Stackarr.',
     documentationUrl: absoluteUrl('/docs/agent/mcp'),
     transports: [
       {
         type: 'stdio',
-        command: 'stackarr',
-        args: ['mcp', 'serve']
+        command: 'docker',
+        args: ['exec', '-i', '-e', 'STACKARR_MCP_PROFILE=manage', 'app', '/app/bin/stackarr', 'mcp', 'serve']
       }
     ],
+    connectionGenerator: 'docker exec app /app/bin/stackarr mcp config <client> --profile <profile>',
     capabilities: {
       tools: true,
       resources: false,

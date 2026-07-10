@@ -58,6 +58,7 @@ test('MCP catalog stays focused until onboarding selects apps', () => {
   const tools = getMcpToolCatalog({ profile: 'manage', enabledServices: ['stackarr'] });
 
   assert.ok(tools.some((tool) => tool.name === 'stackarr_get_setup_profile'));
+  assert.ok(tools.some((tool) => tool.name === 'stackarr_get_mcp_connection_kit'));
   assert.ok(tools.some((tool) => tool.name === 'stackarr_get_system_status'));
   assert.ok(!tools.some((tool) => tool.category === 'arr'));
   assert.ok(!tools.some((tool) => tool.category === 'downloads'));

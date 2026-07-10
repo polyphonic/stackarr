@@ -19,6 +19,7 @@ export * from './clients/serviceConfig';
 export * from './commands';
 export * from './connections';
 export * from './env';
+export * from './mcp/connections';
 export * from './mcp/controlPlane';
 export * from './mcp/toolCatalog';
 export * from './mcp/types';

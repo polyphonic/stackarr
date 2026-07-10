@@ -152,10 +152,16 @@ case "$cmd" in
                 shift || true
                 export STACKARR_REPO_ROOT="$REPO_ROOT"
                 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
-                exec node "$REPO_ROOT/packages/mcp/dist/index.js" "$@"
+                exec node "$REPO_ROOT/packages/mcp/dist/index.js" serve "$@"
+                ;;
+            config)
+                shift || true
+                export STACKARR_REPO_ROOT="$REPO_ROOT"
+                export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+                exec node "$REPO_ROOT/packages/mcp/dist/index.js" config "$@"
                 ;;
             *)
-                fail "Usage: stackarr mcp serve"
+                fail "Usage: stackarr mcp serve | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS]"
                 ;;
         esac
         ;;
@@ -217,6 +223,7 @@ Stackarr commands:
   stackarr backup install|uninstall|permissions|run
   stackarr backup restore <archive>
   stackarr mcp serve
+  stackarr mcp config <codex|claude|lmstudio|chatgpt|hermes|openclaw|generic>
   stackarr plugins install|export [hermes|openclaw|all]
   stackarr update run|install|uninstall
   stackarr permissions audit|fix

@@ -37,14 +37,13 @@ Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
 
 ## Connect an agent
 
-For Codex:
+Generate the Codex connection from the running container:
 
 ```bash
-codex mcp add stackarr -- \
-  docker exec -i \
-    -e STACKARR_MCP_PROFILE=admin \
-    app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config codex --profile admin
 ```
+
+Run the generated command on the Docker host. Replace `codex` with `claude`, `lmstudio`, `chatgpt`, `hermes`, or `openclaw` to generate that client's setup. ChatGPT uses an outbound-only Secure MCP Tunnel so the homelab does not need a public MCP port.
 
 Then ask:
 

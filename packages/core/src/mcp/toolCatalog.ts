@@ -20,6 +20,15 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Return the active MCP authority profile, approval mode, service groups, and exposed tools.'
   },
   {
+    name: 'stackarr_get_mcp_connection_kit',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Generate safe connection commands and configuration for a supported chat or MCP client.'
+  },
+  {
     name: 'stackarr_setup_media_server',
     category: 'stack',
     scopes: ['stack:dangerous'],

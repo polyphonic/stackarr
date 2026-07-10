@@ -1,15 +1,19 @@
 name: stackarr
-version: 0.1.0
+version: 0.3.0
 description: Stackarr local MCP integration for OpenClaw-compatible agents.
 author: Stackarr
 transport: mcp-stdio
 mcp:
-  command: stackarr
+  command: docker
   args:
+    - exec
+    - -i
+    - -e
+    - STACKARR_MCP_PROFILE=manage
+    - app
+    - /app/bin/stackarr
     - mcp
     - serve
-  env:
-    STACKARR_MCP_PROFILE: manage
   timeout: 120
   connect_timeout: 30
 safety:

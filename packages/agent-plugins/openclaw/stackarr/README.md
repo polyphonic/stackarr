@@ -7,19 +7,12 @@ Because OpenClaw-style plugin layouts vary by runtime, this bundle includes both
 - `plugin.yaml` — manifest with stdio MCP transport metadata.
 - `mcp.json` — drop-in MCP server config for clients that import MCP JSON.
 
-Preferred setup from a packaged Stackarr app or CLI:
+Generate a Docker-host configuration for the authority you want:
 
 ```bash
-stackarr plugins install openclaw --profile manage
+docker exec app /app/bin/stackarr mcp config openclaw --profile manage
 ```
 
-That writes a bundle under Stackarr's app data and rewrites `plugin.yaml`/`mcp.json` to call this install through:
+Import the generated `mcpServers` entry into OpenClaw. The committed files use the same Docker stdio connection with the default `manage` profile.
 
-```bash
-stackarr mcp serve
-```
-
-The committed files intentionally use the portable `stackarr` command instead of a developer checkout path. Packaged/onboarding installs rewrite them to the concrete executable path when possible. Docker installs generate a host-side `docker exec -i` command instead of a path that exists only inside the container.
-
-The Stackarr MCP server is local stdio only and should not be exposed publicly.
-Dangerous actions use MCP elicitation. Clients without elicitation support fail closed; users who deliberately want complete autonomous control can install with `--profile unrestricted`.
+The Stackarr MCP server stays local to the Docker host. Dangerous actions use MCP elicitation. Clients without elicitation support fail closed; users who deliberately want complete autonomous control can generate the connection with `--profile unrestricted`.

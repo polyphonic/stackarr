@@ -1,34 +1,23 @@
 # Stackarr for Hermes
 
-Stackarr connects through Hermes' native MCP client. This preserves the individual tool schemas, risk annotations, service-aware catalog, and in-chat elicitation prompts. There is no generic wrapper tool.
+Stackarr connects through Hermes' native MCP client from the Docker host. This preserves individual tool schemas, risk annotations, service-aware filtering, and in-chat elicitation prompts. There is no generic wrapper tool.
 
 ## Install
 
 ```bash
-stackarr plugins install hermes
-```
-
-That registers `stackarr mcp serve` under `mcp_servers.stackarr` with the default `manage` profile.
-
-Choose a different authority profile during installation:
-
-```bash
-stackarr plugins install hermes --profile observe
-stackarr plugins install hermes --profile admin
-stackarr plugins install hermes --profile unrestricted
-```
-
-For a manual install:
-
-```bash
 hermes mcp add stackarr \
-  --command stackarr \
-  --env STACKARR_MCP_PROFILE=manage \
-  --args mcp serve
+  --command docker \
+  --args exec -i -e STACKARR_MCP_PROFILE=manage app /app/bin/stackarr mcp serve
+```
+
+Generate this command for any authority profile from the running container:
+
+```bash
+docker exec app /app/bin/stackarr mcp config hermes --profile manage
 ```
 
 Restart Hermes or `/reset` after installation.
 
 ## Why Native MCP
 
-Hermes supports MCP elicitation on its CLI, TUI, and messaging surfaces. Using that client directly means destructive Stackarr actions pause for the real Hermes approval UI, while `unrestricted` remains an explicit user-controlled opt-in.
+Hermes receives the same dynamically filtered catalog as every other client. Destructive Stackarr actions pause for the client approval flow when form elicitation is available, while `unrestricted` remains an explicit user-controlled opt-in.

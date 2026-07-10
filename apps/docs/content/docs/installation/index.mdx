@@ -44,10 +44,7 @@ Set custom storage paths in the setup flow before starting the full stack.
 For a chat-led setup, connect an agent with the `admin` profile and ask it to show a dry-run before applying anything:
 
 ```bash
-codex mcp add stackarr -- \
-  docker exec -i \
-    -e STACKARR_MCP_PROFILE=admin \
-    app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config codex --profile admin
 ```
 
 For a manual setup, continue in the browser. Both paths use the same actions and save the same settings.

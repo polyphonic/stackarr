@@ -17,6 +17,8 @@ Stackarr starts at `/api/v1` because this is its first public API. Downstream Se
 | `POST` | `/api/v1/command` | Queue a command. |
 | `GET` | `/api/v1/command/:id` | Inspect one queued command. |
 | `GET` | `/api/v1/backup` | Backup records. |
+| `GET` | `/api/v1/agent/tools` | Active authority, enabled apps, and available agent actions. |
+| `GET` | `/api/v1/agent/connections` | Generated connection kits for supported MCP clients. |
 | `GET` | `/api/v1/log/file` | Log file records. |
 | `GET/PUT` | `/api/v1/config/host` | Host, auth, URL, API key state. |
 | `GET/PUT` | `/api/v1/config/stackarr` | Stackarr saved configuration and settings. |
@@ -24,3 +26,5 @@ Stackarr starts at `/api/v1` because this is its first public API. Downstream Se
 | `GET` | `/api/v1/notification/schema` | Notification schema. |
 
 Mutating endpoints require `X-Api-Key`. The first authenticated setup save creates an API key when one is missing; command endpoints fail closed until a key exists.
+
+The connection endpoint accepts optional `client`, `profile`, `groups`, `containerName`, and `tunnelId` query parameters. It never returns credentials; ChatGPT tunnel output uses a local API-key placeholder.
