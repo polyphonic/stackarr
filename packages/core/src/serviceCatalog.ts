@@ -527,10 +527,10 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
   ],
   plex: [
     group('Media Server', [
-      envSelect('plexInstallMode', 'Install Mode', 'PLEX_INSTALL_MODE', ['native', 'docker', 'disabled']),
+      envSelect('plexInstallMode', 'Connection Mode', 'PLEX_INSTALL_MODE', ['docker', 'native', 'disabled']),
       envText('plexUrl', 'Local URL', 'PLEX_URL'),
-      envPath('plexConfigPath', 'Native Config Path', 'PLEX_CONFIG_PATH'),
-      envPath('plexPrefsPath', 'Native Preferences Path', 'PLEX_PREFS_PATH'),
+      envPath('plexConfigPath', 'Existing Server Config Path', 'PLEX_CONFIG_PATH'),
+      envPath('plexPrefsPath', 'Existing Server Preferences Path', 'PLEX_PREFS_PATH'),
       envPassword('plexToken', 'Plex Token', 'PLEX_TOKEN'),
       envText('plexImage', 'Docker Image', 'PLEX_IMAGE'),
       envNumber('plexDockerPort', 'Docker Port', 'PLEX_DOCKER_PORT')
@@ -538,9 +538,9 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
   ],
   jellyfin: [
     group('Media Server', [
-      envSelect('jellyfinInstallMode', 'Install Mode', 'JELLYFIN_INSTALL_MODE', ['disabled', 'native', 'docker']),
+      envSelect('jellyfinInstallMode', 'Connection Mode', 'JELLYFIN_INSTALL_MODE', ['disabled', 'docker', 'native']),
       envText('jellyfinUrl', 'Local URL', 'JELLYFIN_URL'),
-      envPath('jellyfinConfigPath', 'Native Config Path', 'JELLYFIN_CONFIG_PATH'),
+      envPath('jellyfinConfigPath', 'Existing Server Config Path', 'JELLYFIN_CONFIG_PATH'),
       envPassword('jellyfinApiKey', 'API Key', 'JELLYFIN_API_KEY'),
       envText('jellyfinImage', 'Docker Image', 'JELLYFIN_IMAGE'),
       envNumber('jellyfinDockerPort', 'Docker Port', 'JELLYFIN_DOCKER_PORT')

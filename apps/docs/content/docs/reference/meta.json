@@ -1,3 +1,5 @@
 {
-  "pages": ["arr-comparison"]
+  "title": "Security & data",
+  "defaultOpen": false,
+  "pages": ["security", "sqlite"]
 }

@@ -1,56 +1,54 @@
 ---
 title: Agent Setup
+description: Let a trusted assistant configure Stackarr from chat while you approve the plan.
 ---
 
-# Agent Setup
+# Set up Stackarr from chat
 
-This is the recommended way to start Stackarr. Connect the chat surface you already use, let the agent inspect the homelab, and approve a dry-run before it changes anything. The browser UI stays available as an optional manual control surface.
+Agent-led setup is the recommended path. Your assistant can inspect the new install, explain the useful choices, prepare a dry-run, and apply the result after you approve it.
 
-Agent setup uses the same underlying actions as the UI, API, and CLI: inspect defaults, dry-run, then apply only after confirmation.
+The dashboard remains available throughout setup and shows the same saved state.
 
-Stackarr ships an agent skill at `skills/stackarr/SKILL.md`. Include that folder in installer payloads and agent-skill directories so local agents know the safe setup flow.
+## Connect with setup authority
 
-## Fast Start
+Install Stackarr first, then connect your MCP client using the `admin` profile. For Codex:
 
-1. Install Stackarr.
-2. [Add `stackarr mcp serve` to an MCP client](/docs/agent/mcp), or [install the Hermes/OpenClaw plugin](/docs/agent/plugins).
-3. Launch with `STACKARR_MCP_PROFILE=manage` for day-to-day control or `admin` for first-time infrastructure setup.
-4. Ask the agent to read the setup profile and dry-run recommended defaults.
-5. Review the folders, enabled services, network exposure, backups, and planned commands.
-6. Approve the apply step in chat.
-7. Keep using chat, or open the dashboard whenever you want to intervene manually.
+```bash
+codex mcp add stackarr -- \
+  docker exec -i \
+    -e STACKARR_MCP_PROFILE=admin \
+    app /app/bin/stackarr mcp serve
+```
 
-## A good first message
+See [MCP connections](/docs/agent/mcp) for other clients.
 
-> Inspect my Stackarr setup. Recommend safe local defaults, show me a dry-run, and ask before applying changes or interrupting any media service.
+## Send this first message
 
-For complete autonomous control, the person configuring the MCP client can select the `unrestricted` profile. Agents cannot change or promote their own profile.
+> Inspect my new Stackarr install. Recommend safe local defaults, show me a dry-run, and ask before applying changes or interrupting a media service.
 
-## Recommended Flow
+The assistant should confirm only choices that materially affect your stack:
 
-1. Call `stackarr_get_setup_profile`.
-2. If the user wants defaults, use the profile defaults and dry-run.
-3. If choices are needed, ask only material multiple-choice questions: database mode, media server mode, torrent client, public access mode, backup mode, and paths.
-4. Call `stackarr_setup_media_server` with `dryRun: true`.
-5. Review the saved configuration patch and command sequence.
-6. Apply with `dryRun: false` and approve the MCP elicitation in the chat client.
-7. Verify with `stackarr_get_system_status`, `stackarr_get_tasks`, and service health checks.
-8. Move from the `admin` profile back to `manage` if ongoing use does not need setup or infrastructure controls.
+- where media, downloads, and backups live
+- Plex, Jellyfin, or both
+- movies, TV, music, books, photos, or games
+- Transmission or qBittorrent
+- local-only or intentional remote access
+- app-local databases or shared Postgres
 
-## Question Style
+## Review the plan
 
-Ask step-based multiple-choice questions only when they change the install:
+Before approving setup, check:
 
-- database: app defaults/SQLite, or shared Postgres
-- media server: native Plex, Docker Jellyfin, both, or neither
-- torrent client: Transmission or qBittorrent
-- access: local only, LAN, Cloudflare Tunnel, or Portless
-- backups: lite or full, backup folder, and retention count
+1. the host folders that will be mounted
+2. the containers that will be enabled
+3. the ports that will be published
+4. the backup location and schedule
+5. whether any public route will be created
 
-When the user says to use defaults, do not walk them through every option. Dry-run with defaults, show the planned changes, then ask for approval.
+Stackarr asks for approval in the chat client before applying the setup. If that client cannot display MCP approval prompts, the action fails closed.
 
-## Do Not
+## Move to everyday authority
 
-- Expose the MCP server publicly.
-- Run stop/update/restart actions while the user needs Plex/Jellyfin online.
-- Ask for every default when Stackarr has a safe local default.
+After setup finishes, change the connection from `admin` to `manage` and reconnect. Stackarr will advertise actions only for the apps you selected.
+
+Use `unrestricted` only when you deliberately want the agent to act without per-action approval prompts. The agent cannot change its own authority profile.

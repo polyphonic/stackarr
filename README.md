@@ -1,99 +1,89 @@
 <div align="center">
   <img src="Logo/stackarr.svg" width="112" height="112" alt="Stackarr logo" />
   <h1>Stackarr</h1>
-  <p><strong>Private, arr-style media stack control plane for local-first home servers.</strong></p>
+  <p><strong>Manage your self-hosted media stack from chat.</strong></p>
   <p>
-    <a href="https://github.com/b-bot/Stackarr">Star on GitHub</a>
+    <a href="https://stackarr.app">Product</a>
     ·
-    <a href="https://stackarr.app/docs">Docs</a>
+    <a href="https://stackarr.app/docs">Quick start</a>
+    ·
+    <a href="https://stackarr.app/docs/agent/mcp">Connect an agent</a>
     ·
     <a href="https://stackarr.app/docs/installation">Install</a>
-    ·
-    <a href="https://stackarr.app/docs/agent/mcp">Agent MCP</a>
-    ·
-    <a href="CONTRIBUTING.md">Contributing</a>
-  </p>
-  <p>
-    <a href="https://github.com/b-bot/Stackarr">
-      <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/b-bot/Stackarr?style=social&cacheSeconds=3600" />
-    </a>
   </p>
 </div>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/stackarr-dashboard-dark.png" />
-  <img src="apps/docs/public/screenshots/stackarr-dashboard-light.png" alt="Stackarr dashboard showing setup readiness, service health, resource gauges, storage, and configured services" />
+  <img src="apps/docs/public/screenshots/stackarr-dashboard-light.png" alt="Stackarr dashboard showing service health, storage, resources, and configured apps" />
 </picture>
 
----
+Stackarr is a Docker control plane for a private media stack. It gives Codex, Claude, Hermes, OpenClaw, LM Studio, and other MCP clients consistent actions for setup, media requests, downloads, backups, health checks, and repairs.
 
-Stackarr is an arr-style control plane for running a private media stack from a local web dashboard. It wraps setup, service wiring, runtime settings, backups, and trusted-agent maintenance around familiar tools such as Sonarr, Radarr, Prowlarr, Plex, Jellyfin, Seerr, Transmission, and qBittorrent.
+The dashboard stays available at the same time, so you can move between chat and manual control whenever you want.
 
 > [!WARNING]
-> Stackarr is alpha software. Keep the app bound to `127.0.0.1` until the API key, Cloudflare, and public URL settings are configured.
+> Stackarr is early-access software. Keep the dashboard bound to `127.0.0.1` until authentication and remote access are configured.
 
-## Quick Start
-
-Development checkout:
+## Install
 
 ```bash
-corepack enable
-pnpm install
-pnpm dev
+mkdir -p stackarr && cd stackarr
+curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
+docker compose --profile stackarr up -d app
 ```
 
-Open `http://127.0.0.1:7777/setup`.
+Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
 
-Docker or packaged installs are covered in [docs/install.md](docs/install.md).
+## Connect an agent
 
-## Support The Project
+For Codex:
 
-If Stackarr looks useful, please [star `b-bot/Stackarr` on GitHub](https://github.com/b-bot/Stackarr). Stars help new self-hosters discover the project, give contributors a visible signal, and make release posts easier to trust. Watching releases, sharing the docs with home-server communities, and opening focused issues or pull requests help too.
+```bash
+codex mcp add stackarr -- \
+  docker exec -i \
+    -e STACKARR_MCP_PROFILE=admin \
+    app /app/bin/stackarr mcp serve
+```
 
-## What It Manages
+Then ask:
 
-| Surface | Stackarr handles |
+> Inspect my new Stackarr install. Recommend safe defaults, show me a dry-run, and ask before applying changes.
+
+Use `admin` during setup and `manage` for everyday operation. `observe` is read-only. `unrestricted` deliberately grants complete autonomous control without per-action approval prompts.
+
+## What Stackarr manages
+
+| Area | Examples |
 | --- | --- |
-| **Dashboard + API** | A Next.js local dashboard and arr-style `/api/v1` API. |
-| **Media services** | Docker services for movies, TV, music, books, requests, subtitles, metadata, and indexers. |
-| **Media servers** | Native or Docker Plex and Jellyfin modes, selected independently. |
-| **Operations** | Setup, settings, stack lifecycle commands, backups, updates, and diagnostics. |
-| **Agent control** | Optional local stdio MCP integrations for trusted coding/automation agents. |
-| **Access** | Optional Cloudflare, Portless, and local-only service routing. |
+| Movies and TV | Radarr, Sonarr, Seerr, Plex, Jellyfin |
+| Downloads and indexers | Transmission, qBittorrent, Prowlarr |
+| Music, books, photos, and games | Lidarr, BookOrbit, Immich, RomM |
+| Supporting services | Bazarr, Recyclarr, Maintainerr, Tracearr, FlareSolverr |
+| Operations | Setup, health, backups, restores, updates, and migrations |
+| Access | Local-only defaults and optional Cloudflare routes |
 
-## Key Screens
+Stackarr advertises only the agent actions relevant to the apps selected during setup.
 
-| Stack services | UI settings |
-| --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/stackarr-stack-services-dark.png" /><img src="apps/docs/public/screenshots/stackarr-stack-services-light.png" alt="Stackarr stack services grid" /></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/stackarr-settings-ui-dark.png" /><img src="apps/docs/public/screenshots/stackarr-settings-ui-light.png" alt="Stackarr UI settings screen" /></picture> |
+## Safety
 
-## Docs
+- local stdio MCP transport
+- launch-time authority profiles that agents cannot change
+- typed app actions instead of a generic shell
+- approval prompts for destructive actions in `manage` and `admin`
+- redacted activity history
+- optional `unrestricted` authority for users who want full control
 
-- [Installation](docs/install.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [MCP and agent integrations](docs/mcp.md)
-- [Manual verification](docs/MANUAL_VERIFICATION.md)
-- [Distribution packaging](distribution/README.md)
-- [Contributing](CONTRIBUTING.md)
-- [Public docs source](apps/docs/content/docs/index.mdx)
+## Documentation
 
-## Repo Layout
+- [Quick start](https://stackarr.app/docs)
+- [Docker installation](https://stackarr.app/docs/installation)
+- [MCP connections](https://stackarr.app/docs/agent/mcp)
+- [Hermes and OpenClaw](https://stackarr.app/docs/agent/plugins)
+- [Safety and control](https://stackarr.app/docs/agent/safety)
+- [Troubleshooting](https://stackarr.app/docs/operations/troubleshooting)
 
-| Path | Purpose |
-| --- | --- |
-| `apps/frontend` | Local Stackarr dashboard and `/api/v1` API. |
-| `apps/docs` | Fumadocs landing/docs deployment app. |
-| `packages/core` | Shared config, task, service, connection, and notification logic. |
-| `packages/ui` | Shared presentation primitives. |
-| `packages/cli` | `stackarr` executable wrapper package. |
-| `packages/mcp` | Local stdio MCP server for trusted agents. |
-| `packages/agent-plugins` | Path-portable Hermes/OpenClaw plugin templates. |
-| `distribution` | Release packaging. |
-| `docs` | Maintainer and integration notes. |
-| `skills` | Agent-facing setup and maintenance instructions. |
-| `stackarr` | Scripts, presets, hooks, and Docker Compose stack. |
-
-Runtime configuration lives in app settings, environment variables, prompts, and local state. Do not publish ignored runtime state such as databases, secrets, logs, generated build output, or machine-specific app data.
+Development and contribution guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

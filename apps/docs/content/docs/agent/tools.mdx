@@ -1,24 +1,44 @@
 ---
-title: Agent Tools
+title: What Agents Can Do
+description: See the outcomes Stackarr exposes to connected assistants.
 ---
 
-# Agent Tools
+# What agents can do
 
-Representative tools:
+Stackarr organizes actions around homelab outcomes. The exact list changes with your authority profile and enabled apps.
 
-| Tool | Purpose |
-| --- | --- |
-| `stackarr_get_setup_profile` | Return recommended setup questions and defaults. |
-| `stackarr_setup_media_server` | Dry-run or apply the setup plan. |
-| `stackarr_get_system_status` | Read current Stackarr/system status. |
-| `stackarr_get_recent_activity` | Read recorded agent activity. |
-| `stackarr_get_tasks` | Read queued, running, and recent Stackarr tasks with progress. |
-| `stackarr_start_stack` / `stackarr_stop_stack` | Start or stop the managed stack. Stop actions require care. |
-| `stackarr_run_backup` / `stackarr_get_backup_status` | Run and inspect backups. |
-| `stackarr_restore_backup` | Restore a backup with explicit dangerous-action confirmation. |
-| `stackarr_migrate_current_stack` | Dry-run or apply migration from supported existing local stack services. |
-| `stackarr_get_telemetry_status` / `stackarr_preview_telemetry_payload` | Inspect opt-in telemetry state and the exact sanitized payload before anything is sent. |
-| `stackarr_update_telemetry_config` / `stackarr_send_telemetry` | Admin/debug telemetry tools. Configure or send first-party telemetry after explicit consent; send defaults to dry-run. |
-| `stackarr_update_cloudflare_routes` | Map public hostnames to Stackarr-managed services. |
+## Set up and understand the stack
 
-Tools should return `implemented: false` rather than pretending success when a safe adapter does not exist yet.
+- inspect recommended setup choices
+- prepare and review a setup dry-run
+- read service status, disk use, and active tasks
+- explain common problems and connectivity failures
+
+## Manage media
+
+- search and add movies or series
+- monitor libraries and request missing items
+- review Seerr requests and approval state
+- inspect Plex libraries, sessions, and recent activity
+- refresh metadata or scan a library
+
+## Manage downloads
+
+- inspect active, completed, and stalled downloads
+- add a magnet or approved release
+- pause, resume, prioritize, or remove a download
+- inspect indexer health and Arr queues
+
+## Operate safely
+
+- run and validate backups
+- inspect task progress and agent activity
+- diagnose service and database health
+- restart or update the stack with the required authority
+- dry-run restores and migrations before applying them
+
+## Why you do not see every action
+
+A new install begins with a small setup catalog. After onboarding, Stackarr loads tools only for the selected services. The `observe`, `manage`, `admin`, and `unrestricted` profiles narrow or expand what remains.
+
+The dashboard's **Agent → Tools** page shows the exact catalog active for your installation.

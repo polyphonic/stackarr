@@ -95,10 +95,8 @@ export type MediaServerSetupInput = {
   transmissionBindIp?: string;
   qbittorrentBindIp?: string;
   webPort?: number;
-  installStartup?: boolean;
   installBackup?: boolean;
   installUpdates?: boolean;
-  agentPluginIntegrations?: Array<'hermes' | 'openclaw'>;
   startStack?: boolean;
   configureServices?: boolean;
   applyPresets?: boolean;
@@ -139,7 +137,7 @@ export const opinionatedSetupDefaults = {
   backupRoot: `${setupDefaultAppRoot}/backups`,
   backupRetentionCount: 52,
   databaseMode: 'app-default' as const,
-  plexInstallMode: 'native' as InstallMode,
+  plexInstallMode: 'docker' as InstallMode,
   plexToken: '',
   jellyfinInstallMode: 'disabled' as InstallMode,
   enabledMediaTypes: ['movies', 'tv', 'music'] as Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>,
@@ -189,10 +187,8 @@ export const opinionatedSetupDefaults = {
   transmissionBindIp: '127.0.0.1',
   qbittorrentBindIp: '127.0.0.1',
   webPort: stackarrDefaultWebPort,
-  installStartup: true,
   installBackup: true,
   installUpdates: false,
-  agentPluginIntegrations: [] as Array<'hermes' | 'openclaw'>,
   startStack: true,
   configureServices: true,
   applyPresets: true,
@@ -275,7 +271,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'plexInstallMode',
         prompt:
-          'How should Plex be handled? Use docker for a fully managed Docker install; native expects the desktop app to already be installed and signed in.',
+          'How should Plex be handled? Use docker for a fully managed container; existing connects to a Plex server already running outside Stackarr.',
         type: 'choice',
         choices: ['docker', 'native', 'disabled'],
         default: opinionatedSetupDefaults.plexInstallMode
@@ -283,7 +279,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'plexToken',
         prompt:
-          'Optional Plex token for automatic Plex API wiring. Native signed-in Plex installs can leave this blank.',
+          'Optional Plex token for automatic Plex API wiring. Add credentials only through a trusted setup surface.',
         type: 'password',
         default: ''
       },
@@ -427,14 +423,6 @@ export function getMediaServerSetupProfileAction() {
         default: opinionatedSetupDefaults.musicProfilePreset
       },
       {
-        id: 'agentPluginIntegrations',
-        prompt:
-          'Install local agent integrations now? Stackarr can configure Hermes and/or prepare an OpenClaw MCP bundle that points at this Stackarr executable.',
-        type: 'multi-choice',
-        choices: ['hermes', 'openclaw'],
-        default: []
-      },
-      {
         id: 'globalUsername',
         prompt: 'What shared admin username should Stackarr use for service first-run setup?',
         type: 'text',
@@ -496,8 +484,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
     ...mediaTypePatch,
     ...requestManagerPatch,
     ...servicesPatch,
-    ...input,
-    agentPluginIntegrations: input.agentPluginIntegrations ?? opinionatedSetupDefaults.agentPluginIntegrations
+    ...input
   };
   merged.movieProfilePreset = normalizeMediaProfilePreset(merged.movieProfilePreset);
   merged.movie4kProfilePreset = normalizeMediaProfilePreset(merged.movie4kProfilePreset);
@@ -545,7 +532,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       'Naming preset follows Plex-friendly naming conventions via stackarr/config/naming.json.',
       merged.plexInstallMode === 'docker'
         ? 'Plex Docker mode starts Plex with the stack; complete Plex claim/sign-in before Plex-dependent automations need a Plex account.'
-        : 'Plex native mode expects the desktop Plex Media Server to already be installed and signed in; install the desktop version first if desired.',
+        : 'Existing Plex mode connects to a Plex Media Server that is already installed, reachable, and signed in outside Stackarr.',
       'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.',
       'Maintainerr is wired to the selected media server, Arr services, Seerr, and qBittorrent when available; cleanup rules stay user-controlled.',
       'Tracearr uses the shared Postgres/TimescaleDB service plus shared Redis; onboarding attempts first-owner setup and media-server wiring when credentials are available.',
@@ -940,13 +927,6 @@ function buildSetupCommands(input: ResolvedMediaServerSetupInput) {
       });
     }
   }
-  if (input.installStartup)
-    commands.push({
-      name: 'stackarr startup install',
-      args: ['startup', 'install'],
-      timeoutMs: 5 * 60 * 1000,
-      description: 'Enable startup automation.'
-    });
   if (input.installBackup)
     commands.push({
       name: 'stackarr backup install',
@@ -961,17 +941,6 @@ function buildSetupCommands(input: ResolvedMediaServerSetupInput) {
       timeoutMs: 5 * 60 * 1000,
       description: 'Enable scheduled update automation.'
     });
-  for (const plugin of input.agentPluginIntegrations ?? []) {
-    commands.push({
-      name: `stackarr plugins install ${plugin}`,
-      args: ['plugins', 'install', plugin],
-      timeoutMs: 5 * 60 * 1000,
-      description:
-        plugin === 'hermes'
-          ? 'Install and enable the Hermes Stackarr plugin when Hermes is available.'
-          : 'Prepare an OpenClaw-compatible MCP plugin bundle for this Stackarr install.'
-    });
-  }
   if (input.openBrowser)
     commands.push({
       name: 'open browser',

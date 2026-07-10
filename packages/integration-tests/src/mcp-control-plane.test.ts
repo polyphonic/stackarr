@@ -54,6 +54,18 @@ test('MCP catalog removes actions for services that are not installed', () => {
   assert.ok(!tools.some((tool) => tool.name.includes('streamrip')));
 });
 
+test('MCP catalog stays focused until onboarding selects apps', () => {
+  const tools = getMcpToolCatalog({ profile: 'manage', enabledServices: ['stackarr'] });
+
+  assert.ok(tools.some((tool) => tool.name === 'stackarr_get_setup_profile'));
+  assert.ok(tools.some((tool) => tool.name === 'stackarr_get_system_status'));
+  assert.ok(!tools.some((tool) => tool.category === 'arr'));
+  assert.ok(!tools.some((tool) => tool.category === 'downloads'));
+  assert.ok(!tools.some((tool) => tool.category === 'plex'));
+  assert.ok(!tools.some((tool) => tool.category === 'seerr'));
+  assert.ok(!tools.some((tool) => tool.category === 'backups'));
+});
+
 test('MCP groups let small-model clients load only relevant action families', () => {
   assert.deepEqual(resolveMcpGroups('stack,downloads,unknown'), ['stack', 'downloads']);
   const tools = getMcpToolCatalog({

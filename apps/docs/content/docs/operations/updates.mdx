@@ -1,30 +1,33 @@
 ---
 title: Updates
+description: Update Stackarr and the enabled Docker services safely.
 ---
 
 # Updates
 
-Stackarr alpha images are tagged as:
+Use `alpha` for the moving early-access channel or a versioned tag for a repeatable deployment:
 
-```bash
-docker pull polyphonic/stackarr:alpha
-docker pull polyphonic/stackarr:0.3.0-alpha.1
+```dotenv
+STACKARR_IMAGE=polyphonic/stackarr:alpha
 ```
 
-Use `alpha` as the moving prerelease channel and the semver tag for repeatable installs.
+## Update from Stackarr
 
-## Compose Update
-
-```bash
-bin/stackarr update run
-```
-
-The Stackarr updater is an all-stack Docker image refresh for the active Compose profiles. It pulls current images, recreates the enabled services together, reapplies naming/download/request integration settings, and then runs the maintenance image cleanup.
-
-Enable scheduled updates with:
+Ask an admin-profile agent to back up and update the stack, use the dashboard, or run:
 
 ```bash
-bin/stackarr update install
+docker exec app /app/bin/stackarr update run
 ```
 
-The default scheduled update window is Sunday at `04:30`. In Docker installs, the Stackarr container scheduler runs this workflow. Native Plex is not updated by Stackarr; keep Plex on its own native update schedule and set `UPDATE_WEEKDAY`/`UPDATE_TIME` to the same maintenance window when you want the Docker stack to move with it.
+The update workflow pulls current images, recreates enabled services, reapplies Stackarr's integrations, and cleans up dangling images.
+
+## Update only the Stackarr app
+
+From the folder containing `docker-compose.yml`:
+
+```bash
+docker compose pull app
+docker compose --profile stackarr up -d app
+```
+
+Use a maintenance window if Plex, Jellyfin, or active downloads must stay uninterrupted.

@@ -13,11 +13,6 @@
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
-    "package": {
-      "dependsOn": ["build", "^build"],
-      "outputs": ["dist/**"],
-      "cache": false
-    },
     "dev": {
       "cache": false,
       "persistent": true

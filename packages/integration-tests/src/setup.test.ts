@@ -38,7 +38,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.ok(questionIds.includes('movieProfilePreset'));
   assert.ok(questionIds.includes('tvProfilePreset'));
   assert.ok(questionIds.includes('musicProfilePreset'));
-  assert.ok(questionIds.includes('agentPluginIntegrations'));
+  assert.ok(!questionIds.includes('agentPluginIntegrations'));
   assert.ok(!questionIds.includes('pulsarrHdLiteUsers'));
   const requestManagersQuestion = profile.questions.find((question) => question.id === 'requestManagers');
   const mediaTypesQuestion = profile.questions.find((question) => question.id === 'enabledMediaTypes');
@@ -57,6 +57,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.globalUsername, 'admin');
   assert.equal(profile.defaults.globalEmail, '');
   assert.equal(profile.defaults.databaseMode, 'app-default');
+  assert.equal(profile.defaults.plexInstallMode, 'docker');
   assert.equal(profile.defaults.enable4kServarr, false);
   assert.equal(profile.defaults.movieProfilePreset, 'lite');
   assert.equal(profile.defaults.tvProfilePreset, 'lite');
@@ -249,7 +250,6 @@ test('confirmed setup does not mark onboarding complete when a setup command fai
             startStack: true,
             configureServices: false,
             applyPresets: false,
-            installStartup: false,
             installBackup: false,
             installUpdates: false,
             openBrowser: false,
@@ -387,20 +387,13 @@ test('dry-run setup wires Seerr only when explicitly requested', async () => {
   assert.ok(result.plan.commands.some((command) => command.name === 'stackarr requests apply'));
 });
 
-test('dry-run setup includes selected agent plugin install commands', async () => {
-  const result = await setupMediaServerAction({
-    dryRun: true,
-    agentPluginIntegrations: ['hermes', 'openclaw']
-  });
+test('dry-run setup stays Docker-native and leaves chat clients on the host', async () => {
+  const result = await setupMediaServerAction({ dryRun: true });
+  const commandNames = result.plan.commands.map((command) => command.name);
 
-  const pluginCommands = result.plan.commands.filter((command) => command.name.startsWith('stackarr plugins install'));
-  assert.deepEqual(
-    pluginCommands.map((command) => command.args),
-    [
-      ['plugins', 'install', 'hermes'],
-      ['plugins', 'install', 'openclaw']
-    ]
-  );
+  assert.ok(!commandNames.includes('stackarr startup install'));
+  assert.ok(!commandNames.some((name) => name.startsWith('stackarr plugins install')));
+  assert.equal(result.plan.config.PLEX_INSTALL_MODE, 'docker');
 });
 
 test('configure script bootstraps Pulsarr but does not create personal router rules for new users', async () => {

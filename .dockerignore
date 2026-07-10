@@ -12,7 +12,6 @@ node_modules
 tmp
 coverage
 dist
-distribution/*/dist
 stackarr/state
 stackarr/.stackarr
 stackarr/logs

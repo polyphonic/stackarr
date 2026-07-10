@@ -2,18 +2,18 @@
 title: Media Servers
 ---
 
-# Media Servers View
+# Media servers
 
-The Media Servers view summarizes Plex and Jellyfin independently.
+The Media Servers view shows Plex and Jellyfin independently, including connection state, management mode, and the actions Stackarr can safely perform.
 
-## Native Mode
+## Managed container
 
-Native mode reports the configured path, detected state, and guidance for monitoring/config features. Stackarr does not own the process.
+Stackarr owns the matching Compose service, health checks, and lifecycle actions.
 
-## Docker Mode
+## Existing server
 
-Docker mode reports the compose profile and service state. Stackarr starts only selected media-server profiles.
+Stackarr connects to a server outside its Compose project. This preserves an established library or hardware setup while still making status, libraries, sessions, and supported maintenance actions available to the dashboard and agents.
 
-## Why This Matters
+## Why the distinction matters
 
-Hardware transcoding is often easier to keep correct with native macOS media-server installs. Stackarr is designed to work with that instead of forcing everything into Docker.
+Stackarr only offers restart and container lifecycle actions for services it owns. Existing servers remain under your manual process control.

@@ -28,6 +28,7 @@ import {
   getEnabledMcpServiceNames,
   getIndexerStatusAction,
   getMcpProfileDescription,
+  getMcpServiceSelection,
   getMcpToolCatalog,
   getMediaServerSetupProfileAction,
   getMissingEpisodesAction,
@@ -148,9 +149,9 @@ const tools: ToolDef[] = [
       downloadsRoot: z.string().optional(),
       backupRoot: z.string().optional(),
       backupRetentionCount: z.number().int().positive().optional(),
-      plexInstallMode: z.enum(['disabled', 'native', 'docker']).optional(),
+      plexInstallMode: z.enum(['disabled', 'existing', 'docker']).optional(),
       plexToken: z.string().optional(),
-      jellyfinInstallMode: z.enum(['disabled', 'native', 'docker']).optional(),
+      jellyfinInstallMode: z.enum(['disabled', 'existing', 'docker']).optional(),
       enabledMediaTypes: z.array(z.enum(['movies', 'tv', 'music', 'books', 'photos', 'games'])).optional(),
       requestManagers: z.array(z.enum(['seerr', 'pulsarr'])).optional(),
       enabledServices: z
@@ -205,17 +206,20 @@ const tools: ToolDef[] = [
       transmissionBindIp: z.string().optional(),
       qbittorrentBindIp: z.string().optional(),
       webPort: z.number().optional(),
-      installStartup: z.boolean().optional(),
       installBackup: z.boolean().optional(),
       installUpdates: z.boolean().optional(),
-      agentPluginIntegrations: z.array(z.enum(['hermes', 'openclaw'])).optional(),
       startStack: z.boolean().optional(),
       configureServices: z.boolean().optional(),
       applyPresets: z.boolean().optional(),
       openBrowser: z.boolean().optional(),
       dryRun: z.boolean().optional()
     },
-    handler: setupMediaServerAction
+    handler: (input) =>
+      setupMediaServerAction({
+        ...input,
+        plexInstallMode: normalizeMcpMediaServerMode(input.plexInstallMode),
+        jellyfinInstallMode: normalizeMcpMediaServerMode(input.jellyfinInstallMode)
+      })
   },
   {
     name: 'stackarr_get_system_status',
@@ -1095,13 +1099,19 @@ function toolTitle(name: string) {
 }
 
 export function getRegisteredControlPlaneSummary(profile: McpProfile = resolveMcpProfile()) {
-  const enabledServices = getEnabledMcpServiceNames();
+  const selection = getMcpServiceSelection();
+  const enabledServices = selection.enabledServices;
   const catalog = getMcpToolCatalog({ profile, enabledServices });
   return {
     profile,
     description: getMcpProfileDescription(profile),
     approvalMode: profile === 'unrestricted' ? 'unrestricted' : 'client-elicitation',
     selectedGroups: resolveMcpGroups() ?? 'all-relevant',
+    catalogMode: selection.catalogMode,
+    onboardingComplete: selection.onboardingComplete,
+    nextStep: selection.onboardingComplete
+      ? 'Ask Stackarr to inspect, manage, or troubleshoot the configured services.'
+      : 'Complete setup from chat or the dashboard; reconnect MCP afterward to load tools for the selected apps.',
     enabledServices,
     toolCount: catalog.length,
     groups: Object.fromEntries(
@@ -1111,6 +1121,10 @@ export function getRegisteredControlPlaneSummary(profile: McpProfile = resolveMc
       ])
     )
   };
+}
+
+function normalizeMcpMediaServerMode(value: 'disabled' | 'existing' | 'docker' | undefined) {
+  return value === 'existing' ? ('native' as const) : value;
 }
 
 function summarize(result: unknown) {

@@ -1,25 +1,38 @@
 ---
-title: Setup Wizard
+title: Configure Your Stack
+description: Choose storage, services, downloads, backups, and access from chat or the dashboard.
 ---
 
-# Setup Wizard
+# Configure your stack
 
-The setup wizard replaces `stackarr init` as the preferred onboarding path.
+You can complete setup from chat or in the browser. Both paths use the same validation, save the same settings, and show the same final plan.
 
-## Steps
+## Recommended: set up from chat
 
-1. **Welcome:** choose set up from scratch, restore from backup, or migrate a current stack.
-2. **Storage Paths:** set media, downloads, app config, state, logs, and backup roots.
-3. **Media Servers:** choose Plex and Jellyfin independently as disabled, native, or Docker.
-4. **Media Requests:** choose whether to enable Pulsarr and/or Seerr.
-5. **Stack Services:** choose Arr services and companion services.
-6. **Account:** set shared first-run admin credentials.
-7. **Database:** choose app-default databases or shared Postgres.
-8. **Torrent Client:** choose Transmission or qBittorrent.
-9. **Automation:** choose startup, backup, and update automation.
-10. **Agent Plugins:** optionally install local agent integrations.
-11. **Presets:** review profile presets.
-12. **Review:** inspect the saved setup choices.
-13. **Run Setup:** save or apply through UI, API, or trusted agent.
+Connect an agent with the `admin` profile and ask:
 
-The wizard writes allowlisted settings only. Secrets are redacted in browser responses.
+> Set up Stackarr for me. Recommend safe defaults, ask only about choices that materially change the stack, and show a dry-run before applying anything.
+
+See [Agent Setup](/docs/agent/agent-setup) for the connection command and review checklist.
+
+## Set up in the browser
+
+Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup) and choose:
+
+1. fresh setup, restore, or migration
+2. media, download, and backup folders
+3. Plex, Jellyfin, and content categories
+4. Transmission or qBittorrent
+5. optional request, subtitle, metadata, photo, game, and book apps
+6. authentication and local or remote access
+7. backup and update preferences
+8. quality and naming presets
+
+The review screen shows the containers, paths, ports, and saved settings before anything is applied.
+
+## After setup
+
+- verify service health from chat or the dashboard
+- change an agent from `admin` to `manage`
+- reconnect the MCP client so it loads actions for the selected apps
+- run the first backup before making major changes

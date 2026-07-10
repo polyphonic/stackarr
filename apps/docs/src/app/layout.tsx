@@ -3,7 +3,7 @@ import './globals.css';
 import { GoogleTagManager } from '@next/third-parties/google';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { githubUrl, googleTagManagerId, siteDescription, siteName, siteUrl } from '~/lib/site';
+import { googleTagManagerId, siteDescription, siteName, siteUrl } from '~/lib/site';
 import { AnalyticsTracker } from './analytics-tracker';
 import { WebMCPProvider } from './WebMCPProvider';
 
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     template: '%s | Stackarr',
-    default: 'Stackarr - Home Media Server Manager'
+    default: 'Stackarr - Manage Your Homelab from Chat'
   },
   description: siteDescription,
   keywords: [
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     canonical: '/'
   },
   openGraph: {
-    title: 'Stackarr - Home Media Server Manager',
+    title: 'Stackarr - Manage Your Homelab from Chat',
     description: siteDescription,
     url: '/',
     siteName,
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Stackarr - Home Media Server Manager',
+    title: 'Stackarr - Manage Your Homelab from Chat',
     description: siteDescription,
     images: ['/icon-512.png']
   },
@@ -80,9 +80,9 @@ export const metadata: Metadata = {
     icon: '/icon.svg'
   },
   category: 'technology',
-  authors: [{ name: 'Stackarr contributors', url: githubUrl }],
-  creator: 'Stackarr contributors',
-  publisher: 'Stackarr contributors'
+  authors: [{ name: 'Stackarr', url: siteUrl }],
+  creator: 'Stackarr',
+  publisher: 'Stackarr'
 };
 
 export const viewport: Viewport = {

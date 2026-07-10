@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for testing Stackarr. macOS is currently the maintainer-tested path, so Linux, Windows, NAS, and unusual Docker reports are especially useful when they include exact platform and runtime details.
+        Thanks for testing Stackarr. Stackarr is distributed as a Docker image, so host, Docker runtime, NAS, and storage details help us reproduce issues.
 
   - type: dropdown
     id: report-type
@@ -72,9 +72,8 @@ body:
       options:
         - Docker image
         - Docker Compose
-        - macOS app archive
-        - Linux tar/systemd package
-        - Windows zip/installer
+        - Docker Compose
+        - Docker run
         - Source checkout
         - NAS container app/package manager
         - Other

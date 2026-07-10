@@ -42,8 +42,9 @@ const docsByTopic: Record<string, string> = {
   plugins: '/docs/agent/plugins',
   safety: '/docs/agent/safety',
   tools: '/docs/agent/tools',
-  architecture: '/docs/reference/architecture',
-  security: '/docs/reference/security'
+  security: '/docs/reference/security',
+  backups: '/docs/operations/backups',
+  troubleshooting: '/docs/operations/troubleshooting'
 };
 
 function siteUrl(path: string) {

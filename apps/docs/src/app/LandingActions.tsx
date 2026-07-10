@@ -46,7 +46,7 @@ export function LandingActions() {
         href="#download"
       >
         <DownloadIcon aria-hidden="true" size={18} />
-        Get Stackarr
+        Install with Docker
       </Link>
     </div>
   );

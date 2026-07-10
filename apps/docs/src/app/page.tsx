@@ -1,13 +1,12 @@
 import { icons } from '@stackarr/ui';
 import { serviceIntegrations } from '~/lib/service-integrations';
-import { absoluteUrl, githubRepo, githubUrl, siteDescription, siteName } from '~/lib/site';
+import { absoluteUrl, githubUrl, siteDescription, siteName } from '~/lib/site';
 import { LandingActions } from './LandingActions';
 import { LandingCodeBlock } from './LandingCodeBlock';
 
 const BoxIcon = icons.container;
 const BackupIcon = icons.backup;
 const CloudIcon = icons.cloud;
-const StarIcon = icons.star;
 
 const agentClients = ['Codex', 'Claude', 'Hermes', 'OpenClaw', 'LM Studio'];
 
@@ -66,7 +65,7 @@ const homeJsonLd = {
       '@type': 'SoftwareApplication',
       name: siteName,
       applicationCategory: 'UtilitiesApplication',
-      operatingSystem: 'macOS, Linux, Windows, Docker',
+      operatingSystem: 'Docker',
       url: absoluteUrl('/'),
       downloadUrl: absoluteUrl('/docs/installation'),
       description: siteDescription,
@@ -107,20 +106,6 @@ export default function LandingPage() {
             <a href="/docs/installation">Install</a>
             <a href={githubUrl} rel="noreferrer" target="_blank">
               GitHub
-            </a>
-            <a
-              className="navStar"
-              data-analytics-interest="github_star"
-              data-analytics-interest-group="oss"
-              data-analytics-interest-label={githubRepo}
-              data-analytics-link="site_nav"
-              data-analytics-link-type="github_star"
-              data-analytics-platform="github"
-              href={githubUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Star
             </a>
           </span>
         </nav>
@@ -216,7 +201,7 @@ export default function LandingPage() {
           <li>
             <span className="stepNumber">01</span>
             <h3>Connect once</h3>
-            <p>Add Stackarr as a local MCP server, or install the native Hermes and OpenClaw plugin bundles.</p>
+            <p>Add Stackarr as a local MCP server, including native MCP connections for Hermes and OpenClaw.</p>
             <a href="/docs/agent/agent-setup">Open agent setup →</a>
           </li>
           <li>
@@ -229,7 +214,7 @@ export default function LandingPage() {
             <span className="stepNumber">03</span>
             <h3>Speak normally</h3>
             <p>Ask for an install, a health check, a media request, a repair, or a full stack migration.</p>
-            <a href="/docs/agent/plugins">Install agent plugins →</a>
+            <a href="/docs/agent/plugins">Connect Hermes or OpenClaw →</a>
           </li>
         </ol>
       </section>
@@ -263,28 +248,24 @@ export default function LandingPage() {
       <section className="band" id="download" data-analytics-section="download">
         <div className="sectionHeader">
           <p className="eyebrow">Run it, then hand over the keys you choose</p>
-          <h2>One container. One agent connection.</h2>
+          <h2>Install once. Connect anywhere.</h2>
         </div>
         <div className="tabs">
           <article>
-            <h3>Agent connection</h3>
-            <p>
-              Start with routine management and approval prompts. Move to admin for setup, or unrestricted when you
-              intentionally want full autonomy.
-            </p>
-            <LandingCodeBlock>{`codex mcp add stackarr \\
-  --env STACKARR_MCP_PROFILE=manage \\
-  -- stackarr mcp serve`}</LandingCodeBlock>
-            <p>
-              Hermes and OpenClaw users can use <a href="/docs/agent/plugins">native plugin bundles</a> instead.
-            </p>
+            <h3>1. Start Stackarr</h3>
+            <p>Download the Compose file and run the control plane on any Docker-compatible host.</p>
+            <LandingCodeBlock>{`curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
+docker compose --profile stackarr up -d app`}</LandingCodeBlock>
           </article>
           <article>
-            <h3>Docker runtime</h3>
-            <p>Spin up the control plane with its managed services, then connect from a host-side chat client.</p>
-            <LandingCodeBlock>{`docker pull polyphonic/stackarr:alpha
-docker compose -f stackarr/docker-compose.yml \\
-  --profile stackarr up -d app`}</LandingCodeBlock>
+            <h3>2. Connect your assistant</h3>
+            <p>Start with approval-backed management, use admin for setup, or deliberately grant full autonomy.</p>
+            <LandingCodeBlock>{`codex mcp add stackarr -- \\
+  docker exec -i -e STACKARR_MCP_PROFILE=manage \\
+  app /app/bin/stackarr mcp serve`}</LandingCodeBlock>
+            <p>
+              See the <a href="/docs/agent/mcp">MCP connection guides</a> for Claude, Hermes, OpenClaw, and LM Studio.
+            </p>
           </article>
         </div>
       </section>
@@ -299,36 +280,8 @@ docker compose -f stackarr/docker-compose.yml \\
         ))}
       </section>
 
-      <section className="starDrive" data-analytics-section="github_star">
-        <div className="starDriveCopy">
-          <p className="eyebrow">Open-source signal</p>
-          <h2>Help Stackarr reach more self-hosters</h2>
-          <p>
-            GitHub stars are a small action with useful surface area: they improve discovery, give contributors a
-            visible signal, and make release posts easier to trust.
-          </p>
-        </div>
-        <a
-          className="starCard"
-          data-analytics-interest="github_star"
-          data-analytics-interest-group="oss"
-          data-analytics-interest-label={githubRepo}
-          data-analytics-link="github_star"
-          data-analytics-link-type="github_star"
-          data-analytics-platform="github"
-          href={githubUrl}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <StarIcon aria-hidden="true" size={34} />
-          <span>
-            <strong>Star {githubRepo}</strong>
-            <em>Then watch releases, share the docs, or open a focused issue when something is rough.</em>
-          </span>
-        </a>
-      </section>
       <footer className="footer" data-analytics-section="footer">
-        <span>Stackarr alpha</span>
+        <span>Stackarr</span>
         <a href="/docs">Docs</a>
         <a href={githubUrl} rel="noreferrer" target="_blank">
           GitHub

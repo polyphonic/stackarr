@@ -142,17 +142,6 @@ body {
 .landingPage .navLinks a:hover {
   color: var(--stack-ink);
 }
-.landingPage .navStar {
-  border: 1px solid color-mix(in srgb, var(--stack-accent) 48%, var(--stack-line));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--stack-accent) 10%, transparent);
-  padding: 7px 12px;
-  color: var(--stack-ink);
-}
-.landingPage .navStar:hover {
-  border-color: var(--stack-accent);
-  background: color-mix(in srgb, var(--stack-accent) 18%, transparent);
-}
 .landingPage .brand {
   display: inline-flex;
   align-items: center;
@@ -661,69 +650,6 @@ body {
   margin-bottom: 18px;
 }
 
-.landingPage .starDrive {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
-  gap: 22px;
-  align-items: center;
-  max-width: 1180px;
-  margin: 42px auto;
-  padding: 30px 28px;
-  border-top: 1px solid var(--stack-line);
-  border-bottom: 1px solid var(--stack-line);
-}
-.landingPage .starDriveCopy {
-  max-width: 700px;
-}
-.landingPage .starDriveCopy p:last-child {
-  max-width: 680px;
-  color: var(--stack-muted);
-  line-height: 1.6;
-}
-.landingPage .starCard {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-  min-height: 132px;
-  border: 1px solid color-mix(in srgb, var(--stack-accent) 42%, var(--stack-line));
-  border-radius: 8px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--stack-accent) 16%, transparent), transparent 42%),
-    var(--stack-panel);
-  padding: 20px;
-  box-shadow: 0 18px 46px color-mix(in srgb, var(--stack-bg-deep) 64%, transparent);
-  transition:
-    border-color 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
-}
-.landingPage .starCard:hover {
-  border-color: var(--stack-accent);
-  box-shadow: 0 22px 54px color-mix(in srgb, var(--stack-bg-deep) 78%, transparent);
-  transform: translateY(-2px);
-}
-.landingPage .starCard svg {
-  margin: 0;
-  color: var(--stack-accent);
-}
-.landingPage .starCard strong,
-.landingPage .starCard em {
-  display: block;
-}
-.landingPage .starCard strong {
-  color: var(--stack-ink);
-  font-size: 18px;
-  line-height: 1.25;
-}
-.landingPage .starCard em {
-  margin-top: 6px;
-  color: var(--stack-muted);
-  font-size: 14px;
-  font-style: normal;
-  line-height: 1.45;
-}
-
 .landingPage .visualShowcase {
   max-width: 1180px;
   margin: 44px auto;
@@ -1009,8 +935,7 @@ body {
   .landingPage .agentSteps,
   .landingPage .tabs,
   .landingPage .screenshotGrid,
-  .landingPage .featureGrid,
-  .landingPage .starDrive {
+  .landingPage .featureGrid {
     grid-template-columns: 1fr;
   }
   .landingPage .serviceMap {

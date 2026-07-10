@@ -1,3 +1,5 @@
 {
-  "pages": ["index", "macos", "linux", "windows", "docker-compose", "docker", "vercel-apps"]
+  "title": "Install Stackarr",
+  "defaultOpen": false,
+  "pages": ["index", "docker"]
 }

@@ -1,11 +1,14 @@
 {
+  "title": "Configure your stack",
+  "defaultOpen": false,
   "pages": [
-    "restore-and-migrate",
+    "index",
+    "run-setup",
     "storage-paths",
     "media-servers",
     "torrent-client",
-    "network-access",
     "presets",
-    "run-setup"
+    "network-access",
+    "restore-and-migrate"
   ]
 }

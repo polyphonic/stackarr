@@ -456,7 +456,7 @@ function getProjectInterest(
       };
     }
 
-    if (url.pathname === '/docs/getting-started' || url.pathname.startsWith('/docs/installation')) {
+    if (url.pathname.startsWith('/docs/installation')) {
       return {
         interest_group: 'install',
         interest_label: 'installation',

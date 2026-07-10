@@ -10,7 +10,7 @@ Docker builds exclude SQLite DBs, logs, state, Cloudflare token-looking files, A
 
 ## API
 
-Mutating API calls require `X-Api-Key`. CLI setup and the first dashboard config save create an API key; command endpoints fail closed when no key is configured.
+Mutating API calls require `X-Api-Key`. The first authenticated setup save creates an API key when one is missing; command endpoints fail closed until a key exists.
 
 ## Public Access
 

@@ -1,44 +1,43 @@
 ---
-title: Agent Plugins
-description: Install Stackarr's local agent plugin bundles for MCP-capable tools.
+title: Hermes & OpenClaw
+description: Connect Hermes or OpenClaw to the same Stackarr MCP control plane.
 ---
 
-# Agent Plugins
+# Hermes and OpenClaw
 
-Stackarr ships local plugin bundles that point agents at the same MCP server:
+Hermes and OpenClaw use the same Stackarr actions, authority profiles, service filtering, and activity history as every other MCP client.
 
-- `packages/agent-plugins/hermes/stackarr`
-- `packages/agent-plugins/openclaw/stackarr`
-- `skills/stackarr/SKILL.md`
+## Hermes
 
-The integrations all launch the same local MCP command:
+Run this on the Docker host:
 
 ```bash
-stackarr mcp serve
+hermes mcp add stackarr \
+  --command docker \
+  --args exec -i -e STACKARR_MCP_PROFILE=manage app /app/bin/stackarr mcp serve
 ```
 
-## Preferred Install
+Hermes keeps Stackarr's individual tool schemas and displays approval prompts in its own chat surface.
 
-Use Stackarr's plugin installer when available:
+## OpenClaw
 
-```bash
-stackarr plugins install hermes --profile manage
-stackarr plugins install openclaw --profile manage
-```
-
-Hermes is configured through its native MCP client so its approval UI and per-tool schemas remain intact. OpenClaw receives a direct MCP bundle. Docker installs generate a host-side `docker exec -i` command.
-
-## Manual MCP Config
-
-Any MCP-capable client can use the server directly:
+Import this as the Stackarr MCP server in OpenClaw:
 
 ```json
 {
   "mcpServers": {
     "stackarr": {
-      "command": "stackarr",
-      "args": ["mcp", "serve"],
-      "env": { "STACKARR_MCP_PROFILE": "manage" },
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "-e",
+        "STACKARR_MCP_PROFILE=manage",
+        "app",
+        "/app/bin/stackarr",
+        "mcp",
+        "serve"
+      ],
       "timeout": 120,
       "connect_timeout": 30
     }
@@ -46,15 +45,14 @@ Any MCP-capable client can use the server directly:
 }
 ```
 
-## What Agents Can Do
+If the installed OpenClaw version cannot show MCP approval prompts, destructive actions fail closed. Choose `unrestricted` only if you intentionally want OpenClaw to operate without those prompts.
 
-Agents can:
+## Change the authority
 
-- read setup defaults and run setup dry-runs
-- start, stop, and inspect managed services
-- run backups and read backup progress
-- inspect disk usage and service health
-- manage Cloudflare routes when configured
-- troubleshoot download clients, indexers, Plex, and Arr services
+Replace `manage` with:
 
-Destructive or disruptive tools pause for a client-mediated approval prompt in `manage` and `admin`. Unsupported clients fail closed. The user can choose `unrestricted` at launch when complete autonomous control is desired.
+- `observe` for a read-only assistant
+- `admin` for setup or infrastructure work
+- `unrestricted` for complete autonomous control
+
+Restart the MCP connection after changing authority or enabled Stackarr apps.

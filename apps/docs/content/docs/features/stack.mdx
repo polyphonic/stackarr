@@ -8,7 +8,7 @@ Stack pages show the services that Stackarr can monitor or configure.
 
 ## Services
 
-The services view focuses on the compose/app surface: status, ports, install mode, and queueable actions.
+The services view shows status, ports, management mode, and the actions available for each enabled app.
 
 ## Commands
 
@@ -25,4 +25,4 @@ Commands are queued as tasks, not run inline. Examples:
 - `PlexCheck`
 - `PermissionsAudit`
 
-The UI and API share the same command registry from `packages/core`.
+Chat, dashboard, and API actions enter the same task queue, so progress and results stay visible whichever surface you use.

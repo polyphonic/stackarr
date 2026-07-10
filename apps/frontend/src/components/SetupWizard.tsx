@@ -23,7 +23,7 @@ const steps = [
   'Database',
   'Torrent Client',
   'Automation',
-  'Agent Plugins',
+  'Agent Connection',
   'Presets',
   'Review',
   'Run Setup'
@@ -107,11 +107,8 @@ type SetupState = {
   transmissionBindIp: string;
   qbittorrentBindIp: string;
   webPort: string;
-  installStartup: boolean;
   installBackup: boolean;
   installUpdates: boolean;
-  installHermesPlugin: boolean;
-  installOpenClawPlugin: boolean;
 };
 
 const defaults: SetupState = {
@@ -119,7 +116,7 @@ const defaults: SetupState = {
   musicRoot: '/stackarr/media/Music',
   downloadsRoot: '/stackarr/downloads',
   backupRoot: '/stackarr/backups',
-  plexInstallMode: 'native',
+  plexInstallMode: 'docker',
   plexToken: '',
   jellyfinInstallMode: 'disabled',
   enableMovies: true,
@@ -165,11 +162,8 @@ const defaults: SetupState = {
   transmissionBindIp: '127.0.0.1',
   qbittorrentBindIp: '127.0.0.1',
   webPort: '7777',
-  installStartup: true,
   installBackup: true,
-  installUpdates: false,
-  installHermesPlugin: false,
-  installOpenClawPlugin: false
+  installUpdates: false
 };
 
 export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partial<SetupState> }) {
@@ -354,22 +348,14 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     return config;
   }, [state, effectiveEnableSeerr, effectiveEnablePulsarr]);
 
-  const agentPluginIntegrations = useMemo(
-    () =>
-      [state.installHermesPlugin && 'hermes', state.installOpenClawPlugin && 'openclaw'].filter(Boolean) as Array<
-        'hermes' | 'openclaw'
-      >,
-    [state.installHermesPlugin, state.installOpenClawPlugin]
-  );
-
   const reviewItems = useMemo(
     () => [
       ['Media library', state.mediaRoot],
       ['Music library', state.musicRoot],
       ['Downloads', state.downloadsRoot],
       ['Backups', state.backupRoot],
-      ['Plex', state.plexInstallMode],
-      ['Jellyfin', state.jellyfinInstallMode],
+      ['Plex', mediaServerModeLabel(state.plexInstallMode)],
+      ['Jellyfin', mediaServerModeLabel(state.jellyfinInstallMode)],
       [
         'Libraries',
         [
@@ -412,12 +398,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ['Music profile', musicProfileName(state.musicProfilePreset)],
       ['Database mode', state.databaseMode === 'postgres' ? 'Shared Postgres' : 'App defaults'],
       ['Torrent client', state.preferredTorrentClient],
-      ['Startup', state.installStartup ? 'Enable startup automation' : 'Manual start'],
+      ['Startup', 'Docker restart policy'],
       ['Backup automation', state.installBackup ? 'Install weekly Sunday backups' : 'Disabled'],
       ['Updates', state.installUpdates ? 'Enable weekly update automation' : 'Manual updates'],
-      ['Agent plugins', agentPluginIntegrations.length ? agentPluginIntegrations.join(', ') : 'None']
+      ['Agent connection', 'Connect from your chat client after setup']
     ],
-    [state, agentPluginIntegrations]
+    [state]
   );
 
   function update<K extends keyof SetupState>(key: K, value: SetupState[K]) {
@@ -505,10 +491,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       body: JSON.stringify({
         confirmed: true,
         configureSeerr: effectiveEnableSeerr && state.configureSeerr,
-        installStartup: state.installStartup,
         installBackup: state.installBackup,
-        installUpdates: state.installUpdates,
-        agentPluginIntegrations
+        installUpdates: state.installUpdates
       })
     });
     const body = await response.json().catch(() => ({}));
@@ -720,7 +704,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                       checked={restoreNativePlex}
                       onChange={(event) => setRestoreNativePlex(event.target.checked)}
                     />{' '}
-                    Restore native Plex config
+                    Restore existing Plex config
                   </label>
                   <label>
                     <input
@@ -728,7 +712,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                       checked={restorePlexPreferences}
                       onChange={(event) => setRestorePlexPreferences(event.target.checked)}
                     />{' '}
-                    Restore native macOS Plex preferences
+                    Restore Plex host preferences when compatible
                   </label>
                   <label>
                     <input
@@ -801,8 +785,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             <label>
               Plex
               <select value={state.plexInstallMode} onChange={(event) => update('plexInstallMode', event.target.value)}>
-                <option value="native">Native macOS</option>
-                <option value="docker">Docker</option>
+                <option value="docker">Managed container</option>
+                <option value="native">Existing server</option>
                 <option value="disabled">Disabled</option>
               </select>
             </label>
@@ -813,7 +797,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 type="password"
                 value={state.plexToken}
                 onChange={(event) => update('plexToken', event.target.value)}
-                placeholder="Auto-discover from native Plex when blank"
+                placeholder="Add through trusted settings when needed"
               />
             </label>
             <label>
@@ -823,8 +807,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 onChange={(event) => update('jellyfinInstallMode', event.target.value)}
               >
                 <option value="disabled">Disabled</option>
-                <option value="native">Native macOS</option>
-                <option value="docker">Docker</option>
+                <option value="docker">Managed container</option>
+                <option value="native">Existing server</option>
               </select>
             </label>
           </div>
@@ -1180,14 +1164,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
         )}
         {current === 'Automation' && (
           <div className={styles.checks}>
-            <label>
-              <input
-                type="checkbox"
-                checked={state.installStartup}
-                onChange={(event) => update('installStartup', event.target.checked)}
-              />{' '}
-              Startup automation
-            </label>
+            <p>Docker's restart policy keeps Stackarr available after the host or Docker restarts.</p>
             <label>
               <input
                 type="checkbox"
@@ -1206,28 +1183,15 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             </label>
           </div>
         )}
-        {current === 'Agent Plugins' && (
-          <div className={styles.checks}>
+        {current === 'Agent Connection' && (
+          <div className={styles.form}>
             <p>
-              Optional local agent integrations use <code>stackarr mcp serve</code>, so they stay tied to this Stackarr
-              install instead of hardcoded repo paths.
+              Connect Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client from the Docker host after
+              setup. Every client receives the same actions and safety policy.
             </p>
-            <label>
-              <input
-                type="checkbox"
-                checked={state.installHermesPlugin}
-                onChange={(event) => update('installHermesPlugin', event.target.checked)}
-              />{' '}
-              Install and enable Hermes plugin
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={state.installOpenClawPlugin}
-                onChange={(event) => update('installOpenClawPlugin', event.target.checked)}
-              />{' '}
-              Prepare OpenClaw MCP plugin bundle
-            </label>
+            <pre>{`docker exec -i -e STACKARR_MCP_PROFILE=manage \\
+  app /app/bin/stackarr mcp serve`}</pre>
+            <p>Use the admin profile while setting up infrastructure, then switch to manage for everyday use.</p>
           </div>
         )}
         {current === 'Presets' && (
@@ -1372,6 +1336,12 @@ function mediaProfileName(preset: string, resolution: 'hd' | '4k') {
 
 function musicProfileName(preset: string) {
   return preset === 'lossy' ? 'Lossy 256+' : 'Lossless';
+}
+
+function mediaServerModeLabel(mode: string) {
+  if (mode === 'docker') return 'Managed container';
+  if (mode === 'native') return 'Existing server';
+  return 'Disabled';
 }
 
 function rommMetadataLabel(preset: string) {

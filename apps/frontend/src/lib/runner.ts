@@ -6,10 +6,8 @@ import { readTasks, type StackarrTask, writeTasks } from '@stackarr/core/tasks';
 
 type InitialSetupOptions = {
   configureSeerr?: boolean;
-  installStartup?: boolean;
   installBackup?: boolean;
   installUpdates?: boolean;
-  agentPluginIntegrations?: Array<'hermes' | 'openclaw'>;
 };
 
 type SetupStep = {
@@ -24,16 +22,11 @@ export function runQueuedTask(task: StackarrTask, command: CommandDefinition) {
   updateTask(task.id, runningTask);
 
   if (process.env.STACKARR_RUNTIME === 'docker' && hostOnlyCommands.has(command.name)) {
-    const terminalCommand = `stackarr ${command.args.join(' ')}`;
-    const sourceCheckoutCommand = `bin/stackarr ${command.args.join(' ')}`;
     const output = [
       'Host approval required.',
-      `${command.label} needs macOS host access, so Docker queued the request and paused here.`,
-      'Open Terminal and paste:',
-      `  ${terminalCommand}`,
-      `Source checkouts can use: ${sourceCheckoutCommand}`,
-      'Enter your Mac password if the command asks.',
-      'This runs the requested host-level Stackarr action outside Docker.'
+      `${command.label} needs access to the Docker host, so the container paused this task.`,
+      'Open the matching Stackarr documentation from a trusted host terminal and complete the host-only step there.',
+      'The container cannot request operating-system approval on your behalf.'
     ].join('\n');
     const blockedTask: StackarrTask = {
       ...runningTask,
@@ -198,22 +191,6 @@ function buildInitialSetupSteps(options: InitialSetupOptions): SetupStep[] {
     });
   }
 
-  for (const plugin of options.agentPluginIntegrations ?? []) {
-    steps.push({
-      label: `Installing ${plugin === 'hermes' ? 'Hermes' : 'OpenClaw'} integration`,
-      args: ['plugins', 'install', plugin],
-      progress: 92
-    });
-  }
-
-  if (options.installStartup) {
-    steps.push({
-      label: 'Enabling startup automation',
-      args: ['startup', 'install'],
-      progress: 94
-    });
-  }
-
   if (options.installBackup) {
     steps.push({
       label: 'Enabling scheduled backup automation',
@@ -271,15 +248,10 @@ function stepNameFromArgs(args: string[]) {
 }
 
 function hostApprovalMessage(step: SetupStep) {
-  const terminalCommand = `stackarr ${step.args.join(' ')}`;
-  const sourceCheckoutCommand = `bin/stackarr ${step.args.join(' ')}`;
-
   return (
     [
       `${step.label} needs host access and cannot be completed from the Docker container.`,
-      'Run one of these on the host after the stack is online:',
-      `  ${terminalCommand}`,
-      `  ${sourceCheckoutCommand}`
+      'Open the matching Stackarr documentation and complete the host-only step from a trusted terminal.'
     ].join('\n') + '\n'
   );
 }

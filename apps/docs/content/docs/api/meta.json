@@ -1,3 +1,5 @@
 {
-  "pages": ["api-v1"]
+  "title": "API & automation",
+  "defaultOpen": false,
+  "pages": ["api-v1", "authentication", "commands", "webhooks"]
 }
