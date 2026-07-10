@@ -29,16 +29,13 @@ Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
 
 ## 2. Connect your assistant
 
-For Codex, add the Stackarr container as a local MCP server:
+For Codex, generate the local MCP connection from the running container:
 
 ```bash
-codex mcp add stackarr -- \
-  docker exec -i \
-    -e STACKARR_MCP_PROFILE=admin \
-    app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config codex --profile admin
 ```
 
-Use `admin` while the agent sets up infrastructure. Switch to `manage` for normal use. See [MCP connections](/docs/agent/mcp) for Claude, LM Studio, and other clients, or [Agent plugins](/docs/agent/plugins) for Hermes and OpenClaw.
+Run the generated command on the Docker host. Use `admin` while the agent sets up infrastructure, then switch to `manage` for normal use. The generator also supports Claude, LM Studio, ChatGPT, Hermes, OpenClaw, and other clients.
 
 ## 3. Ask for the outcome
 

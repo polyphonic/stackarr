@@ -27,6 +27,7 @@ import {
   getDownloadQueueAction,
   getEnabledMcpServiceNames,
   getIndexerStatusAction,
+  getMcpConnectionKit,
   getMcpProfileDescription,
   getMcpServiceSelection,
   getMcpToolCatalog,
@@ -91,6 +92,7 @@ import {
   startStreamripSearchDownloadAction,
   stopStackAction,
   type ToolCatalogEntry,
+  type ToolCategory,
   testArrToDownloaderAction,
   testIndexersAction,
   testPlexIdentityAction,
@@ -137,6 +139,47 @@ const tools: ToolDef[] = [
     description: 'Get the active MCP profile, approval mode, enabled services, and grouped tool catalog.',
     shape: empty,
     handler: () => getRegisteredControlPlaneSummary()
+  },
+  {
+    name: 'stackarr_get_mcp_connection_kit',
+    description:
+      'Generate a copy-ready connection kit for Codex, Claude, LM Studio, ChatGPT, Hermes, OpenClaw, or another MCP client.',
+    shape: {
+      client: z.enum(['codex', 'claude', 'lmstudio', 'chatgpt', 'hermes', 'openclaw', 'generic']),
+      profile: z.enum(['observe', 'manage', 'admin', 'unrestricted']).optional(),
+      groups: z
+        .array(
+          z.enum([
+            'stack',
+            'services',
+            'containers',
+            'arr',
+            'releases',
+            'downloads',
+            'plex',
+            'seerr',
+            'backups',
+            'health'
+          ])
+        )
+        .optional(),
+      containerName: z
+        .string()
+        .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/)
+        .optional(),
+      tunnelId: z
+        .string()
+        .regex(/^tunnel_[a-zA-Z0-9_-]+$/)
+        .optional()
+    },
+    handler: (input) =>
+      getMcpConnectionKit({
+        client: input.client,
+        profile: input.profile,
+        groups: input.groups as ToolCategory[] | undefined,
+        containerName: input.containerName,
+        tunnelId: input.tunnelId
+      })
   },
   {
     name: 'stackarr_setup_media_server',

@@ -35,6 +35,7 @@ test('API key auth fails closed for command-style requests', async () => {
           const { GET: getAgentActivity } = await import('./apps/frontend/src/app/api/v1/agent/activity/route.ts');
           const { GET: getAgentActivityDetail } = await import('./apps/frontend/src/app/api/v1/agent/activity/[id]/route.ts');
           const { GET: getAgentTools } = await import('./apps/frontend/src/app/api/v1/agent/tools/route.ts');
+          const { GET: getAgentConnections } = await import('./apps/frontend/src/app/api/v1/agent/connections/route.ts');
           const { GET: getStreamrip } = await import('./apps/frontend/src/app/api/v1/downloaders/streamrip/route.ts');
           const { GET: getLidarrStreamrip } = await import('./apps/frontend/src/app/api/v1/downloaders/streamrip/lidarr/route.ts');
           const { GET: getServiceConfig } = await import('./apps/frontend/src/app/api/v1/services/config/[service]/route.ts');
@@ -134,6 +135,10 @@ test('API key auth fails closed for command-style requests', async () => {
                 ['task', getTask(new NextRequest('http://127.0.0.1:7777/api/v1/task'))],
                 ['telemetry', getTelemetry(new NextRequest('http://127.0.0.1:7777/api/v1/telemetry'))],
                 ['agentTools', getAgentTools(new NextRequest('http://127.0.0.1:7777/api/v1/agent/tools'))],
+                [
+                  'agentConnections',
+                  getAgentConnections(new NextRequest('http://127.0.0.1:7777/api/v1/agent/connections'))
+                ],
                 ['streamrip', getStreamrip(new NextRequest('http://127.0.0.1:7777/api/v1/downloaders/streamrip'))],
                 [
                   'lidarrStreamrip',
@@ -264,7 +269,8 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.sameOriginBrowser, 401);
     assert.equal(result.validSession, true);
     assert.equal(result.validHeader, true);
-    assert.deepEqual(Object.values(result.protectedReadStatuses), Array(12).fill(401));
+    assert.equal(Object.values(result.protectedReadStatuses).length, 13);
+    assert.ok(Object.values(result.protectedReadStatuses).every((status) => status === 401));
     assert.equal(result.agentActivityWithHeader, 200);
     assert.equal(result.agentActivityDetailWithHeader, 404);
     assert.equal(result.protectedStackConfigChangeAccepted, false);

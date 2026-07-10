@@ -1,11 +1,11 @@
 ---
 title: MCP Connections
-description: Connect Codex, Claude, LM Studio, or another MCP client to the Stackarr container.
+description: Connect Codex, Claude, LM Studio, ChatGPT, or another MCP client to Stackarr.
 ---
 
 # MCP connections
 
-Stackarr's local stdio MCP server is the chat control plane for your homelab. It offers typed actions backed by Stackarr and the APIs of the apps you enabled. It does not expose a generic shell or unrestricted Docker command tool.
+Stackarr's MCP server is the chat control plane for your homelab. It offers typed actions backed by Stackarr and the APIs of the apps you enabled. It does not expose a generic shell or unrestricted Docker command tool.
 
 ## Choose authority
 
@@ -18,59 +18,80 @@ Stackarr's local stdio MCP server is the chat control plane for your homelab. It
 
 The profile is set when the client starts the MCP process. Agents cannot promote themselves.
 
-## Codex
+## Generate your connection
+
+Ask the running Stackarr container for a copy-ready connection kit:
 
 ```bash
-codex mcp add stackarr -- \
-  docker exec -i \
-    -e STACKARR_MCP_PROFILE=manage \
-    app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config codex --profile admin
+```
+
+Replace `codex` with `claude`, `lmstudio`, `chatgpt`, `hermes`, `openclaw`, or `generic`. The same generator powers Stackarr's chat tool, authenticated API, and optional dashboard, so every integration receives the same Docker command, authority rules, and app filtering.
+
+## Codex
+
+Generate and run the Codex command:
+
+```bash
+docker exec app /app/bin/stackarr mcp config codex --profile manage
 ```
 
 Use `admin` instead of `manage` during first-time setup.
 
 ## Claude and other MCP clients
 
-Add this local server to the client's `mcpServers` configuration:
+Generate the `mcpServers` entry and add it to the client's local configuration:
 
-```json
-{
-  "mcpServers": {
-    "stackarr": {
-      "command": "docker",
-      "args": [
-        "exec",
-        "-i",
-        "-e",
-        "STACKARR_MCP_PROFILE=manage",
-        "app",
-        "/app/bin/stackarr",
-        "mcp",
-        "serve"
-      ]
-    }
-  }
-}
+```bash
+docker exec app /app/bin/stackarr mcp config claude --profile manage
 ```
+
+The generated entry runs `docker exec -i` on the Docker host and starts `/app/bin/stackarr mcp serve` inside the private Stackarr container.
 
 ## LM Studio
 
-In **Program → Install → Edit mcp.json**, use the same Docker configuration above. For a small local model, you can narrow the catalog further:
+Generate the LM Studio entry:
 
-```json
-"-e",
-"STACKARR_MCP_GROUPS=stack,services,arr,downloads,seerr,health"
+```bash
+docker exec app /app/bin/stackarr mcp config lmstudio --profile observe
 ```
 
-Insert those two arguments before `app` in the `args` array.
+In **Program → Install → Edit mcp.json**, add the generated server. LM Studio follows `mcp.json` notation and warns that excessive MCP tools can overwhelm smaller local models. Stackarr already filters uninstalled apps; narrow the groups further when needed:
+
+```bash
+docker exec app /app/bin/stackarr mcp config lmstudio \
+  --profile manage \
+  --groups stack,services,arr,downloads,seerr,health
+```
+
+LM Studio's official guide is [Use MCP Servers](https://lmstudio.ai/docs/app/mcp). If the active LM Studio version does not declare MCP form elicitation, Stackarr safely rejects destructive calls. Use `observe` for read-only access or deliberately select `unrestricted` if full autonomous control is intended.
+
+## ChatGPT without exposing your homelab
+
+ChatGPT is hosted, so it cannot start `docker exec` on your machine. Stackarr generates an [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) configuration instead:
+
+```bash
+docker exec app /app/bin/stackarr mcp config chatgpt \
+  --profile manage \
+  --tunnel-id tunnel_your_tunnel_id
+```
+
+The generated steps keep Stackarr private:
+
+1. Create an MCP tunnel in OpenAI Platform and associate it with the intended ChatGPT workspace.
+2. Run `tunnel-client` on the Docker host. It opens an outbound HTTPS connection and forwards requests to Stackarr's local stdio server.
+3. In ChatGPT developer mode, create a plugin, choose **Tunnel**, and select the Stackarr tunnel.
+
+No inbound homelab port or public Stackarr MCP endpoint is required. Tunnel and ChatGPT developer-mode availability depends on the user's OpenAI account and workspace permissions. The OpenAI runtime API key stays on the Docker host and must never be pasted into Stackarr or chat.
 
 ## How the action catalog stays focused
 
-- Before setup, Stackarr advertises only core setup, status, service, and health actions.
+- Before setup, Stackarr advertises only core setup, connection, status, service, and health actions.
 - After setup, it adds actions for the apps you selected.
 - Disabled apps do not contribute tools.
-- `STACKARR_MCP_GROUPS` can narrow the list further for small models or focused agents.
+- `STACKARR_MCP_GROUPS` or `--groups` can narrow the list further for small models or focused agents.
 - Reconnect the MCP client after enabling or disabling apps.
+- `stackarr_get_mcp_connection_kit` can generate another client's configuration directly from an existing chat.
 
 Available groups are `stack`, `services`, `containers`, `arr`, `releases`, `downloads`, `plex`, `seerr`, `backups`, and `health`.
 

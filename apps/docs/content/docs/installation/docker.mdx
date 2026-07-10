@@ -55,15 +55,13 @@ STACKARR_IMAGE=polyphonic/stackarr:0.3.0-alpha.1
 
 ## Connect an MCP client
 
-Chat clients run on the Docker host and open Stackarr's stdio server through `docker exec -i`:
+Chat clients run on the Docker host. Generate the correct stdio configuration for the client you use:
 
 ```bash
-docker exec -i \
-  -e STACKARR_MCP_PROFILE=manage \
-  app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config codex --profile manage
 ```
 
-Keep `-i`; MCP communicates over standard input and output. See [MCP connections](/docs/agent/mcp) for ready-to-use client configurations.
+Run the generated command. Stackarr includes the required interactive stdio flag and selected authority profile. See [MCP connections](/docs/agent/mcp) for every supported client, including private ChatGPT access.
 
 ## Audit folder access
 

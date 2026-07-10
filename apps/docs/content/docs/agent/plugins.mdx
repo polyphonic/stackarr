@@ -9,19 +9,23 @@ Hermes and OpenClaw use the same Stackarr actions, authority profiles, service f
 
 ## Hermes
 
-Run this on the Docker host:
+Generate the Hermes install command on the Docker host:
 
 ```bash
-hermes mcp add stackarr \
-  --command docker \
-  --args exec -i -e STACKARR_MCP_PROFILE=manage app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config hermes --profile manage
 ```
 
-Hermes keeps Stackarr's individual tool schemas and displays approval prompts in its own chat surface.
+Run the generated command, then restart Hermes or start a new session. Hermes receives Stackarr's individual tool schemas, service-aware catalog, and safety annotations.
 
 ## OpenClaw
 
-Import this as the Stackarr MCP server in OpenClaw:
+Generate and import the Stackarr MCP server entry in OpenClaw:
+
+```bash
+docker exec app /app/bin/stackarr mcp config openclaw --profile manage
+```
+
+The generated configuration uses this Docker stdio connection:
 
 ```json
 {

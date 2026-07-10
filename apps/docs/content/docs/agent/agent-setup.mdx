@@ -11,14 +11,13 @@ The dashboard remains available throughout setup and shows the same saved state.
 
 ## Connect with setup authority
 
-Install Stackarr first, then connect your MCP client using the `admin` profile. For Codex:
+Install Stackarr first, then generate an `admin` connection for your MCP client. For Codex:
 
 ```bash
-codex mcp add stackarr -- \
-  docker exec -i \
-    -e STACKARR_MCP_PROFILE=admin \
-    app /app/bin/stackarr mcp serve
+docker exec app /app/bin/stackarr mcp config codex --profile admin
 ```
+
+Run the generated command on the Docker host.
 
 See [MCP connections](/docs/agent/mcp) for other clients.
 
