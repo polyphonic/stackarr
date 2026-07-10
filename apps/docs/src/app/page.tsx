@@ -9,26 +9,28 @@ const BackupIcon = icons.backup;
 const CloudIcon = icons.cloud;
 const StarIcon = icons.star;
 
+const agentClients = ['Codex', 'Claude', 'Hermes', 'OpenClaw', 'LM Studio'];
+
 const features = [
   {
-    title: 'Setup with a co-pilot',
+    title: 'Chat-first control plane',
     icon: BoxIcon,
-    copy: 'Let a trusted agent handle the repetitive wiring, checks, and setup steps while you stay in control of the choices that matter.'
+    copy: 'Inspect, configure, repair, and operate the stack from Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client.'
   },
   {
-    title: 'One media flow',
+    title: 'Native app actions',
     icon: icons.download,
-    copy: 'Bring movies, shows, music, books, subtitles, indexers, and request apps into a stack that feels designed to work together.'
+    copy: 'Agents use typed Stackarr and app API actions instead of improvising shell commands against your containers.'
   },
   {
-    title: 'Rebuild-ready backups',
+    title: 'Authority you choose',
     icon: BackupIcon,
-    copy: 'Protect the settings and app data that make the stack yours, so recovery is planned before anything breaks.'
+    copy: 'Start read-only, allow routine management, unlock admin setup, or deliberately grant unrestricted autonomous control.'
   },
   {
-    title: 'Private by default',
+    title: 'Never chat-only',
     icon: CloudIcon,
-    copy: 'Start on your own machine, keep services local, and open only the access paths you decide to share.'
+    copy: 'The dashboard, API, and CLI remain available whenever you want to inspect a plan, intervene, or work manually.'
   }
 ];
 
@@ -100,6 +102,7 @@ export default function LandingPage() {
             <img alt="" src="/icon.svg" /> Stackarr
           </a>
           <span className="navLinks">
+            <a href="/docs/agent/agent-setup">Agent setup</a>
             <a href="/docs">Docs</a>
             <a href="/docs/installation">Install</a>
             <a href={githubUrl} rel="noreferrer" target="_blank">
@@ -123,39 +126,121 @@ export default function LandingPage() {
         </nav>
         <div className="heroGrid">
           <div>
-            <p className="eyebrow">0.3.0-alpha.1</p>
-            <h1>Stackarr</h1>
+            <p className="eyebrow">Agent-managed homelab control</p>
+            <h1>Your homelab, managed from chat.</h1>
             <p className="lede">
-              Run a private media server stack with one polished control plane for requests, downloads, libraries,
-              backups, books, and remote access.
+              Stackarr gives trusted agents one typed, safety-controlled interface to your media apps, downloads,
+              requests, backups, containers, and infrastructure.
             </p>
             <LandingActions />
             <p className="heroNote">
-              Local-first by design. Stars help more self-hosters find the alpha while it is still young.
+              Chat-first, never chat-only. Keep the dashboard and CLI, or grant an agent complete control when you
+              choose.
             </p>
           </div>
-          <div className="serviceMap" aria-label="Managed services">
-            {serviceIntegrations.map((service, index) => (
-              <a
-                href={`/docs/integrations/${service.slug}`}
-                key={service.name}
-                style={{ animationDelay: `${120 + index * 38}ms` }}
-              >
-                <img alt="" src={`/logos/${service.logo}.svg`} />
-                <strong>{service.name}</strong>
-              </a>
-            ))}
+          <div className="agentConsole" aria-label="Example Stackarr agent plan">
+            <div className="agentConsoleTop">
+              <span className="agentOnline">
+                <i aria-hidden="true" /> Stackarr control plane
+              </span>
+              <span className="profileBadge">manage</span>
+            </div>
+            <div className="agentPrompt">
+              <span>You</span>
+              <p>Check the stack, fix what is safe, and ask before interrupting playback.</p>
+            </div>
+            <div className="agentPlan">
+              <div className="agentPlanHeader">
+                <span>Agent plan</span>
+                <strong>3 actions</strong>
+              </div>
+              <ol>
+                <li>
+                  <span className="agentStep">01</span>
+                  <span>
+                    <strong>Inspect enabled services</strong>
+                    <small>Stackarr + native app APIs</small>
+                  </span>
+                  <em>read</em>
+                </li>
+                <li>
+                  <span className="agentStep">02</span>
+                  <span>
+                    <strong>Repair stalled download</strong>
+                    <small>Allowed by manage profile</small>
+                  </span>
+                  <em>run</em>
+                </li>
+                <li>
+                  <span className="agentStep">03</span>
+                  <span>
+                    <strong>Restart Plex</strong>
+                    <small>Playback may be interrupted</small>
+                  </span>
+                  <em className="askState">ask</em>
+                </li>
+              </ol>
+            </div>
+            <div className="agentConnectedApps">
+              <span>Tools selected from installed apps</span>
+              <div>
+                {serviceIntegrations.slice(0, 7).map((service) => (
+                  <a href={`/docs/integrations/${service.slug}`} key={service.name} title={service.name}>
+                    <img alt={service.name} src={`/logos/${service.logo}.svg`} />
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
+      <section className="agentPath" aria-labelledby="agent-path-title" data-analytics-section="agent_path">
+        <div className="agentPathHeader">
+          <div>
+            <p className="eyebrow">The first way in</p>
+            <h2 id="agent-path-title">Use the chat surface you already trust</h2>
+          </div>
+          <p>
+            Every client reaches the same shared actions and safety policy. Stackarr trims the catalog to the apps you
+            installed, so agents see useful tools instead of a wall of irrelevant commands.
+          </p>
+        </div>
+        <div className="agentClientRail" aria-label="Supported agent clients">
+          {agentClients.map((client) => (
+            <span key={client}>{client}</span>
+          ))}
+          <span>Any stdio MCP client</span>
+        </div>
+        <ol className="agentSteps">
+          <li>
+            <span className="stepNumber">01</span>
+            <h3>Connect once</h3>
+            <p>Add Stackarr as a local MCP server, or install the native Hermes and OpenClaw plugin bundles.</p>
+            <a href="/docs/agent/agent-setup">Open agent setup →</a>
+          </li>
+          <li>
+            <span className="stepNumber">02</span>
+            <h3>Choose authority</h3>
+            <p>Use observe, manage, admin, or unrestricted. The launch profile—not the agent—sets the boundary.</p>
+            <a href="/docs/agent/mcp">Compare MCP profiles →</a>
+          </li>
+          <li>
+            <span className="stepNumber">03</span>
+            <h3>Speak normally</h3>
+            <p>Ask for an install, a health check, a media request, a repair, or a full stack migration.</p>
+            <a href="/docs/agent/plugins">Install agent plugins →</a>
+          </li>
+        </ol>
+      </section>
+
       <section className="visualShowcase" aria-labelledby="visual-showcase-title" data-analytics-section="product_tour">
         <div className="sectionHeader">
-          <p className="eyebrow">Product tour</p>
-          <h2 id="visual-showcase-title">Your media stack, finally in one place</h2>
+          <p className="eyebrow">Manual control, always available</p>
+          <h2 id="visual-showcase-title">See what the agent sees. Take over any time.</h2>
           <p>
-            Stackarr turns the usual mix of tabs, config files, and one-off scripts into a focused control plane for
-            running, tuning, and recovering your server.
+            The dashboard is an optional but complete operating surface for setup, status, activity, recovery, and
+            direct service access. Agent and human actions share the same control plane.
           </p>
         </div>
         <div className="screenshotHeroCard">
@@ -177,25 +262,29 @@ export default function LandingPage() {
 
       <section className="band" id="download" data-analytics-section="download">
         <div className="sectionHeader">
-          <p className="eyebrow">Start strong</p>
-          <h2>Choose your launch path</h2>
+          <p className="eyebrow">Run it, then hand over the keys you choose</p>
+          <h2>One container. One agent connection.</h2>
         </div>
         <div className="tabs">
           <article>
-            <h3>Guided setup</h3>
+            <h3>Agent connection</h3>
             <p>
-              Pair Stackarr with a trusted coding agent and let it handle the repetitive setup work with your choices in
-              the loop.
+              Start with routine management and approval prompts. Move to admin for setup, or unrestricted when you
+              intentionally want full autonomy.
             </p>
-            <LandingCodeBlock>{`stackarr mcp serve
-stackarr plugins install hermes`}</LandingCodeBlock>
-            <p>Built for local MCP clients including Codex, Claude, Hermes, and OpenClaw-style agents.</p>
+            <LandingCodeBlock>{`codex mcp add stackarr \\
+  --env STACKARR_MCP_PROFILE=manage \\
+  -- stackarr mcp serve`}</LandingCodeBlock>
+            <p>
+              Hermes and OpenClaw users can use <a href="/docs/agent/plugins">native plugin bundles</a> instead.
+            </p>
           </article>
           <article>
-            <h3>Docker stack</h3>
-            <p>Spin up Stackarr with its managed services when you want the full home media stack in one launch.</p>
+            <h3>Docker runtime</h3>
+            <p>Spin up the control plane with its managed services, then connect from a host-side chat client.</p>
             <LandingCodeBlock>{`docker pull polyphonic/stackarr:alpha
-	docker compose -f stackarr/docker-compose.yml --profile stackarr up -d app`}</LandingCodeBlock>
+docker compose -f stackarr/docker-compose.yml \\
+  --profile stackarr up -d app`}</LandingCodeBlock>
           </article>
         </div>
       </section>

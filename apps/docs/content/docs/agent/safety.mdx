@@ -8,6 +8,7 @@ title: Safety Model
 - No generic Docker exec tool.
 - Read-only tools for status, health, services, Arr apps, downloads, Plex, Seerr, backups, and logs.
 - Write tools use typed Stackarr action wrappers.
-- Dangerous tools require explicit confirmation flags such as `confirmDangerous: true`.
+- Dangerous tools use client-mediated MCP elicitation and fail closed when the client cannot display it.
+- `unrestricted` is an explicit launch profile for users who want complete autonomous control.
 - Download deletion requires confirmation when data would be removed.
 - Secrets are redacted from summaries, errors, and activity logs where possible.

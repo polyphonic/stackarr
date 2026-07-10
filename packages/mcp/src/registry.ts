@@ -25,7 +25,10 @@ import {
   getDockerOverviewAction,
   getDownloadHistoryAction,
   getDownloadQueueAction,
+  getEnabledMcpServiceNames,
   getIndexerStatusAction,
+  getMcpProfileDescription,
+  getMcpToolCatalog,
   getMediaServerSetupProfileAction,
   getMissingEpisodesAction,
   getMovieStatusAction,
@@ -46,14 +49,13 @@ import {
   getSystemStatusAction,
   getTelemetryStatusAction,
   getWantedMoviesAction,
-  hasScope,
   listAgentActivityRecords,
   listBackupsAction,
   listLidarrStreamripAlbumsAction,
   listServiceConfigsAction,
   listServicesAction,
   listStreamripJobsAction,
-  localTrustedPolicy,
+  type McpProfile,
   manageDockerResourceAction,
   migrateCurrentStackAction,
   monitorMovieAction,
@@ -61,11 +63,13 @@ import {
   pauseDownloadAction,
   prepareLidarrStreamripAlbumAction,
   previewTelemetryPayloadAction,
-  type RiskLevel,
   readTasks,
+  redactSecrets,
   refreshArrItemAction,
   refreshPlexMetadataAction,
   removeDownloadAction,
+  resolveMcpGroups,
+  resolveMcpProfile,
   restoreBackupAction,
   restoreServiceDatabaseFromBackupAction,
   resumeDownloadAction,
@@ -74,7 +78,6 @@ import {
   runPermissionsAuditAction,
   runPermissionsFixAction,
   runUpdateAction,
-  type StackarrScope,
   scanPlexLibraryAction,
   searchMovieAction,
   searchReleasesAction,
@@ -82,11 +85,11 @@ import {
   sendTelemetryAction,
   setDownloadPriorityAction,
   setupMediaServerAction,
-  stackarrToolCatalog,
   startStackAction,
   startStreamripDownloadAction,
   startStreamripSearchDownloadAction,
   stopStackAction,
+  type ToolCatalogEntry,
   testArrToDownloaderAction,
   testIndexersAction,
   testPlexIdentityAction,
@@ -115,7 +118,7 @@ type Handler = (input: any) => Promise<unknown> | unknown;
 type ToolDef = { name: string; description: string; shape: z.ZodRawShape; handler: Handler };
 const empty = {};
 const service = { service: z.string() };
-const dangerous = { confirmDangerous: z.boolean().optional(), reason: z.string().optional() };
+const dangerous = { reason: z.string().optional() };
 const downloader = { downloader: z.enum(['transmission', 'qbittorrent']).optional() };
 const seriesInstance = z.enum(['sonarr', 'sonarr4k']);
 const movieInstance = z.enum(['radarr', 'radarr4k']);
@@ -129,9 +132,15 @@ const tools: ToolDef[] = [
     handler: getMediaServerSetupProfileAction
   },
   {
+    name: 'stackarr_get_mcp_control_plane',
+    description: 'Get the active MCP profile, approval mode, enabled services, and grouped tool catalog.',
+    shape: empty,
+    handler: () => getRegisteredControlPlaneSummary()
+  },
+  {
     name: 'stackarr_setup_media_server',
     description:
-      'Perform the full opinionated Stackarr setup workflow. Defaults to dryRun; set dryRun false and confirmSetup true to execute.',
+      'Perform the full opinionated Stackarr setup workflow. Defaults to dryRun; execution asks the user for approval in the MCP client.',
     shape: {
       torrentClient: z.enum(['transmission', 'qbittorrent']).optional(),
       mediaRoot: z.string().optional(),
@@ -204,8 +213,7 @@ const tools: ToolDef[] = [
       configureServices: z.boolean().optional(),
       applyPresets: z.boolean().optional(),
       openBrowser: z.boolean().optional(),
-      dryRun: z.boolean().optional(),
-      confirmSetup: z.boolean().optional()
+      dryRun: z.boolean().optional()
     },
     handler: setupMediaServerAction
   },
@@ -237,7 +245,7 @@ const tools: ToolDef[] = [
   {
     name: 'stackarr_update_service_config',
     description: 'Update service config values using UI field ids.',
-    shape: { service: z.string(), values: z.record(z.string(), z.unknown()), currentPassword: z.string().optional() },
+    shape: { service: z.string(), values: z.record(z.string(), z.unknown()) },
     handler: updateServiceConfigAction
   },
   {
@@ -248,7 +256,7 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_manage_container_resource',
-    description: 'Manage Docker resources; removal and prune actions require confirmDangerous and reason.',
+    description: 'Manage Docker resources after interactive approval in the MCP client.',
     shape: {
       kind: z.enum(['container', 'volume', 'image', 'network']),
       action: z.enum(['start', 'stop', 'restart', 'remove', 'pruneExited', 'pruneDangling', 'pruneUnused']),
@@ -285,12 +293,11 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_update_telemetry_config',
-    description: 'Enable, disable, or configure first-party telemetry; enabling requires confirmTelemetry.',
+    description: 'Enable, disable, or configure first-party telemetry after interactive approval.',
     shape: {
       enabled: z.boolean().optional(),
       endpoint: z.string().optional(),
-      channel: z.string().optional(),
-      confirmTelemetry: z.boolean().optional()
+      channel: z.string().optional()
     },
     handler: updateTelemetryConfigAction
   },
@@ -596,8 +603,7 @@ const tools: ToolDef[] = [
     shape: {
       ...downloader,
       id: z.string(),
-      deleteData: z.boolean().optional(),
-      confirmDeleteData: z.boolean().optional()
+      deleteData: z.boolean().optional()
     },
     handler: removeDownloadAction
   },
@@ -879,52 +885,242 @@ const tools: ToolDef[] = [
   }
 ];
 
-export function registerStackarrTools(server: McpServer) {
+export function registerStackarrTools(server: McpServer, profile: McpProfile = resolveMcpProfile()) {
+  const enabledServices = getEnabledMcpServiceNames();
+  const enabledCatalog = getMcpToolCatalog({ profile, enabledServices });
+  const enabledTools = new Map(enabledCatalog.map((entry) => [entry.name, entry]));
+
   for (const tool of tools) {
-    const meta = stackarrToolCatalog.find((entry) => entry.name === tool.name);
-    server.tool(tool.name, tool.description, tool.shape, async (input) => {
-      const started = Date.now();
-      const activity = await auditStarted({
-        caller: 'mcp-local',
-        toolName: tool.name,
-        category: meta?.category ?? 'stack',
-        scopes: (meta?.scopes ?? ['stack:read']) as StackarrScope[],
-        risk: (meta?.risk ?? 'read') as RiskLevel,
-        inputSummary: input
-      });
-      try {
-        for (const scope of meta?.scopes ?? []) {
-          if (!hasScope(localTrustedPolicy.scopes, scope)) {
+    const meta = enabledTools.get(tool.name);
+    if (!meta) continue;
+
+    server.registerTool(
+      tool.name,
+      {
+        title: toolTitle(tool.name),
+        description: tool.description,
+        inputSchema: tool.shape,
+        annotations: toolAnnotations(meta),
+        _meta: {
+          'stackarr/category': meta.category,
+          'stackarr/risk': meta.risk,
+          'stackarr/profile': profile
+        }
+      },
+      async (input) => {
+        const started = Date.now();
+        const activity = await auditStarted({
+          caller: 'mcp-local',
+          toolName: tool.name,
+          category: meta.category,
+          scopes: meta.scopes,
+          risk: meta.risk,
+          inputSummary: input
+        });
+        try {
+          const authorization = await authorizeToolCall(server, profile, meta, input);
+          if (!authorization.approved) {
             await auditFinished(activity.id, {
               status: 'denied',
               durationMs: Date.now() - started,
-              error: `Missing scope: ${scope}`
+              resultSummary: summarize(authorization.result),
+              error: denialReason(authorization.result)
             });
-            throw new Error(`Stackarr MCP policy denied ${tool.name}: missing scope ${scope}`);
+            return jsonContent(authorization.result);
           }
+
+          const result = await tool.handler(authorization.input);
+          await auditFinished(activity.id, {
+            status: 'success',
+            durationMs: Date.now() - started,
+            resultSummary: summarize(result)
+          });
+          return jsonContent(result);
+        } catch (error) {
+          const status = error instanceof DangerousActionError ? 'denied' : 'error';
+          await auditFinished(activity.id, {
+            status,
+            durationMs: Date.now() - started,
+            error: serializeError(error).message
+          });
+          throw error;
         }
-        const result = await tool.handler(input);
-        await auditFinished(activity.id, {
-          status: 'success',
-          durationMs: Date.now() - started,
-          resultSummary: summarize(result)
-        });
-        return jsonContent(result);
-      } catch (error) {
-        const status = error instanceof DangerousActionError ? 'denied' : 'error';
-        await auditFinished(activity.id, {
-          status,
-          durationMs: Date.now() - started,
-          error: serializeError(error).message
-        });
-        throw error;
       }
-    });
+    );
   }
+}
+
+async function authorizeToolCall(
+  server: McpServer,
+  profile: McpProfile,
+  meta: ToolCatalogEntry,
+  input: Record<string, unknown>
+): Promise<{ approved: true; input: Record<string, unknown> } | { approved: false; result: Record<string, unknown> }> {
+  const blockedCredentialKeys = credentialKeysInConfigurationCall(meta.name, input);
+  if (blockedCredentialKeys.length > 0) {
+    return {
+      approved: false,
+      result: {
+        accepted: false,
+        tool: meta.name,
+        blockedCredentialKeys,
+        error: 'Credentials and account identities must be changed through an authenticated settings surface, not MCP.'
+      }
+    };
+  }
+
+  if (!requiresInteractiveApproval(meta, input)) {
+    return { approved: true, input };
+  }
+
+  if (profile === 'unrestricted') {
+    return { approved: true, input: withInternalApproval(input) };
+  }
+
+  if (!server.server.getClientCapabilities()?.elicitation) {
+    return {
+      approved: false,
+      result: {
+        accepted: false,
+        approvalRequired: true,
+        tool: meta.name,
+        error: 'This MCP client does not declare support for interactive elicitation.',
+        nextStep:
+          'Use a client with MCP form elicitation support, or deliberately launch Stackarr with STACKARR_MCP_PROFILE=unrestricted.'
+      }
+    };
+  }
+
+  const result = await server.server.elicitInput({
+    mode: 'form',
+    _meta: { codex_approval_kind: 'mcp_tool_call' },
+    message: approvalMessage(meta, input),
+    requestedSchema: {
+      type: 'object',
+      properties: {
+        approve: {
+          type: 'boolean',
+          title: 'Approve this action',
+          description: 'Enable only after reviewing the exact action and arguments above.',
+          default: false
+        }
+      },
+      required: ['approve']
+    }
+  });
+
+  if (result.action !== 'accept' || result.content?.approve !== true) {
+    return {
+      approved: false,
+      result: {
+        accepted: false,
+        approvalRequired: true,
+        tool: meta.name,
+        decision: result.action,
+        message: 'The action was not approved by the user.'
+      }
+    };
+  }
+
+  return { approved: true, input: withInternalApproval(input) };
+}
+
+function credentialKeysInConfigurationCall(toolName: string, input: Record<string, unknown>) {
+  if (
+    toolName !== 'stackarr_update_service_config' &&
+    toolName !== 'stackarr_update_stack_config' &&
+    toolName !== 'stackarr_update_streamrip_config'
+  ) {
+    return [];
+  }
+
+  const values = input.values;
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return [];
+
+  return Object.keys(values).filter((key) =>
+    /(password|passwd|token|secret|credential|username|email|claim|api[_-]?key|apikey|(^|[._-])arl$|app[_-]?id|client[_-]?id)/i.test(
+      key
+    )
+  );
+}
+
+function requiresInteractiveApproval(meta: ToolCatalogEntry, input: Record<string, unknown>) {
+  if (meta.risk !== 'dangerous') return false;
+
+  if (meta.name === 'stackarr_setup_media_server') return input.dryRun === false;
+  if (meta.name === 'stackarr_restore_backup' || meta.name === 'stackarr_migrate_current_stack') {
+    return input.dryRun === false;
+  }
+
+  return true;
+}
+
+function withInternalApproval(input: Record<string, unknown>) {
+  return {
+    ...input,
+    confirmDangerous: true,
+    confirmSetup: true,
+    confirmTelemetry: true,
+    confirmDeleteData: true,
+    trustedControlPlaneApproval: true,
+    reason:
+      typeof input.reason === 'string' && input.reason.trim()
+        ? input.reason
+        : 'Approved interactively through the Stackarr MCP control plane.'
+  };
+}
+
+function approvalMessage(meta: ToolCatalogEntry, input: Record<string, unknown>) {
+  const summary = JSON.stringify(redactSecrets(input), null, 2);
+  const boundedSummary = summary.length > 3000 ? `${summary.slice(0, 3000)}\n…` : summary;
+  return `Stackarr wants to run a destructive action.\n\nTool: ${meta.name}\nCategory: ${meta.category}\n\nArguments:\n${boundedSummary}`;
+}
+
+function toolAnnotations(meta: ToolCatalogEntry) {
+  return {
+    title: toolTitle(meta.name),
+    readOnlyHint: meta.risk === 'read',
+    destructiveHint: meta.risk === 'dangerous',
+    idempotentHint: meta.risk === 'read',
+    openWorldHint: ['services', 'arr', 'releases', 'downloads', 'plex', 'seerr'].includes(meta.category)
+  };
+}
+
+function toolTitle(name: string) {
+  return name
+    .replace(/^stackarr_/, '')
+    .split('_')
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+export function getRegisteredControlPlaneSummary(profile: McpProfile = resolveMcpProfile()) {
+  const enabledServices = getEnabledMcpServiceNames();
+  const catalog = getMcpToolCatalog({ profile, enabledServices });
+  return {
+    profile,
+    description: getMcpProfileDescription(profile),
+    approvalMode: profile === 'unrestricted' ? 'unrestricted' : 'client-elicitation',
+    selectedGroups: resolveMcpGroups() ?? 'all-relevant',
+    enabledServices,
+    toolCount: catalog.length,
+    groups: Object.fromEntries(
+      [...new Set(catalog.map((tool) => tool.category))].map((category) => [
+        category,
+        catalog.filter((tool) => tool.category === category).map((tool) => tool.name)
+      ])
+    )
+  };
 }
 
 function summarize(result: unknown) {
   if (Array.isArray(result)) return { type: 'array', count: result.length };
   if (result && typeof result === 'object') return { type: 'object', keys: Object.keys(result).slice(0, 12) };
   return result;
+}
+
+function denialReason(result: Record<string, unknown>) {
+  if (typeof result.error === 'string') return result.error;
+  if (typeof result.message === 'string') return result.message;
+  return 'The MCP action was not approved.';
 }

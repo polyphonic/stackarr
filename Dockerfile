@@ -49,6 +49,8 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=7777 \
     STACKARR_WEB_PORT=7777 \
+    STACKARR_RUNTIME=docker \
+    STACKARR_CONTAINER_NAME=stackarr \
     STACKARR_REPO_ROOT=/stackarr-workspace \
     STACKARR_DATABASE_FILE=/stackarr-workspace/stackarr/config/stackarr.db
 

@@ -1,3 +1,4 @@
 {
-  "pages": ["agent-setup", "mcp", "plugins", "tools", "activity", "safety"]
+  "title": "Agent-managed homelab",
+  "pages": ["agent-setup", "mcp", "plugins", "tools", "safety", "activity"]
 }

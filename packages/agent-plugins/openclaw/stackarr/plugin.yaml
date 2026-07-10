@@ -8,6 +8,8 @@ mcp:
   args:
     - mcp
     - serve
+  env:
+    STACKARR_MCP_PROFILE: manage
   timeout: 120
   connect_timeout: 30
 safety:

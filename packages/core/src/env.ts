@@ -420,10 +420,22 @@ export function redactEnv(env: StackarrEnv): StackarrEnv {
 }
 
 export function protectedEnvConfigChanged(config: StackarrEnv, current: StackarrEnv) {
+  return envConfigChanged(config, current, isCurrentPasswordProtectedConfigKey);
+}
+
+export function credentialEnvConfigChanged(config: StackarrEnv, current: StackarrEnv) {
+  return envConfigChanged(config, current, isCredentialConfigKey);
+}
+
+export function controlPlaneBoundaryEnvConfigChanged(config: StackarrEnv, current: StackarrEnv) {
+  return envConfigChanged(config, current, isControlPlaneBoundaryConfigKey);
+}
+
+function envConfigChanged(config: StackarrEnv, current: StackarrEnv, protectedKey: (key: string) => boolean) {
   const redactedCurrent = redactEnv(current);
 
   for (const [key, value] of Object.entries(config)) {
-    if (!isCurrentPasswordProtectedConfigKey(key)) {
+    if (!protectedKey(key)) {
       continue;
     }
 
@@ -442,9 +454,19 @@ export function protectedEnvConfigChanged(config: StackarrEnv, current: Stackarr
 }
 
 export function isCurrentPasswordProtectedConfigKey(key: string) {
+  return isCredentialConfigKey(key) || isControlPlaneBoundaryConfigKey(key);
+}
+
+export function isCredentialConfigKey(key: string) {
   const normalized = key.toUpperCase();
 
   return normalized === 'USERNAME' || normalized === 'USER_EMAIL' || isSecretKey(normalized);
+}
+
+export function isControlPlaneBoundaryConfigKey(key: string) {
+  const normalized = key.toUpperCase();
+
+  return normalized.endsWith('_URL') || normalized.endsWith('_BIND_IP') || normalized.endsWith('_IMAGE');
 }
 
 export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): StackarrEnv {

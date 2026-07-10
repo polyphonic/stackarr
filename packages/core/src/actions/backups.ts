@@ -70,7 +70,7 @@ export async function restoreBackupAction(input: RestoreBackupInput) {
       accepted: false,
       plan,
       nextStep:
-        'Call stackarr_restore_backup with dryRun: false, confirmDangerous: true, and a reason to execute the restore.'
+        'Review the plan, then call stackarr_restore_backup with dryRun: false. The MCP client will request approval before execution.'
     };
   }
 

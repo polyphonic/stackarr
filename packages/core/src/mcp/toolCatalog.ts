@@ -11,10 +11,19 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Return the opinionated Stackarr setup questions, defaults, and browser port.'
   },
   {
+    name: 'stackarr_get_mcp_control_plane',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Return the active MCP authority profile, approval mode, service groups, and exposed tools.'
+  },
+  {
     name: 'stackarr_setup_media_server',
     category: 'stack',
-    scopes: ['stack:write'],
-    risk: 'write',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description:
@@ -68,8 +77,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_service_config',
     category: 'services',
-    scopes: ['services:write'],
-    risk: 'write',
+    scopes: ['services:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Update one service configuration using the same field ids exposed in the Stackarr UI.'
@@ -113,8 +122,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_stack_config',
     category: 'stack',
-    scopes: ['stack:write'],
-    risk: 'write',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Update DB-backed Stackarr runtime configuration values by managed env key.'
@@ -131,8 +140,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_telemetry_config',
     category: 'stack',
-    scopes: ['stack:write'],
-    risk: 'write',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Enable, disable, or configure first-party telemetry after explicit consent.'
@@ -167,8 +176,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_cloudflare_access',
     category: 'stack',
-    scopes: ['stack:write'],
-    risk: 'write',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Update Cloudflare Access allowlist emails, session duration, and default enablement.'
@@ -185,8 +194,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_cloudflare_routes',
     category: 'stack',
-    scopes: ['stack:write'],
-    risk: 'write',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description:
@@ -537,8 +546,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_streamrip_config',
     category: 'downloads',
-    scopes: ['downloads:write'],
-    risk: 'write',
+    scopes: ['downloads:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Update Streamrip configuration fields.'

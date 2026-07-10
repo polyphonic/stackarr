@@ -4,6 +4,7 @@ export type StackarrScope =
   | 'stack:dangerous'
   | 'services:read'
   | 'services:write'
+  | 'services:dangerous'
   | 'containers:read'
   | 'containers:write'
   | 'containers:dangerous'
@@ -25,8 +26,3 @@ export type StackarrScope =
   | 'health:write';
 
 export type RiskLevel = 'read' | 'write' | 'dangerous';
-export type ScopeGrant = StackarrScope | '*';
-
-export function hasScope(grants: ScopeGrant[], required: StackarrScope): boolean {
-  return grants.includes('*') || grants.includes(required);
-}

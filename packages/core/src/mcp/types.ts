@@ -1,5 +1,7 @@
 import type { RiskLevel, StackarrScope } from '../safety/scopes';
 
+export type McpProfile = 'observe' | 'manage' | 'admin' | 'unrestricted';
+
 export type ToolCategory =
   | 'stack'
   | 'services'

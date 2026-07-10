@@ -78,10 +78,11 @@ Then configure telemetry only after explicit consent:
 {
   "enabled": true,
   "endpoint": "https://stackarr.example.com/api/telemetry/events",
-  "channel": "stable",
-  "confirmTelemetry": true
+  "channel": "stable"
 }
 ```
+
+The MCP client asks the user to approve the exact telemetry change before it is saved.
 
 The send tool also defaults to dry-run:
 

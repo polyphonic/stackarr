@@ -1,5 +1,6 @@
 import * as nodeCrypto from 'node:crypto';
 import {
+  credentialEnvConfigChanged,
   isCurrentPasswordProtectedConfigKey,
   managedEnvDefaults,
   protectedEnvConfigChanged,
@@ -618,6 +619,7 @@ export function updateServiceConfigAction(input: {
   service: string;
   values: Record<string, unknown>;
   currentPassword?: unknown;
+  trustedControlPlaneApproval?: boolean;
 }) {
   const summary = findService(input.service);
 
@@ -659,8 +661,16 @@ export function updateServiceConfigAction(input: {
 
   if (Object.keys(envPatch).length > 0) {
     const currentEnv = readEnv();
+    if (input.trustedControlPlaneApproval && credentialEnvConfigChanged(envPatch, currentEnv)) {
+      return {
+        service: input.service,
+        accepted: false,
+        error: 'Credentials and secrets must be changed through an authenticated settings surface, not MCP.',
+        config: buildModel(findService(summary.name) ?? summary)
+      };
+    }
     const currentPasswordError = validateCurrentPasswordForProtectedConfigChange(
-      protectedEnvConfigChanged(envPatch, currentEnv),
+      protectedEnvConfigChanged(envPatch, currentEnv) && !input.trustedControlPlaneApproval,
       currentEnv,
       input.currentPassword
     );
@@ -744,7 +754,12 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
 
 function updateStreamripServiceConfig(
   summary: ServiceSummary,
-  input: { service: string; values: Record<string, unknown>; currentPassword?: unknown }
+  input: {
+    service: string;
+    values: Record<string, unknown>;
+    currentPassword?: unknown;
+    trustedControlPlaneApproval?: boolean;
+  }
 ) {
   const values: Record<string, unknown> = {};
 
@@ -758,6 +773,14 @@ function updateStreamripServiceConfig(
   }
 
   const currentEnv = readEnv();
+  if (input.trustedControlPlaneApproval && streamripSecretConfigChanged(values)) {
+    return {
+      service: input.service,
+      accepted: false,
+      error: 'Streamrip credentials must be changed through an authenticated settings surface, not MCP.',
+      config: buildModel(summary)
+    };
+  }
   const currentPasswordError = validateCurrentPasswordForProtectedConfigChange(
     streamripSecretConfigChanged(values),
     currentEnv,
@@ -811,7 +834,7 @@ function validateCurrentPasswordForProtectedConfigChange(
   }
 
   if (typeof currentPassword !== 'string' || !currentPassword) {
-    return 'Current admin password is required to change protected account or secret fields.';
+    return 'Current admin password is required to change protected credentials, endpoints, bind addresses, or images.';
   }
 
   if (!constantTimeStringEqual(currentPassword, current.PASSWORD)) {

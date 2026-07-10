@@ -25,7 +25,7 @@ Stackarr is the control plane. Prefer Stackarr UI, API, CLI, or MCP tools over e
    - backup mode: lite or full, and backup folder
 4. Call `stackarr_setup_media_server` with `dryRun: true`.
 5. Summarize the planned changes and ask for confirmation.
-6. Apply with `dryRun: false` and `confirmSetup: true`.
+6. Apply with `dryRun: false`; the Stackarr MCP server will request approval through the client.
 7. Verify with `stackarr_get_system_status`, health checks, and recent tasks.
 
 ## Default-First Setup Prompt

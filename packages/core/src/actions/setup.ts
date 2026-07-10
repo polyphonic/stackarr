@@ -567,7 +567,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       accepted: false,
       plan,
       nextStep:
-        'Call stackarr_setup_media_server with dryRun: false and confirmSetup: true to write config and run setup.'
+        'Call stackarr_setup_media_server with dryRun: false. The MCP client will request approval before writing config or running setup.'
     };
   }
 

@@ -1,42 +1,39 @@
 'use client';
 
 import { icons, Link } from '@stackarr/ui';
-import { githubRepo, githubUrl } from '~/lib/site';
 
 const DownloadIcon = icons.download;
 const RocketIcon = icons.play;
-const StarIcon = icons.star;
+const ControlIcon = icons.container;
 
 export function LandingActions() {
   return (
     <div className="actions">
       <Link
         className="heroButton primary"
-        data-analytics-interest="github_star"
-        data-analytics-interest-group="oss"
-        data-analytics-interest-label={githubRepo}
+        data-analytics-interest="agent_setup"
+        data-analytics-interest-group="agent"
+        data-analytics-interest-label="agent_setup"
         data-analytics-link="hero_actions"
-        data-analytics-link-type="github_star"
-        data-analytics-platform="github"
-        href={githubUrl}
-        rel="noreferrer"
-        target="_blank"
+        data-analytics-link-type="agent_setup"
+        data-analytics-platform="docs"
+        href="/docs/agent/agent-setup"
       >
-        <StarIcon aria-hidden="true" size={18} />
-        Star on GitHub
+        <RocketIcon aria-hidden="true" size={18} />
+        Connect an agent
       </Link>
       <Link
         className="heroButton secondary"
-        data-analytics-interest="install_docs"
-        data-analytics-interest-group="install"
-        data-analytics-interest-label="getting_started"
+        data-analytics-interest="mcp_plugins"
+        data-analytics-interest-group="agent"
+        data-analytics-interest-label="mcp_plugins"
         data-analytics-link="hero_actions"
-        data-analytics-link-type="install_docs"
+        data-analytics-link-type="mcp_plugins"
         data-analytics-platform="docs"
-        href="/docs/getting-started"
+        href="/docs/agent/mcp"
       >
-        <RocketIcon aria-hidden="true" size={18} />
-        Start Building
+        <ControlIcon aria-hidden="true" size={18} />
+        MCP &amp; plugins
       </Link>
       <Link
         className="heroButton secondary"

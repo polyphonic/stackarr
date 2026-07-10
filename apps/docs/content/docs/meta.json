@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "agent",
     "getting-started",
     "installation",
     "setup",
@@ -8,7 +9,6 @@
     "integrations",
     "settings",
     "api",
-    "agent",
     "operations",
     "reference"
   ]

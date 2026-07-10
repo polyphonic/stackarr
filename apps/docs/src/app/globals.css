@@ -299,6 +299,296 @@ body {
   white-space: nowrap;
 }
 
+.landingPage .agentConsole {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--stack-accent) 34%, var(--stack-line));
+  border-radius: 12px;
+  background: var(--stack-code-bg);
+  color: var(--stack-code-text);
+  box-shadow:
+    0 28px 80px color-mix(in srgb, var(--stack-bg-deep) 82%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--stack-accent) 6%, transparent) inset;
+}
+
+.landingPage .agentConsoleTop,
+.landingPage .agentPlanHeader,
+.landingPage .agentConnectedApps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.landingPage .agentConsoleTop {
+  min-height: 52px;
+  border-bottom: 1px solid color-mix(in srgb, var(--stack-code-text) 12%, transparent);
+  padding: 0 18px;
+  color: color-mix(in srgb, var(--stack-code-text) 72%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landingPage .agentOnline {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.landingPage .agentOnline i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--stack-accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--stack-accent) 80%, transparent);
+}
+
+.landingPage .profileBadge {
+  border: 1px solid color-mix(in srgb, var(--stack-accent) 42%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--stack-accent) 10%, transparent);
+  padding: 5px 9px;
+  color: var(--stack-accent);
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+
+.landingPage .agentPrompt {
+  margin: 18px;
+  border-left: 2px solid var(--stack-accent);
+  background: color-mix(in srgb, var(--stack-code-text) 5%, transparent);
+  padding: 13px 15px;
+}
+
+.landingPage .agentPrompt span,
+.landingPage .agentPlanHeader span,
+.landingPage .agentConnectedApps > span {
+  color: color-mix(in srgb, var(--stack-code-text) 52%, transparent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.landingPage .agentPrompt p {
+  margin: 5px 0 0;
+  color: var(--stack-code-text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.landingPage .agentPlan {
+  margin: 0 18px;
+}
+
+.landingPage .agentPlanHeader {
+  margin-bottom: 8px;
+}
+
+.landingPage .agentPlanHeader strong {
+  color: color-mix(in srgb, var(--stack-code-text) 58%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.landingPage .agentPlan ol {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landingPage .agentPlan li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 66px;
+  background: color-mix(in srgb, var(--stack-code-text) 5%, transparent);
+  padding: 10px 13px;
+}
+
+.landingPage .agentPlan li:first-child {
+  border-radius: 7px 7px 0 0;
+}
+
+.landingPage .agentPlan li:last-child {
+  border-radius: 0 0 7px 7px;
+}
+
+.landingPage .agentStep {
+  color: color-mix(in srgb, var(--stack-code-text) 34%, transparent);
+  font:
+    700 11px / 1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+.landingPage .agentPlan li > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.landingPage .agentPlan li strong {
+  overflow: hidden;
+  color: var(--stack-code-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landingPage .agentPlan li small {
+  color: color-mix(in srgb, var(--stack-code-text) 48%, transparent);
+  font-size: 11px;
+}
+
+.landingPage .agentPlan li em {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--stack-accent) 12%, transparent);
+  padding: 5px 8px;
+  color: var(--stack-accent);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landingPage .agentPlan li em.askState {
+  background: color-mix(in srgb, #ffbf69 14%, transparent);
+  color: #ffca80;
+}
+
+.landingPage .agentConnectedApps {
+  gap: 12px;
+  min-height: 74px;
+  margin-top: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--stack-code-text) 10%, transparent);
+  padding: 12px 18px;
+}
+
+.landingPage .agentConnectedApps > span {
+  max-width: 150px;
+  line-height: 1.45;
+}
+
+.landingPage .agentConnectedApps > div {
+  display: flex;
+  align-items: center;
+}
+
+.landingPage .agentConnectedApps a {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  margin-left: -5px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--stack-code-text) 15%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--stack-code-bg) 92%, white);
+}
+
+.landingPage .agentConnectedApps img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.landingPage .agentPath {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 64px 28px 34px;
+}
+
+.landingPage .agentPathHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: 48px;
+  align-items: end;
+}
+
+.landingPage .agentPathHeader > p {
+  margin: 0;
+  color: var(--stack-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.landingPage .agentClientRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 28px 0 18px;
+}
+
+.landingPage .agentClientRail span {
+  border: 1px solid var(--stack-line);
+  border-radius: 999px;
+  background: var(--stack-panel);
+  padding: 8px 12px;
+  color: var(--stack-tile-label);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.landingPage .agentSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack-line);
+  padding: 0;
+  list-style: none;
+}
+
+.landingPage .agentSteps li {
+  min-width: 0;
+  background: var(--stack-panel);
+  padding: 24px;
+}
+
+.landingPage .agentSteps .stepNumber {
+  display: block;
+  margin-bottom: 34px;
+  color: var(--stack-accent);
+  font:
+    750 12px / 1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+.landingPage .agentSteps h3 {
+  margin-bottom: 10px;
+}
+
+.landingPage .agentSteps p {
+  min-height: 72px;
+  margin-bottom: 20px;
+  line-height: 1.55;
+}
+
+.landingPage .agentSteps a {
+  color: var(--stack-blue);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.landingPage .agentSteps a:hover {
+  color: var(--stack-accent);
+}
+
 .landingPage .band,
 .landingPage .featureGrid {
   max-width: 1180px;
@@ -626,6 +916,8 @@ body {
   .landingPage .heroGrid > div:first-child .lede,
   .landingPage .heroGrid > div:first-child .actions,
   .landingPage .heroGrid > div:first-child .heroNote,
+  .landingPage .agentConsole,
+  .landingPage .agentPath,
   .landingPage .band,
   .landingPage .featureGrid,
   .landingPage .footer {
@@ -646,6 +938,14 @@ body {
 
   .landingPage .heroGrid > div:first-child .heroNote {
     animation-delay: 250ms;
+  }
+
+  .landingPage .agentConsole {
+    animation: stackFadeUp 620ms 180ms ease both;
+  }
+
+  .landingPage .agentPath {
+    animation-delay: 260ms;
   }
 
   .landingPage .serviceMap a {
@@ -705,6 +1005,8 @@ body {
     gap: 12px;
   }
   .landingPage .heroGrid,
+  .landingPage .agentPathHeader,
+  .landingPage .agentSteps,
   .landingPage .tabs,
   .landingPage .screenshotGrid,
   .landingPage .featureGrid,
@@ -714,6 +1016,15 @@ body {
   .landingPage .serviceMap {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 22px;
+  }
+  .landingPage .agentPath {
+    padding-top: 44px;
+  }
+  .landingPage .agentSteps {
+    gap: 1px;
+  }
+  .landingPage .agentSteps p {
+    min-height: 0;
   }
   .landingPage h1 {
     font-size: 48px;

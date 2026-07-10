@@ -1,4 +1,4 @@
-import { getToolCatalog } from '@stackarr/core';
+import { getMcpToolCatalog, resolveMcpProfile } from '@stackarr/core';
 import { AgentToolCatalog } from '../../../components/AgentToolCatalog';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
@@ -10,7 +10,7 @@ export default async function AgentToolsPage() {
     <>
       <Toolbar title="Agent Tools" />
       <PageBody>
-        <AgentToolCatalog tools={getToolCatalog()} />
+        <AgentToolCatalog tools={getMcpToolCatalog({ profile: resolveMcpProfile() })} />
       </PageBody>
     </>
   );

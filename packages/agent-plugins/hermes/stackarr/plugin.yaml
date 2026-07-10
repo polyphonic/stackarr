@@ -1,15 +1,6 @@
 name: stackarr
-version: 0.1.0
-description: Stackarr media-stack control tools for Hermes Agent, backed by the local Stackarr MCP server.
+version: 0.2.0
+description: Configuration bundle for Stackarr's native Hermes MCP integration.
 author: Stackarr contributors
-kind: standalone
-toolset: stackarr
+kind: mcp-config
 homepage: https://github.com/b-bot/Stackarr
-provides_tools:
-  - stackarr_list_mcp_tools
-  - stackarr_mcp_call
-  - stackarr_get_status
-  - stackarr_get_setup_profile
-  - stackarr_setup_media_server
-hooks:
-  - pre_llm_call

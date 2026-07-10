@@ -1,34 +1,34 @@
-# Stackarr Hermes Plugin
+# Stackarr for Hermes
 
-Local Hermes plugin that exposes Stackarr's typed MCP server as native Hermes tools.
+Stackarr connects through Hermes' native MCP client. This preserves the individual tool schemas, risk annotations, service-aware catalog, and in-chat elicitation prompts. There is no generic wrapper tool.
 
 ## Install
-
-Preferred install from a packaged Stackarr app or CLI:
 
 ```bash
 stackarr plugins install hermes
 ```
 
-That copies the plugin to `~/.hermes/plugins/stackarr`, writes a local `stackarr-command.json` pointing at this Stackarr executable, and enables the plugin when the `hermes` CLI is available.
+That registers `stackarr mcp serve` under `mcp_servers.stackarr` with the default `manage` profile.
 
-Manual/dev install is still possible:
+Choose a different authority profile during installation:
 
 ```bash
-cp -R packages/agent-plugins/hermes/stackarr ~/.hermes/plugins/stackarr
-hermes plugins enable stackarr
+stackarr plugins install hermes --profile observe
+stackarr plugins install hermes --profile admin
+stackarr plugins install hermes --profile unrestricted
 ```
 
-For manual installs, either keep `stackarr` on `PATH`, write `~/.hermes/plugins/stackarr/stackarr-command.json`, or set `STACKARR_COMMAND`/`STACKARR_REPO_ROOT` so the plugin can run `stackarr mcp serve`.
+For a manual install:
 
-Restart Hermes or `/reset` after enabling.
+```bash
+hermes mcp add stackarr \
+  --command stackarr \
+  --env STACKARR_MCP_PROFILE=manage \
+  --args mcp serve
+```
 
-## Tools
+Restart Hermes or `/reset` after installation.
 
-- `stackarr_list_mcp_tools` — discover Stackarr MCP tools.
-- `stackarr_mcp_call` — call any Stackarr MCP tool by name.
-- `stackarr_get_status` — convenience wrapper for `stackarr_get_system_status`.
-- `stackarr_get_setup_profile` — onboarding defaults/questions.
-- `stackarr_setup_media_server` — onboarding execution; dry-run by default.
+## Why Native MCP
 
-The plugin delegates to `stackarr mcp serve` and records activity through Stackarr's MCP audit layer.
+Hermes supports MCP elicitation on its CLI, TUI, and messaging surfaces. Using that client directly means destructive Stackarr actions pause for the real Hermes approval UI, while `unrestricted` remains an explicit user-controlled opt-in.
