@@ -1,3 +1,16 @@
 {
-  "pages": ["media-management", "download-clients"]
+  "title": "Settings",
+  "defaultOpen": false,
+  "pages": [
+    "index",
+    "general",
+    "storage",
+    "media-management",
+    "download-clients",
+    "indexers",
+    "metadata",
+    "profiles",
+    "connect",
+    "ui"
+  ]
 }

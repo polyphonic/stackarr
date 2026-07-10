@@ -84,8 +84,8 @@ services:
       - "${STACKARR_BIND_IP:-127.0.0.1}:${STACKARR_WEB_PORT:-7777}:${STACKARR_WEB_PORT:-7777}"
     labels:
       org.opencontainers.image.title: Stackarr
-      org.opencontainers.image.description: "[Stackarr](https://stackarr.app/) is an Arr-style alpha control plane for a macOS and Docker media server stack."
-      org.opencontainers.image.authors: Stackarr contributors
+      org.opencontainers.image.description: "[Stackarr](https://stackarr.app/) is a chat-first Docker control plane for self-hosted media stacks."
+      org.opencontainers.image.authors: Stackarr
       org.opencontainers.image.licenses: GPL-3.0-only
       org.opencontainers.image.source: https://github.com/b-bot/Stackarr
       org.opencontainers.image.documentation: https://stackarr.app/docs/installation/docker
@@ -94,7 +94,7 @@ services:
       org.opencontainers.image.icon: https://stackarr.app/icon-512.png
       com.stackarr.icon: https://stackarr.app/icon-512.png
       homepage.name: Stackarr
-      homepage.description: Media stack control plane
+      homepage.description: Manage your media stack from chat or the dashboard
       homepage.icon: https://stackarr.app/icon-512.png
       homepage.href: http://127.0.0.1:${STACKARR_WEB_PORT:-7777}
     restart: unless-stopped

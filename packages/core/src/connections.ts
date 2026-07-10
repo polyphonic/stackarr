@@ -167,15 +167,15 @@ export function getConnections(): StackarrConnection[] {
       target: 'plex',
       kind: 'config',
       status: env.PLEX_INSTALL_MODE === 'disabled' ? 'optional' : 'configured',
-      description: 'Monitors native server identity and can align Plex network preference metadata for macOS installs.',
-      managedFields: ['Native config path', 'Preferences plist', 'Published server metadata']
+      description: 'Connects to managed-container or existing Plex servers for identity and media-server metadata.',
+      managedFields: ['Connection mode', 'Config path', 'Published server metadata']
     },
     {
       name: 'Jellyfin',
       target: 'jellyfin',
       kind: 'config',
       status: env.JELLYFIN_INSTALL_MODE === 'disabled' ? 'optional' : 'configured',
-      description: 'Tracks the native or Docker Jellyfin mode for media-server monitoring and future library wiring.',
+      description: 'Connects to managed-container or existing Jellyfin servers for monitoring and library wiring.',
       managedFields: ['Install mode', 'Config path', 'Media roots']
     },
     {
@@ -394,11 +394,11 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       name: 'Plex',
       target: 'plex',
       kind: 'config',
-      description: 'Monitor native or Docker Plex identity and media-server metadata.',
+      description: 'Monitor a managed-container or existing Plex server and its media metadata.',
       fields: [
         {
           name: 'installMode',
-          label: 'Install Mode',
+          label: 'Connection Mode',
           type: 'select',
           options: ['native', 'docker', 'disabled'],
           required: true
@@ -407,7 +407,7 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
           name: 'configPath',
           label: 'Config Path',
           type: 'text',
-          placeholder: '/Users/name/Library/Application Support/Plex Media Server'
+          placeholder: '/path/to/existing/plex/config'
         },
         { name: 'host', label: 'Host', type: 'text', placeholder: 'host.docker.internal' }
       ]
@@ -417,11 +417,11 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       name: 'Jellyfin',
       target: 'jellyfin',
       kind: 'config',
-      description: 'Track Jellyfin native or Docker mode for monitoring and library wiring.',
+      description: 'Track a managed-container or existing Jellyfin server for monitoring and library wiring.',
       fields: [
         {
           name: 'installMode',
-          label: 'Install Mode',
+          label: 'Connection Mode',
           type: 'select',
           options: ['native', 'docker', 'disabled'],
           required: true

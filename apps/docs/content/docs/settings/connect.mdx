@@ -45,16 +45,7 @@ Limit Account Resources to the account that owns your tunnel. Limit Zone Resourc
 
 Cloudflare's API token flow lets you choose account or zone resources and warns that token secrets are only shown once. Cloudflare's tunnel API guide specifically requires account-level Cloudflare Tunnel edit plus zone DNS edit for API-created tunnels.
 
-Example CLI setup:
-
-```bash
-bin/stackarr cloudflare install \
-  --api-token <cloudflare-api-token> \
-  --route books.example.com=bookorbit:access \
-  --route photos.example.com=immich:public \
-  --route games.example.com=romm:access \
-  --access-email family@example.com
-```
+Save the token and routes in **Settings → Connect**. Stackarr shows the exact hostnames and Access protection choices before publishing them.
 
 ## Cloudflare Access Protection
 

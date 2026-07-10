@@ -1,4 +1,5 @@
 import { getServices } from '../services';
+import { readSettings } from '../settings';
 import { stackarrToolCatalog } from './toolCatalog';
 import type { McpProfile, ToolCatalogEntry, ToolCategory } from './types';
 
@@ -60,9 +61,27 @@ export function resolveMcpGroups(value = process.env.STACKARR_MCP_GROUPS): ToolC
 }
 
 export function getEnabledMcpServiceNames() {
-  return getServices()
-    .filter((service) => service.mode !== 'disabled')
-    .map((service) => service.name);
+  return getMcpServiceSelection().enabledServices;
+}
+
+export function getMcpServiceSelection() {
+  const onboardingComplete = readSettings().setup.onboardingComplete;
+
+  if (!onboardingComplete) {
+    return {
+      onboardingComplete,
+      catalogMode: 'setup' as const,
+      enabledServices: ['stackarr']
+    };
+  }
+
+  return {
+    onboardingComplete,
+    catalogMode: 'configured-services' as const,
+    enabledServices: getServices()
+      .filter((service) => service.mode !== 'disabled')
+      .map((service) => service.name)
+  };
 }
 
 export function getMcpToolCatalog(
@@ -100,6 +119,7 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
   if (category === 'plex') return { anyOf: ['plex'] };
   if (category === 'seerr') return { anyOf: ['seerr'] };
   if (category === 'releases') return { anyOf: ['prowlarr'] };
+  if (category === 'backups') return { anyOf: ['backup'] };
 
   if (category === 'arr') {
     if (name.includes('series') || name.includes('episodes')) return { anyOf: seriesServices };
@@ -114,6 +134,7 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
   }
 
   if (name.includes('cloudflare')) return { allOf: ['cloudflared'] };
+  if (name === 'stackarr_check_service_databases') return { allOf: ['database'] };
   if (name === 'stackarr_test_indexers') return { allOf: ['prowlarr'] };
   if (name === 'stackarr_test_arr_to_downloader') return { anyOfEach: [arrServices, downloaderServices] };
   if (name === 'stackarr_test_prowlarr_to_arr') return { allOf: ['prowlarr'], anyOf: arrServices };

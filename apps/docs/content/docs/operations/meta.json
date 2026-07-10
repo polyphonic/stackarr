@@ -1,3 +1,5 @@
 {
-  "pages": ["backups", "telemetry", "database", "updates", "image-cleanup", "docker-hub", "troubleshooting"]
+  "title": "Operate Stackarr",
+  "defaultOpen": false,
+  "pages": ["backups", "updates", "troubleshooting", "telemetry", "database", "image-cleanup"]
 }

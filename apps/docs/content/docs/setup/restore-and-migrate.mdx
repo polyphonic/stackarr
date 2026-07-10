@@ -20,9 +20,9 @@ Onboarding restore queues:
 stackarr backup restore /path/to/archive.tar.gz --yes --force-config --mark-onboarding-complete
 ```
 
-The app adds explicit restore/skip flags for shared Postgres, native Plex config, and native macOS Plex preferences based on the selected checkboxes.
+The app adds explicit restore or skip choices for shared Postgres and existing Plex host data based on the selected checkboxes.
 
-Use shared Postgres restore when the archive contains `database/*.dump` and the new install should replace matching Stackarr-managed databases. Leave native Plex options off unless restoring onto the same host or a carefully prepared replacement host.
+Use shared Postgres restore when the archive contains `database/*.dump` and the new install should replace matching Stackarr-managed databases. Leave existing Plex host options off unless restoring onto the same host or a carefully prepared replacement host.
 
 ## Migrate Current Stack
 
@@ -48,8 +48,8 @@ By default, Docker-discovered source containers are stopped while copying and re
 
 Supported migration targets include Radarr, Radarr 4K, Sonarr, Sonarr 4K, Prowlarr, Lidarr, Bazarr, Seerr/Overseerr/Jellyseerr, Pulsarr, Transmission, qBittorrent, Plex, Jellyfin, TinyMediaManager, Recyclarr, Tidarr, and BookOrbit.
 
-## Cross-Host Restores
+## Moving to another Docker host
 
-Docker-managed service config is the most portable part of a backup or migration. Moving between macOS and Linux can work for Docker-managed Arr apps, download clients, request managers, and Stackarr runtime settings when the media/download paths are equivalent or updated after restore.
+Docker-managed service config is portable when media and download paths are equivalent or updated after restore.
 
-Native or external media servers are different. Native Plex, native Jellyfin, OS login agents, host certificates, hostnames, hardware transcoding devices, and absolute host paths are tied to the original machine and operating system. Restore those pieces only on the same OS and a matching host layout, or migrate them manually after Stackarr is running.
+Existing media servers are different. Host certificates, hostnames, hardware devices, preferences, and absolute paths remain tied to the original machine. Restore those pieces only to a compatible host layout, or reconnect the server manually after Stackarr is running.

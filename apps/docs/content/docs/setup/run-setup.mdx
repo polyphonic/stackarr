@@ -6,7 +6,7 @@ title: Run Setup
 
 Setup can be applied from:
 
-- `/setup` in the frontend.
+- `/setup` in the browser.
 - `POST /api/v1/command`.
 - The local MCP server through `stackarr_setup_media_server`.
 
@@ -16,7 +16,7 @@ Agent setup should dry-run first:
 {
   "dryRun": true,
   "torrentClient": "transmission",
-  "plexInstallMode": "native",
+  "plexInstallMode": "existing",
   "jellyfinInstallMode": "disabled"
 }
 ```

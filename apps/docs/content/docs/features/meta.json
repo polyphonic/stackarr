@@ -1,3 +1,5 @@
 {
-  "pages": ["media-servers"]
+  "title": "Use Stackarr",
+  "defaultOpen": false,
+  "pages": ["dashboard", "stack", "media-servers", "activity", "connect"]
 }

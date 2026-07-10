@@ -119,12 +119,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  distribution/linux: {}
-
-  distribution/macos: {}
-
-  distribution/windows: {}
-
   packages/cli: {}
 
   packages/core:

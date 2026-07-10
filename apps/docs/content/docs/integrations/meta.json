@@ -1,5 +1,6 @@
 {
   "title": "Integrations",
+  "defaultOpen": false,
   "pages": [
     "index",
     "sonarr",

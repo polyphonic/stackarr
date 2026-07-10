@@ -151,6 +151,59 @@ test('Disabled optional services do not publish Portless browser URLs', async ()
   }
 });
 
+test('Disabled media categories remove their dependent services from the configured stack', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { getServices } = await import('./packages/core/src/services.ts');
+          writeEnvConfig({
+            ENABLE_MOVIES: 'false',
+            ENABLE_TV_SHOWS: 'false',
+            ENABLE_LIDARR: 'false'
+          });
+          const services = getServices();
+          const modes = Object.fromEntries(
+            ['prowlarr', 'radarr', 'sonarr', 'lidarr', 'streamrip'].map((name) => [
+              name,
+              services.find((service) => service.name === name)?.mode
+            ])
+          );
+          console.log(JSON.stringify(modes));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db'),
+          ENABLE_MOVIES: 'false',
+          ENABLE_TV_SHOWS: 'false',
+          ENABLE_LIDARR: 'false'
+        }
+      }
+    );
+
+    assert.deepEqual(JSON.parse(stdout), {
+      prowlarr: 'disabled',
+      radarr: 'disabled',
+      sonarr: 'disabled',
+      lidarr: 'disabled',
+      streamrip: 'disabled'
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Docker runtime service URLs use reachable hosts and skip non-network helpers', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 
@@ -191,7 +244,7 @@ test('Docker runtime service URLs use reachable hosts and skip non-network helpe
     const result = JSON.parse(stdout);
     assert.equal(result.radarr4k, 'http://radarr4k:7878');
     assert.equal(result.bazarr, 'http://bazarr:6767');
-    assert.equal(result.plex, 'http://host.docker.internal:32400');
+    assert.equal(result.plex, 'http://plex:32400');
     assert.equal(result.recyclarr, null);
     assert.equal(result.recyclarrStatus.unsupported, true);
   } finally {

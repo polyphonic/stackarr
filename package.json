@@ -1,6 +1,6 @@
 {
   "name": "stackarr",
-  "description": "Arr-style media stack control plane for Docker-compatible hosts.",
+  "description": "Chat-first Docker control plane for self-hosted media stacks.",
   "version": "0.3.0-alpha.1",
   "license": "GPL-3.0-only",
   "devDependencies": {
@@ -22,11 +22,6 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
-    "package:all": "distribution/package.sh all",
-    "package:linux": "turbo run package --filter=@stackarr/distribution-linux",
-    "package:macos": "turbo run package --filter=@stackarr/distribution-macos",
-    "package:native": "distribution/package.sh all",
-    "package:windows": "turbo run package --filter=@stackarr/distribution-windows",
     "stackarr": "bin/stackarr",
     "stackarr:help": "bin/stackarr help",
     "syncpack:fix": "syncpack fix",

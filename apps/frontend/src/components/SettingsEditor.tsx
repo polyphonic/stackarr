@@ -715,14 +715,22 @@ export function SettingsEditor({ section, env, settings }: Props) {
           />
           <Select
             label="Plex"
-            value={envValue('PLEX_INSTALL_MODE') || 'native'}
-            options={['native', 'docker', 'disabled']}
+            value={envValue('PLEX_INSTALL_MODE') || 'docker'}
+            options={[
+              { value: 'docker', label: 'Managed container' },
+              { value: 'native', label: 'Existing server' },
+              { value: 'disabled', label: 'Disabled' }
+            ]}
             onChange={(value) => updateEnv('PLEX_INSTALL_MODE', value)}
           />
           <Select
             label="Jellyfin"
             value={envValue('JELLYFIN_INSTALL_MODE') || 'disabled'}
-            options={['disabled', 'native', 'docker']}
+            options={[
+              { value: 'disabled', label: 'Disabled' },
+              { value: 'docker', label: 'Managed container' },
+              { value: 'native', label: 'Existing server' }
+            ]}
             onChange={(value) => updateEnv('JELLYFIN_INSTALL_MODE', value)}
           />
           <Path

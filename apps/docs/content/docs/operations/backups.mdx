@@ -1,52 +1,36 @@
 ---
-title: Backups
+title: Backups & Restore
+description: Protect Stackarr settings and the durable data needed to rebuild your stack.
 ---
 
-# Backups
+# Backups and restore
 
-Backups capture Stackarr configuration, presets, hooks, and relevant state.
+Stackarr backs up its settings, presets, hooks, service configuration, and durable database state. The default schedule is weekly on Sunday at `02:00` and keeps 52 archives.
 
-The default scheduled backup is weekly on Sunday at `02:00` and keeps the latest 52 archives. Tune `BACKUP_RETENTION_COUNT` down for smaller installs.
+Choose the backup folder during setup. For an external disk or network share, make sure Docker can write to that folder and run **System → Status → Audit permissions**.
 
-In Docker installs, scheduled backups run from the Stackarr container. If backups target an external disk on macOS, share the chosen folder with Docker Desktop or OrbStack and verify it from **System > Status > Audit permissions**.
+## Run a backup now
 
-Backup staging defaults to `.stackarr-staging` inside `BACKUP_ROOT`, so the temporary uncompressed copy stays on the backup volume instead of the system temp disk. Set `BACKUP_STAGING_ROOT` only when you need a separate scratch volume.
-
-When the shared Postgres `database` container is required, each backup must include `database/globals.sql` plus custom-format dumps for the non-template app databases Stackarr manages. If that database container is unavailable, the backup fails instead of producing an incomplete archive. App-local config under `CONFIG_ROOT` is still captured for services that keep SQLite or other runtime files there.
-
-`PLEX_BACKUP_MODE=lite` is the default. It keeps restore-critical databases and config, Postgres dumps when the shared database is enabled, active native Plex databases, and custom uploaded Plex collection artwork. It excludes rebuildable Plex data, dated Plex database snapshots, service logs, caches, downloaded add-ons, service backup folders, old embedded Postgres data, repair folders, runtime files, downloaded guide/blocklist caches, and cover-art caches such as `MediaCover`.
-`PLEX_BACKUP_MODE=full` is available when you explicitly want all native Plex data and service config assets, including regenerated artwork and cache-heavy files.
-
-## Run Backup
-
-Use the UI, API command queue, or CLI:
+Use the dashboard, ask your agent, or run:
 
 ```bash
-bin/stackarr backup run
+docker exec app /app/bin/stackarr backup run
 ```
+
+If a required database cannot be read, Stackarr fails the backup instead of creating an incomplete archive.
+
+## Lite or full
+
+`lite` is recommended. It keeps restore-critical databases, settings, and custom artwork while skipping caches, logs, generated metadata, and other rebuildable files.
+
+Choose `full` when you intentionally want cache-heavy service data and have enough backup storage.
 
 ## Restore
 
-Restore intentionally while the stack is quiet:
+Keep the stack quiet during a restore. Start from **Setup → Restore**, ask an admin-profile agent to prepare a dry-run, or use an archive already visible inside the container's backup folder:
 
 ```bash
-bin/stackarr backup restore /path/to/stackarr-backup.tar.gz
+docker exec app /app/bin/stackarr backup restore /path/inside/container/stackarr-backup.tar.gz
 ```
 
-Restore accepts `.tar.gz`, `.tgz`, and `.zip` archives. Scheduled Stackarr backups are created as `.tar.gz`; zip support is for onboarding uploads or backups repackaged by another tool.
-
-If the archive contains `database/*.dump`, restore can recreate the shared Postgres databases after confirmation. Matching databases are replaced, while lite/full file restore behavior still follows the archive manifest.
-
-For unattended onboarding restores, pass explicit choices:
-
-```bash
-bin/stackarr backup restore /path/to/stackarr-backup.tar.gz \
-  --yes \
-  --force-config \
-  --restore-postgres \
-  --skip-native-plex \
-  --skip-plex-preferences \
-  --mark-onboarding-complete
-```
-
-Review paths before restoring across machines. Docker-managed service config is usually portable when media and download roots are adjusted after restore. Native Plex, native Jellyfin, host certificates, launch agents, hardware devices, and absolute host paths should be treated as same-host or same-OS restores unless you have a manual migration plan.
+Review the folders, databases, and services that will be replaced before approving the restore. Stackarr accepts `.tar.gz`, `.tgz`, and `.zip` archives.

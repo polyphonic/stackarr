@@ -1,11 +1,15 @@
 ---
-title: Plex and Jellyfin
+title: Plex & Jellyfin
 ---
 
 # Plex and Jellyfin
 
-Plex and Jellyfin are independent. Choose each mode in setup or Settings:
+Choose Plex, Jellyfin, both, or neither.
 
-- **Native:** use native mode when the media server is already installed on macOS or when hardware transcoding should stay with the native app. Stackarr detects and monitors the installation but does not own the process.
-- **Docker:** use Docker mode when the media server should live inside the compose project. Stackarr starts only the selected media-server profiles.
-- **Disabled:** use disabled when Stackarr should ignore that media server.
+- **Managed container:** Stackarr starts and manages the media server inside the Compose stack.
+- **Existing server:** Stackarr connects to a media server already running outside its Compose project. Stackarr can monitor and configure the integration but does not own that process.
+- **Disabled:** Stackarr ignores that media server and removes its agent actions.
+
+Managed containers are the simplest path for a new installation. Use an existing server when you are preserving an established library or hardware-transcoding setup.
+
+Keep an existing server reachable only from trusted local networks and enter its URL and token through Stackarr's authenticated settings.

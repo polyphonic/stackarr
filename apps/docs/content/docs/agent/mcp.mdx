@@ -1,116 +1,83 @@
 ---
-title: MCP Server
+title: MCP Connections
+description: Connect Codex, Claude, LM Studio, or another MCP client to the Stackarr container.
 ---
 
-# MCP Server
+# MCP connections
 
-Stackarr's local stdio MCP server is the chat-first control plane for homelab agents. It exposes typed actions backed by Stackarr and the native APIs of enabled apps; it does not expose a generic shell or Docker exec tool.
+Stackarr's local stdio MCP server is the chat control plane for your homelab. It offers typed actions backed by Stackarr and the APIs of the apps you enabled. It does not expose a generic shell or unrestricted Docker command tool.
 
-## Profiles
+## Choose authority
 
-Set `STACKARR_MCP_PROFILE` when the MCP client launches the server:
-
-| Profile | Purpose |
+| Profile | Best for |
 | --- | --- |
-| `observe` | Read-only inspection and diagnostics |
-| `manage` | Default day-to-day media, request, download, backup, and safe-repair actions |
-| `admin` | Complete setup, configuration, Docker, network, migration, and restore control |
-| `unrestricted` | Complete control without per-action approval prompts |
+| `observe` | Status, health, queues, libraries, and diagnostics without changes |
+| `manage` | Everyday requests, downloads, backups, library actions, and safe repairs |
+| `admin` | First-time setup, configuration, networking, migrations, and restores |
+| `unrestricted` | Complete autonomous control without per-action prompts |
 
-The agent cannot change its own profile. `manage` and `admin` ask the user to approve destructive calls through MCP elicitation. If the client cannot render elicitation, those calls fail closed. `unrestricted` is an intentional user opt-in for autonomous operation.
-
-## Service-aware tools
-
-Stackarr removes irrelevant tools before the model sees them. Plex, Seerr, Sonarr, Radarr, Prowlarr, downloader, and Streamrip tools appear only when their services are enabled. Restart the MCP connection after changing enabled apps. Call `stackarr_get_mcp_control_plane` to inspect the current profile and grouped catalog.
-
-Small local models can use `STACKARR_MCP_GROUPS=stack,services,arr,downloads,seerr,health` as an additional launch-time group allowlist. Available groups are `stack`, `services`, `containers`, `arr`, `releases`, `downloads`, `plex`, `seerr`, `backups`, and `health`.
+The profile is set when the client starts the MCP process. Agents cannot promote themselves.
 
 ## Codex
-
-```bash
-codex mcp add stackarr \
-  --env STACKARR_MCP_PROFILE=manage \
-  -- stackarr mcp serve
-```
-
-Use `admin` during agent-led setup. Codex presents Stackarr's destructive tool elicitations inside the active task.
-
-## Claude and other MCP clients
-
-Use the client's standard local `mcpServers` configuration and launch the same shared server:
-
-```json
-{
-  "mcpServers": {
-    "stackarr": {
-      "command": "stackarr",
-      "args": ["mcp", "serve"],
-      "env": {
-        "STACKARR_MCP_PROFILE": "manage"
-      }
-    }
-  }
-}
-```
-
-Stackarr does not rely on client-specific prompt instructions for enforcement. The launch profile, service-aware catalog, tool annotations, and approval elicitations travel with the MCP server. Clients without elicitation support fail closed for actions that require approval.
-
-## Hermes
-
-```bash
-stackarr plugins install hermes --profile manage
-```
-
-Stackarr registers through Hermes' native MCP client, preserving individual tools and Hermes' CLI, TUI, and messaging approval surfaces.
-
-## OpenClaw
-
-```bash
-stackarr plugins install openclaw --profile manage
-```
-
-Import the generated `mcp.json`. OpenClaw gets the same shared server and policy; unsupported elicitation fails closed.
-
-## LM Studio
-
-In **Program > Install > Edit mcp.json**:
-
-```json
-{
-  "mcpServers": {
-    "stackarr": {
-      "command": "stackarr",
-      "args": ["mcp", "serve"],
-      "env": {
-        "STACKARR_MCP_PROFILE": "manage",
-        "STACKARR_MCP_GROUPS": "stack,services,arr,downloads,seerr,health"
-      }
-    }
-  }
-}
-```
-
-LM Studio's own `allowed_tools` setting can narrow the already-filtered catalog further. If the installed version does not support MCP elicitation, use `manage` for non-destructive actions or deliberately select `unrestricted` for complete autonomy.
-
-## Docker
-
-Run the MCP process inside the existing container while the client stays on the host:
 
 ```bash
 codex mcp add stackarr -- \
   docker exec -i \
     -e STACKARR_MCP_PROFILE=manage \
-    stackarr /app/bin/stackarr mcp serve
+    app /app/bin/stackarr mcp serve
 ```
 
-For the managed Compose install, replace the container name `stackarr` with `app`. Keep `-i` so stdio stays connected.
+Use `admin` instead of `manage` during first-time setup.
 
-## Security model
+## Claude and other MCP clients
 
-- Local stdio only; do not expose MCP through a public bridge.
-- Profiles and installed services filter `tools/list`.
-- Tool annotations identify read-only and destructive actions.
-- Destructive calls require client-mediated approval except in `unrestricted`.
-- Credentials are never requested through elicitation and remain on authenticated settings surfaces.
-- Endpoint, bind-address, and image changes are displayed as control-plane changes before approval.
-- Every call and decision is recorded in Agent Activity.
+Add this local server to the client's `mcpServers` configuration:
+
+```json
+{
+  "mcpServers": {
+    "stackarr": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "-e",
+        "STACKARR_MCP_PROFILE=manage",
+        "app",
+        "/app/bin/stackarr",
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+## LM Studio
+
+In **Program → Install → Edit mcp.json**, use the same Docker configuration above. For a small local model, you can narrow the catalog further:
+
+```json
+"-e",
+"STACKARR_MCP_GROUPS=stack,services,arr,downloads,seerr,health"
+```
+
+Insert those two arguments before `app` in the `args` array.
+
+## How the action catalog stays focused
+
+- Before setup, Stackarr advertises only core setup, status, service, and health actions.
+- After setup, it adds actions for the apps you selected.
+- Disabled apps do not contribute tools.
+- `STACKARR_MCP_GROUPS` can narrow the list further for small models or focused agents.
+- Reconnect the MCP client after enabling or disabling apps.
+
+Available groups are `stack`, `services`, `containers`, `arr`, `releases`, `downloads`, `plex`, `seerr`, `backups`, and `health`.
+
+## Approval behavior
+
+`manage` and `admin` request approval for destructive actions through the chat client's MCP prompt. A client without approval-prompt support cannot run those actions. `unrestricted` is the explicit opt-in for users who want complete autonomy.
+
+Credentials stay on Stackarr's authenticated settings surfaces and are never requested through an MCP approval form.
+
+For Hermes and OpenClaw, continue to [Agent plugins](/docs/agent/plugins).

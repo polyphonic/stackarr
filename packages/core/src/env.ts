@@ -43,7 +43,7 @@ export const managedEnvDefaults: StackarrEnv = {
 
   PLEX_CONFIG_PATH: `${home}/Library/Application Support/Plex Media Server`,
   PLEX_PREFS_PATH: `${home}/Library/Preferences/com.plexapp.plexmediaserver.plist`,
-  PLEX_INSTALL_MODE: 'native',
+  PLEX_INSTALL_MODE: 'docker',
   JELLYFIN_INSTALL_MODE: 'disabled',
   JELLYFIN_CONFIG_PATH: `${home}/.local/share/jellyfin`,
 

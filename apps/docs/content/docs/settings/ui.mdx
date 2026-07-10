@@ -29,6 +29,6 @@ Choose `light`, `dark`, or `system`. Stackarr applies the preference across the 
 
 Set service links to `portless` to use local names such as `https://app.stack` and `https://plex.stack`. Dashboard links use direct aliases by default, while Stackarr routes such as `https://app.stack/immich` continue to redirect to the matching direct service URL.
 
-When Stackarr is running in Docker, the app queues the setup task and asks the user to open Terminal and run `stackarr portless install`, because clean `.stack` names require host access for port `443`, certificate trust, and `/etc/hosts`. Source checkouts can use `bin/stackarr portless install`.
+Portless requires a helper installed directly on the Docker host because clean `.stack` names need host access for port `443`, certificate trust, and `/etc/hosts`. The Stackarr container cannot approve those operating-system changes. Container-only installations can keep the default localhost links or use an existing reverse proxy instead.
 
 These settings live in the configured Stackarr runtime settings store. In Postgres mode, Postgres is the source of truth.

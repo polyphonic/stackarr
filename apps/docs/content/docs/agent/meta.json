@@ -1,4 +1,5 @@
 {
-  "title": "Agent-managed homelab",
+  "title": "Manage with AI",
+  "defaultOpen": false,
   "pages": ["agent-setup", "mcp", "plugins", "tools", "safety", "activity"]
 }

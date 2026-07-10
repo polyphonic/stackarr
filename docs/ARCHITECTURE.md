@@ -9,7 +9,7 @@ Stackarr is now organized as a Next.js-first arr-style control plane.
 - `packages/ui` contains shared HeroUI/Nucleo components and theme primitives.
 - `packages/cli` packages the `stackarr` executable wrapper.
 - `packages/integration-tests` contains the integration test workspace.
-- `distribution` contains release packaging such as macOS app archives.
+- Docker Compose and the runtime image are the only supported distribution path.
 - `stackarr` contains the shell scripts, config presets, hooks, and Docker Compose file.
 - Stackarr-backed app settings are the runtime configuration store; service URLs, images, ports, paths, credentials, and Cloudflare settings are managed through the UI/API/MCP layer. SQLite remains the default runtime store, and advanced installs can move Stackarr settings to the shared Postgres database while keeping SQLite as a bootstrap/import source rather than a second live copy.
 
@@ -53,4 +53,4 @@ Plex and Jellyfin are independent:
 - `PLEX_INSTALL_MODE=disabled|native|docker`
 - `JELLYFIN_INSTALL_MODE=disabled|native|docker`
 
-Native mode records paths and exposes status/config guidance. If an existing native Plex or Jellyfin config path is found, Stackarr reports it as detected infrastructure and can build monitoring/features around it without owning the process. Docker mode adds the matching Compose profile when Stackarr starts or updates the stack.
+Existing-server mode records paths and exposes status/config guidance. If a Plex or Jellyfin config path is found outside the Compose project, Stackarr reports it as detected infrastructure without owning the process. Managed-container mode adds the matching Compose profile when Stackarr starts or updates the stack.

@@ -1,14 +1,33 @@
 ---
-title: Safety Model
+title: Safety & Control
+description: Understand agent authority, approval prompts, and the activity record.
 ---
 
-# Safety Model
+# Safety and control
 
-- No generic shell tool.
-- No generic Docker exec tool.
-- Read-only tools for status, health, services, Arr apps, downloads, Plex, Seerr, backups, and logs.
-- Write tools use typed Stackarr action wrappers.
-- Dangerous tools use client-mediated MCP elicitation and fail closed when the client cannot display it.
-- `unrestricted` is an explicit launch profile for users who want complete autonomous control.
-- Download deletion requires confirmation when data would be removed.
-- Secrets are redacted from summaries, errors, and activity logs where possible.
+You decide how much authority an agent receives. Stackarr enforces that choice in the MCP server rather than relying on prompt wording.
+
+## The important boundaries
+
+- Agents cannot change their own authority profile.
+- Stackarr does not expose a generic shell or generic Docker exec tool.
+- Apps are controlled through typed Stackarr actions and native app APIs.
+- Disabled apps do not appear in the tool catalog.
+- Credentials cannot be changed through MCP calls.
+- Destructive actions fail closed when the chat client cannot show an approval prompt.
+
+## When Stackarr asks
+
+With `manage` or `admin`, actions such as stopping the stack, changing infrastructure, deleting data, restoring a backup, or applying a migration pause for approval. The prompt shows the exact action and redacted arguments.
+
+Read-only inspection and ordinary non-destructive management do not interrupt the conversation unnecessarily.
+
+## Complete control
+
+Use `STACKARR_MCP_PROFILE=unrestricted` when you intentionally want autonomous operation without per-action approval prompts. This includes disruptive and destructive actions available to the full catalog.
+
+Treat that profile like administrator access to the Docker host. Keep the MCP transport local and review Agent Activity regularly.
+
+## Take over at any time
+
+The dashboard, API, and CLI remain available while an agent is connected. The **Agent Activity** page records calls, timestamps, status, redacted inputs, and errors so you can see what happened and intervene manually.

@@ -23,9 +23,9 @@ description: Private ROM and game-library management in Stackarr.
 Stackarr does **not** publish RomM by default. Use the local URL or Portless alias first. If you later decide to expose it, add a Cloudflare route intentionally instead of relying on setup defaults.
 
 ```bash
-bin/stackarr romm enable
-bin/stackarr up
-bin/stackarr romm status
+docker exec app /app/bin/stackarr romm enable
+docker exec app /app/bin/stackarr up
+docker exec app /app/bin/stackarr romm status
 ```
 
 ## Folder structure

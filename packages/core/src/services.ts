@@ -170,7 +170,7 @@ export function getSystemStatus() {
     jellyfinInstallMode: resolvedMediaMode('jellyfin', env.JELLYFIN_INSTALL_MODE, env.JELLYFIN_CONFIG_PATH, env),
     nativeMediaServers: {
       plex: nativeMediaDiscovery('plex', env.PLEX_CONFIG_PATH, {
-        assumeHostNative: isDockerRuntime(env) && mode(env.PLEX_INSTALL_MODE, 'native') === 'native',
+        assumeHostNative: isDockerRuntime(env) && mode(env.PLEX_INSTALL_MODE, 'docker') === 'native',
         env
       }),
       jellyfin: nativeMediaDiscovery('jellyfin', env.JELLYFIN_CONFIG_PATH, {
@@ -202,6 +202,11 @@ function postgresConnectionLabel(raw: string | undefined) {
 export function getServices(): ServiceSummary[] {
   const env = readEnv();
   const settings = readSettings();
+  const moviesMode = flag(env.ENABLE_MOVIES, true) ? 'docker' : 'disabled';
+  const tvMode = flag(env.ENABLE_TV_SHOWS, true) ? 'docker' : 'disabled';
+  const musicMode = flag(env.ENABLE_LIDARR, true) ? 'docker' : 'disabled';
+  const servarrSupportMode =
+    moviesMode === 'docker' || tvMode === 'docker' || musicMode === 'docker' ? 'docker' : 'disabled';
   const fourKMode = flag(env.ENABLE_4K_SERVARR, false) ? 'docker' : 'disabled';
   const sharedRedisMode =
     flag(env.ENABLE_IMMICH, false) || flag(env.ENABLE_ROMM, false) || flag(env.ENABLE_TRACEARR, false)
@@ -233,19 +238,19 @@ export function getServices(): ServiceSummary[] {
       Number(env.QBITTORRENT_WEBUI_PORT ?? 8081),
       settings
     ),
-    service('streamrip', 'download', 'native', undefined, settings, {
+    service('streamrip', 'download', musicMode === 'docker' ? 'native' : 'disabled', undefined, settings, {
       kind: 'service',
       dockerService: undefined,
       notes: [
         'Managed by Stackarr as a CLI worker; Lidarr metadata/import workflows can target it without requiring a Lidarr plugin.'
       ]
     }),
-    service('prowlarr', 'servarr', 'docker', 9696, settings),
-    service('radarr', 'servarr', 'docker', 7878, settings),
-    service('radarr4k', 'servarr', fourKMode, 7879, settings),
-    service('sonarr', 'servarr', 'docker', 8989, settings),
-    service('sonarr4k', 'servarr', fourKMode, 8990, settings),
-    service('lidarr', 'servarr', optionalMode(env.ENABLE_LIDARR), 8686, settings),
+    service('prowlarr', 'servarr', servarrSupportMode, 9696, settings),
+    service('radarr', 'servarr', moviesMode, 7878, settings),
+    service('radarr4k', 'servarr', moviesMode === 'docker' ? fourKMode : 'disabled', 7879, settings),
+    service('sonarr', 'servarr', tvMode, 8989, settings),
+    service('sonarr4k', 'servarr', tvMode === 'docker' ? fourKMode : 'disabled', 8990, settings),
+    service('lidarr', 'servarr', musicMode, 8686, settings),
     service(
       'bookorbit',
       'support',
@@ -294,7 +299,7 @@ export function getServices(): ServiceSummary[] {
       localUrl: undefined,
       notes: ['Shared Redis container used by Immich, RomM, Tracearr, and other supported services.']
     }),
-    mediaServer('plex', mode(env.PLEX_INSTALL_MODE, 'native'), 32400, env.PLEX_CONFIG_PATH, env, settings),
+    mediaServer('plex', mode(env.PLEX_INSTALL_MODE, 'docker'), 32400, env.PLEX_CONFIG_PATH, env, settings),
     mediaServer('jellyfin', mode(env.JELLYFIN_INSTALL_MODE, 'disabled'), 8096, env.JELLYFIN_CONFIG_PATH, env, settings),
     service('backup', 'support', flag(env.ENABLE_BACKUP, true) ? 'native' : 'disabled', undefined, settings, {
       kind: 'service',
@@ -402,13 +407,11 @@ function mediaServer(
   const notes = [];
 
   if (configuredMode === 'disabled' && discovery.detected) {
-    notes.push('Native installation detected even though Stackarr management is disabled.');
+    notes.push('An existing server was detected even though Stackarr management is disabled.');
   }
 
   if (effectiveMode === 'native') {
-    notes.push(
-      'Stackarr will monitor and configure around the existing native installation without owning its process.'
-    );
+    notes.push('Stackarr will connect to the existing server without owning its process.');
   }
 
   return service(name, 'media', effectiveMode, port, settings, {
@@ -591,7 +594,7 @@ function mode(value: string | undefined, fallback: ServiceSummary['mode']): Serv
 }
 
 function resolvedMediaMode(name: 'plex' | 'jellyfin', value?: string, configuredPath?: string, env?: StackarrEnv) {
-  const configuredMode = mode(value, name === 'plex' ? 'native' : 'disabled');
+  const configuredMode = mode(value, name === 'plex' ? 'docker' : 'disabled');
 
   if (configuredMode === 'disabled' && nativeMediaDiscovery(name, configuredPath, { env }).detected) {
     return 'native-detected';

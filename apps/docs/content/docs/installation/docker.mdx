@@ -1,56 +1,74 @@
 ---
-title: Docker Install
+title: Docker Configuration
+description: Configure Stackarr storage, networking, image versions, and container access.
 ---
 
-# Docker Install
+# Docker configuration
 
-Use Docker when Stackarr should run beside the services it manages.
+The supplied Compose file is the supported Stackarr installation. Put optional overrides in a `.env` file beside `docker-compose.yml` so updates do not overwrite them.
 
-```bash
-docker run -d \
-  --name app \
-  --restart unless-stopped \
-  -p 127.0.0.1:7777:7777 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$PWD:/stackarr-workspace" \
-  -e STACKARR_REPO_ROOT=/stackarr-workspace \
-  -e STACKARR_DATABASE_FILE=/stackarr-workspace/stackarr/config/stackarr.db \
-  -e STACKARR_CONTAINER_NAME=app \
-  polyphonic/stackarr:alpha
+## Common settings
+
+```dotenv
+TIMEZONE=Etc/UTC
+STACKARR_BIND_IP=127.0.0.1
+STACKARR_WEB_PORT=7777
+MEDIA_ROOT=/srv/media
+DOWNLOADS_ROOT=/srv/downloads
+BACKUP_ROOT=/srv/backups
 ```
 
-## Why Mount the Docker Socket?
+Create the host folders before starting services and make sure Docker can read and write them.
 
-Stackarr needs access to Docker so it can start, stop, inspect, and update the services you choose during setup.
+## Why Stackarr uses the Docker socket
 
-Keep the dashboard bound to localhost until authentication and public access are configured.
+Stackarr needs `/var/run/docker.sock` to inspect and manage the containers selected during setup. This is powerful host-level access.
 
-## Folder Access
+- Keep the dashboard bound to localhost until authentication is configured.
+- Do not expose the local stdio MCP process over the network.
+- Use the `observe` or `manage` agent profile unless broader authority is intentional.
+- Review Agent Activity after automated changes.
 
-Choose media, music, downloads, and backup folders during setup. On macOS, grant Docker Desktop or OrbStack access to those selected folders in the Docker app settings.
+## Start and stop
 
-Stackarr verifies access through the same bind mounts the services use. Run it from **System > Status > Audit permissions**, or from the container:
+```bash
+docker compose --profile stackarr up -d app
+docker compose stop app
+docker compose logs -f app
+```
+
+Stackarr starts other services only after you select them during setup.
+
+## Choose an image channel
+
+The moving early-access image is:
+
+```dotenv
+STACKARR_IMAGE=polyphonic/stackarr:alpha
+```
+
+Use a versioned tag when you want repeatable deployments:
+
+```dotenv
+STACKARR_IMAGE=polyphonic/stackarr:0.3.0-alpha.1
+```
+
+## Connect an MCP client
+
+Chat clients run on the Docker host and open Stackarr's stdio server through `docker exec -i`:
+
+```bash
+docker exec -i \
+  -e STACKARR_MCP_PROFILE=manage \
+  app /app/bin/stackarr mcp serve
+```
+
+Keep `-i`; MCP communicates over standard input and output. See [MCP connections](/docs/agent/mcp) for ready-to-use client configurations.
+
+## Audit folder access
 
 ```bash
 docker exec app /app/bin/stackarr permissions audit
 ```
 
-The audit checks Stackarr's own config, log, download, and backup mounts, then checks running service mounts such as Radarr `/movies`, Sonarr `/tv`, Transmission or qBittorrent `/downloads`, and Lidarr `/music`.
-
-## Built-In Automation
-
-The Stackarr image includes the scheduler and maintenance helpers. Weekly backups and optional weekly updates run from the Stackarr container when enabled, so Docker installs do not require Watchtower, Portainer, or host launch agents.
-
-## Portless Host Approval
-
-Docker can queue Portless setup, but clean `https://*.stack` names need a normal host Terminal password prompt for port `443`, certificate trust, and `/etc/hosts`.
-
-```bash
-stackarr portless install
-```
-
-Source checkouts can use `bin/stackarr portless install`. macOS app archives include a `stackarr` helper next to `Stackarr.app`.
-
-## Image Contents
-
-The image contains the local dashboard and maintenance tools. Runtime data stays in your mounted Stackarr folder, and the build context excludes local databases, logs, state, tokens, and the public docs app.
+The audit checks Stackarr's config, logs, downloads, backups, and the bind mounts used by enabled services.

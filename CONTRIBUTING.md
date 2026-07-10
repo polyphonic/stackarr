@@ -34,7 +34,7 @@ for f in bin/stackarr stackarr/bin/stackarr stackarr/lib/common.sh stackarr/scri
 - Keep [README.md](README.md) short: overview, quick start, repo map, and links.
 - Put user-facing product docs under `apps/docs/content/docs`.
 - Put maintainer, integration, and verification notes under `docs`.
-- Put packaging notes under `distribution`.
+- Keep Docker release notes with the Compose and image documentation.
 - Put contribution workflow in this file.
 - Keep committed plugin templates path-portable; install/export commands may write install-specific paths at runtime.
 

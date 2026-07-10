@@ -1,36 +1,53 @@
 ---
 title: Troubleshooting
+description: Resolve the most common Stackarr container, storage, and connection problems.
 ---
 
 # Troubleshooting
 
-## Port Already In Use
+## Stackarr does not open
 
-Change `STACKARR_WEB_PORT` or remove the old Stackarr container.
+Check the app container and its latest logs:
 
 ```bash
-docker compose -f stackarr/docker-compose.yml --profile stackarr up -d --remove-orphans app
+docker compose ps app
+docker compose logs --tail=100 app
 ```
 
-## Docker Commands Fail Inside Stackarr
+If port `7777` is already used, set another `STACKARR_WEB_PORT` in `.env` and recreate the app container.
 
-Confirm these mounts exist:
+## Stackarr cannot manage containers
+
+Confirm the Compose file mounts the Docker socket:
 
 ```text
 /var/run/docker.sock:/var/run/docker.sock
-..:/stackarr-workspace
 ```
 
-## Native Plex Is Not Detected
+Then check whether the container can reach Docker:
 
-Confirm Plex has been launched once and that the configured path points at the app data directory.
-
-## Public URL Works Before Auth
-
-Set:
-
-```dotenv
-STACKARR_BIND_IP=127.0.0.1
+```bash
+docker exec app docker info
 ```
 
-Then configure General authentication before exposing Stackarr.
+## A media or download folder is unavailable
+
+Run the permissions audit:
+
+```bash
+docker exec app /app/bin/stackarr permissions audit
+```
+
+Confirm the host folder exists, Docker can access it, and the same path is used by Stackarr and the dependent service.
+
+## An agent connects but shows too few actions
+
+Finish Stackarr onboarding, then restart the MCP connection. The action catalog stays intentionally small until setup is complete and expands only for enabled apps.
+
+## A destructive agent action is refused
+
+The chat client must support MCP approval prompts when using `manage` or `admin`. Use a compatible client, perform the action in the dashboard, or deliberately choose `unrestricted` if you want complete autonomous control.
+
+## Public access works before authentication
+
+Set `STACKARR_BIND_IP=127.0.0.1`, recreate the app container, and configure authentication before publishing any route.
