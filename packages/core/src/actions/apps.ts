@@ -39,7 +39,7 @@ type Operation = {
 };
 
 type NativeAppDefinition = {
-  warning?: string;
+  notice?: string;
   reads: Record<string, Operation>;
   manages: Record<string, Operation>;
   dangerous: Record<string, Operation>;
@@ -131,7 +131,8 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
     dangerous: {}
   },
   maintainerr: {
-    warning: 'Maintainerr does not provide API authentication. Keep it on a trusted private network.',
+    notice:
+      'Maintainerr actions are available only on your trusted private network because Maintainerr has no API authentication.',
     reads: {
       live: operation('GET', '/api/health/live', 'Read the process liveness result.', 'none'),
       ready: operation('GET', '/api/health/ready', 'Read dependency readiness.', 'none'),
@@ -164,7 +165,8 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
     }
   },
   tracearr: {
-    warning: 'Tracearr exposes a read-only public API. Configure TRACEARR_API_KEY with a trr_pub_ token.',
+    notice:
+      'Stackarr uses Tracearr’s read-only public API, so agent actions can inspect activity but cannot change Tracearr data.',
     reads: {
       health: operation('GET', '/api/v1/public/health', 'Read server connectivity health.', 'bearer'),
       statistics: operation('GET', '/api/v1/public/stats', 'Read dashboard overview statistics.', 'bearer'),
@@ -313,8 +315,8 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
     }
   },
   tinymediamanager: {
-    warning:
-      'tinyMediaManager scrape and rename operations can modify NFO, artwork, and media paths and always require approval.',
+    notice:
+      'Scanning is ready to run. Scrape and rename can update NFO files, artwork, and media paths, so Stackarr always asks for approval first.',
     reads: {},
     manages: {
       scan_movies: operation('POST', '/api/movie', 'Scan configured movie data sources for changes.', 'tmm-api-key', [
@@ -370,8 +372,8 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
     }
   },
   recyclarr: {
-    warning:
-      'Recyclarr is CLI-only. Stackarr exposes only a fixed, typed preview/sync wrapper with no arbitrary arguments.',
+    notice:
+      'Stackarr provides a safe Recyclarr preview and sync flow with fixed app choices; free-form command arguments are never accepted.',
     reads: {
       preview_sync: {
         ...operation('POST', '', 'Preview profile changes without writing them to Radarr or Sonarr.', 'none'),
@@ -387,7 +389,8 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
     }
   },
   flaresolverr: {
-    warning: 'The arbitrary target request.get/request.post proxy is intentionally not exposed by Stackarr.',
+    notice:
+      'Stackarr manages FlareSolverr browser sessions. Website requests stay private to the indexers you configured in Prowlarr.',
     reads: {
       sessions: operation('POST', '/v1', 'List active browser sessions.', 'none', { cmd: 'sessions.list' })
     },
@@ -465,7 +468,7 @@ export function getNativeAppCapabilitiesAction() {
         readOperations: summarizeOperations(definition.reads),
         manageOperations: summarizeOperations(definition.manages),
         dangerousOperations: summarizeOperations(definition.dangerous),
-        ...(definition.warning ? { warning: definition.warning } : {})
+        ...(definition.notice ? { notice: definition.notice } : {})
       };
     }),
     design: {

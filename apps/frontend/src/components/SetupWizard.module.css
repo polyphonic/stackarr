@@ -9,8 +9,10 @@
   padding: 0;
   list-style: none;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--panelBackground);
+  border-radius: 18px;
+  background: var(--glass-subtle);
+  box-shadow: var(--soft-shadow);
+  overflow: hidden;
 }
 
 .steps li {
@@ -24,7 +26,8 @@
 }
 
 .active {
-  border-left: 4px solid var(--purple-600);
+  border-left: 3px solid var(--purple-600);
+  background: var(--glass-raised);
   color: var(--textColor) !important;
 }
 
@@ -36,8 +39,9 @@
   min-height: 360px;
   padding: 20px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--panelBackground);
+  border-radius: 20px;
+  background: var(--glass-subtle);
+  box-shadow: var(--soft-shadow);
 }
 
 .panel h2 {
@@ -61,23 +65,24 @@
 
 .form input,
 .form select {
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
+  background: var(--inputBackground);
   color: var(--textColor);
 }
 
 .segmented {
   display: inline-flex;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
 .segmented button {
   min-width: 150px;
-  min-height: 38px;
+  min-height: 44px;
   border: 0;
   border-right: 1px solid var(--borderColor);
   background: var(--panelBackground);
@@ -128,7 +133,7 @@
   min-height: 40px;
   padding: 8px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   color: var(--textColor);
   background: var(--inputBackground);
 }
@@ -144,7 +149,7 @@
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 14px;
   background: var(--inputBackground);
   color: var(--textColor);
   white-space: pre-wrap;
@@ -157,21 +162,15 @@
   max-width: 760px;
 }
 
-.requestToggle {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 12px;
-  border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--inputBackground);
-}
-
-.requestToggle strong {
-  color: var(--textColor);
-  font-weight: 400;
+.dependencyNotice {
+  max-width: 680px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 12px;
+  background: var(--glass-subtle);
+  color: var(--mutedTextColor);
+  line-height: 1.5;
 }
 
 .serviceChoices {
@@ -181,34 +180,62 @@
 }
 
 .serviceChoice {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 104px;
-  padding: 12px;
-  border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--inputBackground);
-}
-
-.serviceChoice input {
-  margin-top: 3px;
-}
-
-.serviceChoice strong,
-.serviceChoice small {
   display: block;
+  min-height: 104px;
+  padding: 15px;
+  border: 1px solid var(--borderColor);
+  border-radius: 16px;
+  background: var(--glass-subtle);
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
 }
 
-.serviceChoice strong {
+.serviceChoice:hover:not([data-disabled="true"]) {
+  border-color: var(--glass-border-strong);
+  background: var(--glass-raised);
+  transform: translateY(-1px);
+}
+
+.serviceChoice[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.serviceChoice :global(.switch__content),
+.toggleChoice :global(.switch__content) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+
+.choiceCopy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.choiceCopy :global(.label) {
   color: var(--textColor);
-  font-weight: 400;
+  font-weight: 550;
 }
 
-.serviceChoice small {
-  margin-top: 5px;
+.choiceCopy :global(.description) {
   color: var(--mutedTextColor);
+  font-size: 12px;
   line-height: 1.4;
+}
+
+.toggleChoice {
+  display: block;
+  max-width: 760px;
+  padding: 13px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass-subtle);
 }
 
 .cleanupPresetChoices {
@@ -226,7 +253,7 @@
 .review {
   overflow: auto;
   padding: 14px;
-  border-radius: 4px;
+  border-radius: 14px;
   background: var(--inputBackground);
   color: var(--textColor);
 }
@@ -241,11 +268,11 @@
 .footer button,
 .actionRow button,
 .primary {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 16px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--panelBackground);
+  border-radius: 12px;
+  background: var(--glass-subtle);
 }
 
 .primary {
@@ -261,6 +288,23 @@
 @media (max-width: 900px) {
   .wizard {
     grid-template-columns: 1fr;
+  }
+
+  .steps {
+    display: flex;
+    overflow-x: auto;
+    border-radius: 14px;
+  }
+
+  .steps li {
+    min-width: max-content;
+    border-right: 1px solid var(--borderColor);
+    border-bottom: 0;
+  }
+
+  .active {
+    border-bottom: 3px solid var(--purple-600);
+    border-left: 0;
   }
 
   .footer {

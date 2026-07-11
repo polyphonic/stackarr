@@ -56,7 +56,9 @@ Scheduled runs use the Stackarr container timezone and appear in **Agent Activit
 
 ## App credentials
 
-Add API keys through Stackarr's authenticated settings. They stay in Stackarr and are sent to the selected app using that app's expected authentication header. They are never returned to the agent.
+For apps Stackarr installs and onboards itself, it creates or discovers the least-privileged agent credential when the app supports that flow. Pulsarr receives a dedicated Stackarr key, Tracearr receives a read-only public token, and tinyMediaManager's private HTTP API is enabled with its own key. Existing external apps can still be connected through authenticated app settings. Credentials stay in Stackarr, are sent only using the selected app's expected authentication header, and are never returned to the agent.
+
+The Apps screen tells you exactly whether an app needs a connection address or an access key and links directly to that app's settings. Safety explanations such as tinyMediaManager's approval requirement or FlareSolverr's session-only boundary are informational; they do not mean the app is broken.
 
 Maintainerr does not provide API authentication, so keep it on a trusted private Docker network. Stackarr does not expose its API as an open-ended proxy.
 

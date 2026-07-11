@@ -1,6 +1,7 @@
 'use client';
 
 import type { StackarrConnection, StackarrConnectionSchema } from '@stackarr/core';
+import { Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useMemo, useState } from 'react';
 import styles from './ConnectionsPanel.module.css';
@@ -181,47 +182,55 @@ export function ConnectionsPanel({
                     void saveConnection();
                   }}
                 >
-                  {selected.fields.map((field) => (
-                    <label key={field.name}>
-                      <span>
-                        {field.label}
-                        {field.required ? ' *' : ''}
-                      </span>
-                      {field.type === 'select' ? (
-                        <select
-                          required={field.required}
-                          value={String(values[field.name] ?? field.options?.[0] ?? '')}
-                          onChange={(event) =>
-                            setValues((current) => ({ ...current, [field.name]: event.target.value }))
-                          }
-                        >
-                          {(field.options ?? []).map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : field.type === 'checkbox' ? (
-                        <input
-                          checked={Boolean(values[field.name])}
-                          type="checkbox"
-                          onChange={(event) =>
-                            setValues((current) => ({ ...current, [field.name]: event.target.checked }))
-                          }
-                        />
-                      ) : (
-                        <input
-                          required={field.required}
-                          type={field.type === 'password' ? 'password' : field.type}
-                          placeholder={field.placeholder}
-                          value={String(values[field.name] ?? '')}
-                          onChange={(event) =>
-                            setValues((current) => ({ ...current, [field.name]: event.target.value }))
-                          }
-                        />
-                      )}
-                    </label>
-                  ))}
+                  {selected.fields.map((field) =>
+                    field.type === 'checkbox' ? (
+                      <Switch
+                        key={field.name}
+                        className={styles.formSwitch}
+                        isSelected={Boolean(values[field.name])}
+                        onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))}
+                      >
+                        <Switch.Content>
+                          <Label>{field.label}</Label>
+                          <Switch.Control>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                        </Switch.Content>
+                      </Switch>
+                    ) : (
+                      <label key={field.name}>
+                        <span>
+                          {field.label}
+                          {field.required ? ' *' : ''}
+                        </span>
+                        {field.type === 'select' ? (
+                          <select
+                            required={field.required}
+                            value={String(values[field.name] ?? field.options?.[0] ?? '')}
+                            onChange={(event) =>
+                              setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                            }
+                          >
+                            {(field.options ?? []).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            required={field.required}
+                            type={field.type === 'password' ? 'password' : field.type}
+                            placeholder={field.placeholder}
+                            value={String(values[field.name] ?? '')}
+                            onChange={(event) =>
+                              setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                            }
+                          />
+                        )}
+                      </label>
+                    )
+                  )}
 
                   {selected.events && (
                     <div className={styles.events}>

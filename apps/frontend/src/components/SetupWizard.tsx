@@ -1,5 +1,6 @@
 'use client';
 
+import { Description, Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useMemo, useState } from 'react';
 import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
@@ -13,21 +14,7 @@ const portablePasswordPattern = /^[A-Za-z0-9._-]+$/;
 const portablePasswordDescription = 'letters, numbers, dot, underscore, and hyphen';
 const portablePasswordMinimumLength = 8;
 
-const steps = [
-  'Welcome',
-  'Storage Paths',
-  'Media Servers',
-  'Media Requests',
-  'Stack Services',
-  'Account',
-  'Database',
-  'Torrent Client',
-  'Automation',
-  'Agent Connection',
-  'Presets',
-  'Review',
-  'Run Setup'
-];
+const steps = ['Welcome', 'Storage', 'Choose Apps', 'Playback', 'Requests', 'Account', 'Review', 'Run Setup'];
 
 const maintainerrCleanupPresetChoices = [
   {
@@ -185,9 +172,17 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const [setupTaskId, setSetupTaskId] = useState('');
   const [setupBusy, setSetupBusy] = useState(false);
   const current = steps[step];
+  const plexEnabled = state.plexInstallMode !== 'disabled';
   const jellyfinEnabled = state.jellyfinInstallMode !== 'disabled';
-  const effectiveEnableSeerr = state.enableRequestManagement && state.enableSeerr;
-  const effectiveEnablePulsarr = state.enableRequestManagement && !jellyfinEnabled && state.enablePulsarr;
+  const mediaServerEnabled = plexEnabled || jellyfinEnabled;
+  const videoAutomationEnabled = state.enableMovies || state.enableTvShows;
+  const arrEnabled = videoAutomationEnabled || state.enableLidarr;
+  const effectiveEnableSeerr =
+    state.enableRequestManagement && mediaServerEnabled && videoAutomationEnabled && state.enableSeerr;
+  const effectiveEnablePulsarr =
+    state.enableRequestManagement && plexEnabled && videoAutomationEnabled && state.enablePulsarr;
+  const effectiveEnableMaintainerr = mediaServerEnabled && state.enableMaintainerr;
+  const effectiveEnableTracearr = mediaServerEnabled && state.enableTracearr;
   const passwordValidationMessage = validateRequiredPortablePassword(state.globalPassword);
   const liveTasks = useLiveTasks([], { limit: 10 });
   const setupTask = setupTaskId ? liveTasks.find((task) => task.id === setupTaskId) : undefined;
@@ -220,18 +215,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       JELLYFIN_INSTALL_MODE: state.jellyfinInstallMode,
       ENABLE_MOVIES: String(state.enableMovies),
       ENABLE_TV_SHOWS: String(state.enableTvShows),
-      ENABLE_4K_SERVARR: String(state.enable4kServarr),
-      ENABLE_BAZARR: String(state.enableBazarr),
+      ENABLE_4K_SERVARR: String(videoAutomationEnabled && state.enable4kServarr),
+      ENABLE_BAZARR: String(videoAutomationEnabled && state.enableBazarr),
       ENABLE_LIDARR: String(state.enableLidarr),
       ENABLE_BOOKORBIT: String(state.enableBookOrbit),
       ENABLE_IMMICH: String(state.enableImmich),
       ENABLE_ROMM: String(state.enableRomm),
-      ENABLE_TINYMEDIAMANAGER: String(state.enableTinyMediaManager),
-      ENABLE_RECYCLARR: String(state.enableRecyclarr),
-      ENABLE_FLARESOLVERR: String(state.enableFlaresolverr),
+      ENABLE_TINYMEDIAMANAGER: String(videoAutomationEnabled && state.enableTinyMediaManager),
+      ENABLE_RECYCLARR: String(videoAutomationEnabled && state.enableRecyclarr),
+      ENABLE_FLARESOLVERR: String(arrEnabled && state.enableFlaresolverr),
       ENABLE_TIDARR: String(state.enableTidarr),
-      ENABLE_MAINTAINERR: String(state.enableMaintainerr),
-      ENABLE_TRACEARR: String(state.enableTracearr),
+      ENABLE_MAINTAINERR: String(effectiveEnableMaintainerr),
+      ENABLE_TRACEARR: String(effectiveEnableTracearr),
       MAINTAINERR_BIND_IP: '127.0.0.1',
       MAINTAINERR_PORT: '6246',
       MAINTAINERR_URL: 'http://127.0.0.1:6246',
@@ -244,7 +239,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       TRACEARR_AUTO_CONFIGURE: 'true',
       TRACEARR_ADMIN_USERNAME: state.globalUsername,
       TRACEARR_ADMIN_EMAIL: state.globalEmail,
-      TRACEARR_ADMIN_PASSWORD: state.enableTracearr ? state.globalPassword : '',
+      TRACEARR_ADMIN_PASSWORD: effectiveEnableTracearr ? state.globalPassword : '',
       TRACEARR_CLAIM_CODE: '',
       TRACEARR_PLEX_SERVER_URL: '',
       TRACEARR_JELLYFIN_SERVER_URL: '',
@@ -346,7 +341,15 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     }
 
     return config;
-  }, [state, effectiveEnableSeerr, effectiveEnablePulsarr]);
+  }, [
+    state,
+    arrEnabled,
+    effectiveEnableMaintainerr,
+    effectiveEnablePulsarr,
+    effectiveEnableSeerr,
+    effectiveEnableTracearr,
+    videoAutomationEnabled
+  ]);
 
   const reviewItems = useMemo(
     () => [
@@ -375,8 +378,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           ? [effectiveEnableSeerr && 'Seerr', effectiveEnablePulsarr && 'Pulsarr'].filter(Boolean).join(', ') || 'None'
           : 'Disabled'
       ],
-      ['Maintainerr', state.enableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
-      ['Tracearr', state.enableTracearr ? 'Enabled' : 'Disabled'],
+      ['Maintainerr', effectiveEnableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
+      ['Tracearr', effectiveEnableTracearr ? 'Enabled' : 'Disabled'],
       ['Immich', state.enableImmich ? 'Enabled' : 'Disabled'],
       ['RomM', state.enableRomm ? 'Enabled privately' : 'Disabled'],
       ['RomM library', state.enableRomm ? state.rommLibraryRoot || `${state.mediaRoot}/Games` : 'Disabled'],
@@ -385,13 +388,13 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ['Cleanup presets', state.maintainerrCleanupPresets.length ? state.maintainerrCleanupPresets.join(', ') : 'None'],
       [
         'Movie profile',
-        state.enable4kServarr
+        videoAutomationEnabled && state.enable4kServarr
           ? `${mediaProfileName(state.movieProfilePreset, 'hd')} / ${mediaProfileName(state.movie4kProfilePreset, '4k')}`
           : mediaProfileName(state.movieProfilePreset, 'hd')
       ],
       [
         'TV profile',
-        state.enable4kServarr
+        videoAutomationEnabled && state.enable4kServarr
           ? `${mediaProfileName(state.tvProfilePreset, 'hd')} / ${mediaProfileName(state.tv4kProfilePreset, '4k')}`
           : mediaProfileName(state.tvProfilePreset, 'hd')
       ],
@@ -403,7 +406,14 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ['Updates', state.installUpdates ? 'Enable weekly update automation' : 'Manual updates'],
       ['Agent connection', 'Connect from your chat client after setup']
     ],
-    [state]
+    [
+      state,
+      effectiveEnableMaintainerr,
+      effectiveEnablePulsarr,
+      effectiveEnableSeerr,
+      effectiveEnableTracearr,
+      videoAutomationEnabled
+    ]
   );
 
   function update<K extends keyof SetupState>(key: K, value: SetupState[K]) {
@@ -690,30 +700,21 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                   />
                 </label>
                 <div className={styles.checks}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={restorePostgres}
-                      onChange={(event) => setRestorePostgres(event.target.checked)}
-                    />{' '}
-                    Restore shared Postgres dumps
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={restoreNativePlex}
-                      onChange={(event) => setRestoreNativePlex(event.target.checked)}
-                    />{' '}
-                    Restore existing Plex config
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={restorePlexPreferences}
-                      onChange={(event) => setRestorePlexPreferences(event.target.checked)}
-                    />{' '}
-                    Restore Plex host preferences when compatible
-                  </label>
+                  <ToggleChoice
+                    checked={restorePostgres}
+                    label="Restore shared database data"
+                    onChange={setRestorePostgres}
+                  />
+                  <ToggleChoice
+                    checked={restoreNativePlex}
+                    label="Restore the existing Plex configuration"
+                    onChange={setRestoreNativePlex}
+                  />
+                  <ToggleChoice
+                    checked={restorePlexPreferences}
+                    label="Restore Plex host preferences when compatible"
+                    onChange={setRestorePlexPreferences}
+                  />
                   <label>
                     <input
                       type="checkbox"
@@ -737,14 +738,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                   <PathInput value={migrateSourceRoot} onChange={setMigrateSourceRoot} />
                 </label>
                 <div className={styles.checks}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={migrateStopSourceContainers}
-                      onChange={(event) => setMigrateStopSourceContainers(event.target.checked)}
-                    />{' '}
-                    Stop source containers while copying
-                  </label>
+                  <ToggleChoice
+                    checked={migrateStopSourceContainers}
+                    description="Prevents apps from changing data while Stackarr copies it."
+                    label="Pause source apps while copying"
+                    onChange={setMigrateStopSourceContainers}
+                  />
                 </div>
                 <div className={styles.actionRow}>
                   <button onClick={previewMigration} type="button">
@@ -760,7 +759,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             )}
           </div>
         )}
-        {current === 'Storage Paths' && (
+        {current === 'Storage' && (
           <div className={styles.form}>
             <label>
               Media Root
@@ -780,8 +779,9 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             </label>
           </div>
         )}
-        {current === 'Media Servers' && (
+        {current === 'Playback' && (
           <div className={styles.form}>
+            <p>Skip this if your homelab only needs apps such as Immich or RomM.</p>
             <label>
               Plex
               <select value={state.plexInstallMode} onChange={(event) => update('plexInstallMode', event.target.value)}>
@@ -813,39 +813,46 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             </label>
           </div>
         )}
-        {current === 'Media Requests' && (
+        {current === 'Requests' && (
           <div className={styles.requestManagement}>
-            <label className={styles.requestToggle}>
-              <input
-                type="checkbox"
+            {!videoAutomationEnabled ? (
+              <p className={styles.dependencyNotice}>
+                Request apps become available after you choose Radarr or Sonarr. You can skip this now and add them
+                later from Apps.
+              </p>
+            ) : !mediaServerEnabled ? (
+              <p className={styles.dependencyNotice}>
+                Request apps need a Plex or Jellyfin server. You can continue without one and add it later from Apps.
+              </p>
+            ) : (
+              <ToggleChoice
                 checked={state.enableRequestManagement}
-                onChange={(event) => update('enableRequestManagement', event.target.checked)}
+                description="Let people request movies and shows without opening Radarr or Sonarr."
+                label="Add a request app"
+                onChange={(value) => update('enableRequestManagement', value)}
               />
-              <span>
-                <strong>Do you want media request management?</strong>
-              </span>
-            </label>
-            {state.enableRequestManagement && (
+            )}
+            {state.enableRequestManagement && videoAutomationEnabled && mediaServerEnabled && (
               <div className={styles.serviceChoices}>
                 <ServiceChoice
                   checked={state.enableSeerr}
-                  label="Seerr Requests"
-                  description="Optional request portal for Jellyfin or manual request workflows."
+                  label="Seerr"
+                  description="A request portal for Plex or Jellyfin that sends approved movies and shows to your library apps."
                   onChange={(value) => update('enableSeerr', value)}
                 />
                 {state.enableSeerr && (
                   <ServiceChoice
                     checked={state.configureSeerr}
-                    label="Wire Seerr Arr Services"
-                    description="Opt-in automation that adds Radarr and Sonarr services inside Seerr."
+                    label="Connect Seerr automatically"
+                    description="Add the Radarr and Sonarr connections for you during setup."
                     onChange={(value) => update('configureSeerr', value)}
                   />
                 )}
-                {!jellyfinEnabled && (
+                {plexEnabled && (
                   <ServiceChoice
                     checked={state.enablePulsarr}
-                    label="Pulsarr Watchlists"
-                    description="Plex watchlist automation that routes saved items into the configured Arr apps."
+                    label="Pulsarr"
+                    description="Turn items saved to a Plex watchlist into Radarr or Sonarr additions."
                     onChange={(value) => update('enablePulsarr', value)}
                   />
                 )}
@@ -853,7 +860,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             )}
           </div>
         )}
-        {current === 'Stack Services' && (
+        {current === 'Choose Apps' && (
           <div className={styles.serviceChoices}>
             <ServiceChoice
               checked={state.enableMovies}
@@ -1005,52 +1012,51 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 )}
                 {state.rommMetadataPreset === 'custom' && (
                   <div className={styles.checks}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={state.rommHasheousApiEnabled}
-                        onChange={(event) => update('rommHasheousApiEnabled', event.target.checked)}
-                      />{' '}
-                      Hasheous
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={state.rommPlaymatchApiEnabled}
-                        onChange={(event) => update('rommPlaymatchApiEnabled', event.target.checked)}
-                      />{' '}
-                      Playmatch
-                    </label>
+                    <ToggleChoice
+                      checked={state.rommHasheousApiEnabled}
+                      label="Use Hasheous"
+                      onChange={(value) => update('rommHasheousApiEnabled', value)}
+                    />
+                    <ToggleChoice
+                      checked={state.rommPlaymatchApiEnabled}
+                      label="Use Playmatch"
+                      onChange={(value) => update('rommPlaymatchApiEnabled', value)}
+                    />
                   </div>
                 )}
               </div>
             )}
             <ServiceChoice
-              checked={state.enable4kServarr}
+              checked={videoAutomationEnabled && state.enable4kServarr}
+              disabled={!videoAutomationEnabled}
               label="Separate Radarr/Sonarr 4K"
               description="Dedicated 4K movie and TV apps keep UHD requests, profiles, and upgrades isolated from HD libraries."
               onChange={(value) => update('enable4kServarr', value)}
             />
             <ServiceChoice
-              checked={state.enableBazarr}
+              checked={videoAutomationEnabled && state.enableBazarr}
+              disabled={!videoAutomationEnabled}
               label="Bazarr Subtitles"
               description="Subtitle management for imported movie and TV libraries."
               onChange={(value) => update('enableBazarr', value)}
             />
             <ServiceChoice
-              checked={state.enableTinyMediaManager}
+              checked={videoAutomationEnabled && state.enableTinyMediaManager}
+              disabled={!videoAutomationEnabled}
               label="TinyMediaManager"
               description="Metadata and renaming companion for local movie and TV folders."
               onChange={(value) => update('enableTinyMediaManager', value)}
             />
             <ServiceChoice
-              checked={state.enableRecyclarr}
+              checked={videoAutomationEnabled && state.enableRecyclarr}
+              disabled={!videoAutomationEnabled}
               label="Recyclarr Profiles"
               description="Keeps Arr quality profiles aligned with Stackarr's opinionated defaults."
               onChange={(value) => update('enableRecyclarr', value)}
             />
             <ServiceChoice
-              checked={state.enableFlaresolverr}
+              checked={arrEnabled && state.enableFlaresolverr}
+              disabled={!arrEnabled}
               label="FlareSolverr"
               description="Indexer helper for sites that require browser-style challenge handling."
               onChange={(value) => update('enableFlaresolverr', value)}
@@ -1062,13 +1068,15 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               onChange={(value) => update('enableTidarr', value)}
             />
             <ServiceChoice
-              checked={state.enableMaintainerr}
+              checked={effectiveEnableMaintainerr}
+              disabled={!mediaServerEnabled}
               label="Maintainerr Cleanup"
               description="Plex/Jellyfin cleanup planner. Stackarr connects media server, Arr services, and supported download cleanup."
               onChange={(value) => update('enableMaintainerr', value)}
             />
             <ServiceChoice
-              checked={state.enableTracearr}
+              checked={effectiveEnableTracearr}
+              disabled={!mediaServerEnabled}
               label="Tracearr Monitoring"
               description="Real-time Plex, Jellyfin, and Emby monitoring. Stackarr starts it and wires the selected server when credentials are available."
               onChange={(value) => update('enableTracearr', value)}
@@ -1165,22 +1173,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
         {current === 'Automation' && (
           <div className={styles.checks}>
             <p>Docker's restart policy keeps Stackarr available after the host or Docker restarts.</p>
-            <label>
-              <input
-                type="checkbox"
-                checked={state.installBackup}
-                onChange={(event) => update('installBackup', event.target.checked)}
-              />{' '}
-              Weekly backup automation
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={state.installUpdates}
-                onChange={(event) => update('installUpdates', event.target.checked)}
-              />{' '}
-              Weekly update automation
-            </label>
+            <ToggleChoice
+              checked={state.installBackup}
+              description="Keep a weekly recovery point without manual work."
+              label="Weekly backups"
+              onChange={(value) => update('installBackup', value)}
+            />
+            <ToggleChoice
+              checked={state.installUpdates}
+              description="Install managed app updates during the weekly maintenance window."
+              label="Weekly app updates"
+              onChange={(value) => update('installUpdates', value)}
+            />
           </div>
         )}
         {current === 'Agent Connection' && (
@@ -1376,22 +1380,54 @@ function validateRequiredPortablePassword(password: string) {
 
 function ServiceChoice({
   checked,
+  disabled = false,
   label,
   description,
   onChange
 }: {
   checked: boolean;
+  disabled?: boolean;
   label: string;
   description: string;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className={styles.serviceChoice}>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>
-        <strong>{label}</strong>
-        <small>{description}</small>
-      </span>
-    </label>
+    <Switch className={styles.serviceChoice} isDisabled={disabled} isSelected={checked} onChange={onChange}>
+      <Switch.Content>
+        <span className={styles.choiceCopy}>
+          <Label>{label}</Label>
+          <Description>{description}</Description>
+        </span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch.Content>
+    </Switch>
+  );
+}
+
+function ToggleChoice({
+  checked,
+  description,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  description?: string;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <Switch className={styles.toggleChoice} isSelected={checked} onChange={onChange}>
+      <Switch.Content>
+        <span className={styles.choiceCopy}>
+          <Label>{label}</Label>
+          {description && <Description>{description}</Description>}
+        </span>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch.Content>
+    </Switch>
   );
 }

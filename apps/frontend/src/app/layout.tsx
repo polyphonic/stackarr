@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Stackarr',
-  description: 'Manage a self-hosted media stack from chat or the Stackarr dashboard.',
+  description: 'Manage your self-hosted apps and homelab from chat or the Stackarr dashboard.',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon.svg',

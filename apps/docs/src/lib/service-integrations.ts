@@ -173,7 +173,7 @@ export const serviceIntegrations = [
       'Can run natively or near a Docker-managed automation stack.'
     ],
     stackarr:
-      'Stackarr is designed around practical Plex installs: it can support native media-server paths, direct service links, Plex-aware backup modes, request workflows, and the automation services around the library.'
+      'Stackarr is designed around practical Plex installs: it can support native media-server paths, direct service links, Plex-aware backup modes, request workflows, and the automation services around the library. The Home performance charts use Plex resource history directly when it is available.'
   },
   {
     slug: 'pulsarr',
@@ -188,7 +188,7 @@ export const serviceIntegrations = [
       'Reduces the need for users to learn the automation tools directly.'
     ],
     stackarr:
-      'Stackarr makes Pulsarr the default request-manager path for Plex-oriented setups, including first-run credentials, database choices, service links, backups, and optional Cloudflare routing.'
+      'Stackarr makes Pulsarr the default request-manager path for Plex-oriented setups, including first-run credentials, a dedicated agent API key, Plex and Arr wiring, database choices, service links, backups, and optional Cloudflare routing.'
   },
   {
     slug: 'maintainerr',
@@ -218,7 +218,7 @@ export const serviceIntegrations = [
       'Can import legacy watch-history data while keeping future monitoring in one self-hosted dashboard.'
     ],
     stackarr:
-      'Stackarr can start Tracearr against the shared Postgres/TimescaleDB and Redis services, persist built-in backups under the Stackarr config root, expose localhost/Portless links, and wire the first owner plus media server during onboarding when credentials are available.'
+      'Stackarr can start Tracearr against the shared Postgres/TimescaleDB and Redis services, persist built-in backups under the Stackarr config root, expose localhost/Portless links, wire the first owner plus media server, and connect a read-only public API token for chat and dashboard insights.'
   },
   {
     slug: 'immich',
@@ -278,7 +278,7 @@ export const serviceIntegrations = [
       'Helps keep libraries portable when metadata should live beside the files.'
     ],
     stackarr:
-      'Stackarr can include TinyMediaManager in setup, apply naming presets, link the service, and back up durable metadata databases while skipping rebuildable caches and add-ons.'
+      'Stackarr can include TinyMediaManager in setup, enable its private keyed HTTP API for approved scans and metadata actions, apply naming presets, link the visual service, and back up durable metadata databases while skipping rebuildable caches and add-ons.'
   },
   {
     slug: 'recyclarr',
@@ -293,7 +293,7 @@ export const serviceIntegrations = [
       'Separates profile sync from daily media requests and downloads.'
     ],
     stackarr:
-      'Stackarr can generate Recyclarr config, wire app API keys, run sync tasks, and keep profile choices visible alongside the rest of setup.'
+      'Stackarr generates only the enabled Recyclarr targets, removes stale template or disabled 4K files, wires app API keys, and offers a safe preview before an approved sync.'
   },
   {
     slug: 'flaresolverr',

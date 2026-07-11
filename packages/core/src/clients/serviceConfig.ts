@@ -22,7 +22,7 @@ const defaults: Record<string, number> = {
   immich: 2283,
   romm: 7583,
   bazarr: 6767,
-  tinymediamanager: 4000,
+  tinymediamanager: 7878,
   flaresolverr: 8191,
   tidarr: 8484
 };

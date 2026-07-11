@@ -24,10 +24,10 @@
 
 .field input,
 .field select {
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--inputBackground);
   color: var(--textColor);
 }
@@ -41,7 +41,7 @@
 
 .passwordControl {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) 44px;
   gap: 6px;
 }
 
@@ -54,16 +54,27 @@
 }
 
 .passwordToggle {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
 }
 
 .check {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  display: block;
+  max-width: 680px;
+  padding: 11px 13px;
+  border: 1px solid var(--glass-border);
+  border-radius: 13px;
+  background: var(--glass-subtle);
+}
+
+.check :global(.switch__content),
+.routeAccess :global(.switch__content) {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
 }
 
 .actionRow {
@@ -88,10 +99,10 @@
 }
 
 .inlineActions button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--inputBackground);
   color: var(--textColor);
 }
@@ -130,35 +141,32 @@
 .routeRow input,
 .routeRow select {
   min-width: 0;
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--inputBackground);
   color: var(--textColor);
 }
 
 .routeAccess {
-  display: inline-grid;
-  grid-template-columns: 16px auto;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
+  display: inline-block;
+  min-width: 108px;
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-subtle);
   color: var(--mutedTextColor);
   white-space: nowrap;
 }
 
-.routeAccess input {
-  min-height: 16px;
-  padding: 0;
-}
-
 .routeEditor button,
 .routeRow button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--inputBackground);
   color: var(--textColor);
 }
@@ -241,10 +249,10 @@
 }
 
 .footer button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 14px;
   border: 1px solid var(--purple-700);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--purple-600);
   color: var(--accent-foreground);
 }

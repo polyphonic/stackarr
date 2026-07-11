@@ -20,6 +20,11 @@ export type ServiceSummary = {
   configPath?: string;
   notes?: string[];
   dockerService?: string;
+  experience: 'app' | 'helper' | 'infrastructure';
+  requirement?: {
+    satisfied: boolean;
+    message: string;
+  };
 };
 
 type ServiceMetadata = {
@@ -30,7 +35,7 @@ type ServiceMetadata = {
 const serviceMetadata: Record<string, ServiceMetadata> = {
   stackarr: {
     displayName: 'Stackarr',
-    description: 'Control plane, dashboard, API, and MCP surface for the local media stack.'
+    description: 'Homelab manager, dashboard, API, and agent connection for your self-hosted apps.'
   },
   database: {
     displayName: 'Database',
@@ -133,8 +138,8 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     description: 'Open media server option managed natively or through Docker.'
   },
   backup: {
-    displayName: 'Plex Backup Service',
-    description: 'Stackarr-managed backup automation for Plex and stack configuration archives.'
+    displayName: 'Backups',
+    description: 'Stackarr-managed backups for app configuration, databases, and supported media-server state.'
   }
 };
 
@@ -208,6 +213,11 @@ export function getServices(): ServiceSummary[] {
   const servarrSupportMode =
     moviesMode === 'docker' || tvMode === 'docker' || musicMode === 'docker' ? 'docker' : 'disabled';
   const fourKMode = flag(env.ENABLE_4K_SERVARR, false) ? 'docker' : 'disabled';
+  const plexMode = mode(env.PLEX_INSTALL_MODE, 'docker');
+  const jellyfinMode = mode(env.JELLYFIN_INSTALL_MODE, 'disabled');
+  const mediaServerEnabled = plexMode !== 'disabled' || jellyfinMode !== 'disabled';
+  const videoAutomationEnabled = moviesMode === 'docker' || tvMode === 'docker';
+  const arrEnabled = videoAutomationEnabled || musicMode === 'docker';
   const sharedRedisMode =
     flag(env.ENABLE_IMMICH, false) || flag(env.ENABLE_ROMM, false) || flag(env.ENABLE_TRACEARR, false)
       ? 'docker'
@@ -215,11 +225,13 @@ export function getServices(): ServiceSummary[] {
 
   return [
     service('stackarr', 'stack', 'docker', Number(env.STACKARR_WEB_PORT ?? 7777), settings, {
-      notes: ['Primary dashboard/API overseeing the configured media stack.']
+      experience: 'infrastructure',
+      notes: ['Primary dashboard/API overseeing this homelab and its configured apps.']
     }),
     service('database', 'support', 'docker', Number(env.DATABASE_HOST_PORT ?? 5433), settings, {
       localUrl: undefined,
       browserUrl: undefined,
+      experience: 'infrastructure',
       notes: [
         'PostgreSQL 18 with TimescaleDB and pgvector; Stackarr creates separate databases for itself and supported apps.'
       ]
@@ -240,16 +252,21 @@ export function getServices(): ServiceSummary[] {
     ),
     service('streamrip', 'download', musicMode === 'docker' ? 'native' : 'disabled', undefined, settings, {
       kind: 'service',
+      experience: 'helper',
       dockerService: undefined,
       notes: [
         'Managed by Stackarr as a CLI worker; Lidarr metadata/import workflows can target it without requiring a Lidarr plugin.'
       ]
     }),
-    service('prowlarr', 'servarr', servarrSupportMode, 9696, settings),
+    service('prowlarr', 'servarr', servarrSupportMode, 9696, settings, { experience: 'helper' }),
     service('radarr', 'servarr', moviesMode, 7878, settings),
-    service('radarr4k', 'servarr', moviesMode === 'docker' ? fourKMode : 'disabled', 7879, settings),
+    service('radarr4k', 'servarr', moviesMode === 'docker' ? fourKMode : 'disabled', 7879, settings, {
+      experience: 'helper'
+    }),
     service('sonarr', 'servarr', tvMode, 8989, settings),
-    service('sonarr4k', 'servarr', tvMode === 'docker' ? fourKMode : 'disabled', 8990, settings),
+    service('sonarr4k', 'servarr', tvMode === 'docker' ? fourKMode : 'disabled', 8990, settings, {
+      experience: 'helper'
+    }),
     service('lidarr', 'servarr', musicMode, 8686, settings),
     service(
       'bookorbit',
@@ -270,39 +287,94 @@ export function getServices(): ServiceSummary[] {
         'Private game-library browsing and browser play through RomM using the shared Postgres and Redis services. Public exposure is opt-in only; Stackarr binds it to loopback by default.'
       ]
     }),
-    service('bazarr', 'support', optionalMode(env.ENABLE_BAZARR), 6767, settings),
-    service('tinymediamanager', 'support', optionalMode(env.ENABLE_TINYMEDIAMANAGER), 4000, settings),
-    service('recyclarr', 'support', optionalMode(env.ENABLE_RECYCLARR), undefined, settings, {
-      kind: 'service'
+    service('bazarr', 'support', dependentMode(env.ENABLE_BAZARR, videoAutomationEnabled), 6767, settings, {
+      requirement: requirement(videoAutomationEnabled, 'Bazarr needs Radarr or Sonarr first.')
     }),
-    service('flaresolverr', 'support', optionalMode(env.ENABLE_FLARESOLVERR), 8191, settings),
+    service(
+      'tinymediamanager',
+      'support',
+      dependentMode(env.ENABLE_TINYMEDIAMANAGER, videoAutomationEnabled),
+      4000,
+      settings,
+      {
+        requirement: requirement(videoAutomationEnabled, 'TinyMediaManager needs a movie or TV library first.')
+      }
+    ),
+    service('recyclarr', 'support', dependentMode(env.ENABLE_RECYCLARR, videoAutomationEnabled), undefined, settings, {
+      kind: 'service',
+      experience: 'helper',
+      requirement: requirement(videoAutomationEnabled, 'Recyclarr needs Radarr or Sonarr first.')
+    }),
+    service('flaresolverr', 'support', dependentMode(env.ENABLE_FLARESOLVERR, arrEnabled), 8191, settings, {
+      experience: 'helper',
+      requirement: requirement(arrEnabled, 'FlareSolverr needs an Arr app and Prowlarr first.')
+    }),
     service('tidarr', 'support', optionalMode(env.ENABLE_TIDARR), 8484, settings),
-    service('seerr', 'support', optionalMode(env.ENABLE_SEERR), 5055, settings),
-    service('pulsarr', 'support', optionalMode(env.ENABLE_PULSARR), Number(env.PULSARR_PORT ?? 3003), settings, {
-      notes: ['Plex watchlist automation and Arr routing managed by Pulsarr.']
-    }),
+    service(
+      'seerr',
+      'support',
+      dependentMode(env.ENABLE_SEERR, mediaServerEnabled && videoAutomationEnabled),
+      5055,
+      settings,
+      {
+        requirement: requirement(
+          mediaServerEnabled && videoAutomationEnabled,
+          'Seerr needs Plex or Jellyfin plus Radarr or Sonarr.'
+        )
+      }
+    ),
+    service(
+      'pulsarr',
+      'support',
+      dependentMode(env.ENABLE_PULSARR, plexMode !== 'disabled' && videoAutomationEnabled),
+      Number(env.PULSARR_PORT ?? 3003),
+      settings,
+      {
+        requirement: requirement(
+          plexMode !== 'disabled' && videoAutomationEnabled,
+          'Pulsarr needs Plex plus Radarr or Sonarr.'
+        ),
+        notes: ['Plex watchlist automation and Arr routing managed by Pulsarr.']
+      }
+    ),
     service(
       'maintainerr',
       'support',
-      optionalMode(env.ENABLE_MAINTAINERR),
+      dependentMode(env.ENABLE_MAINTAINERR, mediaServerEnabled),
       Number(env.MAINTAINERR_PORT ?? 6246),
       settings,
       {
+        requirement: requirement(mediaServerEnabled, 'Maintainerr needs Plex or Jellyfin first.'),
         notes: ['Cleanup rules are created inside Maintainerr; Stackarr only starts and links the app.']
       }
     ),
-    service('tracearr', 'support', optionalMode(env.ENABLE_TRACEARR), Number(env.TRACEARR_PORT ?? 3000), settings, {
-      notes: ['Tracearr monitors Plex/Jellyfin/Emby activity using the shared Postgres/TimescaleDB and Redis services.']
-    }),
+    service(
+      'tracearr',
+      'support',
+      dependentMode(env.ENABLE_TRACEARR, mediaServerEnabled || Boolean(env.TRACEARR_EMBY_SERVER_URL?.trim())),
+      Number(env.TRACEARR_PORT ?? 3000),
+      settings,
+      {
+        requirement: requirement(
+          mediaServerEnabled || Boolean(env.TRACEARR_EMBY_SERVER_URL?.trim()),
+          'Tracearr needs Plex, Jellyfin, or an Emby server URL first.'
+        ),
+        notes: [
+          'Tracearr monitors Plex/Jellyfin/Emby activity using the shared Postgres/TimescaleDB and Redis services.'
+        ]
+      }
+    ),
     service('redis', 'support', sharedRedisMode, undefined, settings, {
       browserUrl: undefined,
       localUrl: undefined,
+      experience: 'infrastructure',
       notes: ['Shared Redis container used by Immich, RomM, Tracearr, and other supported services.']
     }),
-    mediaServer('plex', mode(env.PLEX_INSTALL_MODE, 'docker'), 32400, env.PLEX_CONFIG_PATH, env, settings),
-    mediaServer('jellyfin', mode(env.JELLYFIN_INSTALL_MODE, 'disabled'), 8096, env.JELLYFIN_CONFIG_PATH, env, settings),
+    mediaServer('plex', plexMode, 32400, env.PLEX_CONFIG_PATH, env, settings),
+    mediaServer('jellyfin', jellyfinMode, 8096, env.JELLYFIN_CONFIG_PATH, env, settings),
     service('backup', 'support', flag(env.ENABLE_BACKUP, true) ? 'native' : 'disabled', undefined, settings, {
       kind: 'service',
+      experience: 'infrastructure',
       dockerService: undefined,
       configPath: env.BACKUP_ROOT,
       notes: [
@@ -380,6 +452,7 @@ function service(
     displayName: metadata.displayName,
     description: metadata.description,
     category,
+    experience: extras.experience ?? 'app',
     kind: extras.kind ?? (mode === 'docker' ? 'container' : 'service'),
     mode,
     port,
@@ -389,6 +462,14 @@ function service(
     dockerService: name === 'stackarr' ? undefined : name,
     ...extras
   };
+}
+
+function requirement(satisfied: boolean, message: string): ServiceSummary['requirement'] {
+  return { satisfied, message };
+}
+
+function dependentMode(value: string | undefined, prerequisite: boolean): ServiceSummary['mode'] {
+  return prerequisite ? optionalMode(value) : 'disabled';
 }
 
 function mediaServer(

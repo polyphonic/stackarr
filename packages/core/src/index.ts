@@ -8,6 +8,7 @@ export * from './actions/downloads';
 export * from './actions/health';
 export * from './actions/lidarrStreamrip';
 export * from './actions/migration';
+export * from './actions/performance';
 export * from './actions/plex';
 export * from './actions/releases';
 export * from './actions/routines';

@@ -2,6 +2,7 @@
 
 import { Button } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { stackarrFetch } from './clientApi';
 import styles from './NativeAppActions.module.css';
@@ -16,7 +17,7 @@ type AppCapability = {
   readOperations: Operation[];
   manageOperations: Operation[];
   dangerousOperations: Operation[];
-  warning?: string;
+  notice?: string;
 };
 
 export type NativeAppCapabilities = { apps: AppCapability[] };
@@ -38,6 +39,9 @@ export function NativeAppActions({ capabilities }: { capabilities: NativeAppCapa
     (operation) => operation.requiresCredential
   );
   const ready = app.configured && (!credentialNeeded || app.credentialConfigured);
+  const setupMessage = !app.configured
+    ? `Set ${displayName(app.app)}’s connection address${credentialNeeded ? ' and agent access key' : ''}.`
+    : `Connect an agent access key for ${displayName(app.app)}.`;
 
   return (
     <div className={styles.shell}>
@@ -61,13 +65,18 @@ export function NativeAppActions({ capabilities }: { capabilities: NativeAppCapa
             <span className={styles.eyebrow}>Native app control</span>
             <h3>{displayName(app.app)}</h3>
           </div>
-          <span className={ready ? styles.ready : styles.needsSetup}>{ready ? 'Ready' : 'Partial setup'}</span>
+          <span className={ready ? styles.ready : styles.needsSetup}>
+            {ready ? 'Ready' : app.configured ? 'Needs access key' : 'Needs connection'}
+          </span>
         </header>
-        {app.warning && <p className={styles.warning}>{app.warning}</p>}
+        {app.notice && <p className={styles.notice}>{app.notice}</p>}
         {!ready && (
-          <p className={styles.warning}>
-            Add this app’s URL or agent credential in Settings to unlock protected actions.
-          </p>
+          <div className={styles.setupPrompt}>
+            <p>{setupMessage} Stackarr keeps it private and uses it only for the actions shown here.</p>
+            <Link href={`/stack/services?app=${encodeURIComponent(app.app)}`}>
+              Open {displayName(app.app)} settings
+            </Link>
+          </div>
         )}
         <OperationGroup app={app.app} capability={app} kind="manage" operations={app.manageOperations} />
         <OperationGroup app={app.app} capability={app} kind="read" operations={app.readOperations} />

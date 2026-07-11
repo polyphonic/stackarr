@@ -398,6 +398,40 @@ load_env() {
     : "${ENABLE_PULSARR:=true}"
     : "${ENABLE_MAINTAINERR:=false}"
     : "${ENABLE_TRACEARR:=false}"
+    local video_automation_enabled="false"
+    local media_server_enabled="false"
+    local arr_enabled="false"
+    if flag_enabled "$ENABLE_MOVIES" || flag_enabled "$ENABLE_TV_SHOWS"; then
+        video_automation_enabled="true"
+    fi
+    if [[ "$(lowercase "$PLEX_INSTALL_MODE")" != "disabled" || "$(lowercase "$JELLYFIN_INSTALL_MODE")" != "disabled" ]]; then
+        media_server_enabled="true"
+    fi
+    if flag_enabled "$ENABLE_MOVIES" || flag_enabled "$ENABLE_TV_SHOWS" || flag_enabled "$ENABLE_LIDARR"; then
+        arr_enabled="true"
+    fi
+    if [[ "$(lowercase "$PLEX_INSTALL_MODE")" == "disabled" || "$video_automation_enabled" != "true" ]]; then
+        ENABLE_PULSARR="false"
+    fi
+    if [[ "$media_server_enabled" != "true" || "$video_automation_enabled" != "true" ]]; then
+        ENABLE_SEERR="false"
+        STACKARR_CONFIGURE_SEERR="false"
+    fi
+    if [[ "$media_server_enabled" != "true" ]]; then
+        ENABLE_MAINTAINERR="false"
+        if [[ -z "${TRACEARR_EMBY_SERVER_URL:-}" ]]; then
+            ENABLE_TRACEARR="false"
+        fi
+    fi
+    if [[ "$video_automation_enabled" != "true" ]]; then
+        ENABLE_4K_SERVARR="false"
+        ENABLE_BAZARR="false"
+        ENABLE_TINYMEDIAMANAGER="false"
+        ENABLE_RECYCLARR="false"
+    fi
+    if [[ "$arr_enabled" != "true" ]]; then
+        ENABLE_FLARESOLVERR="false"
+    fi
     if [[ -z "${STACKARR_DATABASE_MODE:-}" && -n "${STACKARR_DATABASE_URL:-}" ]]; then
         STACKARR_DATABASE_MODE="postgres"
     fi
@@ -536,7 +570,7 @@ load_env() {
     : "${TRACEARR_EMBY_SERVER_URL:=}"
     : "${PLEX_URL:=http://127.0.0.1:32400}"
     : "${JELLYFIN_URL:=http://127.0.0.1:8096}"
-    : "${TINYMEDIAMANAGER_URL:=http://127.0.0.1:4000}"
+    : "${TINYMEDIAMANAGER_URL:=http://127.0.0.1:7878}"
     : "${FLARESOLVERR_URL:=http://127.0.0.1:8191}"
     : "${TIDARR_URL:=http://127.0.0.1:8484}"
     : "${PULSARR_API_KEY:=}"

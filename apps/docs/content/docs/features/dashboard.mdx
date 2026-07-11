@@ -9,10 +9,10 @@ The Stackarr app is the optional visual control room for the same homelab capabi
 
 ## Product areas
 
-- **Home** shows what needs attention, active work, recent actions, favorite apps, storage, and stack health.
+- **Home** shows what needs attention, active work, recent actions, favorite apps, storage, and native performance history. Plex installs use Plex's own CPU and memory samples; other containers retain Docker live metrics in Infrastructure.
 - **Apps** opens enabled services and runs focused native operations such as scans, metadata work, syncs, and queue controls.
 - **Activity** combines download work, command history, agent and routine actions, and a bounded redacted server-log viewer.
-- **Infrastructure** shows the stack as containers, storage, images, volumes, and networks. Routine polling uses a lightweight container snapshot and pauses in hidden browser tabs.
+- **Infrastructure** shows the stack as containers, storage, images, volumes, and networks. Live metrics use Docker's one-shot Engine API instead of the slower CLI sampling path, build short local trend graphs from the normal refresh cadence, and pause in hidden browser tabs.
 - **Automation & Access** contains routines, chat connections, authority profiles, agent history, and Cloudflare tunnel controls.
 - **Settings** starts with everyday choices and progressively reveals service connections and advanced configuration.
 

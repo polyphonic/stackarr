@@ -1,8 +1,9 @@
 'use client';
 
 import type { ServiceConfigField, ServiceConfigModel } from '@stackarr/core';
+import { Button, Description, Input, Label, Modal, Switch, TextArea, TextField } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
-import { type MouseEvent, useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { stackarrFetch } from './clientApi';
 import { icons } from './icons';
 import { PathInput } from './PathPicker';
@@ -21,10 +22,14 @@ type DraftValues = Record<string, unknown>;
 
 export function ServiceDirectory({
   configs,
-  onServiceOpen
+  onServiceOpen,
+  variant = 'installed',
+  initialService
 }: {
   configs: ServiceConfigModel[];
   onServiceOpen?: (config: ServiceConfigModel) => boolean | void;
+  variant?: 'installed' | 'catalog' | 'helper';
+  initialService?: string;
 }) {
   const [items, setItems] = useState(configs);
   const [activeName, setActiveName] = useState<string | null>(null);
@@ -32,14 +37,25 @@ export function ServiceDirectory({
   const [currentPassword, setCurrentPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [applyState, setApplyState] = useState<'idle' | 'ready' | 'confirming' | 'queueing' | 'queued'>('idle');
   const [favorites, setFavorites] = useState(() => [] as ReturnType<typeof readServiceFavorites>);
+  const initialOpened = useRef(false);
 
   const active = useMemo(() => items.find((item) => item.service.name === activeName) ?? null, [activeName, items]);
-  const orderedItems = useMemo(() => [...items].sort(compareServiceConfigs), [items]);
   const favoriteNames = useMemo(() => new Set(favorites.map((favorite) => favorite.name)), [favorites]);
+  const orderedItems = useMemo(
+    () =>
+      [...items].sort((a, b) => {
+        const pinned = favoriteRank(a, favoriteNames) - favoriteRank(b, favoriteNames);
+        return pinned || compareServiceConfigs(a, b);
+      }),
+    [favoriteNames, items]
+  );
   const currentPasswordRequired = Boolean(
     active?.currentPasswordRequiredForProtectedChanges && protectedDraftChangeRequiresCurrentPassword(active, draft)
   );
+  const commonGroups = active ? filterConfigGroups(active.groups, (field) => !isAdvancedField(field)) : [];
+  const advancedGroups = active ? filterConfigGroups(active.groups, isAdvancedField) : [];
 
   useEffect(() => {
     let active = true;
@@ -62,6 +78,15 @@ export function ServiceDirectory({
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (initialOpened.current) return;
+    const initial = items.find((item) => item.service.name === initialService);
+    if (initial && (initial.service.requirement?.satisfied ?? true)) {
+      initialOpened.current = true;
+      openConfig(initial);
+    }
+  }, [initialService, items]);
 
   function openConfig(config: ServiceConfigModel) {
     setActiveName(config.service.name);
@@ -103,10 +128,10 @@ export function ServiceDirectory({
 
     try {
       await writeServiceFavorites(nextNames);
-      toast.success(`${config.service.displayName} ${isFavorite ? 'removed from' : 'added to'} favorites.`);
+      toast.success(`${config.service.displayName} ${isFavorite ? 'unpinned' : 'pinned'}.`);
     } catch (error) {
       setFavorites(previous);
-      const errorMessage = error instanceof Error ? error.message : 'Could not save favorite services.';
+      const errorMessage = error instanceof Error ? error.message : 'Could not update pinned apps.';
       setError(errorMessage);
       toast.error(errorMessage);
     }
@@ -157,19 +182,79 @@ export function ServiceDirectory({
 
     const nextConfig = body.config as ServiceConfigModel;
     setItems((current) => current.map((item) => (item.service.name === nextConfig.service.name ? nextConfig : item)));
+    setApplyState('ready');
     closeConfig();
-    toast.success(`${active.service.displayName} settings saved.`, { id: toastId });
+    toast.success(`${active.service.displayName} is ready to apply.`, { id: toastId });
+  }
+
+  async function applyChanges() {
+    setApplyState('queueing');
+    const toastId = toast.loading('Applying app changes…');
+    const response = await stackarrFetch('/api/v1/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'StackConfigure', confirmed: true })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setApplyState('ready');
+      toast.error(typeof body.message === 'string' ? body.message : 'App changes could not be queued.', {
+        id: toastId
+      });
+      return;
+    }
+    setApplyState('queued');
+    toast.success('App changes queued. Follow progress in Activity.', { id: toastId });
   }
 
   return (
     <>
+      {applyState !== 'idle' && (
+        <div className={styles.applyNotice} role={applyState === 'confirming' ? 'alert' : 'status'}>
+          <div>
+            <strong>
+              {applyState === 'queued'
+                ? 'App update queued'
+                : applyState === 'confirming'
+                  ? 'Apply these changes now?'
+                  : 'App changes are ready'}
+            </strong>
+            <small>
+              {applyState === 'queued'
+                ? 'Follow the update in Activity. Stackarr will keep your saved settings.'
+                : applyState === 'confirming'
+                  ? 'Stackarr will update this homelab’s containers. Existing app data and volumes stay in place.'
+                  : 'Apply once to add, remove, or update the selected app containers.'}
+            </small>
+          </div>
+          <div className={styles.applyActions}>
+            {applyState === 'confirming' && (
+              <Button onPress={() => setApplyState('ready')} size="sm" variant="tertiary">
+                Not now
+              </Button>
+            )}
+            {applyState !== 'queued' && (
+              <Button
+                isPending={applyState === 'queueing'}
+                onPress={applyState === 'confirming' ? applyChanges : () => setApplyState('confirming')}
+                size="sm"
+                variant="primary"
+              >
+                {applyState === 'confirming' ? 'Confirm and apply' : 'Review and apply'}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
       <div className={styles.directory}>
         {orderedItems.map((config) => {
           const link = serviceLink(config.service);
           const hasCustomOpen = Boolean(onServiceOpen);
           const canOpen = config.service.mode !== 'disabled' && (hasCustomOpen || Boolean(link));
-          const canFavorite = config.service.mode !== 'disabled' && Boolean(link);
+          const canFavorite = variant === 'installed' && config.service.mode !== 'disabled' && Boolean(link);
           const isFavorite = favoriteNames.has(config.service.name);
+          const requirementMet = config.service.requirement?.satisfied ?? true;
+          const isAvailable = config.service.mode === 'disabled';
 
           return (
             <article
@@ -206,45 +291,56 @@ export function ServiceDirectory({
                 <div className={styles.cardTitle}>
                   <strong>{config.service.displayName}</strong>
                   <span className={styles.cardBadges}>
-                    <Badge tone="neutral">{config.service.kind}</Badge>
-                    <Badge tone={badgeTone(config.service.status)}>{config.service.status}</Badge>
+                    <Badge tone={requirementMet ? badgeTone(config.service.status) : 'warn'}>
+                      {requirementMet ? serviceStateLabel(config.service.status, variant) : 'Unavailable'}
+                    </Badge>
+                    {isFavorite && <Badge tone="purple">Pinned</Badge>}
                   </span>
                 </div>
                 <p>{config.service.description}</p>
-                <span>{link ?? config.service.category}</span>
+                <span>
+                  {!requirementMet ? config.service.requirement?.message : (link ?? experienceLabel(config.service))}
+                </span>
               </div>
               <div className={styles.cardActions}>
-                <button
-                  aria-label={`${isFavorite ? 'Remove' : 'Add'} ${config.service.displayName} ${isFavorite ? 'from' : 'to'} favorites`}
-                  aria-pressed={isFavorite}
-                  className={`${styles.starButton} ${isFavorite ? styles.starred : ''}`}
-                  disabled={!canFavorite}
-                  onClick={(event) => toggleFavorite(config, event)}
-                  type="button"
-                  title={
-                    canFavorite
-                      ? `${isFavorite ? 'Unstar' : 'Star'} ${config.service.displayName}`
-                      : 'Add a local URL before starring'
-                  }
-                >
-                  {isFavorite ? (
-                    <icons.starSolid aria-hidden="true" size={15} />
-                  ) : (
-                    <icons.star aria-hidden="true" size={15} />
-                  )}
-                </button>
+                {variant === 'installed' && (
+                  <button
+                    aria-label={`${isFavorite ? 'Unpin' : 'Pin'} ${config.service.displayName}`}
+                    aria-pressed={isFavorite}
+                    className={`${styles.starButton} ${isFavorite ? styles.starred : ''}`}
+                    disabled={!canFavorite}
+                    onClick={(event) => toggleFavorite(config, event)}
+                    type="button"
+                    title={
+                      canFavorite
+                        ? `${isFavorite ? 'Unpin' : 'Pin'} ${config.service.displayName}`
+                        : 'Add an app URL before pinning'
+                    }
+                  >
+                    {isFavorite ? (
+                      <icons.starSolid aria-hidden="true" size={15} />
+                    ) : (
+                      <icons.star aria-hidden="true" size={15} />
+                    )}
+                  </button>
+                )}
                 {config.groups.length > 0 && (
                   <button
                     className={styles.configButton}
+                    disabled={!requirementMet}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
                       openConfig(config);
                     }}
                     type="button"
-                    title={`Configure ${config.service.displayName}`}
+                    title={
+                      requirementMet
+                        ? `${isAvailable ? 'Add' : 'Configure'} ${config.service.displayName}`
+                        : config.service.requirement?.message
+                    }
                   >
-                    <icons.sliders aria-hidden="true" size={15} />
+                    {isAvailable ? <span aria-hidden="true">+</span> : <icons.sliders aria-hidden="true" size={15} />}
                   </button>
                 )}
               </div>
@@ -253,71 +349,99 @@ export function ServiceDirectory({
         })}
       </div>
 
-      {active && (
-        <div className={styles.overlay} role="presentation" onMouseDown={closeConfig}>
-          <section
-            aria-modal="true"
-            className={styles.modal}
-            role="dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header className={styles.modalHeader}>
-              <div>
-                <h2>Configure {active.service.displayName}</h2>
-                <p>{active.service.description}</p>
-              </div>
-              <button className={styles.closeButton} onClick={closeConfig} type="button" aria-label="Close">
-                x
-              </button>
-            </header>
+      <Modal>
+        <Modal.Backdrop
+          isOpen={Boolean(active)}
+          onOpenChange={(open) => {
+            if (!open) closeConfig();
+          }}
+          variant="blur"
+        >
+          <Modal.Container placement="center" scroll="inside" size="lg">
+            <Modal.Dialog className={styles.modal}>
+              <Modal.CloseTrigger aria-label="Close app settings" />
+              <Modal.Header className={styles.modalHeader}>
+                <div>
+                  <Modal.Heading>
+                    {active
+                      ? `${active.service.mode === 'disabled' ? 'Add' : 'Configure'} ${active.service.displayName}`
+                      : ''}
+                  </Modal.Heading>
+                  {active && <p>{active.service.description}</p>}
+                </div>
+              </Modal.Header>
 
-            <div className={styles.modalBody}>
-              {active.groups.map((group) => (
-                <section key={group.title} className={styles.group}>
-                  <h3>{group.title}</h3>
-                  {group.description && <p>{group.description}</p>}
-                  <div className={styles.fields}>
-                    {group.fields.map((field) => (
-                      <FieldEditor
-                        key={field.id}
-                        field={field}
-                        saved={Boolean(field.secret && field.value)}
-                        value={draft[field.id]}
-                        onChange={(value) => updateDraft(field, value)}
+              <Modal.Body className={styles.modalBody}>
+                <ConfigGroups groups={commonGroups} draft={draft} onChange={updateDraft} />
+                {advancedGroups.length > 0 && (
+                  <details className={styles.advancedSettings}>
+                    <summary>
+                      <span>Advanced settings</span>
+                      <small>Images, ports, databases, secrets, and integration internals</small>
+                    </summary>
+                    <div className={styles.advancedBody}>
+                      <ConfigGroups groups={advancedGroups} draft={draft} onChange={updateDraft} />
+                    </div>
+                  </details>
+                )}
+                {active && currentPasswordRequired && (
+                  <section className={styles.currentPasswordGate}>
+                    <TextField className={styles.textField} fullWidth>
+                      <Label>Current admin password</Label>
+                      <Input
+                        autoComplete="current-password"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
                       />
-                    ))}
-                  </div>
-                </section>
-              ))}
-              {currentPasswordRequired && (
-                <section className={styles.currentPasswordGate}>
-                  <label className={styles.field}>
-                    <span>Current admin password</span>
-                    <input
-                      autoComplete="current-password"
-                      type="password"
-                      value={currentPassword}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
-                    />
-                  </label>
-                </section>
-              )}
-            </div>
+                    </TextField>
+                  </section>
+                )}
+              </Modal.Body>
 
-            <footer className={styles.modalFooter}>
-              {error && <span className={styles.error}>{error}</span>}
-              <button onClick={closeConfig} type="button">
-                Cancel
-              </button>
-              <button className={styles.primary} disabled={saving} onClick={save} type="button">
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
+              <Modal.Footer className={styles.modalFooter}>
+                {error && <span className={styles.error}>{error}</span>}
+                <Button onPress={closeConfig} variant="tertiary">
+                  Cancel
+                </Button>
+                <Button isPending={saving} onPress={save} variant="primary">
+                  {active?.service.mode === 'disabled' ? 'Save app' : 'Save changes'}
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
     </>
   );
+}
+
+function ConfigGroups({
+  groups,
+  draft,
+  onChange
+}: {
+  groups: ServiceConfigModel['groups'];
+  draft: DraftValues;
+  onChange: (field: ServiceConfigField, value: unknown) => void;
+}) {
+  return groups.map((group) => (
+    <section key={group.title} className={styles.group}>
+      <h3>{group.title}</h3>
+      {group.description && <p>{group.description}</p>}
+      <div className={styles.fields}>
+        {group.fields.map((field) => (
+          <FieldEditor
+            key={field.id}
+            field={field}
+            saved={Boolean(field.secret && field.value)}
+            value={draft[field.id]}
+            onChange={(value) => onChange(field, value)}
+          />
+        ))}
+      </div>
+    </section>
+  ));
 }
 
 function serviceLink(service: ServiceConfigModel['service']) {
@@ -346,17 +470,46 @@ function FieldEditor({
 }) {
   if (field.type === 'checkbox') {
     return (
-      <label className={styles.check}>
-        <input type="checkbox" checked={truthy(value)} onChange={(event) => onChange(event.target.checked)} />
-        <span>{field.label}</span>
+      <Switch className={styles.switchField} isSelected={truthy(value)} onChange={onChange}>
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Label>{field.label}</Label>
+        </Switch.Content>
+        {field.description && <Description>{field.description}</Description>}
+      </Switch>
+    );
+  }
+
+  if (field.type === 'json') {
+    return (
+      <TextField className={styles.textField} fullWidth>
+        <Label>{field.label}</Label>
+        <TextArea
+          className={styles.jsonInput}
+          value={String(value ?? '')}
+          onChange={(event) => onChange(event.target.value)}
+          spellCheck={false}
+        />
+        {field.description && <Description>{field.description}</Description>}
+      </TextField>
+    );
+  }
+
+  if (field.type === 'path') {
+    return (
+      <div className={styles.textField}>
+        <span className={styles.fieldLabel}>{field.label}</span>
+        <PathInput value={String(value ?? '')} onChange={onChange} />
         {field.description && <small>{field.description}</small>}
-      </label>
+      </div>
     );
   }
 
   return (
-    <label className={field.type === 'json' ? styles.jsonField : styles.field}>
-      <span>{field.label}</span>
+    <TextField className={styles.textField} fullWidth>
+      <Label>{field.label}</Label>
       {field.type === 'select' ? (
         <select value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
           {(field.options ?? []).map((option) => (
@@ -365,12 +518,8 @@ function FieldEditor({
             </option>
           ))}
         </select>
-      ) : field.type === 'json' ? (
-        <textarea value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} spellCheck={false} />
-      ) : field.type === 'path' ? (
-        <PathInput value={String(value ?? '')} onChange={onChange} />
       ) : (
-        <input
+        <Input
           autoComplete={field.type === 'password' ? 'off' : undefined}
           placeholder={saved ? 'Saved' : undefined}
           spellCheck={field.type === 'password' ? false : undefined}
@@ -379,8 +528,8 @@ function FieldEditor({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {field.description && <small>{field.description}</small>}
-    </label>
+      {field.description && <Description>{field.description}</Description>}
+    </TextField>
   );
 }
 
@@ -474,6 +623,36 @@ function truthy(value: unknown) {
   return /^(1|true|yes|on)$/i.test(String(value ?? ''));
 }
 
+function filterConfigGroups(
+  groups: ServiceConfigModel['groups'],
+  include: (field: ServiceConfigField) => boolean
+): ServiceConfigModel['groups'] {
+  return groups
+    .map((group) => ({ ...group, fields: group.fields.filter(include) }))
+    .filter((group) => group.fields.length > 0);
+}
+
+function isAdvancedField(field: ServiceConfigField) {
+  const id = field.id.toLowerCase();
+  const label = field.label.toLowerCase();
+  return [
+    'image',
+    'bindip',
+    'containerport',
+    'database',
+    'postgres',
+    'redis',
+    'jwt',
+    'secret',
+    'cors',
+    'loglevel',
+    'preset',
+    'override',
+    'cloudflare',
+    'queryjson'
+  ].some((term) => id.includes(term) || label.replaceAll(' ', '').includes(term));
+}
+
 function compareServiceConfigs(a: ServiceConfigModel, b: ServiceConfigModel) {
   const disabledDifference = disabledRank(a) - disabledRank(b);
 
@@ -551,6 +730,26 @@ function mediaRank(name: string) {
   }
 
   return 2;
+}
+
+function favoriteRank(config: ServiceConfigModel, favorites: Set<string>) {
+  return favorites.has(config.service.name) ? 0 : 1;
+}
+
+function serviceStateLabel(status: string, variant: 'installed' | 'catalog' | 'helper') {
+  if (variant === 'catalog' && status === 'disabled') return 'Available';
+  if (status === 'configured') return 'Ready';
+  if (status === 'missing') return 'Needs setup';
+  if (status === 'disabled') return 'Off';
+  return 'Check status';
+}
+
+function experienceLabel(service: ServiceConfigModel['service']) {
+  if (service.experience === 'helper') return 'Works in the background';
+  if (service.category === 'download') return 'Downloads';
+  if (service.category === 'media') return 'Library and playback';
+  if (service.category === 'servarr') return 'Library automation';
+  return 'Homelab app';
 }
 
 function badgeTone(status: string): 'good' | 'warn' | 'bad' | 'purple' | 'neutral' {

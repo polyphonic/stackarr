@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const iconUrl = 'https://stackarr.app/icon-512.png';
 const productDescription =
-  '[Stackarr](https://stackarr.app/) is a chat-first Docker control plane for self-hosted media stacks.';
+  '[Stackarr](https://stackarr.app/) is a chat-first Docker control plane for self-hosted apps and homelabs.';
 const imageUrl = 'https://hub.docker.com/r/polyphonic/stackarr';
 const staleStackarrUrls =
   /https:\/\/github\.com\/stackarr\/stackarr|https:\/\/raw\.githubusercontent\.com\/stackarr\/stackarr|https:\/\/raw\.githubusercontent\.com\/b-bot\/Stackarr\/main|https:\/\/raw\.githubusercontent\.com\/b-bot\/Stackarr\/production\/Logo\/stackarr-512\.png/i;

@@ -2386,6 +2386,19 @@ sync_recyclarr_profiles() {
 
     wire_recyclarr_keys
 
+    # Recyclarr loads every YAML file below /config. Clear both prior generated
+    # profiles and template source files so rerunning setup cannot create
+    # duplicate instance names or retain disabled 4K targets.
+    rm -f \
+        "$CONFIG_ROOT/recyclarr/configs/hd-bluray-web.yml" \
+        "$CONFIG_ROOT/recyclarr/configs/uhd-bluray-web.yml" \
+        "$CONFIG_ROOT/recyclarr/configs/web-1080p.yml" \
+        "$CONFIG_ROOT/recyclarr/configs/web-2160p.yml" \
+        "$radarr_hd_file" \
+        "$radarr_4k_file" \
+        "$sonarr_hd_file" \
+        "$sonarr_4k_file"
+
     output_file="$(mktemp)"
     if ! stackarr_compose exec -T recyclarr /app/recyclarr/recyclarr config create -f \
         -t "hd-bluray-web" \
@@ -2419,6 +2432,11 @@ sync_recyclarr_profiles() {
     else
         rm -f "$sonarr_4k_file"
     fi
+    rm -f \
+        "$CONFIG_ROOT/recyclarr/configs/hd-bluray-web.yml" \
+        "$CONFIG_ROOT/recyclarr/configs/uhd-bluray-web.yml" \
+        "$CONFIG_ROOT/recyclarr/configs/web-1080p.yml" \
+        "$CONFIG_ROOT/recyclarr/configs/web-2160p.yml"
     ok "Recyclarr template configs written"
 
     output_file="$(mktemp)"
@@ -2628,7 +2646,9 @@ configure_pulsarr_stack() {
         return 0
     fi
 
-    python3 - <<'PY'
+    local pulsarr_key_file
+    pulsarr_key_file="$(mktemp)"
+    PULSARR_DISCOVERED_API_KEY_FILE="$pulsarr_key_file" python3 - <<'PY'
 import json
 import os
 import plistlib
@@ -2651,6 +2671,7 @@ SONARR_DEFAULT_PROFILE = os.environ.get('STACKARR_TV_DEFAULT_PROFILE', 'HD Lite'
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
 SESSION_COOKIE = ''
+API_KEY_FILE = Path(os.environ.get('PULSARR_DISCOVERED_API_KEY_FILE', ''))
 
 
 def note(kind, message):
@@ -2749,6 +2770,18 @@ def login():
         return True
 
     return False
+
+
+def ensure_agent_api_key():
+    _, payload = request('GET', '/v1/api-keys/api-keys', ok=(200,))
+    keys = payload.get('apiKeys', []) if isinstance(payload, dict) else []
+    key = next((str(item.get('key') or '').strip() for item in keys if item.get('is_active') is not False), '')
+    if not key:
+        _, payload = request('POST', '/v1/api-keys/api-keys', {'name': 'Stackarr agent'}, ok=(200, 201))
+        key = str((payload.get('apiKey') or {}).get('key') or '').strip()
+    if key and str(API_KEY_FILE):
+        API_KEY_FILE.write_text(key)
+        note('OK', 'Pulsarr agent access connected to Stackarr')
 
 
 def configure_plex(token, ready):
@@ -2868,6 +2901,8 @@ try:
         note('WARN', 'Pulsarr Arr wiring skipped because admin login failed')
         raise SystemExit(0)
 
+    ensure_agent_api_key()
+
     radarr_key = arr_key('radarr')
     sonarr_key = arr_key('sonarr')
     if not radarr_key or not sonarr_key:
@@ -2909,6 +2944,10 @@ try:
 except Exception as exc:
     note('WARN', f'Pulsarr configuration skipped: {exc}')
 PY
+    if [[ -s "$pulsarr_key_file" ]]; then
+        set_env_value "PULSARR_API_KEY" "$(cat "$pulsarr_key_file")"
+    fi
+    rm -f "$pulsarr_key_file"
 }
 
 configure_maintainerr_stack() {
@@ -3232,7 +3271,9 @@ configure_tracearr_stack() {
         return 0
     fi
 
-    python3 - <<'PY'
+    local tracearr_key_file
+    tracearr_key_file="$(mktemp)"
+    TRACEARR_DISCOVERED_API_KEY_FILE="$tracearr_key_file" python3 - <<'PY'
 import json
 import os
 import plistlib
@@ -3248,6 +3289,7 @@ CONFIG_ROOT = Path(os.environ.get('CONFIG_ROOT', ''))
 PLEX_PREFS_PATH = Path(os.environ.get('PLEX_PREFS_PATH', ''))
 PLEX_INSTALL_MODE = os.environ.get('PLEX_INSTALL_MODE', 'native').strip().lower()
 JELLYFIN_INSTALL_MODE = os.environ.get('JELLYFIN_INSTALL_MODE', 'disabled').strip().lower()
+API_KEY_FILE = Path(os.environ.get('TRACEARR_DISCOVERED_API_KEY_FILE', ''))
 
 # Tracearr wiring treats Plex as read-only. It may read the signed-in Plex
 # token/prefs or call Plex identity endpoints, but Plex settings must not be
@@ -3504,19 +3546,83 @@ def configure_server(token):
         note('WARN', f'Tracearr media-server wiring skipped: {exc}')
 
 
+def ensure_public_api_key(token):
+    _, payload = request('GET', '/settings/api-key', token=token, ok=(200,))
+    key = str(payload.get('token') or '').strip()
+    if not key:
+        _, payload = request('POST', '/settings/api-key/regenerate', token=token, ok=(200, 201))
+        key = str(payload.get('token') or '').strip()
+    if key and str(API_KEY_FILE):
+        API_KEY_FILE.write_text(key)
+        note('OK', 'Tracearr read-only API connected to Stackarr')
+
+
 try:
     _, status = request('GET', '/setup/status', ok=(200,))
+    token = auth_token(status)
     if status.get('hasServers'):
         note('OK', 'Tracearr already has a media server configured')
+    elif token:
+        configure_server(token)
     else:
-        token = auth_token(status)
-        if token:
-            configure_server(token)
-        else:
-            note('WARN', f'Tracearr manual setup required at {TRACEARR}')
+        note('WARN', f'Tracearr manual setup required at {TRACEARR}')
+    if token:
+        ensure_public_api_key(token)
 except Exception as exc:
     note('WARN', f'Tracearr configuration skipped: {exc}')
 PY
+    if [[ -s "$tracearr_key_file" ]]; then
+        set_env_value "TRACEARR_API_KEY" "$(cat "$tracearr_key_file")"
+    fi
+    rm -f "$tracearr_key_file"
+}
+
+configure_tinymediamanager_api() {
+    if ! optional_service_enabled tinymediamanager; then
+        return 0
+    fi
+
+    local config_file="$CONFIG_ROOT/tinymediamanager/data/tmm.json"
+    local key_file changed_file
+    key_file="$(mktemp)"
+    changed_file="$(mktemp)"
+    if [[ ! -f "$config_file" ]]; then
+        warn "tinyMediaManager HTTP API setup is waiting for its first launch"
+        rm -f "$key_file" "$changed_file"
+        return 0
+    fi
+
+    TMM_KEY_FILE="$key_file" TMM_CHANGED_FILE="$changed_file" python3 - "$config_file" <<'PY'
+import json
+import os
+import secrets
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+before = json.dumps(config, sort_keys=True)
+config['enableHttpServer'] = True
+config['httpServerPort'] = 7878
+config['httpApiKey'] = str(config.get('httpApiKey') or '').strip() or secrets.token_urlsafe(32)
+after = json.dumps(config, sort_keys=True)
+if before != after:
+    path.write_text(json.dumps(config, indent=2) + '\n')
+    Path(os.environ['TMM_CHANGED_FILE']).write_text('changed')
+Path(os.environ['TMM_KEY_FILE']).write_text(config['httpApiKey'])
+PY
+
+    if [[ -s "$key_file" ]]; then
+        set_env_value "TINYMEDIAMANAGER_API_KEY" "$(cat "$key_file")"
+        set_env_value "TINYMEDIAMANAGER_URL" "http://127.0.0.1:7878"
+    fi
+    if [[ -s "$changed_file" ]]; then
+        stackarr_compose restart tinymediamanager >/dev/null
+        ok "tinyMediaManager HTTP API enabled for Stackarr and agent actions"
+    else
+        ok "tinyMediaManager HTTP API is connected"
+    fi
+    rm -f "$key_file" "$changed_file"
 }
 
 configure_romm_stack() {
@@ -3557,6 +3663,7 @@ if optional_service_enabled tracearr; then
     wait_for_http "Tracearr" "$TRACEARR_URL"
     configure_tracearr_stack || true
 fi
+configure_tinymediamanager_api || true
 if optional_service_enabled romm; then
     wait_for_http "RomM" "$ROMM_URL"
     configure_romm_stack || true

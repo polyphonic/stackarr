@@ -40,6 +40,10 @@ export const metadata: Metadata = {
   description: siteDescription,
   keywords: [
     'Stackarr',
+    'homelab manager',
+    'self-hosted apps',
+    'AI homelab agent',
+    'MCP server',
     'home media server',
     'media server manager',
     'Plex',

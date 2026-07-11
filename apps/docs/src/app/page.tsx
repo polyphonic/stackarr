@@ -42,7 +42,7 @@ const showcaseScreens = [
   {
     title: 'Stack services',
     slug: 'stack-services',
-    copy: 'Browse the full lineup of media apps, download clients, request tools, databases, and support services without losing the thread.'
+    copy: 'See only the apps you installed, with app-owned settings and helpers tucked away until you need them.'
   },
   {
     title: 'UI settings',
@@ -114,8 +114,8 @@ export default function LandingPage() {
             <p className="eyebrow">Agent-managed homelab control</p>
             <h1>Your homelab, managed from chat.</h1>
             <p className="lede">
-              Stackarr gives trusted agents one typed, safety-controlled interface to your media apps, downloads,
-              requests, backups, containers, and infrastructure.
+              Stackarr gives trusted agents one typed, safety-controlled interface to your self-hosted apps, backups,
+              containers, downloads, and infrastructure.
             </p>
             <LandingActions />
             <p className="heroNote">

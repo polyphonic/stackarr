@@ -17,6 +17,28 @@ test('native app router only calls named Immich operations and sends the API key
       authorization: headers.get('authorization') ?? undefined,
       body: typeof init?.body === 'string' ? init.body : undefined
     });
+    if (new URL(String(input)).pathname === '/statistics/resources') {
+      return Response.json({
+        MediaContainer: {
+          StatisticsResources: [
+            {
+              at: 200,
+              hostCpuUtilization: 20,
+              processCpuUtilization: 5,
+              hostMemoryUtilization: 60,
+              processMemoryUtilization: 8
+            },
+            {
+              at: 100,
+              hostCpuUtilization: 10,
+              processCpuUtilization: 3,
+              hostMemoryUtilization: 55,
+              processMemoryUtilization: 7
+            }
+          ]
+        }
+      });
+    }
     return Response.json({ ok: true, route: new URL(String(input)).pathname });
   };
   const previousDatabaseFile = process.env.STACKARR_DATABASE_FILE;
@@ -25,6 +47,7 @@ test('native app router only calls named Immich operations and sends the API key
   try {
     const {
       getRoutinesAction,
+      getHomelabPerformanceAction,
       getNativeAppCapabilitiesAction,
       administerNativeAppAction,
       assertNativeAppOperationSupported,
@@ -139,7 +162,7 @@ test('native app router only calls named Immich operations and sends the API key
       recyclarr?.dangerousOperations.map((operation) => operation.name),
       ['sync']
     );
-    assert.match(recyclarr?.warning ?? '', /fixed, typed/);
+    assert.match(recyclarr?.notice ?? '', /safe Recyclarr preview/);
     assert.equal(
       assertNativeAppOperationSupported('read', { app: 'recyclarr', operation: 'preview_sync', scope: 'radarr' }),
       undefined
@@ -179,6 +202,16 @@ test('native app router only calls named Immich operations and sends the API key
         ])
       }
     ]);
+
+    writeEnvConfig({ PLEX_INSTALL_MODE: 'native', PLEX_URL: 'http://mock-plex.invalid', PLEX_TOKEN: 'plex-test' });
+    const performance = await getHomelabPerformanceAction();
+    assert.equal(performance.available, true);
+    assert.equal(performance.provider, 'plex');
+    assert.deepEqual(
+      performance.points.map((point) => point.at),
+      [100, 200]
+    );
+    assert.equal(performance.points.at(-1)?.hostMemoryPercent, 60);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousDatabaseFile === undefined) delete process.env.STACKARR_DATABASE_FILE;

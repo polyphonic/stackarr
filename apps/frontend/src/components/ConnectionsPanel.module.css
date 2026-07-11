@@ -10,8 +10,8 @@
   width: 100%;
   padding: 14px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--panelBackground);
+  border-radius: 16px;
+  background: var(--glass-subtle);
   color: var(--textColor);
   cursor: pointer;
   font: inherit;
@@ -62,9 +62,9 @@
 .addButton,
 .secondaryButton,
 .iconButton {
-  min-height: 34px;
+  min-height: 44px;
   border: 1px solid var(--purple-500);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--purple-600);
   color: var(--accent-foreground);
   cursor: pointer;
@@ -80,7 +80,7 @@
 }
 
 .iconButton {
-  width: 34px;
+  width: 44px;
   padding: 0;
 }
 
@@ -102,8 +102,9 @@
   max-height: min(760px, calc(100vh - 48px));
   overflow: hidden;
   border: 1px solid var(--borderColor);
-  border-radius: 6px;
-  background: var(--pageBackground);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--panelBackground) 94%, transparent);
+  backdrop-filter: blur(24px) saturate(140%);
   box-shadow: var(--modal-shadow);
 }
 
@@ -162,7 +163,7 @@
   gap: 8px;
   min-height: 46px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 12px;
   background: transparent;
   color: var(--textColor);
   cursor: pointer;
@@ -217,19 +218,28 @@
 
 .form input,
 .form select {
-  min-height: 36px;
+  min-height: 44px;
   border: 1px solid var(--borderColor);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--panelBackground);
   color: var(--textColor);
   font: inherit;
   padding: 0 10px;
 }
 
-.form input[type="checkbox"] {
-  width: 18px;
-  min-height: 18px;
-  padding: 0;
+.formSwitch {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-subtle);
+}
+
+.formSwitch :global(.switch__content) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .events {
