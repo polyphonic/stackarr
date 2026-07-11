@@ -510,7 +510,7 @@ function mediaServer(
 }
 
 function browserUrl(name: string, port: number, settings?: StackarrSettings) {
-  const mode = settings?.ui.serviceUrlMode ?? 'localhost';
+  const mode = settings?.ui.serviceUrlMode ?? 'portless';
 
   if (mode === 'portless') {
     const scheme = settings?.ui.serviceUrlScheme === 'http' ? 'http' : 'https';

@@ -11,6 +11,50 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
+test('new installs default to Portless links and expose shared link settings on each app', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { readSettings } = await import('./packages/core/src/settings.ts');
+          const { getServiceConfigAction } = await import('./packages/core/src/serviceCatalog.ts');
+          const { getServices } = await import('./packages/core/src/services.ts');
+          const transmission = getServices().find((service) => service.name === 'transmission');
+          const immich = getServiceConfigAction({ service: 'immich' });
+          console.log(JSON.stringify({
+            mode: readSettings().ui.serviceUrlMode,
+            browserUrl: transmission?.browserUrl,
+            groups: immich.groups.map((group) => group.title)
+          }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db'),
+          ENABLE_IMMICH: 'true'
+        }
+      }
+    );
+
+    assert.deepEqual(JSON.parse(stdout), {
+      mode: 'portless',
+      browserUrl: 'https://transmission.stack',
+      groups: ['Photos (Immich)', 'Immich Database', 'App links']
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Portless browser links use direct service aliases by default', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 

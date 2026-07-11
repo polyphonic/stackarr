@@ -197,6 +197,10 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
 }
+
+.storageSection {
+  margin-bottom: 22px;
+}
 .contentGrid > section {
   height: calc(100% - 22px);
 }
@@ -272,6 +276,13 @@
 .attentionItem strong,
 .attentionItem small {
   display: block;
+}
+
+.attentionAction {
+  color: var(--accent-soft-foreground);
+  font-size: 10.5px;
+  font-weight: 680;
+  white-space: nowrap;
 }
 .attentionItem small {
   color: var(--muted);

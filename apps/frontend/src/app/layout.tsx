@@ -1,4 +1,4 @@
-import { readEnv, readSettings } from '@stackarr/core';
+import { listServiceFavoritesAction, readEnv, readSettings } from '@stackarr/core';
 import { getStackarrThemeClass } from '@stackarr/ui/theme';
 import { StackarrThemeProvider } from '@stackarr/ui/theme-provider';
 import { StackarrToaster } from '@stackarr/ui/toast';
@@ -34,7 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StackarrThemeProvider theme={theme}>
           <TelemetryHeartbeat enabled={telemetryEnabled} />
           <StackarrToaster />
-          <AppFrame setupComplete={settings.setup.onboardingComplete}>{children}</AppFrame>
+          <AppFrame initialFavorites={listServiceFavoritesAction()} setupComplete={settings.setup.onboardingComplete}>
+            {children}
+          </AppFrame>
         </StackarrThemeProvider>
       </body>
     </html>

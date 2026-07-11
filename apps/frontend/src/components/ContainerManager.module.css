@@ -103,11 +103,10 @@
   overflow: visible;
 }
 
-.sparkline polyline {
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.sparkline svg {
+  display: block;
+  width: 92px;
+  height: 28px;
   filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--accent) 28%, transparent));
 }
 

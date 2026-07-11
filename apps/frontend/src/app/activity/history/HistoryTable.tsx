@@ -5,12 +5,18 @@ import { useState } from 'react';
 import { TaskProgressView, useLiveTasks } from '../../../components/TaskProgress';
 import { Badge, Panel, SearchInput, Table } from '../../../components/ui';
 
-type HistoryStatusFilter = 'all' | Extract<TaskStatus, 'completed' | 'failed'>;
+type HistoryStatusFilter = 'all' | 'needs-review' | Extract<TaskStatus, 'completed' | 'failed'>;
 
-export default function HistoryTable({ initialTasks }: { initialTasks: StackarrTask[] }) {
+export default function HistoryTable({
+  initialTasks,
+  initialStatus = 'all'
+}: {
+  initialTasks: StackarrTask[];
+  initialStatus?: HistoryStatusFilter;
+}) {
   const tasks = useLiveTasks(initialTasks);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>(initialStatus);
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   let filtered = tasks.filter(
@@ -20,7 +26,9 @@ export default function HistoryTable({ initialTasks }: { initialTasks: StackarrT
       task.status.toLowerCase().includes(normalizedSearch)
   );
 
-  if (statusFilter !== 'all') {
+  if (statusFilter === 'needs-review') {
+    filtered = filtered.filter((task) => task.status === 'failed' || task.status === 'blocked');
+  } else if (statusFilter !== 'all') {
     filtered = filtered.filter((task) => task.status === statusFilter);
   }
 
@@ -43,6 +51,7 @@ export default function HistoryTable({ initialTasks }: { initialTasks: StackarrT
           <option value="all">All statuses</option>
           <option value="completed">Completed</option>
           <option value="failed">Failed</option>
+          <option value="needs-review">Needs review</option>
         </select>
       </div>
       <Panel title={`Command History (${filtered.length})`}>

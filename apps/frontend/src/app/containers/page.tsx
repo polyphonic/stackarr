@@ -1,4 +1,4 @@
-import { getDockerContainerOverviewAction } from '@stackarr/core';
+import { getDockerContainerOverviewAction, getServices, readSettings } from '@stackarr/core';
 import { PageBody, Toolbar } from '../../components/AppFrame';
 import { ContainerManager } from '../../components/ContainerManager';
 import { requireDashboardAuth } from '../../lib/serverAuth';
@@ -9,6 +9,12 @@ export default async function ContainersPage() {
   await requireDashboardAuth('/containers');
 
   const overview = await getDockerContainerOverviewAction();
+  const refreshIntervalSeconds = readSettings().ui.refreshIntervalSeconds;
+  const serviceLinks = Object.fromEntries(
+    getServices()
+      .map((service) => [service.name, service.browserUrl ?? service.localUrl] as const)
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+  );
 
   return (
     <>
@@ -17,7 +23,11 @@ export default async function ContainersPage() {
         description="Your stack topology, live container load, and advanced Docker resources"
       />
       <PageBody>
-        <ContainerManager overview={overview} />
+        <ContainerManager
+          overview={overview}
+          refreshIntervalSeconds={refreshIntervalSeconds}
+          serviceLinks={serviceLinks}
+        />
       </PageBody>
     </>
   );

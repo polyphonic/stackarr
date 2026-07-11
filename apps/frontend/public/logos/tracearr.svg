@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Tracearr">
-  <rect width="128" height="128" rx="24" fill="#071019"/>
-  <path d="M26 78c12-28 32-42 60-42h16" fill="none" stroke="#44e5c8" stroke-width="10" stroke-linecap="round"/>
-  <path d="M26 94h76" fill="none" stroke="#6aa7ff" stroke-width="10" stroke-linecap="round"/>
-  <path d="M44 36h46" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="34" cy="78" r="8" fill="#ffffff"/>
-  <circle cx="70" cy="50" r="8" fill="#ffffff"/>
-  <circle cx="102" cy="36" r="8" fill="#ffffff"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tracearr"><path d="M32 4 8 14v18c0 14 10 24 24 28 14-4 24-14 24-28V14L32 4Z" fill="#0B1A2E"/><path d="m32 8-20 8v14c0 12 8.5 20.5 20 24 11.5-3.5 20-12 20-24V16L32 8Z" fill="#162840"/><g fill="none" stroke="#18D1E7" stroke-width="2" stroke-linecap="round"><path d="M32 20a16 16 0 0 1 11.3 4.7" opacity=".6"/><path d="M32 16a20 20 0 0 1 14.1 5.9" opacity=".4"/><path d="M32 12a24 24 0 0 1 17 7" opacity=".2"/></g><path d="M22 24h20v4h-8v16h-4V28h-8v-4Z" fill="#18D1E7"/></svg>

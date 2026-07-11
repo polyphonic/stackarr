@@ -78,6 +78,13 @@
   flex: 1;
   flex-direction: column;
   padding-top: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.pinnedExternal {
+  margin-left: auto;
+  color: var(--muted);
 }
 
 .navGroup {

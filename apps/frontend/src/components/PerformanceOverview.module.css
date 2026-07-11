@@ -155,31 +155,12 @@
   background: var(--success);
 }
 
-.chart svg {
+.victoryChart,
+.victoryChart svg {
   width: 100%;
   height: 160px;
   margin-top: 6px;
   overflow: visible;
-}
-
-.gridLine {
-  stroke: var(--glass-border);
-  stroke-width: 1;
-  stroke-dasharray: 3 5;
-}
-
-.hostLine,
-.appLine {
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.hostLine {
-  stroke: var(--accent);
-}
-.appLine {
-  stroke: var(--success);
 }
 
 .axis {

@@ -24,7 +24,10 @@ export default async function DashboardPage() {
     env.MEDIA_ROOT ?? '',
     env.MUSIC_ROOT ?? '',
     env.DOWNLOADS_ROOT ?? '',
-    env.BACKUP_ROOT ?? ''
+    env.BACKUP_ROOT ?? '',
+    env.BOOKS_ROOT ?? '',
+    env.IMMICH_UPLOAD_LOCATION ?? '',
+    env.GAMES_ROOT ?? ''
   ]);
   const tasks = readTasks().slice(0, 5);
   const favoriteNames = listServiceFavoritesAction().map((favorite) => favorite.name);

@@ -102,7 +102,7 @@ export const defaultSettings: StackarrSettings = {
     theme: 'dark',
     showAdvanced: false,
     refreshIntervalSeconds: 30,
-    serviceUrlMode: 'localhost',
+    serviceUrlMode: 'portless',
     serviceUrlScheme: 'https',
     serviceUrlHostSuffix: 'stack',
     unifyServiceUrls: false,
