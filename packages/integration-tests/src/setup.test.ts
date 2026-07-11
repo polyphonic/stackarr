@@ -363,9 +363,10 @@ test('dry-run setup disables request managers when request management is off', a
   assert.equal(result.plan.config.ENABLE_PULSARR, 'false');
 });
 
-test('dry-run setup keeps Pulsarr off when Jellyfin is selected', async () => {
+test('dry-run setup keeps Pulsarr off when Jellyfin is selected without Plex', async () => {
   const result = await setupMediaServerAction({
     dryRun: true,
+    plexInstallMode: 'disabled',
     jellyfinInstallMode: 'docker',
     requestManagers: ['pulsarr']
   });
@@ -373,6 +374,29 @@ test('dry-run setup keeps Pulsarr off when Jellyfin is selected', async () => {
   assert.equal(result.plan.config.ENABLE_SEERR, 'true');
   assert.equal(result.plan.config.STACKARR_CONFIGURE_SEERR, 'false');
   assert.equal(result.plan.config.ENABLE_PULSARR, 'false');
+});
+
+test('dry-run setup supports an Immich-only homelab without media-stack dependencies', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    plexInstallMode: 'disabled',
+    jellyfinInstallMode: 'disabled',
+    enabledMediaTypes: ['photos'],
+    enabledServices: ['immich', 'bazarr', 'tinymediamanager', 'recyclarr', 'flaresolverr', 'maintainerr', 'tracearr'],
+    requestManagers: ['seerr', 'pulsarr']
+  });
+
+  assert.equal(result.plan.config.ENABLE_IMMICH, 'true');
+  assert.equal(result.plan.config.ENABLE_MOVIES, 'false');
+  assert.equal(result.plan.config.ENABLE_TV_SHOWS, 'false');
+  assert.equal(result.plan.config.ENABLE_SEERR, 'false');
+  assert.equal(result.plan.config.ENABLE_PULSARR, 'false');
+  assert.equal(result.plan.config.ENABLE_BAZARR, 'false');
+  assert.equal(result.plan.config.ENABLE_TINYMEDIAMANAGER, 'false');
+  assert.equal(result.plan.config.ENABLE_RECYCLARR, 'false');
+  assert.equal(result.plan.config.ENABLE_FLARESOLVERR, 'false');
+  assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'false');
+  assert.equal(result.plan.config.ENABLE_TRACEARR, 'false');
 });
 
 test('dry-run setup wires Seerr only when explicitly requested', async () => {
@@ -418,6 +442,9 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /quality_definition_block/);
   assert.match(configure, /WEBDL-1080p", 8, 95, 72/);
   assert.match(configure, /configure_recyclarr_template "\$sonarr_hd_file"[\s\S]*"\$STACKARR_TV_PROFILE_PRESET"/);
+  assert.match(configure, /rm -f[\s\S]*hd-bluray-web\.yml[\s\S]*web-2160p\.yml/);
+  assert.match(configure, /PULSARR_DISCOVERED_API_KEY_FILE/);
+  assert.match(configure, /\/v1\/api-keys\/api-keys/);
   assert.match(configure, /RADARR_DEFAULT_PROFILE/);
   assert.match(configure, /LIDARR_DEFAULT_PROFILE/);
   assert.ok(configure.includes('Season[ ._-]?\\\\d{1,2}'));
@@ -427,6 +454,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /Maintainerr cleanup preset ideas recorded/);
   assert.match(configure, /optional_service_enabled tracearr/);
   assert.match(configure, /configure_tracearr_stack \|\| true/);
+  assert.match(configure, /TRACEARR_DISCOVERED_API_KEY_FILE/);
+  assert.match(configure, /\/settings\/api-key\/regenerate/);
+  assert.match(configure, /configure_tinymediamanager_api \|\| true/);
+  assert.match(configure, /config\['enableHttpServer'\] = True/);
   assert.match(configure, /configure_romm_stack \|\| true/);
   assert.match(configure, /RomM setup is manual/);
   assert.doesNotMatch(configure, /\/api\/users/);

@@ -1,0 +1,129 @@
+.addButton,
+.primaryLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 15px;
+  border-radius: 12px;
+  background: var(--button-primary-bg);
+  color: var(--accent-foreground);
+  font-size: 13px;
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.addButton:hover,
+.primaryLink:hover {
+  background: var(--button-primary-hover);
+  color: var(--accent-foreground);
+  text-decoration: none;
+}
+
+.emptyState {
+  display: grid;
+  min-height: min(48vh, 460px);
+  place-items: center;
+  align-content: center;
+  padding: 42px 20px;
+  text-align: center;
+}
+
+.emptyMark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 18px;
+  place-items: center;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 17px;
+  background: var(--accent-soft);
+  color: var(--accent-soft-foreground);
+  font-size: 30px;
+  font-weight: 300;
+  box-shadow: var(--soft-shadow);
+}
+
+.emptyState h2 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.emptyState p {
+  max-width: 48ch;
+  margin: 10px 0 20px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.helpers {
+  margin: 6px 0 24px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.helpers summary {
+  min-height: 44px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 44px;
+  cursor: pointer;
+}
+
+.helpers > p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.catalogSection {
+  scroll-margin-top: 20px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid var(--glass-border);
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--panel-bg) 86%, transparent);
+  box-shadow: var(--panel-shadow);
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 20px;
+}
+
+.sectionHeading span {
+  color: var(--accent-soft-foreground);
+  font-size: 10px;
+  font-weight: 740;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.sectionHeading h2 {
+  margin: 3px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.sectionHeading p,
+.catalogEmpty {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .sectionHeading {
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

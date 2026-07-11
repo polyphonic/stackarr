@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import { promisify } from 'node:util';
 import { repoRoot } from '../paths';
 import { type DangerousConfirmation, requireDangerousConfirmation } from '../safety/dangerous';
@@ -19,15 +20,26 @@ type DockerContainerRow = {
   Size?: string;
 };
 
-type DockerStatsRow = {
-  Container?: string;
-  Name?: string;
-  CPUPerc?: string;
-  MemUsage?: string;
-  MemPerc?: string;
-  NetIO?: string;
-  BlockIO?: string;
-  PIDs?: string;
+type DockerStatsResponse = {
+  cpu_stats?: {
+    cpu_usage?: { total_usage?: number; percpu_usage?: number[] };
+    online_cpus?: number;
+    system_cpu_usage?: number;
+  };
+  precpu_stats?: {
+    cpu_usage?: { total_usage?: number };
+    system_cpu_usage?: number;
+  };
+  memory_stats?: {
+    usage?: number;
+    limit?: number;
+    stats?: { inactive_file?: number; total_inactive_file?: number };
+  };
+  networks?: Record<string, { rx_bytes?: number; tx_bytes?: number }>;
+  blkio_stats?: {
+    io_service_bytes_recursive?: Array<{ op?: string; value?: number }>;
+  };
+  pids_stats?: { current?: number };
 };
 
 type DockerImageRow = {
@@ -172,6 +184,13 @@ export type DockerContainerItem = {
     network: string;
     disk: string;
     pids?: string;
+    cpuPercent: number;
+    memoryBytes: number;
+    memoryLimitBytes: number;
+    networkRxBytes: number;
+    networkTxBytes: number;
+    blockReadBytes: number;
+    blockWriteBytes: number;
   };
   removable: boolean;
 };
@@ -260,8 +279,6 @@ export type DockerResourceActionInput = DangerousConfirmation & {
 
 export async function getDockerOverviewAction(): Promise<DockerOverview> {
   try {
-    await docker(['info', '--format', '{{json .ServerVersion}}']);
-
     const snapshot = await containerSnapshot();
     const [containers, volumes, images, networks] = await Promise.all([
       listContainers(snapshot),
@@ -317,7 +334,6 @@ export async function getDockerOverviewAction(): Promise<DockerOverview> {
 
 export async function getDockerContainerOverviewAction(): Promise<DockerContainerOverview> {
   try {
-    await docker(['info', '--format', '{{json .ServerVersion}}']);
     const containers = await listContainers(await containerSnapshot());
     return {
       dockerAvailable: true,
@@ -368,10 +384,7 @@ export async function manageDockerResourceAction(input: DockerResourceActionInpu
 }
 
 async function listContainers(snapshot: ContainerSnapshot): Promise<DockerContainerItem[]> {
-  const statsByName = byKey(
-    parseJsonLines<DockerStatsRow>((await dockerAllowFail(['stats', '--no-stream', '--format', '{{json .}}'])).stdout),
-    (item) => item.Name ?? ''
-  );
+  const statsById = await containerStats(snapshot);
   const serviceNames = new Set(getServices().map((service) => service.name));
 
   return snapshot.rows
@@ -382,7 +395,7 @@ async function listContainers(snapshot: ContainerSnapshot): Promise<DockerContai
       const labels = inspected?.Config?.Labels ?? {};
       const ports = portsFromInspect(inspected);
       const running = Boolean(inspected?.State?.Running) || row.State === 'running';
-      const stats = statsByName.get(name);
+      const stats = statsById.get(shortId(inspected?.Id ?? id));
       const composeProject = labels['com.docker.compose.project'];
       const composeService = labels['com.docker.compose.service'];
       const displayName = displayContainerName(name, composeProject, composeService);
@@ -419,16 +432,7 @@ async function listContainers(snapshot: ContainerSnapshot): Promise<DockerContai
           composeProject === 'stackarr' ||
           serviceNames.has(name) ||
           Boolean(composeService && serviceNames.has(composeService)),
-        stats: stats
-          ? {
-              cpu: stats.CPUPerc ?? '',
-              memory: stats.MemUsage ?? '',
-              memoryPercent: stats.MemPerc ?? '',
-              network: stats.NetIO ?? '',
-              disk: stats.BlockIO ?? '',
-              pids: stats.PIDs
-            }
-          : undefined,
+        stats,
         removable: !running
       };
     })
@@ -438,6 +442,121 @@ async function listContainers(snapshot: ContainerSnapshot): Promise<DockerContai
         Number(b.stackarrManaged) - Number(a.stackarrManaged) ||
         a.displayName.localeCompare(b.displayName)
     );
+}
+
+async function containerStats(snapshot: ContainerSnapshot) {
+  const runningIds = snapshot.inspected
+    .filter((item) => item.State?.Running && item.Id)
+    .map((item) => item.Id as string);
+  const samples = await Promise.allSettled(
+    runningIds.map(async (id) => ({
+      id,
+      sample: await dockerEngineJson<DockerStatsResponse>(
+        `/v1.41/containers/${encodeURIComponent(id)}/stats?stream=false&one-shot=true`
+      )
+    }))
+  );
+  const result = new Map<string, NonNullable<DockerContainerItem['stats']>>();
+
+  for (const settled of samples) {
+    if (settled.status !== 'fulfilled') continue;
+    result.set(shortId(settled.value.id), summarizeStats(settled.value.sample));
+  }
+
+  return result;
+}
+
+function summarizeStats(sample: DockerStatsResponse): NonNullable<DockerContainerItem['stats']> {
+  const cpuTotal = sample.cpu_stats?.cpu_usage?.total_usage ?? 0;
+  const previousCpuTotal = sample.precpu_stats?.cpu_usage?.total_usage ?? 0;
+  const systemTotal = sample.cpu_stats?.system_cpu_usage ?? 0;
+  const previousSystemTotal = sample.precpu_stats?.system_cpu_usage ?? 0;
+  const cpuDelta = cpuTotal - previousCpuTotal;
+  const systemDelta = systemTotal - previousSystemTotal;
+  const cpuCount = sample.cpu_stats?.online_cpus ?? sample.cpu_stats?.cpu_usage?.percpu_usage?.length ?? 1;
+  const cpuPercent = cpuDelta > 0 && systemDelta > 0 ? (cpuDelta / systemDelta) * cpuCount * 100 : 0;
+
+  const memoryUsage = sample.memory_stats?.usage ?? 0;
+  const memoryCache = sample.memory_stats?.stats?.total_inactive_file ?? sample.memory_stats?.stats?.inactive_file ?? 0;
+  const memoryBytes = Math.max(0, memoryUsage - memoryCache);
+  const memoryLimitBytes = sample.memory_stats?.limit ?? 0;
+  const memoryPercent = memoryLimitBytes > 0 ? (memoryBytes / memoryLimitBytes) * 100 : 0;
+
+  const network = Object.values(sample.networks ?? {}).reduce(
+    (total, item) => ({
+      rx: total.rx + (item.rx_bytes ?? 0),
+      tx: total.tx + (item.tx_bytes ?? 0)
+    }),
+    { rx: 0, tx: 0 }
+  );
+  const block = (sample.blkio_stats?.io_service_bytes_recursive ?? []).reduce(
+    (total, item) => {
+      const operation = item.op?.toLowerCase();
+      if (operation === 'read') total.read += item.value ?? 0;
+      if (operation === 'write') total.write += item.value ?? 0;
+      return total;
+    },
+    { read: 0, write: 0 }
+  );
+
+  return {
+    cpu: `${formatDockerNumber(cpuPercent)}%`,
+    memory: `${formatDockerBytes(memoryBytes)} / ${formatDockerBytes(memoryLimitBytes)}`,
+    memoryPercent: `${formatDockerNumber(memoryPercent)}%`,
+    network: `${formatDockerBytes(network.rx)} / ${formatDockerBytes(network.tx)}`,
+    disk: `${formatDockerBytes(block.read)} / ${formatDockerBytes(block.write)}`,
+    pids: String(sample.pids_stats?.current ?? 0),
+    cpuPercent,
+    memoryBytes,
+    memoryLimitBytes,
+    networkRxBytes: network.rx,
+    networkTxBytes: network.tx,
+    blockReadBytes: block.read,
+    blockWriteBytes: block.write
+  };
+}
+
+function dockerEngineJson<T>(path: string): Promise<T> {
+  const socketPath = dockerSocketPath();
+
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({ socketPath, path, method: 'GET' }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      response.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`Docker Engine returned HTTP ${response.statusCode ?? 'unknown'}.`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body) as T);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.setTimeout(5_000, () => request.destroy(new Error('Docker Engine metrics request timed out.')));
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+function dockerSocketPath() {
+  const configured = process.env.DOCKER_HOST?.trim();
+  return configured?.startsWith('unix://') ? configured.slice('unix://'.length) : '/var/run/docker.sock';
+}
+
+function formatDockerNumber(value: number) {
+  return value < 10 ? value.toFixed(2) : value.toFixed(1);
+}
+
+function formatDockerBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  const unit = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const scaled = value / 1024 ** unit;
+  return `${scaled < 10 && unit > 0 ? scaled.toFixed(2) : scaled.toFixed(1)} ${units[unit]}`;
 }
 
 async function listVolumes(snapshot: ContainerSnapshot): Promise<DockerVolumeItem[]> {

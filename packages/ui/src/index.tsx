@@ -31,9 +31,15 @@ import {
 import type { ComponentType, SVGProps } from 'react';
 
 export { Button } from '@heroui/react/button';
+export { Description } from '@heroui/react/description';
+export { Input } from '@heroui/react/input';
+export { Label } from '@heroui/react/label';
 export { Link } from '@heroui/react/link';
 export { Modal } from '@heroui/react/modal';
 export { Surface } from '@heroui/react/surface';
+export { Switch } from '@heroui/react/switch';
+export { TextArea } from '@heroui/react/textarea';
+export { TextField } from '@heroui/react/textfield';
 
 export type GlassIconProps = SVGProps<SVGSVGElement> & {
   size?: number | string;

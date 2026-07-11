@@ -204,6 +204,56 @@ test('Disabled media categories remove their dependent services from the configu
   }
 });
 
+test('App catalog explains dependencies for unavailable media companions', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { getServices } = await import('./packages/core/src/services.ts');
+          writeEnvConfig({
+            PLEX_INSTALL_MODE: 'disabled',
+            JELLYFIN_INSTALL_MODE: 'disabled',
+            ENABLE_MOVIES: 'false',
+            ENABLE_TV_SHOWS: 'false',
+            ENABLE_IMMICH: 'true',
+            ENABLE_PULSARR: 'true',
+            ENABLE_SEERR: 'true'
+          });
+          const services = getServices();
+          console.log(JSON.stringify(Object.fromEntries(
+            ['immich', 'pulsarr', 'seerr', 'bazarr'].map((name) => {
+              const service = services.find((item) => item.name === name);
+              return [name, { mode: service?.mode, experience: service?.experience, requirement: service?.requirement }];
+            })
+          )));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: { ...process.env, STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db') }
+      }
+    );
+
+    const services = JSON.parse(stdout);
+    assert.equal(services.immich.mode, 'docker');
+    assert.equal(services.immich.experience, 'app');
+    assert.equal(services.pulsarr.mode, 'disabled');
+    assert.equal(services.pulsarr.requirement.satisfied, false);
+    assert.equal(services.seerr.mode, 'disabled');
+    assert.equal(services.bazarr.requirement.satisfied, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Docker runtime service URLs use reachable hosts and skip non-network helpers', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 

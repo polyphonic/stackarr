@@ -11,11 +11,7 @@ const settings = [
     'Root folders, Plex/Jellyfin modes, backup schedule, retention, and import paths'
   ],
   ['profiles', 'Profiles', 'Stackarr presets for HD, 4K, and request routing'],
-  ['services', 'Services', 'Enable optional services, 4K Arr instances, and support tools'],
-  ['downloadclients', 'Download Clients', 'Transmission, qBittorrent, queueing, seeding, and bind IPs'],
-  ['indexers', 'Indexers', 'Prowlarr-managed indexers and proxy notes'],
   ['connect', 'Connect', 'Stackarr integrations with other app APIs, configs, webhooks, and public URLs'],
-  ['metadata', 'Metadata', 'TinyMediaManager and media server metadata behavior'],
   ['account', 'Account', 'Stackarr sign-in, global identity, service owner email, and API key'],
   ['security', 'Security', 'Per-service passwords and isolated Postgres role credentials'],
   ['general', 'General', 'API key, timezone, update windows, and paths'],
@@ -32,24 +28,24 @@ export default async function SettingsPage() {
         description="Start with common choices, then open advanced controls only when you need them"
       />
       <PageBody>
-        <Panel title="Everyday setup" description="The choices that shape how your libraries and apps behave">
+        <Panel title="Your Stackarr setup" description="Storage, defaults, and behavior shared across your homelab">
           <Grid>
             {settings
-              .filter(([slug]) => ['mediamanagement', 'services', 'downloadclients'].includes(slug))
+              .filter(([slug]) => ['mediamanagement'].includes(slug))
               .map(([slug, title, summary], index) => (
                 <DestinationCard
                   key={slug}
                   href={`/settings/${slug}`}
-                  icon={[icons.tv, icons.stack, icons.download][index]!}
+                  icon={[icons.tv][index]!}
                   title={title}
                   description={summary}
                 />
               ))}
             <DestinationCard
-              href="/settings/metadata"
-              icon={icons.image}
-              title="Metadata"
-              description="Scanning, artwork, scraping, and TinyMediaManager behavior"
+              href="/stack/services"
+              icon={icons.stack}
+              title="App settings"
+              description="Configure each app where you open and manage it"
             />
           </Grid>
         </Panel>
@@ -78,12 +74,12 @@ export default async function SettingsPage() {
         <Panel title="Advanced" description="Fine-grained presets, integrations, maintenance, and presentation">
           <Grid>
             {settings
-              .filter(([slug]) => ['profiles', 'indexers', 'general', 'ui'].includes(slug))
+              .filter(([slug]) => ['profiles', 'general', 'ui'].includes(slug))
               .map(([slug, title, summary], index) => (
                 <DestinationCard
                   key={slug}
                   href={`/settings/${slug}`}
-                  icon={[icons.sliders, icons.search, icons.wrench, icons.eye][index]!}
+                  icon={[icons.sliders, icons.wrench, icons.eye][index]!}
                   title={title}
                   description={summary}
                 />

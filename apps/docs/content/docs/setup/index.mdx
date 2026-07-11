@@ -3,7 +3,7 @@ title: Configure Your Stack
 description: Choose storage, services, downloads, backups, and access from chat or the dashboard.
 ---
 
-# Configure your stack
+# Configure your homelab
 
 You can complete setup from chat or in the browser. Both paths use the same validation, save the same settings, and show the same final plan.
 
@@ -20,10 +20,10 @@ See [Agent Setup](/docs/agent/agent-setup) for the connection command and review
 Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup) and choose:
 
 1. fresh setup, restore, or migration
-2. media, download, and backup folders
-3. Plex, Jellyfin, and content categories
+2. storage, download, and backup folders
+3. optional Plex, Jellyfin, and media categories
 4. Transmission or qBittorrent
-5. optional request, subtitle, metadata, photo, game, and book apps
+5. the self-hosted apps you actually want—one app is enough
 6. authentication and local or remote access
 7. backup and update preferences
 8. quality and naming presets
@@ -33,6 +33,9 @@ The review screen shows the containers, paths, ports, and saved settings before 
 ## After setup
 
 - verify service health from chat or the dashboard
+- add or remove apps at any time by asking your agent or opening **Apps → Add app**
 - change an agent from `admin` to `manage`
 - reconnect the MCP client so it loads actions for the selected apps
 - run the first backup before making major changes
+
+Stackarr keeps app settings with each app. It also prevents combinations that cannot work: Pulsarr needs Plex plus Radarr or Sonarr; Seerr needs Plex or Jellyfin plus Radarr or Sonarr; subtitle, metadata, and profile helpers need a movie or TV library. Immich, RomM, and other independent apps do not require Plex.

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="Logo/stackarr.svg" width="112" height="112" alt="Stackarr logo" />
   <h1>Stackarr</h1>
-  <p><strong>Manage your self-hosted media stack from chat.</strong></p>
+  <p><strong>Your homelab, managed from chat.</strong></p>
   <p>
     <a href="https://stackarr.app">Product</a>
     ·
@@ -18,7 +18,7 @@
   <img src="apps/docs/public/screenshots/stackarr-dashboard-light.png" alt="Stackarr dashboard showing service health, storage, resources, and configured apps" />
 </picture>
 
-Stackarr is a Docker control plane for a private media stack. It gives Codex, Claude, Hermes, OpenClaw, LM Studio, and other MCP clients consistent actions for setup, media requests, downloads, backups, health checks, and repairs.
+Stackarr is a Docker control plane for self-hosted apps. It gives Codex, Claude, Hermes, OpenClaw, LM Studio, and other MCP clients consistent actions for setup, everyday app management, downloads, backups, health checks, and repairs. Media is the first deep integration, not the boundary: start with one app such as Immich or RomM, or let Stackarr coordinate a complete media stack.
 
 The dashboard stays available at the same time, so you can move between chat and manual control whenever you want.
 

@@ -97,7 +97,8 @@
   color: var(--badge-warn-text);
 }
 
-.warning,
+.setupPrompt,
+.notice,
 .empty {
   margin: 0 0 14px;
   padding: 11px 13px;
@@ -106,6 +107,31 @@
   background: var(--badge-warn-bg);
   color: var(--badge-warn-text);
   font-size: 12px;
+}
+
+.notice {
+  border-color: var(--glass-border);
+  background: var(--glass-subtle);
+  color: var(--mutedTextColor);
+}
+
+.setupPrompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.setupPrompt p {
+  margin: 0;
+}
+
+.setupPrompt a {
+  flex: 0 0 auto;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .group + .group {

@@ -1,4 +1,5 @@
 import { getServices, readEnv, readJsonPreset, readSettings, redactEnv } from '@stackarr/core';
+import { redirect } from 'next/navigation';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { SettingsEditor } from '../../../components/SettingsEditor';
 import { SubNav } from '../../../components/SubNav';
@@ -10,11 +11,7 @@ export const dynamic = 'force-dynamic';
 const titles: Record<string, string> = {
   mediamanagement: 'Media Management',
   profiles: 'Profiles',
-  services: 'Services',
-  downloadclients: 'Download Clients',
-  indexers: 'Indexers',
   connect: 'Connect',
-  metadata: 'Metadata',
   account: 'Account',
   security: 'Security',
   general: 'General',
@@ -31,6 +28,8 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
   await requireDashboardAuth(`/settings/${section}`);
 
   const env = readEnv();
+  const appRedirect = appSettingsRedirect(section, env.PREFERRED_TORRENT_CLIENT);
+  if (appRedirect) redirect(appRedirect);
   const safeEnv = redactEnv(env);
   const settings = readSettings();
   const mediaServers = getServices().filter((service) => service.category === 'media');
@@ -95,37 +94,11 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
             <SettingsEditor section={section} env={safeEnv} settings={settings} />
           </Panel>
         )}
-        {section === 'services' && (
-          <Panel title="Service Selection">
-            <SettingsEditor section={section} env={safeEnv} settings={settings} />
-          </Panel>
-        )}
         {section === 'profiles' && (
           <Panel title="Underlying Presets">
             <pre>
               {JSON.stringify({ naming: readJsonPreset('naming'), requests: readJsonPreset('requests') }, null, 2)}
             </pre>
-          </Panel>
-        )}
-        {section === 'downloadclients' && (
-          <Panel title="Download Client Defaults">
-            <SettingsEditor section={section} env={safeEnv} settings={settings} />
-            <Table>
-              <tbody>
-                <tr>
-                  <th>Preferred Client</th>
-                  <td>{env.PREFERRED_TORRENT_CLIENT ?? 'transmission'}</td>
-                </tr>
-                <tr>
-                  <th>Transmission Bind</th>
-                  <td>{env.TRANSMISSION_BIND_IP ?? '127.0.0.1'}</td>
-                </tr>
-                <tr>
-                  <th>qBittorrent Bind</th>
-                  <td>{env.QBITTORRENT_BIND_IP ?? '127.0.0.1'}</td>
-                </tr>
-              </tbody>
-            </Table>
           </Panel>
         )}
         {section === 'connect' && (
@@ -141,7 +114,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
             </p>
           </Panel>
         )}
-        {['indexers', 'metadata', 'account', 'security', 'general', 'ui'].includes(section) && (
+        {['account', 'security', 'general', 'ui'].includes(section) && (
           <Panel title={title}>
             <SettingsEditor section={section} env={safeEnv} settings={settings} />
           </Panel>
@@ -149,4 +122,14 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
       </PageBody>
     </>
   );
+}
+
+function appSettingsRedirect(section: string, preferredTorrentClient?: string) {
+  if (section === 'services') return '/stack/services#add-app';
+  if (section === 'downloadclients') {
+    return `/stack/services?app=${preferredTorrentClient === 'qbittorrent' ? 'qbittorrent' : 'transmission'}`;
+  }
+  if (section === 'indexers') return '/stack/services?app=prowlarr';
+  if (section === 'metadata') return '/stack/services?app=tinymediamanager';
+  return null;
 }

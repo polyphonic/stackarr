@@ -1,11 +1,12 @@
 'use client';
 
-import type { getSystemStatus, ServiceSummary, StackarrTask, StackMetrics } from '@stackarr/core';
+import type { getSystemStatus, HomelabPerformance, ServiceSummary, StackarrTask, StackMetrics } from '@stackarr/core';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import styles from './DashboardClient.module.css';
 import { DashboardOverview } from './DashboardOverview';
 import { icons } from './icons';
+import { PerformanceOverview } from './PerformanceOverview';
 import { ServiceLogo } from './ServiceLogo';
 import { TaskProgressView, useLiveTasks } from './TaskProgress';
 import { Badge, Panel, SearchInput } from './ui';
@@ -16,17 +17,24 @@ export function DashboardClient({
   status,
   services,
   metrics,
-  tasks
+  performance,
+  tasks,
+  favoriteNames
 }: {
   status: SystemStatus;
   services: ServiceSummary[];
   metrics: StackMetrics;
+  performance: HomelabPerformance;
   tasks: StackarrTask[];
+  favoriteNames: string[];
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const liveTasks = useLiveTasks(tasks, { limit: 8 });
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const visibleServices = services.filter((service) => service.name !== 'stackarr' && service.mode !== 'disabled');
+  const visibleServices = services.filter(
+    (service) => service.name !== 'stackarr' && service.mode !== 'disabled' && service.experience === 'app'
+  );
+  const favoriteRank = new Map(favoriteNames.map((name, index) => [name, index]));
   const needsAttention = useMemo(
     () => buildAttentionItems(status.configured, services, metrics, liveTasks),
     [liveTasks, metrics, services, status.configured]
@@ -34,8 +42,11 @@ export function DashboardClient({
   const activeTasks = liveTasks.filter((task) => task.status === 'queued' || task.status === 'running');
   const recentTasks = liveTasks.filter((task) => task.status !== 'queued' && task.status !== 'running').slice(0, 4);
   const featuredServices = visibleServices
-    .filter((service) => service.category !== 'support' || service.browserUrl || service.localUrl)
+    .filter((service) => service.browserUrl || service.localUrl)
+    .sort((a, b) => (favoriteRank.get(a.name) ?? 999) - (favoriteRank.get(b.name) ?? 999))
     .slice(0, 10);
+  const hasDownloads = visibleServices.some((service) => service.category === 'download');
+  const emptyHomelab = status.configured && visibleServices.length === 0;
   const filteredServices = visibleServices.filter(
     (service) =>
       !normalizedSearch ||
@@ -48,12 +59,12 @@ export function DashboardClient({
     <div className={styles.dashboard}>
       <section className={styles.hero} aria-labelledby="stack-summary-title">
         <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}>Today in your homelab</span>
-          <h2 id="stack-summary-title">{heroTitle(status.configured, metrics)}</h2>
+          <span className={styles.eyebrow}>{emptyHomelab ? 'Start with what you need' : 'Today in your homelab'}</span>
+          <h2 id="stack-summary-title">{heroTitle(status.configured, metrics, visibleServices.length)}</h2>
           <p>{heroSummary(status.configured, metrics, visibleServices.length)}</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primaryLink} href="/stack/services">
-              Browse apps
+            <Link className={styles.primaryLink} href="/stack/services#add-app">
+              {emptyHomelab ? 'Add your first app' : 'Manage apps'}
             </Link>
             <Link className={styles.secondaryLink} href="/activity/queue">
               Follow activity
@@ -72,9 +83,11 @@ export function DashboardClient({
       <section className={styles.quickLinks} aria-label="Quick destinations">
         <QuickLink href="/activity/queue" icon="activity" label="Active work" value={String(activeTasks.length)} />
         <QuickLink href="/containers" icon="containers" label="Infrastructure" value="Explore" />
-        <QuickLink href="/downloaders" icon="download" label="Downloads" value="Manage" />
+        {hasDownloads && <QuickLink href="/downloaders" icon="download" label="Downloads" value="Manage" />}
         <QuickLink href="/agent" icon="manage" label="Automation" value="Open" />
       </section>
+
+      <PerformanceOverview initial={performance} />
 
       <div className={styles.contentGrid}>
         <Panel
@@ -141,16 +154,31 @@ export function DashboardClient({
       <section className={styles.appsSection} aria-labelledby="your-apps-title">
         <div className={styles.sectionHeading}>
           <div>
-            <span className={styles.eyebrow}>Your library</span>
-            <h2 id="your-apps-title">Apps at a glance</h2>
+            <span className={styles.eyebrow}>Your homelab</span>
+            <h2 id="your-apps-title">
+              {visibleServices.length === 0 ? 'No apps yet' : visibleServices.length === 1 ? 'Your app' : 'Your apps'}
+            </h2>
           </div>
-          <Link href="/stack/services">Manage all apps</Link>
+          {visibleServices.length > 0 && <Link href="/stack/services">Manage apps</Link>}
         </div>
-        <div className={styles.appShelf}>
-          {featuredServices.map((service) => (
-            <AppTile key={service.name} service={service} />
-          ))}
-        </div>
+        {visibleServices.length === 0 ? (
+          <div className={styles.emptyApps}>
+            <ServiceLogo name="stackarr" size={48} />
+            <div>
+              <strong>Add only the apps you want</strong>
+              <p>Start with Immich, RomM, Plex, Jellyfin, or a single utility. Stackarr adapts around your choices.</p>
+            </div>
+            <Link className={styles.primaryLink} href="/stack/services#add-app">
+              Add app
+            </Link>
+          </div>
+        ) : (
+          <div className={`${styles.appShelf} ${visibleServices.length === 1 ? styles.singleAppShelf : ''}`}>
+            {featuredServices.map((service) => (
+              <AppTile key={service.name} service={service} />
+            ))}
+          </div>
+        )}
       </section>
 
       <details className={styles.details}>
@@ -306,8 +334,9 @@ function buildAttentionItems(
   return items.slice(0, 4);
 }
 
-function heroTitle(configured: boolean, metrics: StackMetrics) {
+function heroTitle(configured: boolean, metrics: StackMetrics, appCount: number) {
   if (!configured) return 'Let’s finish shaping your stack.';
+  if (appCount === 0) return 'Your homelab is ready for its first app.';
   if (metrics.tasks.failed > 0) return 'Your stack is running. A few things need a look.';
   if (metrics.tasks.running > 0 || metrics.tasks.queued > 0) return 'Your stack is working in the background.';
   return 'Your homelab is ready when you are.';
@@ -316,6 +345,7 @@ function heroTitle(configured: boolean, metrics: StackMetrics) {
 function heroSummary(configured: boolean, metrics: StackMetrics, appCount: number) {
   if (!configured)
     return 'Stackarr keeps complexity out of the way, then lets you peel back the layers when you need them.';
+  if (appCount === 0) return 'Your homelab is ready for its first app.';
   const active = metrics.tasks.running + metrics.tasks.queued;
   return `${appCount} enabled apps${active ? ` · ${active} active ${active === 1 ? 'task' : 'tasks'}` : ' · no active work'}.`;
 }

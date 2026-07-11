@@ -1,7 +1,7 @@
 'use client';
 
 import type { StackarrEnv, StackarrSettings } from '@stackarr/core';
-import { Button, icons } from '@stackarr/ui';
+import { Button, icons, Label, Switch } from '@stackarr/ui';
 import { applyStackarrDocumentTheme } from '@stackarr/ui/theme-provider';
 import { toast } from '@stackarr/ui/toast';
 import type React from 'react';
@@ -1198,15 +1198,19 @@ export function SettingsEditor({ section, env, settings }: Props) {
                     </option>
                   ))}
                 </select>
-                <label className={styles.routeAccess}>
-                  <input
-                    aria-label={`Protect ${route.hostname || route.service || 'route'} with Access`}
-                    checked={route.access ?? defaultCloudflareRouteAccess(route.service)}
-                    onChange={(event) => updateCloudflareRoute(index, { access: event.target.checked })}
-                    type="checkbox"
-                  />
-                  <span>Access</span>
-                </label>
+                <Switch
+                  aria-label={`Protect ${route.hostname || route.service || 'route'} with Access`}
+                  className={styles.routeAccess}
+                  isSelected={route.access ?? defaultCloudflareRouteAccess(route.service)}
+                  onChange={(access) => updateCloudflareRoute(index, { access })}
+                >
+                  <Switch.Content>
+                    <Label>Access</Label>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Content>
+                </Switch>
                 <button onClick={() => removeCloudflareRoute(index)} type="button">
                   Remove
                 </button>
@@ -1718,10 +1722,14 @@ function Select({
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <label className={styles.check}>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>{label}</span>
-    </label>
+    <Switch className={styles.check} isSelected={checked} onChange={onChange}>
+      <Switch.Content>
+        <Label>{label}</Label>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch.Content>
+    </Switch>
   );
 }
 

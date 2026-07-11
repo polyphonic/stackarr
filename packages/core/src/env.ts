@@ -211,7 +211,7 @@ export const managedEnvDefaults: StackarrEnv = {
   MAINTAINERR_URL: 'http://127.0.0.1:6246',
   PLEX_URL: 'http://127.0.0.1:32400',
   JELLYFIN_URL: 'http://127.0.0.1:8096',
-  TINYMEDIAMANAGER_URL: 'http://127.0.0.1:4000',
+  TINYMEDIAMANAGER_URL: 'http://127.0.0.1:7878',
   FLARESOLVERR_URL: 'http://127.0.0.1:8191',
   TIDARR_URL: 'http://127.0.0.1:8484',
 
@@ -504,6 +504,7 @@ export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): Stack
 
   dropDeprecatedCloudflareHostnameKeys(merged);
   normalizeRommDatabaseDefaults(merged);
+  applyAppDependencyRules(merged);
   return merged;
 }
 
@@ -581,6 +582,31 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyRommSecretDefaults(merged);
 
   return merged;
+}
+
+function applyAppDependencyRules(env: StackarrEnv) {
+  const plexEnabled = env.PLEX_INSTALL_MODE?.toLowerCase() !== 'disabled';
+  const jellyfinEnabled = env.JELLYFIN_INSTALL_MODE?.toLowerCase() !== 'disabled';
+  const mediaServerEnabled = plexEnabled || jellyfinEnabled;
+  const videoAutomationEnabled = flagValue(env.ENABLE_MOVIES) || flagValue(env.ENABLE_TV_SHOWS);
+  const arrEnabled = videoAutomationEnabled || flagValue(env.ENABLE_LIDARR);
+
+  if (!plexEnabled || !videoAutomationEnabled) env.ENABLE_PULSARR = 'false';
+  if (!mediaServerEnabled || !videoAutomationEnabled) {
+    env.ENABLE_SEERR = 'false';
+    env.STACKARR_CONFIGURE_SEERR = 'false';
+  }
+  if (!mediaServerEnabled) {
+    env.ENABLE_MAINTAINERR = 'false';
+    if (!env.TRACEARR_EMBY_SERVER_URL?.trim()) env.ENABLE_TRACEARR = 'false';
+  }
+  if (!videoAutomationEnabled) {
+    env.ENABLE_4K_SERVARR = 'false';
+    env.ENABLE_BAZARR = 'false';
+    env.ENABLE_RECYCLARR = 'false';
+    env.ENABLE_TINYMEDIAMANAGER = 'false';
+  }
+  if (!arrEnabled) env.ENABLE_FLARESOLVERR = 'false';
 }
 
 function detectDatabasePgdata(configRoot: string | undefined) {

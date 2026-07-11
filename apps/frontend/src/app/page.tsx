@@ -1,4 +1,12 @@
-import { getServices, getStackMetrics, getSystemStatus, readEnv, readTasks } from '@stackarr/core';
+import {
+  getHomelabPerformanceAction,
+  getServices,
+  getStackMetrics,
+  getSystemStatus,
+  listServiceFavoritesAction,
+  readEnv,
+  readTasks
+} from '@stackarr/core';
 import { PageBody, Toolbar } from '../components/AppFrame';
 import { CommandButton } from '../components/CommandButton';
 import { DashboardClient } from '../components/DashboardClient';
@@ -19,6 +27,8 @@ export default async function DashboardPage() {
     env.BACKUP_ROOT ?? ''
   ]);
   const tasks = readTasks().slice(0, 5);
+  const favoriteNames = listServiceFavoritesAction().map((favorite) => favorite.name);
+  const performance = await getHomelabPerformanceAction();
 
   return (
     <>
@@ -36,7 +46,14 @@ export default async function DashboardPage() {
         }
       />
       <PageBody>
-        <DashboardClient status={status} services={services} metrics={metrics} tasks={tasks} />
+        <DashboardClient
+          favoriteNames={favoriteNames}
+          status={status}
+          services={services}
+          metrics={metrics}
+          performance={performance}
+          tasks={tasks}
+        />
       </PageBody>
     </>
   );

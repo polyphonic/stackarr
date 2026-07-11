@@ -354,6 +354,35 @@
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
 }
+
+.singleAppShelf {
+  grid-template-columns: minmax(240px, 380px);
+}
+
+.emptyApps {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  max-width: 760px;
+  min-height: 132px;
+  padding: 20px;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--glass-raised), var(--glass-subtle));
+  box-shadow: var(--soft-shadow);
+}
+
+.emptyApps strong {
+  font-size: 17px;
+}
+
+.emptyApps p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
 .appTile,
 .appTileCompact {
   display: grid;
@@ -498,5 +527,14 @@
   }
   .appDirectory {
     grid-template-columns: 1fr;
+  }
+
+  .emptyApps {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .emptyApps > a {
+    grid-column: 1 / -1;
+    justify-content: center;
   }
 }

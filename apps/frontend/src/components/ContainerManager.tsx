@@ -22,38 +22,47 @@ type TabKey = 'containers' | 'volumes' | 'images' | 'networks';
 type SelectedKeys = Partial<Record<TabKey, string>>;
 type ActionInput = Pick<DockerResourceActionInput, 'kind' | 'action' | 'id' | 'force' | 'deleteVolumes'>;
 type MetricPair = { first: number; second: number };
+type MetricHistoryPoint = { at: number; cpu: number; memory: number; network: number };
 
 const tabs: Array<{ key: TabKey; label: string; icon: typeof icons.container }> = [
-  { key: 'containers', label: 'Containers', icon: icons.container },
+  { key: 'containers', label: 'Stacks', icon: icons.stack },
   { key: 'volumes', label: 'Volumes', icon: icons.drive },
   { key: 'images', label: 'Images', icon: icons.image },
   { key: 'networks', label: 'Network', icon: icons.network }
 ];
 
-export function ContainerManager({ overview }: { overview: DockerOverview }) {
-  const [data, setData] = useState(overview);
+export function ContainerManager({ overview }: { overview: DockerOverview | DockerContainerOverview }) {
+  const [data, setData] = useState(() => normalizeOverview(overview));
+  const [advancedLoaded, setAdvancedLoaded] = useState(() => 'volumes' in overview);
   const [tab, setTab] = useState<TabKey>('containers');
   const [selected, setSelected] = useState<SelectedKeys>({});
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState(data.error ?? '');
+  const [metricHistory, setMetricHistory] = useState<MetricHistoryPoint[]>(() => [metricHistoryPoint(data)]);
 
-  const containerItems = useMemo(() => filterItems(data.containers, query), [data.containers, query]);
-  const volumeItems = useMemo(() => filterItems(data.volumes, query), [data.volumes, query]);
-  const imageItems = useMemo(() => filterItems(data.images, query), [data.images, query]);
-  const networkItems = useMemo(() => filterItems(data.networks, query), [data.networks, query]);
+  const containerItems = useMemo(
+    () => filterItems(data.containers, query, containerSearchText),
+    [data.containers, query]
+  );
+  const volumeItems = useMemo(() => filterItems(data.volumes, query, volumeSearchText), [data.volumes, query]);
+  const imageItems = useMemo(() => filterItems(data.images, query, imageSearchText), [data.images, query]);
+  const networkItems = useMemo(() => filterItems(data.networks, query, networkSearchText), [data.networks, query]);
 
-  const activeContainer = selectedItem(containerItems, selected.containers, containerKey);
+  const activeContainer = selected.containers
+    ? containerItems.find((item) => containerKey(item) === selected.containers)
+    : undefined;
   const activeVolume = selectedItem(volumeItems, selected.volumes, volumeKey);
   const activeImage = selectedItem(imageItems, selected.images, imageKey);
   const activeNetwork = selectedItem(networkItems, selected.networks, networkKey);
 
-  const refresh = useCallback(async (options: { silent?: boolean } = {}) => {
+  const refresh = useCallback(async (options: { silent?: boolean; full?: boolean } = {}) => {
     if (!options.silent) {
       setBusy('refresh');
     }
 
-    const response = await stackarrFetch(options.silent ? '/api/v1/containers?scope=containers' : '/api/v1/containers');
+    const full = options.full === true;
+    const response = await stackarrFetch(full ? '/api/v1/containers' : '/api/v1/containers?scope=containers');
     const body = (await response.json().catch(() => null)) as DockerOverview | DockerContainerOverview | null;
 
     if (!options.silent) {
@@ -69,18 +78,8 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
       return;
     }
 
-    setData((current) =>
-      options.silent
-        ? {
-            ...current,
-            dockerAvailable: body.dockerAvailable,
-            error: body.error,
-            generatedAt: body.generatedAt,
-            containers: body.containers,
-            counts: { ...current.counts, ...body.counts }
-          }
-        : (body as DockerOverview)
-    );
+    setData((current) => (full ? normalizeOverview(body) : mergeContainerOverview(current, body)));
+    if (full) setAdvancedLoaded(true);
     if (!options.silent || body.error) {
       const nextMessage = body.error ?? 'Docker resources refreshed.';
       setMessage(nextMessage);
@@ -97,10 +96,18 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
       if (document.visibilityState === 'visible') {
         void refresh({ silent: true });
       }
-    }, 15000);
+    }, 30000);
 
     return () => window.clearInterval(interval);
   }, [data.dockerAvailable, refresh, tab]);
+
+  useEffect(() => {
+    const point = metricHistoryPoint(data);
+    setMetricHistory((current) => {
+      const withoutDuplicate = current.filter((item) => item.at !== point.at);
+      return [...withoutDuplicate, point].slice(-40);
+    });
+  }, [data]);
 
   async function runAction(input: ActionInput, label: string) {
     const destructive = isDestructive(input);
@@ -132,21 +139,72 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
 
     setMessage('Docker action completed.');
     toast.success('Docker action completed.', { id: toastId });
-    await refresh();
+    await refresh({ full: tab !== 'containers' });
   }
 
   const cleanup = cleanupFor(tab, data);
+  const running = data.containers.filter((item) => item.running);
+  const totals = containerMetricTotals(running);
+  const stackGroups = groupContainers(containerItems);
+
+  async function selectTab(nextTab: TabKey) {
+    setTab(nextTab);
+    setQuery('');
+    if (nextTab !== 'containers' && !advancedLoaded) {
+      await refresh({ full: true });
+    }
+  }
 
   return (
     <div className={styles.manager}>
-      <section className={styles.sidebar} aria-label="Docker resources">
-        <div className={styles.tabbar} role="tablist" aria-label="Container resource tabs">
+      <header className={styles.runtimeHeader}>
+        <div className={styles.runtimeTitle}>
+          <span className={data.dockerAvailable ? styles.runtimeOnline : styles.runtimeOffline} aria-hidden="true" />
+          <div>
+            <strong>{data.dockerAvailable ? 'Docker is connected' : 'Docker is unavailable'}</strong>
+            <small>
+              {data.counts.runningContainers} running · {data.counts.stoppedContainers} stopped · updated{' '}
+              {formatActivityTime(data.generatedAt)}
+            </small>
+          </div>
+        </div>
+        <div className={styles.runtimeMetrics} aria-label="Container activity summary">
+          <MetricCard
+            history={metricHistory.map((point) => point.cpu)}
+            label="CPU"
+            value={`${formatMetric(totals.cpu)}%`}
+          />
+          <MetricCard
+            history={metricHistory.map((point) => point.memory)}
+            label="Memory"
+            value={formatBytes(totals.memory) ?? '0 B'}
+          />
+          <MetricCard
+            history={metricHistory.map((point) => point.network)}
+            label="Network"
+            value={formatPair(totals.network)}
+          />
+        </div>
+        <button
+          aria-label="Refresh infrastructure"
+          className={styles.refreshButton}
+          disabled={busy === 'refresh'}
+          onClick={() => void refresh({ full: tab !== 'containers' })}
+          type="button"
+        >
+          <icons.refresh aria-hidden="true" size={16} />
+          <span>{busy === 'refresh' ? 'Refreshing' : 'Refresh'}</span>
+        </button>
+      </header>
+
+      <div className={styles.viewbar}>
+        <div className={styles.tabbar} role="tablist" aria-label="Infrastructure views">
           {tabs.map((item) => (
             <button
               key={item.key}
               aria-selected={tab === item.key}
               className={tab === item.key ? styles.tabActive : styles.tab}
-              onClick={() => setTab(item.key)}
+              onClick={() => void selectTab(item.key)}
               role="tab"
               type="button"
             >
@@ -156,85 +214,194 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
             </button>
           ))}
         </div>
-
-        <div className={styles.toolbar}>
-          <label className={styles.search}>
-            <span>Search</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter resources" />
-          </label>
-          <button
-            className={styles.iconButton}
-            disabled={busy === 'refresh'}
-            onClick={() => void refresh()}
-            type="button"
-            title="Refresh"
-          >
-            <icons.refresh aria-hidden="true" size={14} />
-          </button>
-          {cleanup && (
-            <button
-              className={styles.cleanupButton}
-              disabled={Boolean(busy)}
-              onClick={() => void runAction(cleanup.input, cleanup.confirm)}
-              type="button"
-            >
-              {cleanup.label}
-            </button>
-          )}
-        </div>
-
-        {message && <p className={data.dockerAvailable ? styles.note : styles.error}>{message}</p>}
-
-        {tab === 'containers' && (
-          <>
-            <ContainerActivity items={containerItems} generatedAt={data.generatedAt} />
-            <ResourceList
-              items={containerItems}
-              active={activeContainer}
-              itemKey={containerKey}
-              onSelect={(key) => setSelectedKey('containers', key, setSelected)}
-            >
-              {(item) => <ContainerRow item={item} busy={busy} onAction={runAction} />}
-            </ResourceList>
-          </>
-        )}
-        {tab === 'volumes' && (
-          <ResourceList
-            items={volumeItems}
-            active={activeVolume}
-            itemKey={volumeKey}
-            onSelect={(key) => setSelectedKey('volumes', key, setSelected)}
-          >
-            {(item) => <VolumeRow item={item} busy={busy} onAction={runAction} />}
-          </ResourceList>
-        )}
-        {tab === 'images' && (
-          <ImageSections
-            items={imageItems}
-            active={activeImage}
-            onSelect={(key) => setSelectedKey('images', key, setSelected)}
-            busy={busy}
-            onAction={runAction}
+        <label className={styles.search}>
+          <icons.search aria-hidden="true" size={14} />
+          <span className={styles.visuallyHidden}>Search {tabs.find((item) => item.key === tab)?.label}</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Find an app or resource"
           />
-        )}
-        {tab === 'networks' && (
-          <ResourceList
-            items={networkItems}
-            active={activeNetwork}
-            itemKey={networkKey}
-            onSelect={(key) => setSelectedKey('networks', key, setSelected)}
+        </label>
+        {cleanup && (
+          <button
+            className={styles.cleanupButton}
+            disabled={Boolean(busy)}
+            onClick={() => void runAction(cleanup.input, cleanup.confirm)}
+            type="button"
           >
-            {(item) => <NetworkRow item={item} busy={busy} onAction={runAction} />}
-          </ResourceList>
+            {cleanup.label}
+          </button>
         )}
-      </section>
+      </div>
 
-      <section className={styles.detail} aria-label="Resource details">
-        {tab === 'containers' && <ContainerDetails item={activeContainer} onAction={runAction} />}
-        {tab === 'volumes' && <VolumeDetails item={activeVolume} onAction={runAction} />}
-        {tab === 'images' && <ImageDetails item={activeImage} onAction={runAction} />}
-        {tab === 'networks' && <NetworkDetails item={activeNetwork} onAction={runAction} />}
-      </section>
+      {message && <p className={data.dockerAvailable ? styles.note : styles.error}>{message}</p>}
+
+      {tab === 'containers' && (
+        <div className={styles.stackWorkspace}>
+          <section className={styles.stacks} aria-label="Compose stacks and apps">
+            {stackGroups.length === 0 ? (
+              <div className={styles.empty}>No apps match this view.</div>
+            ) : (
+              stackGroups.map((group) => (
+                <StackGroup
+                  key={group.key}
+                  group={group}
+                  busy={busy}
+                  selectedId={activeContainer ? containerKey(activeContainer) : ''}
+                  onAction={runAction}
+                  onSelect={(key) => setSelectedKey('containers', key, setSelected)}
+                />
+              ))
+            )}
+          </section>
+          <aside className={styles.detail} aria-label="Selected app details">
+            {activeContainer ? (
+              <ContainerDetails item={activeContainer} onAction={runAction} />
+            ) : (
+              <StackSummary groups={stackGroups} counts={data.counts} />
+            )}
+          </aside>
+        </div>
+      )}
+
+      {tab !== 'containers' && (
+        <div className={styles.resourceWorkspace} aria-busy={!advancedLoaded && busy === 'refresh'}>
+          <section className={styles.resourceList} aria-label="Advanced Docker resources">
+            {!advancedLoaded && <div className={styles.empty}>Loading advanced Docker resources…</div>}
+            {tab === 'volumes' && (
+              <ResourceList
+                items={volumeItems}
+                active={activeVolume}
+                itemKey={volumeKey}
+                onSelect={(key) => setSelectedKey('volumes', key, setSelected)}
+              >
+                {(item) => <VolumeRow item={item} busy={busy} onAction={runAction} />}
+              </ResourceList>
+            )}
+            {tab === 'images' && (
+              <ImageSections
+                items={imageItems}
+                active={activeImage}
+                onSelect={(key) => setSelectedKey('images', key, setSelected)}
+                busy={busy}
+                onAction={runAction}
+              />
+            )}
+            {tab === 'networks' && (
+              <ResourceList
+                items={networkItems}
+                active={activeNetwork}
+                itemKey={networkKey}
+                onSelect={(key) => setSelectedKey('networks', key, setSelected)}
+              >
+                {(item) => <NetworkRow item={item} busy={busy} onAction={runAction} />}
+              </ResourceList>
+            )}
+          </section>
+          <section className={styles.detail} aria-label="Resource details">
+            {tab === 'volumes' && <VolumeDetails item={activeVolume} onAction={runAction} />}
+            {tab === 'images' && <ImageDetails item={activeImage} onAction={runAction} />}
+            {tab === 'networks' && <NetworkDetails item={activeNetwork} onAction={runAction} />}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ContainerGroup = { key: string; label: string; description: string; items: DockerContainerItem[] };
+
+function StackGroup({
+  group,
+  busy,
+  selectedId,
+  onAction,
+  onSelect
+}: {
+  group: ContainerGroup;
+  busy: string;
+  selectedId: string;
+  onAction: (input: ActionInput, label: string) => Promise<void>;
+  onSelect: (key: string) => void;
+}) {
+  const running = group.items.filter((item) => item.running).length;
+  return (
+    <section className={styles.stackGroup}>
+      <header className={styles.stackHeader}>
+        <div>
+          <span className={running === group.items.length ? styles.stackGood : styles.stackMixed} aria-hidden="true" />
+          <div>
+            <h2>{group.label}</h2>
+            <p>{group.description}</p>
+          </div>
+        </div>
+        <Badge tone={running === group.items.length ? 'good' : running > 0 ? 'warn' : 'neutral'}>
+          {running}/{group.items.length} running
+        </Badge>
+      </header>
+      <div className={styles.appGrid}>
+        {group.items.map((item) => {
+          const key = containerKey(item);
+          return (
+            <article
+              key={key}
+              className={key === selectedId ? styles.appCardActive : styles.appCard}
+              onClick={() => onSelect(key)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onSelect(key);
+                }
+              }}
+              tabIndex={0}
+            >
+              <ContainerRow item={item} busy={busy} onAction={onAction} />
+              <div className={styles.appMetrics}>
+                <span>
+                  CPU <strong>{item.stats?.cpu || '—'}</strong>
+                </span>
+                <span>
+                  Memory <strong>{shortMetric(item.stats?.memory)}</strong>
+                </span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function StackSummary({ groups, counts }: { groups: ContainerGroup[]; counts: DockerOverview['counts'] }) {
+  return (
+    <div className={styles.stackSummary}>
+      <span className={styles.summaryIcon}>
+        <icons.stack aria-hidden="true" size={26} />
+      </span>
+      <div>
+        <h2>Your infrastructure</h2>
+        <p>Select an app to inspect its ports, mounts, networks, and lifecycle controls.</p>
+      </div>
+      <dl>
+        <div>
+          <dt>Stacks</dt>
+          <dd>{groups.length}</dd>
+        </div>
+        <div>
+          <dt>Apps</dt>
+          <dd>{counts.containers}</dd>
+        </div>
+        <div>
+          <dt>Running</dt>
+          <dd>{counts.runningContainers}</dd>
+        </div>
+        <div>
+          <dt>Stopped</dt>
+          <dd>{counts.stoppedContainers}</dd>
+        </div>
+      </dl>
+      <p className={styles.advancedHint}>Volumes, images, and networks load only when you open their tabs.</p>
     </div>
   );
 }
@@ -285,72 +452,37 @@ function ResourceList<T>({
   );
 }
 
-function ContainerActivity({ items, generatedAt }: { items: DockerContainerItem[]; generatedAt: string }) {
-  const running = items.filter((item) => item.running);
-  const totals = running.reduce(
-    (summary, item) => {
-      const network = parseMetricPair(item.stats?.network);
-      const disk = parseMetricPair(item.stats?.disk);
-
-      return {
-        cpu: summary.cpu + parsePercent(item.stats?.cpu),
-        memory: summary.memory + parseMemoryUsage(item.stats?.memory),
-        network: { first: summary.network.first + network.first, second: summary.network.second + network.second },
-        disk: { first: summary.disk.first + disk.first, second: summary.disk.second + disk.second }
-      };
-    },
-    { cpu: 0, memory: 0, network: { first: 0, second: 0 }, disk: { first: 0, second: 0 } }
-  );
-
+function MetricCard({ history, label, value }: { history: number[]; label: string; value: string }) {
   return (
-    <section className={styles.activityPanel} aria-label="Live container activity">
-      <header className={styles.activityHeader}>
-        <div>
-          <strong>Live Activity</strong>
-          <span>
-            {running.length} running · updated {formatActivityTime(generatedAt)}
-          </span>
-        </div>
-        <span className={styles.liveDot}>Live</span>
-      </header>
-      <div className={styles.activitySummary}>
-        <MetricCard label="CPU" value={`${formatMetric(totals.cpu)}%`} />
-        <MetricCard label="Memory" value={formatBytes(totals.memory) ?? '0 B'} />
-        <MetricCard label="Network" value={formatPair(totals.network)} />
-        <MetricCard label="Disk" value={formatPair(totals.disk)} />
+    <div className={styles.metricCard}>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
       </div>
-      <div className={styles.activityTable} role="table" aria-label="Container resource usage">
-        <div className={styles.activityTableHead} role="row">
-          <span>Name</span>
-          <span>CPU</span>
-          <span>Memory</span>
-          <span>Network</span>
-          <span>Disk</span>
-        </div>
-        {running.length === 0 ? (
-          <div className={styles.activityEmpty}>No running containers.</div>
-        ) : (
-          running.map((item) => (
-            <div key={item.id} className={styles.activityTableRow} role="row">
-              <span>{item.displayName}</span>
-              <span>{item.stats?.cpu ?? '-'}</span>
-              <span>{shortMetric(item.stats?.memory)}</span>
-              <span>{item.stats?.network ?? '-'}</span>
-              <span>{item.stats?.disk ?? '-'}</span>
-            </div>
-          ))
-        )}
-      </div>
-    </section>
+      <Sparkline label={`${label} over the last ${history.length} samples`} values={history} />
+    </div>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function Sparkline({ label, values }: { label: string; values: number[] }) {
+  const width = 92;
+  const height = 28;
+  const finite = values.map((value) => (Number.isFinite(value) ? value : 0));
+  const minimum = Math.min(...finite, 0);
+  const maximum = Math.max(...finite, 1);
+  const range = Math.max(1, maximum - minimum);
+  const points = finite
+    .map((value, index) => {
+      const x = finite.length <= 1 ? width : (index / (finite.length - 1)) * width;
+      const y = height - ((value - minimum) / range) * (height - 3) - 1.5;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
   return (
-    <div className={styles.metricCard}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <svg aria-label={label} className={styles.sparkline} role="img" viewBox={`0 0 ${width} ${height}`}>
+      <polyline fill="none" points={points} vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }
 
@@ -949,6 +1081,110 @@ function NoSelection() {
   );
 }
 
+function normalizeOverview(overview: DockerOverview | DockerContainerOverview): DockerOverview {
+  if ('volumes' in overview) {
+    return overview;
+  }
+
+  return {
+    ...overview,
+    counts: {
+      ...overview.counts,
+      volumes: 0,
+      unusedVolumes: 0,
+      images: 0,
+      unusedImages: 0,
+      danglingImages: 0,
+      networks: 0,
+      unusedNetworks: 0
+    },
+    volumes: [],
+    images: [],
+    networks: []
+  };
+}
+
+function mergeContainerOverview(
+  current: DockerOverview,
+  overview: DockerOverview | DockerContainerOverview
+): DockerOverview {
+  return {
+    ...current,
+    dockerAvailable: overview.dockerAvailable,
+    error: overview.error,
+    generatedAt: overview.generatedAt,
+    containers: overview.containers,
+    counts: { ...current.counts, ...overview.counts }
+  };
+}
+
+function groupContainers(items: DockerContainerItem[]): ContainerGroup[] {
+  const groups = new Map<string, DockerContainerItem[]>();
+  for (const item of items) {
+    const key = item.composeProject || (item.stackarrManaged ? 'stackarr' : 'standalone');
+    const group = groups.get(key) ?? [];
+    group.push(item);
+    groups.set(key, group);
+  }
+
+  return [...groups.entries()]
+    .map(([key, containers]) => ({
+      key,
+      label: key === 'stackarr' ? 'Stackarr' : key === 'standalone' ? 'Standalone' : humanizeProject(key),
+      description:
+        key === 'stackarr'
+          ? 'Your managed homelab apps'
+          : key === 'standalone'
+            ? 'Containers outside a Compose stack'
+            : `Compose project · ${key}`,
+      items: containers
+    }))
+    .sort((a, b) => groupRank(a.key) - groupRank(b.key) || a.label.localeCompare(b.label));
+}
+
+function groupRank(key: string) {
+  if (key === 'stackarr') return 0;
+  if (key === 'standalone') return 2;
+  return 1;
+}
+
+function humanizeProject(value: string) {
+  return value
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+function containerMetricTotals(items: DockerContainerItem[]) {
+  return items.reduce(
+    (summary, item) => {
+      const network = item.stats
+        ? {
+            first: item.stats.networkRxBytes ?? parseMetricPair(item.stats.network).first,
+            second: item.stats.networkTxBytes ?? parseMetricPair(item.stats.network).second
+          }
+        : { first: 0, second: 0 };
+      return {
+        cpu: summary.cpu + (item.stats?.cpuPercent ?? parsePercent(item.stats?.cpu)),
+        memory: summary.memory + (item.stats?.memoryBytes ?? parseMemoryUsage(item.stats?.memory)),
+        network: { first: summary.network.first + network.first, second: summary.network.second + network.second }
+      };
+    },
+    { cpu: 0, memory: 0, network: { first: 0, second: 0 } }
+  );
+}
+
+function metricHistoryPoint(data: DockerOverview): MetricHistoryPoint {
+  const totals = containerMetricTotals(data.containers.filter((item) => item.running));
+  return {
+    at: new Date(data.generatedAt).getTime() || Date.now(),
+    cpu: totals.cpu,
+    memory: totals.memory,
+    network: totals.network.first + totals.network.second
+  };
+}
+
 function cleanupFor(tab: TabKey, data: DockerOverview): { label: string; confirm: string; input: ActionInput } | null {
   if (tab === 'containers' && data.counts.stoppedContainers > 0) {
     return {
@@ -1004,10 +1240,26 @@ function selectedItem<T>(items: T[], selectedKey: string | undefined, keyFor: (i
   return items.find((item) => keyFor(item) === selectedKey) ?? items[0];
 }
 
-function filterItems<T>(items: T[], query: string) {
+function filterItems<T>(items: T[], query: string, searchableText: (item: T) => string) {
   const needle = query.trim().toLowerCase();
   if (!needle) return items;
-  return items.filter((item) => JSON.stringify(item).toLowerCase().includes(needle));
+  return items.filter((item) => searchableText(item).toLowerCase().includes(needle));
+}
+
+function containerSearchText(item: DockerContainerItem) {
+  return [item.displayName, item.name, item.image, item.status, item.composeProject, item.composeService].join(' ');
+}
+
+function volumeSearchText(item: DockerVolumeItem) {
+  return [item.name, item.driver, item.scope, ...item.usedBy].join(' ');
+}
+
+function imageSearchText(item: DockerImageItem) {
+  return [item.reference, item.repository, item.tag, item.digest, ...item.usedBy].join(' ');
+}
+
+function networkSearchText(item: DockerNetworkItem) {
+  return [item.name, item.driver, item.scope, ...item.subnets, ...item.usedBy].join(' ');
 }
 
 function isDestructive(input: ActionInput) {

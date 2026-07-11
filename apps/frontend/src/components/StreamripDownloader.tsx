@@ -1,5 +1,6 @@
 'use client';
 
+import { Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { stackarrFetch } from './clientApi';
@@ -260,14 +261,14 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
                 </select>
                 <small>Used with `rip search --first`.</small>
               </label>
-              <label className={styles.check}>
-                <input
-                  checked={missingOnly}
-                  onChange={(event) => setMissingOnly(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>Missing only</span>
-              </label>
+              <Switch className={styles.switchField} isSelected={missingOnly} onChange={setMissingOnly}>
+                <Switch.Content>
+                  <Label>Missing albums only</Label>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
             </div>
 
             <div

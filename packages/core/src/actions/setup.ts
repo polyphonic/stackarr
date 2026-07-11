@@ -502,15 +502,32 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
   if (input.musicDefaultProfile === undefined)
     merged.musicDefaultProfile = musicProfileNameFromPreset(merged.musicProfilePreset);
   if (input.musicRoot === undefined) merged.musicRoot = `${merged.mediaRoot}/Music`;
+  const plexEnabled = merged.plexInstallMode !== 'disabled';
   const jellyfinEnabled = merged.jellyfinInstallMode !== 'disabled';
+  const mediaServerEnabled = plexEnabled || jellyfinEnabled;
+  const videoAutomationEnabled = merged.enableMovies || merged.enableTvShows;
   if (!merged.enableRequestManagement) {
     merged.enableSeerr = false;
     merged.enablePulsarr = false;
-  } else if (jellyfinEnabled) {
-    merged.enablePulsarr = false;
-    if (input.enableSeerr === undefined) {
-      merged.enableSeerr = true;
-    }
+  } else {
+    if (!mediaServerEnabled || !videoAutomationEnabled) merged.enableSeerr = false;
+    if (!plexEnabled || !videoAutomationEnabled) merged.enablePulsarr = false;
+  }
+  if (merged.enableRequestManagement && jellyfinEnabled && videoAutomationEnabled && input.enableSeerr === undefined) {
+    merged.enableSeerr = true;
+  }
+  if (!mediaServerEnabled) {
+    merged.enableMaintainerr = false;
+    merged.enableTracearr = false;
+  }
+  if (!videoAutomationEnabled) {
+    merged.enable4kServarr = false;
+    merged.enableBazarr = false;
+    merged.enableTinyMediaManager = false;
+    merged.enableRecyclarr = false;
+  }
+  if (!videoAutomationEnabled && !merged.enableLidarr) {
+    merged.enableFlaresolverr = false;
   }
   const dryRun = input.dryRun !== false;
   const commands = buildSetupCommands(merged);

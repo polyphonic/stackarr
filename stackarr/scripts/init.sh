@@ -41,17 +41,17 @@ if confirm "Enable TinyMediaManager metadata/naming" yes; then ENABLE_TINYMEDIAM
 if confirm "Enable Recyclarr profile sync" yes; then ENABLE_RECYCLARR="true"; else ENABLE_RECYCLARR="false"; fi
 if confirm "Enable FlareSolverr indexer helper" yes; then ENABLE_FLARESOLVERR="true"; else ENABLE_FLARESOLVERR="false"; fi
 if confirm "Enable Tidarr Tidal helper" yes; then ENABLE_TIDARR="true"; else ENABLE_TIDARR="false"; fi
-if confirm "Enable Seerr requests" no; then ENABLE_SEERR="true"; else ENABLE_SEERR="false"; fi
+if [[ "$PLEX_INSTALL_MODE" != "disabled" || "$JELLYFIN_INSTALL_MODE" != "disabled" ]] && confirm "Enable Seerr requests" no; then ENABLE_SEERR="true"; else ENABLE_SEERR="false"; fi
 if flag_enabled "$ENABLE_SEERR" && confirm "Wire Seerr to Radarr/Sonarr automatically" no; then STACKARR_CONFIGURE_SEERR="true"; else STACKARR_CONFIGURE_SEERR="false"; fi
-if confirm "Enable Pulsarr Plex watchlists" yes; then ENABLE_PULSARR="true"; else ENABLE_PULSARR="false"; fi
-if confirm "Enable Maintainerr cleanup planner" no; then
+if [[ "$PLEX_INSTALL_MODE" != "disabled" ]] && confirm "Enable Pulsarr Plex watchlists" yes; then ENABLE_PULSARR="true"; else ENABLE_PULSARR="false"; fi
+if [[ "$PLEX_INSTALL_MODE" != "disabled" || "$JELLYFIN_INSTALL_MODE" != "disabled" ]] && confirm "Enable Maintainerr cleanup planner" no; then
     ENABLE_MAINTAINERR="true"
     MAINTAINERR_CLEANUP_PRESETS="$(prompt_default 'Maintainerr cleanup preset ideas (comma-separated, blank for none)' '')"
 else
     ENABLE_MAINTAINERR="false"
     MAINTAINERR_CLEANUP_PRESETS=""
 fi
-if confirm "Enable Tracearr media-server monitoring" no; then ENABLE_TRACEARR="true"; else ENABLE_TRACEARR="false"; fi
+if [[ "$PLEX_INSTALL_MODE" != "disabled" || "$JELLYFIN_INSTALL_MODE" != "disabled" ]] && confirm "Enable Tracearr media-server monitoring" no; then ENABLE_TRACEARR="true"; else ENABLE_TRACEARR="false"; fi
 USERNAME="$(prompt_default 'Global service username' 'admin')"
 while true; do
     PASSWORD="$(prompt_secret_default 'Global service password (blank generates one)' '')"
@@ -316,7 +316,7 @@ MAINTAINERR_URL="http://127.0.0.1:6246"
 TRACEARR_URL="http://127.0.0.1:3000"
 PLEX_URL="http://127.0.0.1:32400"
 JELLYFIN_URL="http://127.0.0.1:8096"
-TINYMEDIAMANAGER_URL="http://127.0.0.1:4000"
+TINYMEDIAMANAGER_URL="http://127.0.0.1:7878"
 FLARESOLVERR_URL="http://127.0.0.1:8191"
 PROWLARR_API_KEY=""
 RADARR_API_KEY=""

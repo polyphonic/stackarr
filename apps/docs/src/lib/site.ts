@@ -6,7 +6,7 @@ export const siteUrl = (
 ).replace(/\/$/, '');
 
 export const siteDescription =
-  'Stackarr gives AI agents a safety-controlled, local-first control plane for managing private homelabs and home media stacks from chat.';
+  'Stackarr gives AI agents a safety-controlled, local-first control plane for managing self-hosted apps and private homelabs from chat.';
 
 export const githubRepo = 'b-bot/Stackarr';
 export const githubUrl = process.env.NEXT_PUBLIC_GITHUB_URL || `https://github.com/${githubRepo}`;
