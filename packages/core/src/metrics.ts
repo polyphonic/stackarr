@@ -109,7 +109,8 @@ function readDockerRunningCount() {
 }
 
 function diskUsages(paths: string[]) {
-  const fallbackPaths = [repoRoot, ...paths].filter(Boolean);
+  const requestedPaths = paths.filter(Boolean);
+  const fallbackPaths = requestedPaths.length > 0 ? requestedPaths : [repoRoot];
   const disks = fallbackPaths.map((diskPath) => diskUsage(diskPath));
   const byVolume = new Map<string, (typeof disks)[number]>();
 
@@ -133,21 +134,22 @@ function diskUsages(paths: string[]) {
 function diskUsage(diskPath: string) {
   try {
     const normalizedPath = fs.existsSync(diskPath) ? fs.realpathSync(diskPath) : diskPath;
-    const stat = fs.statfsSync(diskPath);
-    const freeSpace = stat.bavail * stat.bsize;
-    const totalSpace = stat.blocks * stat.bsize;
-    const mountPoint = readMountPoint(diskPath);
+    const usage = readFilesystemUsage(diskPath);
+    if (!usage) throw new Error('Disk is not mounted');
+    const freeSpace = usage.reliable ? usage.availableKilobytes * 1024 : null;
+    const totalSpace = usage.reliable ? usage.totalKilobytes * 1024 : null;
+    const mountPoint = usage.mountPoint;
     const displayPath = displayVolumePath(diskPath, normalizedPath, mountPoint);
 
     return {
       label: volumeLabel(displayPath),
       path: displayPath,
       paths: [diskPath],
-      filesystem: readFilesystem(diskPath),
+      filesystem: `${usage.filesystem}${usage.type ? ` (${usage.type})` : ''}`,
       mountPoint,
       freeSpace,
       totalSpace,
-      usedPercent: totalSpace > 0 ? Math.round(((totalSpace - freeSpace) / totalSpace) * 100) : null
+      usedPercent: usage.reliable ? usage.usedPercent : null
     };
   } catch {
     return {
@@ -225,23 +227,24 @@ function volumeRank(disk: { path: string; mountPoint: string | null }) {
   return 1;
 }
 
-function readMountPoint(diskPath: string) {
+function readFilesystemUsage(diskPath: string) {
   try {
-    const output = execFileSync('df', ['-P', diskPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const output = execFileSync('df', ['-PTk', diskPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     const line = output.trim().split(/\r?\n/)[1];
-
-    return line ? (line.trim().split(/\s+/).at(-1) ?? null) : null;
-  } catch {
-    return null;
-  }
-}
-
-function readFilesystem(diskPath: string) {
-  try {
-    const output = execFileSync('df', ['-P', diskPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    const line = output.trim().split(/\r?\n/)[1];
-
-    return line ? (line.trim().split(/\s+/)[0] ?? null) : null;
+    if (!line) return null;
+    const [filesystem, type, total, , available, capacity, ...mountParts] = line.trim().split(/\s+/);
+    const totalKilobytes = Number(total);
+    const availableKilobytes = Number(available);
+    if (!filesystem || !Number.isFinite(totalKilobytes) || !Number.isFinite(availableKilobytes)) return null;
+    return {
+      filesystem,
+      type,
+      totalKilobytes,
+      availableKilobytes,
+      usedPercent: Number.parseInt(capacity ?? '', 10) || 0,
+      mountPoint: mountParts.join(' ') || null,
+      reliable: type !== 'virtiofs'
+    };
   } catch {
     return null;
   }

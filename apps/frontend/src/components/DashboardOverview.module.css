@@ -1,6 +1,6 @@
 .dashboardGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 16px;
   margin-top: 18px;
 }
@@ -64,16 +64,54 @@
 .disks {
   display: grid;
   gap: 12px;
+  margin-top: 14px;
 }
 
 .diskRow {
   display: grid;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 14px;
+  padding: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-subtle);
 }
 
 .diskRow strong,
 .diskRow span {
   display: block;
+}
+
+.diskPercent {
+  align-self: start;
+  font-size: 14px;
+}
+
+.storageSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.storageSummary > div {
+  display: grid;
+  gap: 2px;
+  padding: 11px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 11px;
+  background: var(--glass-subtle);
+}
+
+.storageSummary span {
+  color: var(--mutedTextColor);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.storageSummary strong {
+  font-size: 17px;
 }
 
 .diskRow strong {
@@ -88,6 +126,7 @@
 }
 
 .bar {
+  grid-column: 1 / -1;
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
@@ -97,8 +136,16 @@
 .bar span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--success), var(--warning) 68%, var(--danger));
+  background: var(--success);
   transition: width 0.2s;
+}
+
+.barWarn span {
+  background: var(--warning);
+}
+
+.barBad span {
+  background: var(--danger);
 }
 
 .sparklineLine {
@@ -147,5 +194,11 @@
   .dashboardGrid,
   .gauges {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .storageSummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

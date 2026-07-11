@@ -624,6 +624,16 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
   ]
 };
 
+const browserLinkGroup = group(
+  'App links',
+  [
+    settingsSelect('serviceUrlMode', 'Open apps with', ['ui', 'serviceUrlMode'], ['portless', 'localhost', 'loopback']),
+    settingsSelect('serviceUrlScheme', 'Portless scheme', ['ui', 'serviceUrlScheme'], ['https', 'http']),
+    settingsText('serviceUrlHostSuffix', 'Portless domain', ['ui', 'serviceUrlHostSuffix'])
+  ],
+  'Shared link behavior for every app. Portless gives apps stable names without visible port numbers.'
+);
+
 export function listServiceConfigsAction() {
   return getServices().map((service) => buildModel(service));
 }
@@ -658,7 +668,7 @@ export function updateServiceConfigAction(input: {
     return updateStreamripServiceConfig(summary, input);
   }
 
-  const definitions = serviceGroups[summary.name] ?? [];
+  const definitions = definitionsForService(summary.name);
   const fields = definitions.flatMap((groupDefinition) => groupDefinition.fields);
   const envPatch: StackarrEnv = {};
   let settingsPatch: StackarrSettingsPatch = {};
@@ -760,7 +770,7 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
   return {
     service,
     currentPasswordRequiredForProtectedChanges: Boolean(env.PASSWORD),
-    groups: (serviceGroups[service.name] ?? [])
+    groups: definitionsForService(service.name)
       .map((groupDefinition) => ({
         ...groupDefinition,
         fields: groupDefinition.fields
@@ -773,6 +783,11 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
       }))
       .filter((groupDefinition) => groupDefinition.fields.length > 0)
   };
+}
+
+function definitionsForService(serviceName: string) {
+  const definitions = serviceGroups[serviceName] ?? [];
+  return serviceName === 'stackarr' ? definitions : [...definitions, browserLinkGroup];
 }
 
 function updateStreamripServiceConfig(

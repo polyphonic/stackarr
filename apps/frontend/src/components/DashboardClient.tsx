@@ -4,7 +4,7 @@ import type { getSystemStatus, HomelabPerformance, ServiceSummary, StackarrTask,
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import styles from './DashboardClient.module.css';
-import { DashboardOverview } from './DashboardOverview';
+import { DashboardOverview, StorageOverview } from './DashboardOverview';
 import { icons } from './icons';
 import { PerformanceOverview } from './PerformanceOverview';
 import { ServiceLogo } from './ServiceLogo';
@@ -89,6 +89,10 @@ export function DashboardClient({
 
       <PerformanceOverview initial={performance} />
 
+      <div className={styles.storageSection}>
+        <StorageOverview metrics={metrics} />
+      </div>
+
       <div className={styles.contentGrid}>
         <Panel
           title="Needs attention"
@@ -115,7 +119,7 @@ export function DashboardClient({
                     <strong>{item.label}</strong>
                     <small>{item.detail}</small>
                   </div>
-                  <span aria-hidden="true">›</span>
+                  <span className={styles.attentionAction}>{item.action} ›</span>
                 </Link>
               ))}
             </div>
@@ -292,7 +296,7 @@ function buildAttentionItems(
   metrics: StackMetrics,
   tasks: StackarrTask[]
 ) {
-  const items: Array<{ label: string; detail: string; href: string; tone: 'warn' | 'bad' }> = [];
+  const items: Array<{ label: string; detail: string; href: string; action: string; tone: 'warn' | 'bad' }> = [];
   const missing = services.filter((service) => service.mode !== 'disabled' && service.status === 'missing').length;
   const failed = tasks.filter((task) => task.status === 'failed' || task.status === 'blocked').length;
   const fullDisk = metrics.disks.find((disk) => (disk.usedPercent ?? 0) >= 90);
@@ -301,6 +305,7 @@ function buildAttentionItems(
       label: 'Finish initial setup',
       detail: 'Choose storage, apps, and sensible defaults.',
       href: '/setup',
+      action: 'Finish setup',
       tone: 'warn'
     });
   if (missing > 0)
@@ -308,13 +313,15 @@ function buildAttentionItems(
       label: `${missing} ${missing === 1 ? 'app needs' : 'apps need'} configuration`,
       detail: 'Review enabled apps and connection details.',
       href: '/stack/services',
+      action: 'Configure',
       tone: 'warn'
     });
   if (failed > 0)
     items.push({
       label: `${failed} recent ${failed === 1 ? 'action needs' : 'actions need'} review`,
-      detail: 'Open the trail before retrying anything.',
-      href: '/activity/history',
+      detail: 'Open the failure details before deciding whether to retry.',
+      href: '/activity/history?status=needs-review',
+      action: 'Review failures',
       tone: 'bad'
     });
   if (fullDisk)
@@ -322,6 +329,7 @@ function buildAttentionItems(
       label: `${fullDisk.label} is ${fullDisk.usedPercent}% full`,
       detail: 'Review storage before imports are interrupted.',
       href: '/system/diskspace',
+      action: 'Review storage',
       tone: 'bad'
     });
   if (metrics.serviceCounts.dockerRunning === null)
@@ -329,6 +337,7 @@ function buildAttentionItems(
       label: 'Docker status is unavailable',
       detail: 'Stackarr could not read the container runtime.',
       href: '/system/status',
+      action: 'Diagnose',
       tone: 'warn'
     });
   return items.slice(0, 4);

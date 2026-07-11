@@ -14,6 +14,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './ContainerManager.module.css';
 import { stackarrFetch } from './clientApi';
+import { InteractiveLineChart } from './InteractiveLineChart';
 import { icons } from './icons';
 import { ServiceLogo } from './ServiceLogo';
 import { Badge } from './ui';
@@ -31,7 +32,15 @@ const tabs: Array<{ key: TabKey; label: string; icon: typeof icons.container }> 
   { key: 'networks', label: 'Network', icon: icons.network }
 ];
 
-export function ContainerManager({ overview }: { overview: DockerOverview | DockerContainerOverview }) {
+export function ContainerManager({
+  overview,
+  refreshIntervalSeconds,
+  serviceLinks
+}: {
+  overview: DockerOverview | DockerContainerOverview;
+  refreshIntervalSeconds: number;
+  serviceLinks: Record<string, string>;
+}) {
   const [data, setData] = useState(() => normalizeOverview(overview));
   const [advancedLoaded, setAdvancedLoaded] = useState(() => 'volumes' in overview);
   const [tab, setTab] = useState<TabKey>('containers');
@@ -92,14 +101,19 @@ export function ContainerManager({ overview }: { overview: DockerOverview | Dock
       return undefined;
     }
 
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh({ silent: true });
+    };
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void refresh({ silent: true });
-      }
-    }, 30000);
+      refreshWhenVisible();
+    }, Math.max(5, refreshIntervalSeconds) * 1000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
-    return () => window.clearInterval(interval);
-  }, [data.dockerAvailable, refresh, tab]);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [data.dockerAvailable, refresh, refreshIntervalSeconds, tab]);
 
   useEffect(() => {
     const point = metricHistoryPoint(data);
@@ -164,7 +178,7 @@ export function ContainerManager({ overview }: { overview: DockerOverview | Dock
             <strong>{data.dockerAvailable ? 'Docker is connected' : 'Docker is unavailable'}</strong>
             <small>
               {data.counts.runningContainers} running · {data.counts.stoppedContainers} stopped · updated{' '}
-              {formatActivityTime(data.generatedAt)}
+              {formatActivityTime(data.generatedAt)} · live every {Math.max(5, refreshIntervalSeconds)}s
             </small>
           </div>
         </div>
@@ -251,13 +265,14 @@ export function ContainerManager({ overview }: { overview: DockerOverview | Dock
                   selectedId={activeContainer ? containerKey(activeContainer) : ''}
                   onAction={runAction}
                   onSelect={(key) => setSelectedKey('containers', key, setSelected)}
+                  serviceLinks={serviceLinks}
                 />
               ))
             )}
           </section>
           <aside className={styles.detail} aria-label="Selected app details">
             {activeContainer ? (
-              <ContainerDetails item={activeContainer} onAction={runAction} />
+              <ContainerDetails item={activeContainer} onAction={runAction} serviceLinks={serviceLinks} />
             ) : (
               <StackSummary groups={stackGroups} counts={data.counts} />
             )}
@@ -317,13 +332,15 @@ function StackGroup({
   busy,
   selectedId,
   onAction,
-  onSelect
+  onSelect,
+  serviceLinks
 }: {
   group: ContainerGroup;
   busy: string;
   selectedId: string;
   onAction: (input: ActionInput, label: string) => Promise<void>;
   onSelect: (key: string) => void;
+  serviceLinks: Record<string, string>;
 }) {
   const running = group.items.filter((item) => item.running).length;
   return (
@@ -356,7 +373,7 @@ function StackGroup({
               }}
               tabIndex={0}
             >
-              <ContainerRow item={item} busy={busy} onAction={onAction} />
+              <ContainerRow item={item} busy={busy} onAction={onAction} serviceLinks={serviceLinks} />
               <div className={styles.appMetrics}>
                 <span>
                   CPU <strong>{item.stats?.cpu || '—'}</strong>
@@ -465,24 +482,26 @@ function MetricCard({ history, label, value }: { history: number[]; label: strin
 }
 
 function Sparkline({ label, values }: { label: string; values: number[] }) {
-  const width = 92;
-  const height = 28;
   const finite = values.map((value) => (Number.isFinite(value) ? value : 0));
-  const minimum = Math.min(...finite, 0);
-  const maximum = Math.max(...finite, 1);
-  const range = Math.max(1, maximum - minimum);
-  const points = finite
-    .map((value, index) => {
-      const x = finite.length <= 1 ? width : (index / (finite.length - 1)) * width;
-      const y = height - ((value - minimum) / range) * (height - 3) - 1.5;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
 
   return (
-    <svg aria-label={label} className={styles.sparkline} role="img" viewBox={`0 0 ${width} ${height}`}>
-      <polyline fill="none" points={points} vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div aria-label={label} className={styles.sparkline} role="img">
+      <InteractiveLineChart
+        compact
+        height={28}
+        series={[
+          {
+            name: label,
+            color: 'var(--accent)',
+            data: finite.map((value, index) => ({
+              x: index,
+              y: value,
+              tooltip: `${label.split(' over ')[0]} · ${value.toFixed(value >= 10 ? 0 : 1)}`
+            }))
+          }
+        ]}
+      />
+    </div>
   );
 }
 
@@ -545,13 +564,16 @@ function ImageSections({
 function ContainerRow({
   item,
   busy,
-  onAction
+  onAction,
+  serviceLinks
 }: {
   item: DockerContainerItem;
   busy: string;
   onAction: (input: ActionInput, label: string) => Promise<void>;
+  serviceLinks: Record<string, string>;
 }) {
   const serviceName = item.composeService ?? item.displayName;
+  const appLink = containerAppLink(item, serviceLinks);
 
   return (
     <>
@@ -564,14 +586,14 @@ function ContainerRow({
         </small>
       </div>
       <div className={styles.rowActions}>
-        {item.localUrls[0] && (
+        {appLink && (
           <a
             className={styles.iconButton}
-            href={item.localUrls[0]}
+            href={appLink}
             onClick={(event) => event.stopPropagation()}
             rel="noreferrer"
             target="_blank"
-            title={`Open ${item.localUrls[0]}`}
+            title={`Open ${appLink}`}
           >
             <icons.link aria-hidden="true" size={13} />
           </a>
@@ -775,12 +797,15 @@ function IconAction({
 
 function ContainerDetails({
   item,
-  onAction
+  onAction,
+  serviceLinks
 }: {
   item?: DockerContainerItem;
   onAction: (input: ActionInput, label: string) => Promise<void>;
+  serviceLinks: Record<string, string>;
 }) {
   if (!item) return <NoSelection />;
+  const appLink = containerAppLink(item, serviceLinks);
 
   return (
     <div className={styles.detailInner}>
@@ -791,11 +816,11 @@ function ContainerDetails({
         badges={[item.kind, item.running ? 'running' : item.state, item.stackarrManaged ? 'stackarr' : 'external']}
       />
       <div className={styles.detailActions}>
-        {item.localUrls.map((url) => (
-          <a key={url} className={styles.primaryLink} href={url} rel="noreferrer" target="_blank">
-            Open {url}
+        {appLink && (
+          <a className={styles.primaryLink} href={appLink} rel="noreferrer" target="_blank">
+            Open {appLink}
           </a>
-        ))}
+        )}
         {item.running ? (
           <>
             <button
@@ -1275,6 +1300,19 @@ function isDestructive(input: ActionInput) {
 
 function containerKey(item: DockerContainerItem) {
   return item.id || item.name;
+}
+
+function containerAppLink(item: DockerContainerItem, serviceLinks: Record<string, string>) {
+  const raw = (item.composeService ?? '').toLowerCase();
+  const aliases: Record<string, string> = {
+    app: 'stackarr',
+    'immich-server': 'immich',
+    'immich-machine-learning': 'immich',
+    'immich-ml': 'immich',
+    tinymm: 'tinymediamanager'
+  };
+  const service = aliases[raw] ?? raw;
+  return serviceLinks[service] ?? item.localUrls[0];
 }
 
 function volumeKey(item: DockerVolumeItem) {

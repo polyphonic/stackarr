@@ -4,24 +4,31 @@ import type { HomelabPerformance, HomelabPerformancePoint } from '@stackarr/core
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { stackarrFetch } from './clientApi';
+import { InteractiveLineChart, type LineChartSeries } from './InteractiveLineChart';
 import styles from './PerformanceOverview.module.css';
 
 export function PerformanceOverview({ initial }: { initial: HomelabPerformance }) {
   const [performance, setPerformance] = useState(initial);
 
   useEffect(() => {
-    if (!performance.available) return undefined;
-    const interval = window.setInterval(() => {
+    const refresh = () => {
       if (document.visibilityState !== 'visible') return;
       void stackarrFetch('/api/v1/performance')
         .then(async (response) => (response.ok ? ((await response.json()) as HomelabPerformance) : null))
         .then((next) => {
-          if (next?.available) setPerformance(next);
+          if (next?.available) setPerformance((current) => mergePerformance(current, next));
         })
         .catch(() => undefined);
-    }, 45_000);
-    return () => window.clearInterval(interval);
-  }, [performance.available]);
+    };
+    const interval = window.setInterval(() => {
+      refresh();
+    }, 30_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
 
   if (!performance.available) {
     return (
@@ -46,6 +53,7 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
           <p>
             {performance.sourceLabel} · refreshed {formatTime(performance.generatedAt)}
           </p>
+          {performance.note && <p>{performance.note}</p>}
         </div>
         <div className={styles.current} aria-label="Current performance">
           <Metric label="Host CPU" value={latest?.hostCpuPercent ?? 0} />
@@ -54,9 +62,16 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
         </div>
       </header>
       <div className={styles.charts}>
-        <ResourceChart appKey="appCpuPercent" hostKey="hostCpuPercent" label="CPU usage" points={performance.points} />
+        <ResourceChart
+          appKey="appCpuPercent"
+          appLabel={performance.appLabel}
+          hostKey="hostCpuPercent"
+          label="CPU usage"
+          points={performance.points}
+        />
         <ResourceChart
           appKey="appMemoryPercent"
+          appLabel={performance.appLabel}
           hostKey="hostMemoryPercent"
           label="Memory usage"
           points={performance.points}
@@ -77,29 +92,41 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function ResourceChart({
   appKey,
+  appLabel,
   hostKey,
   label,
   points
 }: {
   appKey: 'appCpuPercent' | 'appMemoryPercent';
+  appLabel?: string;
   hostKey: 'hostCpuPercent' | 'hostMemoryPercent';
   label: string;
   points: HomelabPerformancePoint[];
 }) {
-  const width = 620;
-  const height = 160;
-  const top = 12;
-  const bottom = 24;
-  const values = points.flatMap((point) => [point[hostKey], point[appKey]]);
-  const maximum = Math.max(20, Math.ceil(Math.max(...values, 0) / 10) * 10);
-  const line = (key: typeof appKey | typeof hostKey) =>
-    points
-      .map((point, index) => {
-        const x = points.length <= 1 ? width : (index / (points.length - 1)) * width;
-        const y = top + (1 - Math.min(point[key], maximum) / maximum) * (height - top - bottom);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
+  const series: LineChartSeries[] = [
+    {
+      name: 'System',
+      color: 'var(--accent)',
+      data: points.map((point) => ({
+        x: point.at,
+        y: point[hostKey],
+        tooltip: `System · ${formatPercent(point[hostKey])} · ${formatPointTime(point.at)}`
+      }))
+    },
+    ...(appLabel
+      ? [
+          {
+            name: appLabel,
+            color: 'var(--success)',
+            data: points.map((point) => ({
+              x: point.at,
+              y: point[appKey],
+              tooltip: `${appLabel} · ${formatPercent(point[appKey])} · ${formatPointTime(point.at)}`
+            }))
+          }
+        ]
+      : [])
+  ];
 
   return (
     <article className={styles.chart}>
@@ -113,32 +140,30 @@ function ResourceChart({
             <i className={styles.hostDot} />
             System
           </span>
-          <span>
-            <i className={styles.appDot} />
-            Plex
-          </span>
+          {appLabel && (
+            <span>
+              <i className={styles.appDot} />
+              {appLabel}
+            </span>
+          )}
         </div>
       </header>
-      <svg aria-label={`${label} history`} role="img" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        {[0, 0.5, 1].map((position) => (
-          <line
-            className={styles.gridLine}
-            key={position}
-            x1="0"
-            x2={width}
-            y1={top + position * (height - top - bottom)}
-            y2={top + position * (height - top - bottom)}
-          />
-        ))}
-        <polyline className={styles.hostLine} fill="none" points={line(hostKey)} vectorEffect="non-scaling-stroke" />
-        <polyline className={styles.appLine} fill="none" points={line(appKey)} vectorEffect="non-scaling-stroke" />
-      </svg>
+      <div aria-label={`${label} history`} className={styles.victoryChart} role="img">
+        <InteractiveLineChart height={160} series={series} />
+      </div>
       <div className={styles.axis} aria-hidden="true">
         <span>Earlier</span>
         <span>Now</span>
       </div>
     </article>
   );
+}
+
+function mergePerformance(current: HomelabPerformance, next: HomelabPerformance): HomelabPerformance {
+  if (next.provider === 'plex' || current.provider !== next.provider || current.appLabel !== next.appLabel) return next;
+  const byTime = new Map(current.points.map((point) => [point.at, point]));
+  for (const point of next.points) byTime.set(point.at, point);
+  return { ...next, points: [...byTime.values()].sort((a, b) => a.at - b.at).slice(-60) };
 }
 
 function historyWindow(points: HomelabPerformancePoint[]) {
@@ -155,4 +180,8 @@ function formatPercent(value: number) {
 function formatTime(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'now' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatPointTime(value: number) {
+  return new Date(value * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }

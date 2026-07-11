@@ -1,6 +1,7 @@
 import styles from './ServiceLogo.module.css';
 
 const logoPaths: Record<string, string> = {
+  app: '/icon.svg',
   stackarr: '/icon.svg',
   database: '/logos/postgres.svg',
   postgres: '/logos/postgres.svg',
@@ -22,6 +23,9 @@ const logoPaths: Record<string, string> = {
   tracearr: '/logos/tracearr.svg',
   bookorbit: '/logos/bookorbit.svg',
   immich: '/logos/immich.svg',
+  'immich-ml': '/logos/immich.svg',
+  'immich-machine-learning': '/logos/immich.svg',
+  immich_machine_learning: '/logos/immich.svg',
   romm: '/logos/romm.svg',
   overseerr: '/logos/overseerr.svg',
   recyclarr: '/logos/recyclarr.svg',

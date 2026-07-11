@@ -6,7 +6,9 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import styles from './AppFrame.module.css';
 import { icons } from './icons';
+import { ServiceLogo } from './ServiceLogo';
 import { StackarrMark } from './StackarrMark';
+import { loadServiceFavorites, type ServiceFavorite, subscribeServiceFavorites } from './serviceFavorites';
 import { SearchInput } from './ui';
 
 type NavItem = { href: string; label: string; icon: typeof icons.dashboard };
@@ -28,13 +30,34 @@ const appNav: NavGroup[] = [
   }
 ];
 
-export function AppFrame({ children, setupComplete }: { children: React.ReactNode; setupComplete: boolean }) {
+export function AppFrame({
+  children,
+  initialFavorites,
+  setupComplete
+}: {
+  children: React.ReactNode;
+  initialFavorites: ServiceFavorite[];
+  setupComplete: boolean;
+}) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [favorites, setFavorites] = useState(initialFavorites);
   const nav = setupComplete ? appNav : [{ label: 'Get started', items: [setupNavItem] }, ...appNav];
   const brandHref = setupComplete ? '/' : '/setup';
 
   useEffect(() => setMobileMenuOpen(false), [pathname]);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadServiceFavorites().then((next) => {
+      if (mounted) setFavorites(next);
+    });
+    const unsubscribe = subscribeServiceFavorites(setFavorites);
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   return (
     <div className={styles.shell}>
@@ -73,6 +96,26 @@ export function AppFrame({ children, setupComplete }: { children: React.ReactNod
               })}
             </div>
           ))}
+          {favorites.length > 0 && (
+            <div className={styles.navGroup}>
+              <span className={styles.navLabel}>Pinned apps</span>
+              {favorites.map((favorite) => (
+                <a
+                  className={styles.item}
+                  href={favorite.browserUrl ?? favorite.localUrl}
+                  key={favorite.name}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <span className={styles.iconWell}>
+                    <ServiceLogo name={favorite.name} size={19} />
+                  </span>
+                  <span>{favorite.displayName}</span>
+                  <icons.link aria-hidden="true" className={styles.pinnedExternal} size={12} />
+                </a>
+              ))}
+            </div>
+          )}
         </nav>
         <div className={styles.sidebarFooter}>
           <span className={styles.connectionDot} aria-hidden="true" />

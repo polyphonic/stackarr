@@ -95,6 +95,18 @@ Once setup is complete, try:
 
 Stackarr only exposes agent actions for the services you select. Before setup, the catalog stays focused on installation and health. Reconnect your MCP client after changing enabled apps so it can load the updated actions.
 
+## Everyday control in the dashboard
+
+The browser follows the same app-centered model as chat:
+
+- **Apps** is where you add an app later, change its Stackarr settings, choose how links open, and publish an optional Cloudflare route.
+- **Pinned apps** stay in the main navigation and always use the current Portless or local URL rather than a stale saved address.
+- **Home** adapts performance cards to Plex native telemetry when available, then Jellyfin, Immich, RomM, or another configured container. It also keeps every mounted homelab drive visible.
+- **Infrastructure** refreshes automatically, shows live CPU, memory, and network history, and keeps destructive Docker actions behind confirmation prompts.
+- **Needs attention** links directly to the setup, failed action, storage, or diagnostic screen that can resolve the item.
+
+New installs use Portless app links by default, such as `https://immich.stack`, so bookmarks and dashboard buttons do not depend on port numbers. You can switch back to localhost links from any app's Settings panel.
+
 ## Where to go next
 
 - [Install Stackarr](/docs/installation) for the Docker requirements and data layout.

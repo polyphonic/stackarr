@@ -64,6 +64,8 @@ Use `admin` during setup and `manage` for everyday operation. `observe` is read-
 
 Stackarr advertises only the agent actions relevant to the apps selected during setup.
 
+The dashboard uses Portless app URLs by default, keeps pinned apps in the main navigation, and lets you manage each app's local link, Stackarr configuration, and optional Cloudflare route from one Settings panel. Home and Infrastructure adapt their live performance and storage views to the apps and mounted drives that are actually present.
+
 ## Safety
 
 - local stdio MCP transport

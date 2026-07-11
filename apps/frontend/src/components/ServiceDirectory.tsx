@@ -39,7 +39,7 @@ export function ServiceDirectory({
   const [error, setError] = useState('');
   const [applyState, setApplyState] = useState<'idle' | 'ready' | 'confirming' | 'queueing' | 'queued'>('idle');
   const [favorites, setFavorites] = useState(() => [] as ReturnType<typeof readServiceFavorites>);
-  const initialOpened = useRef(false);
+  const initialOpened = useRef<string | undefined>(undefined);
 
   const active = useMemo(() => items.find((item) => item.service.name === activeName) ?? null, [activeName, items]);
   const favoriteNames = useMemo(() => new Set(favorites.map((favorite) => favorite.name)), [favorites]);
@@ -80,13 +80,21 @@ export function ServiceDirectory({
   }, []);
 
   useEffect(() => {
-    if (initialOpened.current) return;
+    if (!initialService || initialOpened.current === initialService) return;
     const initial = items.find((item) => item.service.name === initialService);
     if (initial && (initial.service.requirement?.satisfied ?? true)) {
-      initialOpened.current = true;
+      initialOpened.current = initialService;
       openConfig(initial);
     }
   }, [initialService, items]);
+
+  function openService(config: ServiceConfigModel) {
+    const handled = onServiceOpen?.(config);
+    if (!handled) {
+      const href = serviceLink(config.service);
+      if (href) window.open(href, '_blank', 'noopener,noreferrer');
+    }
+  }
 
   function openConfig(config: ServiceConfigModel) {
     setActiveName(config.service.name);
@@ -249,8 +257,7 @@ export function ServiceDirectory({
       <div className={styles.directory}>
         {orderedItems.map((config) => {
           const link = serviceLink(config.service);
-          const hasCustomOpen = Boolean(onServiceOpen);
-          const canOpen = config.service.mode !== 'disabled' && (hasCustomOpen || Boolean(link));
+          const canOpen = config.service.mode !== 'disabled' && Boolean(link || onServiceOpen);
           const canFavorite = variant === 'installed' && config.service.mode !== 'disabled' && Boolean(link);
           const isFavorite = favoriteNames.has(config.service.name);
           const requirementMet = config.service.requirement?.satisfied ?? true;
@@ -260,30 +267,7 @@ export function ServiceDirectory({
             <article
               key={config.service.name}
               className={`${styles.card} ${config.service.mode === 'disabled' ? styles.disabled : ''}`}
-              title={canOpen ? (hasCustomOpen ? `Open ${config.service.displayName}` : `Open ${link}`) : undefined}
-              role={hasCustomOpen ? 'button' : undefined}
-              tabIndex={hasCustomOpen && canOpen ? 0 : undefined}
-              onClick={hasCustomOpen && canOpen ? () => onServiceOpen?.(config) : undefined}
-              onKeyDown={
-                hasCustomOpen && canOpen
-                  ? (event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        onServiceOpen?.(config);
-                      }
-                    }
-                  : undefined
-              }
             >
-              {canOpen && !hasCustomOpen && (
-                <a
-                  aria-label={`Open ${config.service.displayName} at ${link}`}
-                  className={styles.stretchedLink}
-                  href={link}
-                  rel="noreferrer"
-                  target="_blank"
-                />
-              )}
               <div className={styles.logoCell}>
                 <ServiceLogo name={config.service.name} size={36} />
               </div>
@@ -303,6 +287,12 @@ export function ServiceDirectory({
                 </span>
               </div>
               <div className={styles.cardActions}>
+                {canOpen && (
+                  <button className={styles.openButton} onClick={() => openService(config)} type="button">
+                    <icons.link aria-hidden="true" size={14} />
+                    <span>Open</span>
+                  </button>
+                )}
                 {variant === 'installed' && (
                   <button
                     aria-label={`${isFavorite ? 'Unpin' : 'Pin'} ${config.service.displayName}`}
@@ -341,6 +331,7 @@ export function ServiceDirectory({
                     }
                   >
                     {isAvailable ? <span aria-hidden="true">+</span> : <icons.sliders aria-hidden="true" size={15} />}
+                    <span>{isAvailable ? 'Add' : 'Settings'}</span>
                   </button>
                 )}
               </div>
@@ -372,6 +363,7 @@ export function ServiceDirectory({
               </Modal.Header>
 
               <Modal.Body className={styles.modalBody}>
+                {active && <AppAccessSettings key={active.service.name} config={active} />}
                 <ConfigGroups groups={commonGroups} draft={draft} onChange={updateDraft} />
                 {advancedGroups.length > 0 && (
                   <details className={styles.advancedSettings}>
@@ -442,6 +434,133 @@ function ConfigGroups({
       </div>
     </section>
   ));
+}
+
+type AppAccessState = {
+  supported: boolean;
+  target: string;
+  route: { hostname: string; service: string; access?: boolean } | null;
+  access: { enabled: boolean };
+  tunnelConfigured: boolean;
+};
+
+function AppAccessSettings({ config }: { config: ServiceConfigModel }) {
+  const [state, setState] = useState<AppAccessState | null>(null);
+  const [hostname, setHostname] = useState('');
+  const [protect, setProtect] = useState(config.service.name !== 'immich');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const href = serviceLink(config.service);
+
+  useEffect(() => {
+    let mounted = true;
+    void stackarrFetch(`/api/v1/services/access/${config.service.name}`, { cache: 'no-store' })
+      .then(async (response) => (response.ok ? ((await response.json()) as AppAccessState) : null))
+      .then((next) => {
+        if (!mounted || !next) return;
+        setState(next);
+        setHostname(next.route?.hostname ?? '');
+        setProtect(next.route?.access ?? config.service.name !== 'immich');
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [config.service.name]);
+
+  async function saveAccess() {
+    const normalizedHostname = hostname.trim();
+    if (
+      normalizedHostname &&
+      !window.confirm(
+        `Publish ${config.service.displayName} at ${normalizedHostname}${protect ? ' and protect it with Cloudflare Access' : ''}?`
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+    const response = await stackarrFetch(`/api/v1/services/access/${config.service.name}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hostname: normalizedHostname, access: protect })
+    });
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok || body.accepted === false) {
+      setSaving(false);
+      setMessage(body.error ?? 'Could not save this app route.');
+      return;
+    }
+
+    const applyResponse = await stackarrFetch('/api/v1/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'CloudflareApplyRoutes', confirmed: true })
+    });
+    setSaving(false);
+    setState((current) => (current ? { ...current, route: body.route ?? null } : current));
+    setMessage(
+      applyResponse.ok
+        ? normalizedHostname
+          ? 'Public route saved and queued.'
+          : 'Public route removal queued.'
+        : 'Route saved, but it could not be applied. Open Remote access to retry.'
+    );
+  }
+
+  return (
+    <section className={styles.accessPanel}>
+      <div className={styles.accessHeading}>
+        <div>
+          <h3>Open and connect</h3>
+          <p>Stable local links and optional remote access for this app.</p>
+        </div>
+        {href && (
+          <a href={href} rel="noreferrer" target="_blank">
+            <icons.link aria-hidden="true" size={14} /> Open app
+          </a>
+        )}
+      </div>
+      {href && <code className={styles.appUrl}>{href}</code>}
+      {state?.supported && (
+        <div className={styles.tunnelEditor}>
+          <TextField className={styles.textField} fullWidth>
+            <Label>Public hostname</Label>
+            <Input
+              placeholder={`${config.service.name}.example.com`}
+              value={hostname}
+              onChange={(event) => setHostname(event.target.value)}
+            />
+            <Description>Leave empty to remove this app from the Cloudflare tunnel.</Description>
+          </TextField>
+          <Switch className={styles.switchField} isSelected={protect} onChange={setProtect}>
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Label>Require Cloudflare Access</Label>
+            </Switch.Content>
+            <Description>Ask approved users to sign in before this app opens remotely.</Description>
+          </Switch>
+          <button className={styles.routeButton} disabled={saving} onClick={saveAccess} type="button">
+            <icons.cloud aria-hidden="true" size={14} />
+            {saving ? 'Applying…' : state.route ? 'Update route' : 'Add route'}
+          </button>
+        </div>
+      )}
+      {state && !state.tunnelConfigured && (
+        <p className={styles.accessNote}>
+          Add Cloudflare credentials in <a href="/settings/connect">Remote access</a> before applying a public route.
+        </p>
+      )}
+      {state && !state.supported && (
+        <p className={styles.accessNote}>This internal helper stays private and is reached through its parent app.</p>
+      )}
+      {message && <p className={styles.accessNote}>{message}</p>}
+    </section>
+  );
 }
 
 function serviceLink(service: ServiceConfigModel['service']) {
