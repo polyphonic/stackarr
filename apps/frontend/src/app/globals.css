@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "@stackarr/ui/styles.css";
 
-/* Modern Sonarr/Arr-style theme for Stackarr */
+/* Stackarr control-plane theme: calm, layered, and intentionally content-first. */
 :root,
 html[data-theme="light"],
 body[data-theme="light"] {
@@ -71,6 +71,17 @@ body[data-theme="light"] {
   --button-danger-hover: #b91c1c;
   --button-danger-pressed: #991b1b;
   --button-primary-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  --sidebar-glass: rgba(240, 244, 249, 0.78);
+  --toolbar-glass: rgba(250, 252, 255, 0.78);
+  --glass-subtle: rgba(255, 255, 255, 0.58);
+  --glass-raised: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(100, 116, 139, 0.16);
+  --glass-border-strong: rgba(109, 91, 208, 0.2);
+  --ambient-accent: rgba(109, 91, 208, 0.1);
+  --ambient-cool: rgba(37, 99, 235, 0.07);
+  --icon-well: rgba(100, 116, 139, 0.08);
+  --soft-shadow: 0 12px 38px rgba(36, 43, 68, 0.08);
+  --panel-shadow: 0 18px 52px rgba(36, 43, 68, 0.07);
 
   /* HeroUI semantic tokens, kept aligned with the Arr surface */
   --background: var(--bg);
@@ -100,12 +111,12 @@ body[data-theme="light"] {
   --purple-600: #5c4abe;
   --purple-700: #4338a5;
 
-  /* Typography - clean sans */
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Familiar media-library typography with a little more warmth than a stock admin UI. */
+  --font-family: "Avenir Next", Avenir, "Segoe UI Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* Layout */
-  --sidebar-width: 220px;
+  --sidebar-width: 252px;
   --header-height: 52px;
   --toolbar-height: 52px;
 }
@@ -178,6 +189,17 @@ body[data-theme="dark"] {
   --button-danger-hover: #f87171;
   --button-danger-pressed: #dc2626;
   --button-primary-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  --sidebar-glass: rgba(16, 18, 26, 0.84);
+  --toolbar-glass: rgba(20, 22, 31, 0.76);
+  --glass-subtle: rgba(255, 255, 255, 0.045);
+  --glass-raised: rgba(255, 255, 255, 0.075);
+  --glass-border: rgba(255, 255, 255, 0.085);
+  --glass-border-strong: rgba(167, 139, 250, 0.24);
+  --ambient-accent: rgba(139, 92, 246, 0.15);
+  --ambient-cool: rgba(59, 130, 246, 0.08);
+  --icon-well: rgba(255, 255, 255, 0.045);
+  --soft-shadow: 0 16px 44px rgba(0, 0, 0, 0.22);
+  --panel-shadow: 0 20px 64px rgba(0, 0, 0, 0.18);
   --purple-300: #c4b5fd;
   --purple-500: #8b5cf6;
   --purple-600: #7c3aed;
@@ -251,6 +273,17 @@ body[data-theme="dark"] {
     --button-danger-hover: #f87171;
     --button-danger-pressed: #dc2626;
     --button-primary-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+    --sidebar-glass: rgba(16, 18, 26, 0.84);
+    --toolbar-glass: rgba(20, 22, 31, 0.76);
+    --glass-subtle: rgba(255, 255, 255, 0.045);
+    --glass-raised: rgba(255, 255, 255, 0.075);
+    --glass-border: rgba(255, 255, 255, 0.085);
+    --glass-border-strong: rgba(167, 139, 250, 0.24);
+    --ambient-accent: rgba(139, 92, 246, 0.15);
+    --ambient-cool: rgba(59, 130, 246, 0.08);
+    --icon-well: rgba(255, 255, 255, 0.045);
+    --soft-shadow: 0 16px 44px rgba(0, 0, 0, 0.22);
+    --panel-shadow: 0 20px 64px rgba(0, 0, 0, 0.18);
     --purple-300: #c4b5fd;
     --purple-500: #8b5cf6;
     --purple-600: #7c3aed;
@@ -291,6 +324,16 @@ a:hover {
 button {
   cursor: pointer;
   font: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 /* Modern Table - Sonarr style */

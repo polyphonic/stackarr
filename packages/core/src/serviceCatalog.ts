@@ -269,6 +269,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('booksRoot', 'Books Root', 'BOOKS_ROOT'),
       envText('bookorbitAppUrl', 'App URL', 'BOOKORBIT_APP_URL'),
       envText('bookorbitClientUrl', 'Client URL', 'BOOKORBIT_CLIENT_URL'),
+      envPassword('bookorbitAgentToken', 'Agent Access Token', 'BOOKORBIT_TOKEN'),
       envText('bookorbitImage', 'Docker Image', 'BOOKORBIT_IMAGE'),
       envText('databaseImage', 'Database Image', 'DATABASE_IMAGE'),
       envPassword('bookorbitDatabaseUrl', 'Database URL', 'BOOKORBIT_DATABASE_URL'),
@@ -315,6 +316,14 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envNumber('rommRedisPort', 'Redis Port', 'ROMM_REDIS_PORT'),
       envText('rommImage', 'RomM Image', 'ROMM_IMAGE')
     ]),
+    group('Agent Access', [
+      envPassword(
+        'rommAgentToken',
+        'Client Token',
+        'ROMM_API_KEY',
+        'A RomM client token with only the scopes needed for the enabled agent operations.'
+      )
+    ]),
     group('RomM Database', [
       envSelect('rommDbDriver', 'Database Driver', 'ROMM_DB_DRIVER', ['postgresql']),
       envText('rommDbHost', 'Database Host', 'ROMM_DB_HOST'),
@@ -355,6 +364,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
     group('Subtitles', [
       envCheckbox('enableBazarr', 'Enable Bazarr', 'ENABLE_BAZARR'),
       envText('bazarrUrl', 'Local URL', 'BAZARR_URL'),
+      envPassword('bazarrApiKey', 'API Key', 'BAZARR_API_KEY'),
       envText('bazarrImage', 'Docker Image', 'BAZARR_IMAGE')
     ]),
     group('Database', [
@@ -368,6 +378,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
     group('Metadata and Renaming', [
       envCheckbox('enableTinyMediaManager', 'Enable TinyMediaManager', 'ENABLE_TINYMEDIAMANAGER'),
       envText('tinyMediaManagerUrl', 'Local URL', 'TINYMEDIAMANAGER_URL'),
+      envPassword('tinyMediaManagerApiKey', 'HTTP API Key', 'TINYMEDIAMANAGER_API_KEY'),
       envText('tinyMediaManagerImage', 'Docker Image', 'TINYMEDIAMANAGER_IMAGE'),
       presetJson('tinyMediaManagerNaming', 'TinyMediaManager Naming Scheme', 'naming', ['tinymediamanager'])
     ])
@@ -392,6 +403,8 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
   tidarr: [
     group('Music Downloads', [
       envCheckbox('enableTidarr', 'Enable Tidarr', 'ENABLE_TIDARR'),
+      envText('tidarrUrl', 'Local URL', 'TIDARR_URL'),
+      envPassword('tidarrApiKey', 'API Key', 'TIDARR_API_KEY'),
       envText('tidarrImage', 'Docker Image', 'TIDARR_IMAGE')
     ])
   ],
@@ -442,6 +455,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         'disabled'
       ]),
       envCheckbox('pulsarrCookieSecure', 'Secure Cookies', 'PULSARR_COOKIE_SECURED'),
+      envPassword('pulsarrApiKey', 'Agent API Key', 'PULSARR_API_KEY'),
       envText('pulsarrImage', 'Docker Image', 'PULSARR_IMAGE')
     ]),
     group('Database', [
@@ -521,6 +535,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envText('tracearrLogLevel', 'Log Level', 'TRACEARR_LOG_LEVEL'),
       envText('tracearrCorsOrigin', 'CORS Origin', 'TRACEARR_CORS_ORIGIN'),
       envText('tracearrImage', 'Docker Image', 'TRACEARR_IMAGE'),
+      envPassword('tracearrApiKey', 'Public API Token', 'TRACEARR_API_KEY'),
       envText('tracearrPostgresDatabase', 'Database Name', 'TRACEARR_POSTGRES_DATABASE'),
       envText('tracearrPostgresUser', 'Database User', 'TRACEARR_POSTGRES_USER')
     ]),

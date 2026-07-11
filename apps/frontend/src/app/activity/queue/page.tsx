@@ -1,4 +1,5 @@
 import { readTasks } from '@stackarr/core';
+import { ActivityNav } from '../../../components/ActivityNav';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
 import QueueTable from './QueueTable';
@@ -13,8 +14,9 @@ export default async function QueuePage() {
 
   return (
     <>
-      <Toolbar title="Queue" />
+      <Toolbar title="Activity" description="Active work, action history, and the server trail in one place" />
       <PageBody>
+        <ActivityNav />
         <QueueTable initialTasks={queueTasks} />
       </PageBody>
     </>

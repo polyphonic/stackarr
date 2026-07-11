@@ -111,6 +111,15 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Run a safe named management operation through an enabled app native API.'
   },
   {
+    name: 'stackarr_administer_app',
+    category: 'apps',
+    scopes: ['apps:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run an explicitly destructive or file-changing named native-app operation after user approval.'
+  },
+  {
     name: 'stackarr_get_routines',
     category: 'automations',
     scopes: ['automations:read'],

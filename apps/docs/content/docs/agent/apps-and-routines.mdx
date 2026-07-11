@@ -10,10 +10,31 @@ Stackarr connects chat to the native APIs of the apps you enabled. The agent see
 - discover the operations available for this installation
 - read an app using a named operation
 - run a safe named management operation
+- request approval for a file-changing or destructive operation
 
 The route, HTTP method, authentication style, and accepted inputs are defined by Stackarr. An agent cannot supply an arbitrary URL, path, method, header, or request body.
 
-Current adapters cover Jellyfin, Immich, RomM, Maintainerr, Tracearr, and BookOrbit. Each adapter starts with a small set of operations that Stackarr can support safely. An app with no verified management operation remains read-only.
+The **Apps → Everyday app actions** screen uses the same operation catalog. You can always inspect or operate the stack manually even when chat is your main control surface.
+
+## Native app coverage
+
+| App | Everyday operations |
+| --- | --- |
+| Jellyfin | server, libraries, sessions and scheduled tasks; scan a library; approve an item metadata refresh |
+| Immich | server, storage, libraries and jobs; scan an external library |
+| Pulsarr | health, activity and dashboard statistics; synchronize configured Arr instances |
+| Maintainerr | health, rules, collections, storage and execution status; approve running or stopping a cleanup rule |
+| Tracearr | read-only public health, playback, user and violation summaries |
+| RomM | library statistics, platforms and task status; scan; approve missing-ROM or orphan cleanup |
+| BookOrbit | library and metadata queue status; pause, resume or retry metadata; approve a library-wide metadata fetch |
+| Bazarr | status, tasks and wanted subtitles; approve a configured scheduler task |
+| Lidarr | artists, queue and missing albums; refresh an artist or search missing albums; approve a folder rescan |
+| tinyMediaManager | scan movie or TV sources; approve atomic scan + scrape or scan + scrape + rename workflows for new items |
+| Recyclarr | preview a configured sync; approve applying it to Radarr, Sonarr or both |
+| FlareSolverr | list, create and destroy named browser sessions |
+| Tidarr | inspect and control queue/sync state; approve downloads, removal or clearing history |
+
+Each adapter deliberately starts with the useful operations Stackarr can support safely. An app with no verified management operation remains read-only. FlareSolverr's arbitrary URL request proxy is not exposed, and Recyclarr accepts only a fixed sync command and a bounded `all`, `radarr`, or `sonarr` scope.
 
 ## Example conversations
 
@@ -22,6 +43,8 @@ Try prompts such as:
 - “Which of my photo, game, book, and media apps can you manage?”
 - “Show me Immich storage and library statistics.”
 - “Refresh the Jellyfin library.”
+- “Scan tinyMediaManager's movie and TV library locations.”
+- “Preview my Recyclarr changes for Sonarr.”
 - “Check Maintainerr readiness and storage metrics.”
 - “Create a daily routine that checks Immich server health at 08:00.”
 
@@ -36,3 +59,9 @@ Scheduled runs use the Stackarr container timezone and appear in **Agent Activit
 Add API keys through Stackarr's authenticated settings. They stay in Stackarr and are sent to the selected app using that app's expected authentication header. They are never returned to the agent.
 
 Maintainerr does not provide API authentication, so keep it on a trusted private Docker network. Stackarr does not expose its API as an open-ended proxy.
+
+## Approvals and complete control
+
+The `admin` profile exposes the complete catalog and asks for approval before dangerous operations. If your chat client cannot show MCP approval forms, those operations fail closed.
+
+If you intentionally want an agent to act without per-operation prompts, choose `unrestricted`. It has the same allowlisted operations but skips Stackarr's approval prompt. Connection policies, operation bounds, secret redaction, and the Activity trail still apply. Give this profile only to a trusted client and model.

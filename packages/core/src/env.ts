@@ -213,6 +213,7 @@ export const managedEnvDefaults: StackarrEnv = {
   JELLYFIN_URL: 'http://127.0.0.1:8096',
   TINYMEDIAMANAGER_URL: 'http://127.0.0.1:4000',
   FLARESOLVERR_URL: 'http://127.0.0.1:8191',
+  TIDARR_URL: 'http://127.0.0.1:8484',
 
   PROWLARR_API_KEY: '',
   RADARR_API_KEY: '',
@@ -224,6 +225,13 @@ export const managedEnvDefaults: StackarrEnv = {
   PLEX_TOKEN: '',
   JELLYFIN_API_KEY: '',
   IMMICH_API_KEY: '',
+  PULSARR_API_KEY: '',
+  TRACEARR_API_KEY: '',
+  ROMM_API_KEY: '',
+  BOOKORBIT_TOKEN: '',
+  BAZARR_API_KEY: '',
+  TINYMEDIAMANAGER_API_KEY: '',
+  TIDARR_API_KEY: '',
 
   BACKUP_TIME: '02:00',
   BACKUP_SCHEDULE: 'weekly',

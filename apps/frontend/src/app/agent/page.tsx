@@ -1,6 +1,8 @@
 import { getMcpProfileDescription, getMcpServiceSelection, getMcpToolCatalog, resolveMcpProfile } from '@stackarr/core';
 import Link from 'next/link';
 import { PageBody, Toolbar } from '../../components/AppFrame';
+import { DestinationCard } from '../../components/DestinationCard';
+import { icons } from '../../components/icons';
 import { Grid, Panel, Stat } from '../../components/ui';
 import { requireDashboardAuth } from '../../lib/serverAuth';
 
@@ -12,7 +14,10 @@ export default async function AgentPage() {
   const selection = getMcpServiceSelection();
   return (
     <>
-      <Toolbar title="Chat Control" />
+      <Toolbar
+        title="Automation & access"
+        description="Connect agents, review their authority, and manage secure ways into your stack"
+      />
       <PageBody>
         <Grid>
           <Stat label="Connection" value="Local MCP" tone="good" />
@@ -35,6 +40,42 @@ export default async function AgentPage() {
           <p>
             <Link href="/agent/settings">Connect a chat client</Link> · <Link href="/agent/tools">Browse actions</Link>{' '}
             · <Link href="/agent/activity">Review activity</Link>
+          </p>
+        </Panel>
+        <Grid>
+          <DestinationCard
+            href="/agent/settings"
+            icon={icons.link}
+            title="Chat connections"
+            description="Codex, Claude, ChatGPT, LM Studio, Hermes, and OpenClaw"
+          />
+          <DestinationCard
+            href="/agent/activity"
+            icon={icons.activity}
+            title="Agent trail"
+            description="See what each connection requested and what Stackarr did"
+          />
+          <DestinationCard
+            href="/settings/connect"
+            icon={icons.cloud}
+            title="Remote access"
+            description="Cloudflare routes, public URLs, and Access protection"
+          />
+          <DestinationCard
+            href="/system/events"
+            icon={icons.network}
+            title="Tunnel controls"
+            description="Install, sync, rotate, stop, or remove the Cloudflare tunnel"
+          />
+        </Grid>
+        <Panel
+          title="Peel back the layers"
+          description="These controls are useful when you need to tune authority or inspect the action catalog"
+        >
+          <p>
+            <Link href="/agent/tools">Browse available agent actions</Link> ·{' '}
+            <Link href="/settings/security">Review security settings</Link> ·{' '}
+            <Link href="/system/logs">Open server logs</Link>
           </p>
         </Panel>
       </PageBody>

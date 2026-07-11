@@ -1,24 +1,35 @@
 .subnav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--borderColor);
+  gap: 5px;
+  margin-bottom: 20px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 13px;
+  background: var(--glass-subtle);
 }
 
 .item,
 .active {
-  min-height: 38px;
-  padding: 10px 12px 8px;
-  border-bottom: 3px solid transparent;
+  min-height: 40px;
+  padding: 10px 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
   color: var(--mutedTextColor);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .item:hover {
+  background: var(--glass-raised);
   color: var(--textColor);
+  text-decoration: none;
 }
 
 .active {
-  border-bottom-color: var(--purple-600);
-  color: var(--purple-700);
+  border-color: var(--glass-border-strong);
+  background: var(--accent-soft);
+  color: var(--accent-soft-foreground);
+  box-shadow: var(--soft-shadow);
 }

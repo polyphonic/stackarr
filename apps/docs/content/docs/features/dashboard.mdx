@@ -1,19 +1,23 @@
 ---
-title: Dashboard
+title: Stackarr app
+description: Use the optional visual control room alongside chat-based homelab management.
 ---
 
-# Dashboard
+# Stackarr app
 
-The Dashboard is the operational home for the stack.
+The Stackarr app is the optional visual control room for the same homelab capabilities available to connected chat agents. Use chat as your primary interface, use the app manually, or move between them: both share the same native operations, safety rules, and Activity trail.
 
-## What It Shows
+## Product areas
 
-- Running/stopped service counts.
-- Service health summaries.
-- Performance charts for stack/server metrics.
-- Service map with real SVG logos for Sonarr, Radarr, Prowlarr, Bazarr, Plex, Jellyfin, Seerr, Transmission, qBittorrent, TinyMediaManager, Recyclarr, and Cloudflare.
-- Quick access to setup, stack views, settings, system status, and agent activity.
+- **Home** shows what needs attention, active work, recent actions, favorite apps, storage, and stack health.
+- **Apps** opens enabled services and runs focused native operations such as scans, metadata work, syncs, and queue controls.
+- **Activity** combines download work, command history, agent and routine actions, and a bounded redacted server-log viewer.
+- **Infrastructure** shows the stack as containers, storage, images, volumes, and networks. Routine polling uses a lightweight container snapshot and pauses in hidden browser tabs.
+- **Automation & Access** contains routines, chat connections, authority profiles, agent history, and Cloudflare tunnel controls.
+- **Settings** starts with everyday choices and progressively reveals service connections and advanced configuration.
 
-## Intended Use
+The layout works as a desktop sidebar and a mobile navigation surface. Keyboard focus, reduced motion, minimum touch targets, and skip navigation are built in.
 
-Use Dashboard for daily scanning. Use Stack pages for service-specific details, Settings for configuration, and System for logs/tasks/backups/updates.
+## Safety in the app
+
+Read operations run directly. Reversible management actions show their scope. File-changing or destructive native app actions require a reason and the app name before they run. Container and tunnel operations retain their existing confirmations. Starting an operation is recorded in Activity, and a queued action is never presented as completed work.

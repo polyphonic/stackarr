@@ -82,13 +82,14 @@ test('MCP groups let small-model clients load only relevant action families', ()
 });
 
 test('native app tools appear as one compact group only when a supported app is enabled', () => {
-  const withoutApps = getMcpToolCatalog({ profile: 'manage', enabledServices });
-  const withImmich = getMcpToolCatalog({ profile: 'manage', enabledServices: [...enabledServices, 'immich'] });
+  const withoutNativeApps = enabledServices.filter((service) => service !== 'lidarr');
+  const withoutApps = getMcpToolCatalog({ profile: 'manage', enabledServices: withoutNativeApps });
+  const withImmich = getMcpToolCatalog({ profile: 'manage', enabledServices: [...withoutNativeApps, 'immich'] });
 
   assert.ok(!withoutApps.some((tool) => tool.category === 'apps'));
   assert.deepEqual(
     withImmich.filter((tool) => tool.category === 'apps').map((tool) => tool.name),
-    ['stackarr_get_app_capabilities', 'stackarr_read_app', 'stackarr_manage_app']
+    ['stackarr_get_app_capabilities', 'stackarr_read_app', 'stackarr_manage_app', 'stackarr_administer_app']
   );
 });
 

@@ -16,6 +16,10 @@ ROOT_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 cmd="${1:-help}"
+mcp_entrypoint="$REPO_ROOT/packages/mcp/dist/index.js"
+if [[ ! -f "$mcp_entrypoint" && -f "$ROOT_DIR/../packages/mcp/dist/index.js" ]]; then
+    mcp_entrypoint="$(cd "$ROOT_DIR/.." && pwd)/packages/mcp/dist/index.js"
+fi
 
 case "$cmd" in
     init)
@@ -152,13 +156,13 @@ case "$cmd" in
                 shift || true
                 export STACKARR_REPO_ROOT="$REPO_ROOT"
                 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
-                exec node "$REPO_ROOT/packages/mcp/dist/index.js" "$sub" "$@"
+                exec node "$mcp_entrypoint" "$sub" "$@"
                 ;;
             config)
                 shift || true
                 export STACKARR_REPO_ROOT="$REPO_ROOT"
                 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
-                exec node "$REPO_ROOT/packages/mcp/dist/index.js" config "$@"
+                exec node "$mcp_entrypoint" config "$@"
                 ;;
             *)
                 fail "Usage: stackarr mcp serve|serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS]"
@@ -173,7 +177,7 @@ case "$cmd" in
                 shift || true
                 export STACKARR_REPO_ROOT="$REPO_ROOT"
                 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
-                exec node "$REPO_ROOT/packages/mcp/dist/index.js" routines run-due "$@"
+                exec node "$mcp_entrypoint" routines run-due "$@"
                 ;;
             *)
                 fail "Usage: stackarr routines run-due"
