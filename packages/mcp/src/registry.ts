@@ -5,6 +5,7 @@ import {
   addReleaseToDownloaderAction,
   addSeriesAction,
   addTorrentUrlAction,
+  administerNativeAppAction,
   applySafeFixAction,
   approveRequestAction,
   auditFinished,
@@ -137,7 +138,32 @@ const downloader = { downloader: z.enum(['transmission', 'qbittorrent']).optiona
 const seriesInstance = z.enum(['sonarr', 'sonarr4k']);
 const movieInstance = z.enum(['radarr', 'radarr4k']);
 const arrInstance = z.enum(['sonarr', 'sonarr4k', 'radarr', 'radarr4k']);
-const nativeApp = z.enum(['jellyfin', 'immich', 'romm', 'maintainerr', 'tracearr', 'bookorbit']);
+const nativeApp = z.enum([
+  'jellyfin',
+  'immich',
+  'pulsarr',
+  'maintainerr',
+  'tracearr',
+  'romm',
+  'bookorbit',
+  'bazarr',
+  'lidarr',
+  'tinymediamanager',
+  'recyclarr',
+  'flaresolverr',
+  'tidarr'
+]);
+const nativeAppOperation = {
+  app: nativeApp,
+  operation: z.string().min(1).max(80),
+  libraryId: z.string().max(128).optional(),
+  itemId: z.string().max(128).optional(),
+  taskId: z.string().max(100).optional(),
+  sessionId: z.string().max(64).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  days: z.number().int().min(1).max(365).optional(),
+  scope: z.enum(['all', 'radarr', 'sonarr']).optional()
+};
 const routineStep = z.object({
   kind: z.enum(['read_app', 'manage_app']),
   app: nativeApp,
@@ -320,14 +346,21 @@ const tools: ToolDef[] = [
   {
     name: 'stackarr_read_app',
     description: 'Read an enabled app through a named native API operation. Arbitrary paths are not accepted.',
-    shape: { app: nativeApp, operation: z.string().min(1), libraryId: z.string().optional() },
+    shape: nativeAppOperation,
     handler: readNativeAppAction
   },
   {
     name: 'stackarr_manage_app',
     description: 'Run a safe named management operation in an enabled app. Arbitrary paths are not accepted.',
-    shape: { app: nativeApp, operation: z.string().min(1), libraryId: z.string().optional() },
+    shape: nativeAppOperation,
     handler: manageNativeAppAction
+  },
+  {
+    name: 'stackarr_administer_app',
+    description:
+      'Run a destructive or file-changing named native-app operation. The control plane asks the user for approval first.',
+    shape: { ...nativeAppOperation, reason: z.string().max(500).optional() },
+    handler: administerNativeAppAction
   },
   {
     name: 'stackarr_get_routines',
@@ -1290,7 +1323,7 @@ function toolAnnotations(meta: ToolCatalogEntry) {
     readOnlyHint: meta.risk === 'read',
     destructiveHint: meta.risk === 'dangerous',
     idempotentHint: meta.risk === 'read',
-    openWorldHint: ['services', 'arr', 'releases', 'downloads', 'plex', 'seerr'].includes(meta.category)
+    openWorldHint: ['services', 'apps', 'arr', 'releases', 'downloads', 'plex', 'seerr'].includes(meta.category)
   };
 }
 

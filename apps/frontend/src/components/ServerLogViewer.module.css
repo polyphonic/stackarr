@@ -1,0 +1,105 @@
+.viewer {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.28fr) minmax(0, 0.72fr);
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass-subtle);
+}
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow: auto;
+  padding: 9px;
+  border-right: 1px solid var(--glass-border);
+}
+.file,
+.fileActive {
+  display: grid;
+  gap: 3px;
+  min-height: 54px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.file:hover {
+  background: var(--glass-raised);
+}
+.fileActive {
+  border-color: var(--glass-border-strong);
+  background: var(--accent-soft);
+}
+.file strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.file small,
+.fileActive small,
+.files p {
+  color: var(--muted);
+  font-size: 10px;
+}
+.output {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+}
+.output header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.output header div {
+  display: grid;
+}
+.output header small,
+.output header span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.output header span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--glass-subtle);
+}
+.output pre {
+  height: 100%;
+  margin: 0;
+  overflow: auto;
+  padding: 16px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.output > p {
+  padding: 16px;
+  color: var(--muted);
+}
+@media (max-width: 760px) {
+  .viewer {
+    grid-template-columns: 1fr;
+  }
+  .files {
+    max-height: 190px;
+    border-right: 0;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .output {
+    min-height: 380px;
+  }
+}

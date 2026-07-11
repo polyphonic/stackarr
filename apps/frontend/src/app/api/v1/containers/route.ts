@@ -1,4 +1,4 @@
-import { getDockerOverviewAction, manageDockerResourceAction } from '@stackarr/core';
+import { getDockerContainerOverviewAction, getDockerOverviewAction, manageDockerResourceAction } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../lib/api';
 
@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
     return auth;
   }
 
-  return json(await getDockerOverviewAction());
+  return json(
+    request.nextUrl.searchParams.get('scope') === 'containers'
+      ? await getDockerContainerOverviewAction()
+      : await getDockerOverviewAction()
+  );
 }
 
 export async function POST(request: NextRequest) {

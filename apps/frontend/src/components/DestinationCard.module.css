@@ -1,0 +1,47 @@
+.card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--panel-bg) 80%, transparent);
+  color: var(--text);
+  box-shadow: var(--soft-shadow);
+  text-decoration: none;
+  backdrop-filter: blur(16px);
+}
+.card:hover {
+  border-color: var(--glass-border-strong);
+  background: var(--glass-raised);
+  color: var(--text);
+  text-decoration: none;
+}
+.card > span {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--accent-soft);
+}
+.card div {
+  display: grid;
+  min-width: 0;
+}
+.card strong {
+  font-size: 13px;
+}
+.card small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+.card b {
+  color: var(--muted);
+  font-size: 20px;
+  font-weight: 400;
+}

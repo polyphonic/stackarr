@@ -23,12 +23,16 @@ export default async function DashboardPage() {
   return (
     <>
       <Toolbar
-        title="Dashboard"
+        title="Home"
+        description="Health, active work, and the apps you use every day"
         actions={
-          <>
-            <CommandButton name="StackStart" label="Start" disruptive />
-            <CommandButton name="StackConfigure" label="Configure" disruptive />
-          </>
+          status.configured ? (
+            metrics.serviceCounts.dockerRunning === 0 ? (
+              <CommandButton name="StackStart" label="Start stack" disruptive />
+            ) : null
+          ) : (
+            <CommandButton name="StackConfigure" label="Finish setup" disruptive />
+          )
         }
       />
       <PageBody>

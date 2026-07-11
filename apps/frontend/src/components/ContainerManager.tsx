@@ -2,6 +2,7 @@
 
 import type {
   DockerContainerItem,
+  DockerContainerOverview,
   DockerImageItem,
   DockerNetworkItem,
   DockerOverview,
@@ -52,8 +53,8 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
       setBusy('refresh');
     }
 
-    const response = await stackarrFetch('/api/v1/containers');
-    const body = (await response.json().catch(() => null)) as DockerOverview | null;
+    const response = await stackarrFetch(options.silent ? '/api/v1/containers?scope=containers' : '/api/v1/containers');
+    const body = (await response.json().catch(() => null)) as DockerOverview | DockerContainerOverview | null;
 
     if (!options.silent) {
       setBusy('');
@@ -68,7 +69,18 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
       return;
     }
 
-    setData(body);
+    setData((current) =>
+      options.silent
+        ? {
+            ...current,
+            dockerAvailable: body.dockerAvailable,
+            error: body.error,
+            generatedAt: body.generatedAt,
+            containers: body.containers,
+            counts: { ...current.counts, ...body.counts }
+          }
+        : (body as DockerOverview)
+    );
     if (!options.silent || body.error) {
       const nextMessage = body.error ?? 'Docker resources refreshed.';
       setMessage(nextMessage);
@@ -82,8 +94,10 @@ export function ContainerManager({ overview }: { overview: DockerOverview }) {
     }
 
     const interval = window.setInterval(() => {
-      void refresh({ silent: true });
-    }, 5000);
+      if (document.visibilityState === 'visible') {
+        void refresh({ silent: true });
+      }
+    }, 15000);
 
     return () => window.clearInterval(interval);
   }, [data.dockerAvailable, refresh, tab]);

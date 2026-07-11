@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { PageBody, Toolbar } from '../../components/AppFrame';
-import { SubNav } from '../../components/SubNav';
-import { Panel } from '../../components/ui';
+import { DestinationCard } from '../../components/DestinationCard';
+import { icons } from '../../components/icons';
+import { Grid, Panel } from '../../components/ui';
 import { requireDashboardAuth } from '../../lib/serverAuth';
 
 const settings = [
@@ -27,21 +27,74 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <Toolbar title="Settings" />
+      <Toolbar
+        title="Settings"
+        description="Start with common choices, then open advanced controls only when you need them"
+      />
       <PageBody>
-        <SubNav items={settings.map(([slug, title]) => ({ href: `/settings/${slug}`, label: title }))} />
-        <Panel title="Settings">
-          <div>
-            {settings.map(([slug, title, summary]) => (
-              <p key={slug}>
-                <Link href={`/settings/${slug}`}>
-                  <strong>{title}</strong>
-                </Link>
-                <br />
-                <span>{summary}</span>
-              </p>
-            ))}
-          </div>
+        <Panel title="Everyday setup" description="The choices that shape how your libraries and apps behave">
+          <Grid>
+            {settings
+              .filter(([slug]) => ['mediamanagement', 'services', 'downloadclients'].includes(slug))
+              .map(([slug, title, summary], index) => (
+                <DestinationCard
+                  key={slug}
+                  href={`/settings/${slug}`}
+                  icon={[icons.tv, icons.stack, icons.download][index]!}
+                  title={title}
+                  description={summary}
+                />
+              ))}
+            <DestinationCard
+              href="/settings/metadata"
+              icon={icons.image}
+              title="Metadata"
+              description="Scanning, artwork, scraping, and TinyMediaManager behavior"
+            />
+          </Grid>
+        </Panel>
+        <Panel title="Connections & identity" description="Remote access, app integrations, sign-in, and secrets">
+          <Grid>
+            <DestinationCard
+              href="/settings/connect"
+              icon={icons.cloud}
+              title="Remote access"
+              description="Cloudflare tunnel routes, webhooks, and public URLs"
+            />
+            <DestinationCard
+              href="/settings/account"
+              icon={icons.key}
+              title="Account"
+              description="Dashboard sign-in, owner identity, and API access"
+            />
+            <DestinationCard
+              href="/settings/security"
+              icon={icons.lock}
+              title="Security"
+              description="Service credentials and isolated database roles"
+            />
+          </Grid>
+        </Panel>
+        <Panel title="Advanced" description="Fine-grained presets, integrations, maintenance, and presentation">
+          <Grid>
+            {settings
+              .filter(([slug]) => ['profiles', 'indexers', 'general', 'ui'].includes(slug))
+              .map(([slug, title, summary], index) => (
+                <DestinationCard
+                  key={slug}
+                  href={`/settings/${slug}`}
+                  icon={[icons.sliders, icons.search, icons.wrench, icons.eye][index]!}
+                  title={title}
+                  description={summary}
+                />
+              ))}
+            <DestinationCard
+              href="/system/status"
+              icon={icons.system}
+              title="System & maintenance"
+              description="Backups, updates, disk usage, events, and diagnostic status"
+            />
+          </Grid>
         </Panel>
       </PageBody>
     </>

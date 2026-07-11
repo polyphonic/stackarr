@@ -9,8 +9,10 @@ import {
   readTasks,
   type StackarrTask
 } from '@stackarr/core';
+import { ActivityNav } from '../../../components/ActivityNav';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { CommandButton } from '../../../components/CommandButton';
+import { ServerLogViewer } from '../../../components/ServerLogViewer';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
 import { ActionGrid, Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
@@ -52,9 +54,12 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Toolbar title={titles[section] ?? 'System'} />
+      <Toolbar
+        title={section === 'logs' ? 'Activity' : (titles[section] ?? 'System')}
+        description={section === 'logs' ? 'Active work, action history, and the server trail in one place' : undefined}
+      />
       <PageBody>
-        <SubNav items={navItems} />
+        {section === 'logs' ? <ActivityNav /> : <SubNav items={navItems} />}
         {section === 'status' && (
           <>
             <Grid>
@@ -315,11 +320,20 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
             </Table>
           </Panel>
         )}
+        {section === 'logs' && (
+          <Panel
+            title="Server logs"
+            description="A redacted tail of local Stackarr log files; nothing is sent elsewhere"
+          >
+            <ServerLogViewer />
+          </Panel>
+        )}
         {section !== 'status' &&
           section !== 'tasks' &&
           section !== 'backup' &&
           section !== 'updates' &&
           section !== 'events' &&
+          section !== 'logs' &&
           section !== 'diskspace' && (
             <Panel title={titles[section] ?? 'System'}>
               <p>Stackarr endpoint support is available under `/api/v1/{section}` where applicable.</p>

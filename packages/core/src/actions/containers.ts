@@ -121,6 +121,12 @@ type NetworkInspect = {
   Containers?: Record<string, { Name?: string; IPv4Address?: string; IPv6Address?: string }>;
 };
 
+type ContainerSnapshot = {
+  rows: DockerContainerRow[];
+  inspected: ContainerInspect[];
+  inspectById: Map<string, ContainerInspect>;
+};
+
 export type ContainerMount = {
   type: string;
   name?: string;
@@ -239,6 +245,11 @@ export type DockerOverview = {
   networks: DockerNetworkItem[];
 };
 
+export type DockerContainerOverview = Pick<DockerOverview, 'dockerAvailable' | 'error' | 'generatedAt'> & {
+  containers: DockerContainerItem[];
+  counts: Pick<DockerOverview['counts'], 'containers' | 'runningContainers' | 'stoppedContainers'>;
+};
+
 export type DockerResourceActionInput = DangerousConfirmation & {
   kind: 'container' | 'volume' | 'image' | 'network';
   action: 'start' | 'stop' | 'restart' | 'remove' | 'pruneExited' | 'pruneDangling' | 'pruneUnused';
@@ -251,10 +262,11 @@ export async function getDockerOverviewAction(): Promise<DockerOverview> {
   try {
     await docker(['info', '--format', '{{json .ServerVersion}}']);
 
+    const snapshot = await containerSnapshot();
     const [containers, volumes, images, networks] = await Promise.all([
-      listContainers(),
-      listVolumes(),
-      listImages(),
+      listContainers(snapshot),
+      listVolumes(snapshot),
+      listImages(snapshot),
       listNetworks()
     ]);
 
@@ -303,6 +315,31 @@ export async function getDockerOverviewAction(): Promise<DockerOverview> {
   }
 }
 
+export async function getDockerContainerOverviewAction(): Promise<DockerContainerOverview> {
+  try {
+    await docker(['info', '--format', '{{json .ServerVersion}}']);
+    const containers = await listContainers(await containerSnapshot());
+    return {
+      dockerAvailable: true,
+      generatedAt: new Date().toISOString(),
+      counts: {
+        containers: containers.length,
+        runningContainers: containers.filter((item) => item.running).length,
+        stoppedContainers: containers.filter((item) => !item.running).length
+      },
+      containers
+    };
+  } catch (error) {
+    return {
+      dockerAvailable: false,
+      error: errorMessage(error),
+      generatedAt: new Date().toISOString(),
+      counts: { containers: 0, runningContainers: 0, stoppedContainers: 0 },
+      containers: []
+    };
+  }
+}
+
 export async function manageDockerResourceAction(input: DockerResourceActionInput) {
   const needsConfirmation =
     input.action === 'remove' ||
@@ -330,22 +367,17 @@ export async function manageDockerResourceAction(input: DockerResourceActionInpu
   };
 }
 
-async function listContainers(): Promise<DockerContainerItem[]> {
-  const rows = parseJsonLines<DockerContainerRow>((await docker(['ps', '-a', '--format', '{{json .}}'])).stdout);
-  const inspectById = byKey(
-    await inspect<ContainerInspect>(rows.map((row) => row.ID).filter(Boolean) as string[]),
-    (item) => shortId(item.Id ?? '')
-  );
+async function listContainers(snapshot: ContainerSnapshot): Promise<DockerContainerItem[]> {
   const statsByName = byKey(
     parseJsonLines<DockerStatsRow>((await dockerAllowFail(['stats', '--no-stream', '--format', '{{json .}}'])).stdout),
     (item) => item.Name ?? ''
   );
   const serviceNames = new Set(getServices().map((service) => service.name));
 
-  return rows
+  return snapshot.rows
     .map((row) => {
       const id = row.ID ?? '';
-      const inspected = inspectById.get(shortId(id));
+      const inspected = snapshot.inspectById.get(shortId(id));
       const name = trimContainerName(inspected?.Name) || row.Names || shortId(id);
       const labels = inspected?.Config?.Labels ?? {};
       const ports = portsFromInspect(inspected);
@@ -408,13 +440,13 @@ async function listContainers(): Promise<DockerContainerItem[]> {
     );
 }
 
-async function listVolumes(): Promise<DockerVolumeItem[]> {
+async function listVolumes(snapshot: ContainerSnapshot): Promise<DockerVolumeItem[]> {
   const rows = parseJsonLines<DockerVolumeRow>((await docker(['volume', 'ls', '--format', '{{json .}}'])).stdout);
   const inspected = byKey(
     await inspect<VolumeInspect>(rows.map((row) => row.Name).filter(Boolean) as string[], 'volume'),
     (item) => item.Name ?? ''
   );
-  const usedBy = await volumeUsage();
+  const usedBy = volumeUsage(snapshot.inspected);
 
   return rows
     .map((row) => {
@@ -441,11 +473,11 @@ async function listVolumes(): Promise<DockerVolumeItem[]> {
     .sort((a, b) => Number(a.inUse) - Number(b.inUse) || a.name.localeCompare(b.name));
 }
 
-async function listImages(): Promise<DockerImageItem[]> {
+async function listImages(snapshot: ContainerSnapshot): Promise<DockerImageItem[]> {
   const rows = parseJsonLines<DockerImageRow>(
     (await docker(['image', 'ls', '-a', '--digests', '--format', '{{json .}}'])).stdout
   );
-  const containers = await listContainersForImageUsage();
+  const containers = containersForImageUsage(snapshot);
 
   return rows
     .map((row) => {
@@ -517,15 +549,9 @@ async function listNetworks(): Promise<DockerNetworkItem[]> {
     );
 }
 
-async function listContainersForImageUsage() {
-  const rows = parseJsonLines<DockerContainerRow>(
-    (await dockerAllowFail(['ps', '-a', '--format', '{{json .}}'])).stdout
-  );
-  const ids = rows.map((row) => row.ID).filter(Boolean) as string[];
-  const inspected = byKey(await inspect<ContainerInspect>(ids), (item) => shortId(item.Id ?? ''));
-
-  return rows.map((row) => {
-    const details = inspected.get(shortId(row.ID ?? ''));
+function containersForImageUsage(snapshot: ContainerSnapshot) {
+  return snapshot.rows.map((row) => {
+    const details = snapshot.inspectById.get(shortId(row.ID ?? ''));
     const name = trimContainerName(details?.Name) || row.Names || shortId(row.ID ?? '');
     const labels = details?.Config?.Labels ?? {};
 
@@ -537,12 +563,7 @@ async function listContainersForImageUsage() {
   });
 }
 
-async function volumeUsage() {
-  const rows = parseJsonLines<DockerContainerRow>(
-    (await dockerAllowFail(['ps', '-a', '--format', '{{json .}}'])).stdout
-  );
-  const ids = rows.map((row) => row.ID).filter(Boolean) as string[];
-  const inspected = await inspect<ContainerInspect>(ids);
+function volumeUsage(inspected: ContainerInspect[]) {
   const usage = new Map<string, string[]>();
 
   for (const container of inspected) {
@@ -565,6 +586,16 @@ async function volumeUsage() {
   }
 
   return usage;
+}
+
+async function containerSnapshot(): Promise<ContainerSnapshot> {
+  const rows = parseJsonLines<DockerContainerRow>((await docker(['ps', '-a', '--format', '{{json .}}'])).stdout);
+  const inspected = await inspect<ContainerInspect>(rows.map((row) => row.ID).filter(Boolean) as string[]);
+  return {
+    rows,
+    inspected,
+    inspectById: byKey(inspected, (item) => shortId(item.Id ?? ''))
+  };
 }
 
 async function inspect<T>(ids: string[], kind?: 'volume' | 'network'): Promise<T[]> {

@@ -12,7 +12,10 @@ export default async function ContainersPage() {
 
   return (
     <>
-      <Toolbar title="Containers" />
+      <Toolbar
+        title="Infrastructure"
+        description="Your stack topology, live container load, and advanced Docker resources"
+      />
       <PageBody>
         <ContainerManager overview={overview} />
       </PageBody>

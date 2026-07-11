@@ -8,17 +8,22 @@ export function Grid({ children }: { children: React.ReactNode }) {
 
 export function Panel({
   title,
+  description,
   children,
   action
 }: {
   title: string;
+  description?: string;
   children: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
     <section className={styles.panel}>
       <div className={styles.panelHeader}>
-        <h2>{title}</h2>
+        <div>
+          <h2>{title}</h2>
+          {description && <p>{description}</p>}
+        </div>
         {action}
       </div>
       <div className={styles.panelBody}>{children}</div>

@@ -16,63 +16,155 @@ import {
 } from './serviceFavorites';
 import { SearchInput } from './ui';
 
-const setupNavItem = { href: '/setup', label: 'Setup', icon: icons.play };
+type NavItem = { href: string; label: string; icon: typeof icons.dashboard };
+type NavGroup = { label: string; items: NavItem[] };
 
-const appNav = [
-  { href: '/', label: 'Dashboard', icon: icons.dashboard },
-  { href: '/stack/services', label: 'Stack', icon: icons.stack },
-  { href: '/containers', label: 'Containers', icon: icons.containers },
-  { href: '/stack/media-servers', label: 'Media Servers', icon: icons.tv },
-  { href: '/downloaders', label: 'Downloaders', icon: icons.download },
-  { href: '/activity/queue', label: 'Queue', icon: icons.activity },
-  { href: '/activity/history', label: 'History', icon: icons.backup },
-  { href: '/agent', label: 'Agent', icon: icons.activity },
-  { href: '/settings', label: 'Settings', icon: icons.settings },
-  { href: '/system/status', label: 'System', icon: icons.wrench }
+const setupNavItem: NavItem = { href: '/setup', label: 'Finish setup', icon: icons.play };
+
+const appNav: NavGroup[] = [
+  {
+    label: 'Control plane',
+    items: [
+      { href: '/', label: 'Home', icon: icons.dashboard },
+      { href: '/stack/services', label: 'Apps', icon: icons.stack },
+      { href: '/activity/queue', label: 'Activity', icon: icons.activity },
+      { href: '/containers', label: 'Infrastructure', icon: icons.containers },
+      { href: '/agent', label: 'Automation & access', icon: icons.manage },
+      { href: '/settings', label: 'Settings', icon: icons.settings }
+    ]
+  }
 ];
 
 export function AppFrame({ children, setupComplete }: { children: React.ReactNode; setupComplete: boolean }) {
   const pathname = usePathname();
-  const nav = setupComplete ? appNav : [setupNavItem, ...appNav];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const nav = setupComplete ? appNav : [{ label: 'Get started', items: [setupNavItem] }, ...appNav];
   const brandHref = setupComplete ? '/' : '/setup';
+
+  useEffect(() => setMobileMenuOpen(false), [pathname]);
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
+      <a className={styles.skipLink} href="#main-content">
+        Skip to content
+      </a>
+      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <Link className={styles.brand} href={brandHref}>
           <StackarrMark size={32} />
-          <span>Stackarr</span>
+          <span>
+            <strong>Stackarr</strong>
+            <small>Homelab control plane</small>
+          </span>
         </Link>
-        <nav className={styles.nav}>
-          {nav.map((item) => {
-            const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-            const ItemIcon = item.icon;
+        <nav className={styles.nav} aria-label="Main navigation">
+          {nav.map((group) => (
+            <div className={styles.navGroup} key={group.label}>
+              <span className={styles.navLabel}>{group.label}</span>
+              {group.items.map((item) => {
+                const active = isNavItemActive(item, pathname);
+                const ItemIcon = item.icon;
 
+                return (
+                  <Link
+                    key={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={active ? styles.active : styles.item}
+                    href={item.href}
+                  >
+                    <span className={styles.iconWell}>
+                      <ItemIcon aria-hidden="true" className={styles.icon || ''} size={16} />
+                    </span>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className={styles.sidebarFooter}>
+          <span className={styles.connectionDot} aria-hidden="true" />
+          <span>
+            <strong>Listening</strong>
+            <small>Actions and server events</small>
+          </span>
+        </div>
+      </aside>
+      {mobileMenuOpen && (
+        <button
+          aria-label="Close navigation"
+          className={styles.mobileScrim}
+          onClick={() => setMobileMenuOpen(false)}
+          type="button"
+        />
+      )}
+      <main className={styles.main} id="main-content">
+        <div className={styles.mobileHeader}>
+          <Link className={styles.mobileBrand} href={brandHref}>
+            <StackarrMark size={28} />
+            <strong>Stackarr</strong>
+          </Link>
+          <button
+            aria-expanded={mobileMenuOpen}
+            aria-label="Open navigation"
+            className={styles.menuButton}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            type="button"
+          >
+            <icons.sliders aria-hidden="true" size={18} />
+          </button>
+        </div>
+        {children}
+      </main>
+      <nav className={styles.mobileNav} aria-label="Main mobile navigation">
+        {appNav[0]!.items
+          .filter((item) => item.href !== '/settings')
+          .map((item) => {
+            const active = isNavItemActive(item, pathname);
+            const ItemIcon = item.icon;
             return (
-              <Link key={item.href} className={active ? styles.active : styles.item} href={item.href}>
-                <ItemIcon aria-hidden="true" className={styles.icon || ''} size={16} />
-                <span>{item.label}</span>
+              <Link
+                key={item.href}
+                aria-current={active ? 'page' : undefined}
+                className={active ? styles.mobileNavActive : styles.mobileNavItem}
+                href={item.href}
+              >
+                <ItemIcon aria-hidden="true" size={17} />
+                <span>
+                  {item.label === 'Automation & access'
+                    ? 'Automate'
+                    : item.label === 'Infrastructure'
+                      ? 'Infra'
+                      : item.label}
+                </span>
               </Link>
             );
           })}
-        </nav>
-        <div className={styles.sidebarFooter}>
-          <icons.bell aria-hidden="true" size={14} />
-          <span>Events connected</span>
-        </div>
-      </aside>
-      <main className={styles.main}>{children}</main>
+      </nav>
     </div>
   );
 }
 
+function isNavItemActive(item: NavItem, pathname: string) {
+  if (item.href === '/') return pathname === '/';
+  if (item.href === '/activity/queue') return pathname.startsWith('/activity') || pathname === '/system/logs';
+  if (item.href === '/agent') {
+    return pathname.startsWith('/agent') || pathname === '/settings/connect' || pathname === '/system/events';
+  }
+  if (item.href === '/settings') {
+    return pathname.startsWith('/settings') && pathname !== '/settings/connect';
+  }
+  return pathname.startsWith(item.href);
+}
+
 export function Toolbar({
   title,
+  description,
   actions,
   searchTerm,
   onSearch
 }: {
   title: string;
+  description?: string;
   actions?: React.ReactNode;
   searchTerm?: string;
   onSearch?: (term: string) => void;
@@ -80,7 +172,10 @@ export function Toolbar({
   return (
     <header className={styles.toolbar}>
       <div className={styles.titleGroup}>
-        <h1>{title}</h1>
+        <div className={styles.pageTitle}>
+          <h1>{title}</h1>
+          {description && <p>{description}</p>}
+        </div>
         <FavoriteServiceLinks />
       </div>
       <div className={styles.actions}>

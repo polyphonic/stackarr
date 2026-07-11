@@ -4,7 +4,7 @@ title: Activity
 
 # Activity
 
-Activity shows current work, completed tasks, and agent actions in one place.
+Activity shows current work, completed tasks, agent actions, routines, and server logs in one place.
 
 ## Queue
 
@@ -14,6 +14,10 @@ Shows current and pending Stackarr tasks.
 
 Shows completed command/task records.
 
-## Agent Activity
+## Agent and routine trail
 
-Agent tool calls are shown in the Agent section, but they use the same principle: inspect what happened, when, and with redacted inputs/outputs.
+Calls made from chat and the Stackarr app record their caller, operation, status, duration, and redacted input/result summary. Scheduled routines appear in the same trail.
+
+## Server logs
+
+Open **Activity → Server logs** to inspect recent output without opening a terminal. Stackarr confines reads to `.log` files in its configured log directory, returns at most 500 lines from a bounded 256 KB tail, and redacts tokens, authorization values, URL passwords, cookies, and common secret assignments before they reach the browser.

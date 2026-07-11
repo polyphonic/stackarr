@@ -92,7 +92,7 @@ test('Streamrip database paths must stay under the managed state root', async ()
 });
 
 test('audit redaction masks Streamrip field-id secrets', async () => {
-  const { redactSecrets } = await core();
+  const { redactSecrets, redactString } = await core();
 
   assert.deepEqual(
     redactSecrets({
@@ -111,6 +111,11 @@ test('audit redaction masks Streamrip field-id secrets', async () => {
         'deezer.quality': '1'
       }
     }
+  );
+
+  assert.equal(
+    redactString('Authorization: Bearer abc.def API_KEY=visible PASSWORD: also-visible'),
+    'Authorization=******** API_KEY=******** PASSWORD=********'
   );
 });
 

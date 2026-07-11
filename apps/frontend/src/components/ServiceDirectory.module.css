@@ -1,7 +1,7 @@
 .directory {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+  gap: 13px;
 }
 
 .card {
@@ -10,23 +10,25 @@
   grid-template-columns: 46px minmax(0, 1fr) auto;
   align-items: start;
   gap: 12px;
-  min-height: 122px;
-  padding: 14px;
-  border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--panelBackground);
+  min-height: 132px;
+  padding: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 15px;
+  background: var(--glass-subtle);
+  box-shadow: var(--soft-shadow);
   cursor: pointer;
 }
 
 .card:hover {
-  border-color: var(--purple-500);
+  border-color: var(--glass-border-strong);
+  background: var(--glass-raised);
 }
 
 .stretchedLink {
   position: absolute;
   inset: 0;
   z-index: 1;
-  border-radius: 4px;
+  border-radius: 15px;
 }
 
 .stretchedLink:focus-visible {
@@ -102,10 +104,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--inputBackground);
+  min-height: 44px;
+  border: 1px solid var(--glass-border);
+  border-radius: 11px;
+  background: var(--glass-subtle);
   color: var(--textColor);
 }
 
@@ -118,13 +120,13 @@
 }
 
 .configButton {
-  width: 34px;
+  width: 44px;
   padding: 0;
   color: var(--purple-700);
 }
 
 .starButton {
-  width: 34px;
+  width: 44px;
   padding: 0;
   color: var(--mutedTextColor);
 }
@@ -156,10 +158,11 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(980px, 100%);
   max-height: min(860px, calc(100vh - 48px));
-  border: 1px solid var(--borderColor);
-  border-radius: 4px;
-  background: var(--panelBackground);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panelBackground) 92%, transparent);
   box-shadow: var(--modal-shadow);
+  backdrop-filter: blur(24px) saturate(140%);
 }
 
 .modalHeader,

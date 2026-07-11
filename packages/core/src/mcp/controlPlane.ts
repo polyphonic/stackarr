@@ -33,7 +33,21 @@ const arrServices = ['sonarr', 'sonarr4k', 'radarr', 'radarr4k'];
 const seriesServices = ['sonarr', 'sonarr4k'];
 const movieServices = ['radarr', 'radarr4k'];
 const downloaderServices = ['transmission', 'qbittorrent'];
-const nativeAppServices = ['jellyfin', 'immich', 'romm', 'maintainerr', 'tracearr', 'bookorbit'];
+const nativeAppServices = [
+  'jellyfin',
+  'immich',
+  'pulsarr',
+  'maintainerr',
+  'tracearr',
+  'romm',
+  'bookorbit',
+  'bazarr',
+  'lidarr',
+  'tinymediamanager',
+  'recyclarr',
+  'flaresolverr',
+  'tidarr'
+];
 const toolCategories: ToolCategory[] = [
   'stack',
   'services',

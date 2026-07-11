@@ -20,7 +20,11 @@ const defaults: Record<string, number> = {
   qbittorrent: 8081,
   bookorbit: 7582,
   immich: 2283,
-  romm: 7583
+  romm: 7583,
+  bazarr: 6767,
+  tinymediamanager: 4000,
+  flaresolverr: 8191,
+  tidarr: 8484
 };
 
 const containerDefaults: Record<string, number> = {
