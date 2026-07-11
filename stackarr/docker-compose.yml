@@ -90,7 +90,7 @@ services:
       org.opencontainers.image.description: "[Stackarr](https://stackarr.app/) is a chat-first Docker control plane for self-hosted apps and homelabs."
       org.opencontainers.image.authors: Stackarr
       org.opencontainers.image.licenses: GPL-3.0-only
-      org.opencontainers.image.source: https://github.com/b-bot/Stackarr
+      org.opencontainers.image.source: https://github.com/polyphonic/stackarr
       org.opencontainers.image.documentation: https://stackarr.app/docs/installation/docker
       org.opencontainers.image.url: https://hub.docker.com/r/polyphonic/stackarr
       org.opencontainers.image.logo: https://stackarr.app/icon-512.png

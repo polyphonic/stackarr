@@ -3,4 +3,4 @@ version: 0.3.0
 description: Docker-host configuration bundle for Stackarr's native Hermes MCP integration.
 author: Stackarr
 kind: mcp-config
-homepage: https://github.com/b-bot/Stackarr
+homepage: https://github.com/polyphonic/stackarr
