@@ -1,4 +1,4 @@
-import { listServiceFavoritesAction, readEnv, readSettings } from '@stackarr/core';
+import { listServiceFavoritesAction, readSettings, stackarrChannel, stackarrVersion } from '@stackarr/core';
 import { getStackarrThemeClass } from '@stackarr/ui/theme';
 import { StackarrThemeProvider } from '@stackarr/ui/theme-provider';
 import { StackarrToaster } from '@stackarr/ui/toast';
@@ -23,10 +23,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const settings = readSettings();
-  const env = readEnv();
   const theme = settings.ui.theme;
-  const telemetryEnabled =
-    settings.telemetry.enabled && /^(1|true|yes|on)$/i.test(env.STACKARR_TELEMETRY_FEATURE_ENABLED);
+  const telemetryEnabled = settings.telemetry.enabled;
 
   return (
     <html lang="en" className={getStackarrThemeClass(theme)} data-theme={theme} suppressHydrationWarning>
@@ -34,7 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StackarrThemeProvider theme={theme}>
           <TelemetryHeartbeat enabled={telemetryEnabled} />
           <StackarrToaster />
-          <AppFrame initialFavorites={listServiceFavoritesAction()} setupComplete={settings.setup.onboardingComplete}>
+          <AppFrame
+            channel={stackarrChannel}
+            initialFavorites={listServiceFavoritesAction()}
+            setupComplete={settings.setup.onboardingComplete}
+            version={stackarrVersion}
+          >
             {children}
           </AppFrame>
         </StackarrThemeProvider>

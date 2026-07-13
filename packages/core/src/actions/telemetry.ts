@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import os from 'node:os';
-import { readEnv } from '../env';
+import { databaseExists } from '../database';
+import { readEnv, writeEnvConfig } from '../env';
+import { composePath, stackarrBin } from '../paths';
 import { getServices } from '../services';
 import { readSettings, type StackarrSettings, writeSettings } from '../settings';
+import { readTasks } from '../tasks';
 import { stackarrVersion } from '../version';
 
-const telemetrySchemaVersion = 1;
+const telemetrySchemaVersion = 2;
 const stackarrAppVersion = stackarrVersion;
 const defaultSendTimeoutMs = 10_000;
 
@@ -57,6 +61,11 @@ export type TelemetryPayload = {
     enabledServices: number;
     configuredServices: number;
     disabledServices: number;
+  };
+  health: {
+    issueCodes: string[];
+    recentTaskFailures: string;
+    recentBlockedTasks: string;
   };
 };
 
@@ -191,7 +200,22 @@ export async function sendTelemetryAction(input: TelemetrySendInput = {}) {
     };
   }
 
-  const response = await postTelemetry(endpoint, payload, readEnv().STACKARR_TELEMETRY_INGEST_KEY);
+  const env = readEnv();
+  const adminIngestKey = env.STACKARR_TELEMETRY_INGEST_KEY?.trim() ?? '';
+  let credential = adminIngestKey || env.STACKARR_TELEMETRY_CLIENT_TOKEN?.trim() || '';
+  if (!credential) {
+    credential = await registerTelemetryClient(endpoint, payload.install.id);
+  }
+
+  let response = await postTelemetry(endpoint, payload, credential);
+  if (response.status === 401 && !adminIngestKey) {
+    credential = await registerTelemetryClient(endpoint, payload.install.id);
+    response = await postTelemetry(endpoint, payload, credential);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Telemetry endpoint returned HTTP ${response.status}`);
+  }
   const sentAt = new Date().toISOString();
   writeSettings({ telemetry: { lastSentAt: sentAt } });
 
@@ -288,7 +312,8 @@ export function buildTelemetryPayload(options: { persistInstallId?: boolean } = 
       enabledServices: enabledServices.length,
       configuredServices: services.filter((service) => service.status === 'configured').length,
       disabledServices: services.filter((service) => service.status === 'disabled').length
-    }
+    },
+    health: telemetryHealthSummary()
   };
 }
 
@@ -313,7 +338,7 @@ function publicTelemetrySettings(settings: StackarrSettings) {
   };
 }
 
-async function postTelemetry(endpoint: string, payload: TelemetryPayload, ingestKey = '') {
+async function postTelemetry(endpoint: string, payload: TelemetryPayload, credential: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), defaultSendTimeoutMs);
   const headers = new Headers({
@@ -321,9 +346,7 @@ async function postTelemetry(endpoint: string, payload: TelemetryPayload, ingest
     'X-Stackarr-Telemetry-Schema': String(telemetrySchemaVersion)
   });
 
-  if (ingestKey) {
-    headers.set('Authorization', `Bearer ${ingestKey}`);
-  }
+  headers.set('Authorization', `Bearer ${credential}`);
 
   try {
     const response = await fetch(endpoint, {
@@ -333,14 +356,85 @@ async function postTelemetry(endpoint: string, payload: TelemetryPayload, ingest
       signal: controller.signal
     });
 
-    if (!response.ok) {
-      throw new Error(`Telemetry endpoint returned HTTP ${response.status}`);
-    }
-
-    return { status: response.status };
+    return { ok: response.ok, status: response.status };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function registerTelemetryClient(endpoint: string, installId: string) {
+  const registrationEndpoint = telemetryRegistrationEndpoint(endpoint);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), defaultSendTimeoutMs);
+
+  try {
+    const response = await fetch(registrationEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        schemaVersion: telemetrySchemaVersion,
+        installId,
+        appVersion: stackarrAppVersion
+      }),
+      signal: controller.signal
+    });
+    const body = (await response.json().catch(() => ({}))) as { token?: unknown };
+
+    if (!response.ok || typeof body.token !== 'string' || body.token.length < 32) {
+      throw new Error(`Telemetry registration returned HTTP ${response.status}`);
+    }
+
+    writeEnvConfig({ STACKARR_TELEMETRY_CLIENT_TOKEN: body.token });
+    return body.token;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function telemetryRegistrationEndpoint(endpoint: string) {
+  const url = new URL(endpoint);
+  const segments = url.pathname.split('/').filter(Boolean);
+
+  if (segments.at(-1) === 'events') {
+    segments[segments.length - 1] = 'register';
+  } else {
+    segments.push('register');
+  }
+
+  url.pathname = `/${segments.join('/')}`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function telemetryHealthSummary(): TelemetryPayload['health'] {
+  const issueCodes: string[] = [];
+  if (!databaseExists()) issueCodes.push('config_missing');
+  if (!fs.existsSync(composePath)) issueCodes.push('compose_missing');
+  if (!fs.existsSync(stackarrBin)) issueCodes.push('cli_missing');
+
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const recentTasks = readTasks().filter((task) => {
+    const timestamp = Date.parse(task.endedAt || task.startedAt || task.queuedAt);
+    return Number.isFinite(timestamp) && timestamp >= cutoff;
+  });
+  const failed = recentTasks.filter((task) => task.status === 'failed').length;
+  const blocked = recentTasks.filter((task) => task.status === 'blocked').length;
+  if (failed > 0) issueCodes.push('recent_task_failures');
+  if (blocked > 0) issueCodes.push('recent_blocked_tasks');
+
+  return {
+    issueCodes,
+    recentTaskFailures: countBucket(failed),
+    recentBlockedTasks: countBucket(blocked)
+  };
+}
+
+function countBucket(count: number) {
+  if (count <= 0) return '0';
+  if (count === 1) return '1';
+  if (count <= 4) return '2-4';
+  return '5+';
 }
 
 function normalizeTelemetryEndpoint(value: string | undefined) {
@@ -415,7 +509,7 @@ function envFlag(value: string | undefined, fallback: boolean) {
 }
 
 function telemetryFeatureEnabled() {
-  return envFlag(readEnv().STACKARR_TELEMETRY_FEATURE_ENABLED, false);
+  return true;
 }
 
 function shouldSendHeartbeat(lastSentAt: string) {

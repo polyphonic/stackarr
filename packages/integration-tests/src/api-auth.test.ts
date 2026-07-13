@@ -196,9 +196,46 @@ test('API key auth fails closed for command-style requests', async () => {
           const identityWithPassword = await putStackarrConfig(
             new NextRequest('http://127.0.0.1:7777/api/v1/config/stackarr', {
               method: 'PUT',
-              headers: { 'content-type': 'application/json', 'x-api-key': bootstrapBody.apiKey },
+              headers: { 'content-type': 'application/json', cookie: sessionCookie },
               body: JSON.stringify({ config: { USERNAME: 'new-admin' }, currentPassword: 'secret123' })
             })
+          );
+          const identitySessionCookie = identityWithPassword.headers.get('set-cookie') ?? '';
+          const originalSessionAfterUsernameChange = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { cookie: sessionCookie } })
+          );
+          const renewedSessionAfterUsernameChange = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { cookie: identitySessionCookie } })
+          );
+          const passwordChange = await putStackarrConfig(
+            new NextRequest('http://127.0.0.1:7777/api/v1/config/stackarr', {
+              method: 'PUT',
+              headers: { 'content-type': 'application/json', cookie: identitySessionCookie },
+              body: JSON.stringify({ config: { PASSWORD: 'secret456' }, currentPassword: 'secret123' })
+            })
+          );
+          const passwordSessionCookie = passwordChange.headers.get('set-cookie') ?? '';
+          const oldSessionAfterPasswordChange = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { cookie: identitySessionCookie } })
+          );
+          const renewedSessionAfterPasswordChange = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { cookie: passwordSessionCookie } })
+          );
+          const apiKeyChange = await putStackarrConfig(
+            new NextRequest('http://127.0.0.1:7777/api/v1/config/stackarr', {
+              method: 'PUT',
+              headers: { 'content-type': 'application/json', cookie: passwordSessionCookie },
+              body: JSON.stringify({ config: { STACKARR_API_KEY: 'rotated-stackarr-api-key' }, currentPassword: 'secret456' })
+            })
+          );
+          const sessionAfterApiKeyChange = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { cookie: passwordSessionCookie } })
+          );
+          const oldApiKeyAfterRotation = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { 'x-api-key': bootstrapBody.apiKey } })
+          );
+          const newApiKeyAfterRotation = requireApiKey(
+            new NextRequest(commandUrl, { method: 'POST', headers: { 'x-api-key': 'rotated-stackarr-api-key' } })
           );
           const rateLimitStatuses = [];
           for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -241,6 +278,17 @@ test('API key auth fails closed for command-style requests', async () => {
             timezoneAfterAllowedStackConfigChange: envAfterStackConfigActions.TIMEZONE,
             identityWithoutPassword: identityWithoutPassword.status,
             identityWithPassword: identityWithPassword.status,
+            identitySessionCookie: identitySessionCookie.includes('stackarr_session='),
+            originalSessionAfterUsernameChange: originalSessionAfterUsernameChange === null,
+            renewedSessionAfterUsernameChange: renewedSessionAfterUsernameChange === null,
+            passwordChange: passwordChange.status,
+            passwordSessionCookie: passwordSessionCookie.includes('stackarr_session='),
+            oldSessionAfterPasswordChange: oldSessionAfterPasswordChange?.status,
+            renewedSessionAfterPasswordChange: renewedSessionAfterPasswordChange === null,
+            apiKeyChange: apiKeyChange.status,
+            sessionAfterApiKeyChange: sessionAfterApiKeyChange === null,
+            oldApiKeyAfterRotation: oldApiKeyAfterRotation?.status,
+            newApiKeyAfterRotation: newApiKeyAfterRotation === null,
             rateLimitStatuses
           }));
         `
@@ -284,6 +332,17 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.timezoneAfterAllowedStackConfigChange, 'UTC');
     assert.equal(result.identityWithoutPassword, 403);
     assert.equal(result.identityWithPassword, 200);
+    assert.equal(result.identitySessionCookie, true);
+    assert.equal(result.originalSessionAfterUsernameChange, true);
+    assert.equal(result.renewedSessionAfterUsernameChange, true);
+    assert.equal(result.passwordChange, 200);
+    assert.equal(result.passwordSessionCookie, true);
+    assert.equal(result.oldSessionAfterPasswordChange, 401);
+    assert.equal(result.renewedSessionAfterPasswordChange, true);
+    assert.equal(result.apiKeyChange, 200);
+    assert.equal(result.sessionAfterApiKeyChange, true);
+    assert.equal(result.oldApiKeyAfterRotation, 401);
+    assert.equal(result.newApiKeyAfterRotation, true);
     assert.equal(result.rateLimitStatuses.at(-1), 429);
   } finally {
     await rm(root, { recursive: true, force: true });

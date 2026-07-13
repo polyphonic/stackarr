@@ -27,7 +27,7 @@ export type StackarrSettings = {
     serviceFavorites: string[];
   };
   host: {
-    authenticationMethod: 'none' | 'apikey' | 'forms';
+    authenticationMethod: 'none' | 'forms';
     enableSsl: boolean;
     urlBase: string;
     bindAddress: string;
@@ -251,8 +251,8 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     telemetry: {
       ...defaultSettings.telemetry,
       enabled: envFlag(env.STACKARR_TELEMETRY_ENABLED, defaultSettings.telemetry.enabled),
-      endpoint: env.STACKARR_TELEMETRY_ENDPOINT ?? defaultSettings.telemetry.endpoint,
-      channel: env.STACKARR_TELEMETRY_CHANNEL ?? defaultSettings.telemetry.channel
+      endpoint: env.STACKARR_TELEMETRY_ENDPOINT || 'https://stackarr.app/api/telemetry/events',
+      channel: env.STACKARR_TELEMETRY_CHANNEL || process.env.STACKARR_CHANNEL || defaultSettings.telemetry.channel
     }
   };
 }
@@ -322,7 +322,13 @@ function mergeSettings(base: StackarrSettings, partial: StackarrSettingsPatch): 
   return {
     setup: { ...base.setup, ...partial.setup },
     ui: { ...base.ui, ...partial.ui, theme: normalizeTheme(partial.ui?.theme ?? base.ui.theme) },
-    host: { ...base.host, ...partial.host },
+    host: {
+      ...base.host,
+      ...partial.host,
+      authenticationMethod: normalizeAuthenticationMethod(
+        partial.host?.authenticationMethod ?? base.host.authenticationMethod
+      )
+    },
     connect: {
       exposeSeerrOnly: partial.connect?.exposeSeerrOnly ?? base.connect.exposeSeerrOnly,
       warnBeforePublicExposure: partial.connect?.warnBeforePublicExposure ?? base.connect.warnBeforePublicExposure
@@ -346,7 +352,15 @@ function migrateSettingsPatch(settings: StackarrSettingsPatch): StackarrSettings
     next = mergeSettingsPatch(next, { ui: { theme: 'dark' } });
   }
 
+  if ((next.host as { authenticationMethod?: unknown } | undefined)?.authenticationMethod === 'apikey') {
+    next = mergeSettingsPatch(next, { host: { authenticationMethod: 'forms' } });
+  }
+
   return next;
+}
+
+function normalizeAuthenticationMethod(value: unknown): StackarrSettings['host']['authenticationMethod'] {
+  return value === 'none' ? 'none' : 'forms';
 }
 
 function mergeSettingsPatch(base: StackarrSettingsPatch, patch: StackarrSettingsPatch): StackarrSettingsPatch {

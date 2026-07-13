@@ -7,6 +7,8 @@ export type TorrentClient = 'transmission' | 'qbittorrent';
 
 export type StackarrEnv = Record<string, string> & {
   STACKARR_API_KEY?: string;
+  STACKARR_SESSION_SECRET?: string;
+  STACKARR_SESSION_VERSION?: string;
   PREFERRED_TORRENT_CLIENT?: TorrentClient | string;
   PLEX_INSTALL_MODE?: InstallMode | string;
   JELLYFIN_INSTALL_MODE?: InstallMode | string;
@@ -244,6 +246,8 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_STORAGE_WAIT_SECONDS: '600',
 
   STACKARR_API_KEY: '',
+  STACKARR_SESSION_SECRET: '',
+  STACKARR_SESSION_VERSION: '1',
   STACKARR_DOCKER_CONTEXT: '',
   STACKARR_WEB_ENABLED: 'true',
   STACKARR_IMAGE: 'polyphonic/stackarr:alpha',
@@ -252,11 +256,12 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_MCP_HTTP_ENABLED: 'false',
   STACKARR_MCP_HTTP_PORT: '7780',
   STACKARR_MCP_HTTP_ALLOWED_ORIGINS: '',
-  STACKARR_TELEMETRY_FEATURE_ENABLED: 'false',
+  STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
   STACKARR_TELEMETRY_ENABLED: 'false',
-  STACKARR_TELEMETRY_ENDPOINT: '',
+  STACKARR_TELEMETRY_ENDPOINT: 'https://stackarr.app/api/telemetry/events',
   STACKARR_TELEMETRY_CHANNEL: 'stable',
   STACKARR_TELEMETRY_INGEST_KEY: '',
+  STACKARR_TELEMETRY_CLIENT_TOKEN: '',
 
   TRANSMISSION_IMAGE: 'lscr.io/linuxserver/transmission:latest',
   QBITTORRENT_IMAGE: 'lscr.io/linuxserver/qbittorrent:latest',

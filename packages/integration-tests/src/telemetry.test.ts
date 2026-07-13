@@ -11,6 +11,22 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
+test('collector tokens are scoped to one installation and expire', async () => {
+  const { issueTelemetryClientToken, verifyTelemetryClientToken } = await import(
+    '../../../apps/docs/src/app/api/telemetry/auth.ts'
+  );
+  const signingKey = 'collector-signing-key-with-at-least-32-characters';
+  const firstInstall = '11111111-1111-4111-8111-111111111111';
+  const secondInstall = '22222222-2222-4222-8222-222222222222';
+  const now = Date.now();
+  const { token } = issueTelemetryClientToken(firstInstall, signingKey, now);
+
+  assert.equal(verifyTelemetryClientToken(token, signingKey, firstInstall, now), true);
+  assert.equal(verifyTelemetryClientToken(token, signingKey, secondInstall, now), false);
+  assert.equal(verifyTelemetryClientToken(token, `${signingKey}-wrong`, firstInstall, now), false);
+  assert.equal(verifyTelemetryClientToken(token, signingKey, firstInstall, now + 181 * 24 * 60 * 60 * 1000), false);
+});
+
 test('telemetry preview is opt-in and excludes host paths and secrets', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-test-'));
 
@@ -81,6 +97,9 @@ test('telemetry preview is opt-in and excludes host paths and secrets', async ()
     assert.equal(payload.setup.databaseMode, 'postgres');
     assert.equal(payload.services.mediaServers.plex, 'native');
     assert.equal(payload.backups.retentionBucket, '13-52');
+    assert.equal(payload.schemaVersion, 2);
+    assert.ok(Array.isArray(payload.health.issueCodes));
+    assert.equal(typeof payload.health.recentTaskFailures, 'string');
     assert.match(payload.install.id, /^[0-9a-f-]{36}$/);
     assert.doesNotMatch(serialized, /private-media|private-backup|super-secret-password|plex-token-value/);
   } finally {
@@ -103,6 +122,7 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
           import http from 'node:http';
 
           const received = [];
+          const registrations = [];
           const server = http.createServer((request, response) => {
             let body = '';
             request.setEncoding('utf8');
@@ -110,6 +130,15 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
               body += chunk;
             });
             request.on('end', () => {
+              if (request.url === '/register') {
+                registrations.push(JSON.parse(body));
+                response.writeHead(201, { 'content-type': 'application/json' });
+                response.end(JSON.stringify({
+                  accepted: true,
+                  token: 'scoped-client-token-for-telemetry-test-1234567890'
+                }));
+                return;
+              }
               received.push({
                 authorization: request.headers.authorization,
                 schema: request.headers['x-stackarr-telemetry-schema'],
@@ -127,13 +156,13 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
           const {
             getTelemetryStatusAction,
             maybeSendTelemetryHeartbeatAction,
+            readEnv,
             updateTelemetryConfigAction,
             writeEnvConfig
           } = await import('./packages/core/src/index.ts');
 
           writeEnvConfig({
             STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
-            STACKARR_TELEMETRY_INGEST_KEY: 'test-ingest-key',
             STACKARR_DATABASE_MODE: 'app-default'
           });
 
@@ -146,9 +175,10 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
           const first = await maybeSendTelemetryHeartbeatAction();
           const second = await maybeSendTelemetryHeartbeatAction();
           const status = getTelemetryStatusAction();
+          const clientTokenStored = Boolean(readEnv().STACKARR_TELEMETRY_CLIENT_TOKEN);
 
           await new Promise((resolve) => server.close(resolve));
-          console.log(JSON.stringify({ configured, first, second, status, received }));
+          console.log(JSON.stringify({ configured, first, second, status, received, registrations, clientTokenStored }));
         `
       ],
       {
@@ -167,9 +197,13 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
     assert.equal(result.second.skipped, true);
     assert.equal(result.second.reason, 'recently-sent');
     assert.equal(result.status.lastSentAt, result.first.sentAt);
+    assert.equal(result.registrations.length, 1);
+    assert.equal(result.registrations[0].schemaVersion, 2);
+    assert.equal(result.registrations[0].installId, result.received[0].body.install.id);
+    assert.equal(result.clientTokenStored, true);
     assert.equal(result.received.length, 1);
-    assert.equal(result.received[0].authorization, 'Bearer test-ingest-key');
-    assert.equal(result.received[0].schema, '1');
+    assert.equal(result.received[0].authorization, 'Bearer scoped-client-token-for-telemetry-test-1234567890');
+    assert.equal(result.received[0].schema, '2');
     assert.equal(result.received[0].body.eventName, 'stackarr.heartbeat');
     assert.equal(result.received[0].body.install.channel, 'test');
     assert.equal(result.received[0].body.setup.databaseMode, 'app-default');
@@ -178,7 +212,7 @@ test('telemetry heartbeat sends to configured collector with auth and throttles 
   }
 });
 
-test('telemetry is hidden behind a feature gate by default', async () => {
+test('telemetry is available but remains opt-in by default', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-gate-test-'));
 
   try {
@@ -197,14 +231,13 @@ test('telemetry is hidden behind a feature gate by default', async () => {
           } = await import('./packages/core/src/index.ts');
 
           const status = getTelemetryStatusAction();
-          const rejected = updateTelemetryConfigAction({
+          const confirmationRequired = updateTelemetryConfigAction({
             enabled: true,
-            endpoint: 'https://telemetry.example.com/v1/events',
-            confirmTelemetry: true
+            endpoint: 'https://telemetry.example.com/v1/events'
           });
           const heartbeat = await maybeSendTelemetryHeartbeatAction();
 
-          console.log(JSON.stringify({ status, rejected, heartbeat }));
+          console.log(JSON.stringify({ status, confirmationRequired, heartbeat }));
         `
       ],
       {
@@ -217,11 +250,12 @@ test('telemetry is hidden behind a feature gate by default', async () => {
     );
 
     const result = JSON.parse(stdout);
-    assert.equal(result.status.featureEnabled, false);
-    assert.equal(result.rejected.accepted, false);
-    assert.equal(result.rejected.error, 'Telemetry is feature-gated in this build.');
+    assert.equal(result.status.featureEnabled, true);
+    assert.equal(result.status.enabled, false);
+    assert.equal(result.confirmationRequired.accepted, false);
+    assert.equal(result.confirmationRequired.confirmationRequired, true);
     assert.equal(result.heartbeat.skipped, true);
-    assert.equal(result.heartbeat.reason, 'feature-gated');
+    assert.equal(result.heartbeat.reason, 'telemetry-disabled');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

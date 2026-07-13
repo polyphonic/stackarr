@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { readEnv, readSettings } from '@stackarr/core';
+import { readEnv, readSettings, writeEnvConfig } from '@stackarr/core';
 import { NextRequest, NextResponse } from 'next/server';
 
 const sessionCookieName = 'stackarr_session';
@@ -23,7 +23,7 @@ export function json(data: unknown, init?: ResponseInit) {
 export function requireApiKey(request: NextRequest) {
   const env = readEnv();
   const settings = readSettingsSafe();
-  const authenticationMethod = settings?.host.authenticationMethod ?? 'apikey';
+  const authenticationMethod = settings?.host.authenticationMethod ?? 'forms';
 
   if (authenticationMethod === 'none') {
     return null;
@@ -133,9 +133,13 @@ export function recordStackarrLoginAttempt(request: NextRequest, identifier: str
   pruneLoginAttemptBuckets(now);
 }
 
-export function setStackarrSessionCookie(response: NextResponse, request: NextRequest, username: string) {
-  const env = readEnv();
-  const token = signSessionToken(username, env);
+export function setStackarrSessionCookie(
+  response: NextResponse,
+  request: NextRequest,
+  env: ReturnType<typeof readEnv> = readEnv()
+) {
+  const sessionEnv = ensureStackarrSessionSecret(env);
+  const token = signSessionToken(sessionEnv);
 
   response.cookies.set(sessionCookieName, token, {
     httpOnly: true,
@@ -162,7 +166,7 @@ export function clearStackarrSessionCookie(response: NextResponse) {
 export function stackarrAuthStatus(request: NextRequest) {
   const env = readEnv();
   const settings = readSettingsSafe();
-  const authenticationMethod = settings?.host.authenticationMethod ?? 'apikey';
+  const authenticationMethod = settings?.host.authenticationMethod ?? 'forms';
   const authenticated = authenticationMethod === 'none' || validStackarrSession(request, env);
 
   return {
@@ -185,44 +189,61 @@ export function validStackarrSessionToken(token: string | undefined, env = readE
     return false;
   }
 
-  const secret = sessionSecret(env);
-  if (!secret) {
-    return false;
-  }
-
-  const expected = signPayload(payload, secret);
-  if (!secretEqual(signature, expected)) {
-    return false;
-  }
-
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+      subject?: unknown;
+      sessionVersion?: unknown;
       username?: unknown;
       expiresAt?: unknown;
     };
-    const username = typeof data.username === 'string' ? data.username.trim().toLowerCase() : '';
     const expiresAt = typeof data.expiresAt === 'number' ? data.expiresAt : 0;
-    const allowedUsers = [env.USERNAME, env.USER_EMAIL].map((value) => value?.trim().toLowerCase()).filter(Boolean);
+    if (expiresAt <= Date.now()) {
+      return false;
+    }
 
-    return Boolean(username && allowedUsers.includes(username) && expiresAt > Date.now());
+    if (data.subject === 'stackarr-owner') {
+      const secret = env.STACKARR_SESSION_SECRET?.trim();
+      return Boolean(
+        secret &&
+          data.sessionVersion === stackarrSessionVersion(env) &&
+          secretEqual(signature, signPayload(payload, secret))
+      );
+    }
+
+    const username = typeof data.username === 'string' ? data.username.trim().toLowerCase() : '';
+    const allowedUsers = [env.USERNAME, env.USER_EMAIL].map((value) => value?.trim().toLowerCase()).filter(Boolean);
+    const legacySecrets = [env.STACKARR_API_KEY?.trim(), env.PASSWORD?.trim()].filter((value): value is string =>
+      Boolean(value)
+    );
+
+    return Boolean(
+      username &&
+        allowedUsers.includes(username) &&
+        legacySecrets.some((secret) => secretEqual(signature, signPayload(payload, secret)))
+    );
   } catch {
     return false;
   }
 }
 
-function validStackarrSession(request: NextRequest, env: ReturnType<typeof readEnv>) {
+export function hasValidStackarrSession(request: NextRequest, env: ReturnType<typeof readEnv> = readEnv()) {
   return validStackarrSessionToken(request.cookies.get(sessionCookieName)?.value, env);
 }
 
-function signSessionToken(username: string, env: ReturnType<typeof readEnv>) {
-  const secret = sessionSecret(env);
+function validStackarrSession(request: NextRequest, env: ReturnType<typeof readEnv>) {
+  return hasValidStackarrSession(request, env);
+}
+
+function signSessionToken(env: ReturnType<typeof readEnv>) {
+  const secret = env.STACKARR_SESSION_SECRET?.trim();
   if (!secret) {
     throw new Error('Stackarr session secret is not configured.');
   }
 
   const payload = Buffer.from(
     JSON.stringify({
-      username: username.trim().toLowerCase(),
+      subject: 'stackarr-owner',
+      sessionVersion: stackarrSessionVersion(env),
       expiresAt: Date.now() + sessionMaxAgeSeconds * 1000
     })
   ).toString('base64url');
@@ -234,8 +255,17 @@ function signPayload(payload: string, secret: string) {
   return crypto.createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
-function sessionSecret(env: ReturnType<typeof readEnv>) {
-  return env.STACKARR_API_KEY?.trim() || env.PASSWORD?.trim() || null;
+function ensureStackarrSessionSecret(env: ReturnType<typeof readEnv>) {
+  if (env.STACKARR_SESSION_SECRET?.trim()) {
+    return env;
+  }
+
+  return writeEnvConfig({ STACKARR_SESSION_SECRET: crypto.randomBytes(32).toString('hex') });
+}
+
+function stackarrSessionVersion(env: ReturnType<typeof readEnv>) {
+  const version = Number(env.STACKARR_SESSION_VERSION);
+  return Number.isSafeInteger(version) && version > 0 ? version : 1;
 }
 
 function secretEqual(actual: string, expected: string) {

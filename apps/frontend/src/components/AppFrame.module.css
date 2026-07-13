@@ -150,29 +150,30 @@
 .sidebarFooter {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-height: 54px;
   margin-top: 16px;
   padding: 9px 10px;
   border: 1px solid var(--glass-border);
   border-radius: 13px;
   background: var(--glass-subtle);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.sidebarFooter:hover {
+  border-color: var(--glass-border-strong);
+  background: var(--glass-raised);
+  color: var(--text);
+  text-decoration: none;
 }
 
 .sidebarFooter strong {
   color: var(--text);
   font-size: 11.5px;
   font-weight: 650;
-}
-
-.connectionDot {
-  width: 9px;
-  height: 9px;
-  flex: 0 0 auto;
-  border: 2px solid color-mix(in srgb, var(--success) 28%, transparent);
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .main {

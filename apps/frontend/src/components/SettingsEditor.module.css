@@ -77,6 +77,48 @@
   width: 100%;
 }
 
+.checkCopy {
+  display: grid;
+  gap: 3px;
+}
+
+.checkCopy small {
+  max-width: 560px;
+  color: var(--mutedTextColor);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.telemetryControl {
+  display: grid;
+  max-width: 680px;
+  gap: 9px;
+}
+
+.previewButton {
+  width: max-content;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--borderColor);
+  border-radius: 10px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.telemetryPreview {
+  max-height: 340px;
+  margin: 0;
+  padding: 13px;
+  overflow: auto;
+  border: 1px solid var(--borderColor);
+  border-radius: 10px;
+  background: var(--panelBackground);
+  color: var(--mutedTextColor);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .actionRow {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);

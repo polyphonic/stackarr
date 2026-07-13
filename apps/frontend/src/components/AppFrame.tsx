@@ -33,11 +33,15 @@ const appNav: NavGroup[] = [
 export function AppFrame({
   children,
   initialFavorites,
-  setupComplete
+  setupComplete,
+  version,
+  channel
 }: {
   children: React.ReactNode;
   initialFavorites: ServiceFavorite[];
   setupComplete: boolean;
+  version: string;
+  channel: string;
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -116,13 +120,12 @@ export function AppFrame({
             </div>
           )}
         </nav>
-        <div className={styles.sidebarFooter}>
-          <span className={styles.connectionDot} aria-hidden="true" />
+        <Link className={styles.sidebarFooter} href="/system/status">
           <span>
-            <strong>Listening</strong>
-            <small>Actions and server events</small>
+            <strong>Stackarr v{version}</strong>
+            <small>{releaseChannelLabel(channel)}</small>
           </span>
-        </div>
+        </Link>
       </aside>
       {mobileMenuOpen && (
         <button
@@ -177,6 +180,13 @@ export function AppFrame({
       </nav>
     </div>
   );
+}
+
+function releaseChannelLabel(channel: string) {
+  if (channel === 'stable') return 'Stable release';
+  if (channel === 'alpha') return 'Alpha release';
+  if (channel === 'beta') return 'Beta release';
+  return `${channel || 'Preview'} release`;
 }
 
 function isNavItemActive(item: NavItem, pathname: string) {
