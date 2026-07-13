@@ -34,6 +34,40 @@ test('release metadata points at the public Stackarr logo URL', async () => {
   );
 });
 
+test('release manifest targets the repository root and keeps shipped versions aligned', async () => {
+  const rootPackage = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8')) as { version: string };
+  const manifest = JSON.parse(await readFile(path.join(repoRoot, '.release-please-manifest.json'), 'utf8')) as Record<
+    string,
+    string
+  >;
+  const config = JSON.parse(await readFile(path.join(repoRoot, 'release-please-config.json'), 'utf8')) as {
+    packages?: Record<string, { 'extra-files'?: Array<string | { path?: string }> }>;
+  };
+  const rootRelease = config.packages?.['.'];
+
+  assert.ok(rootRelease, 'release-please must declare the repository root as a package');
+  assert.equal(manifest['.'], rootPackage.version);
+
+  const extraFiles = (rootRelease['extra-files'] ?? []).map((entry) =>
+    typeof entry === 'string' ? entry : entry.path
+  );
+  const requiredVersionFiles = [
+    'Dockerfile',
+    'apps/docs/src/lib/site.ts',
+    'apps/docs/content/docs/installation/docker.mdx',
+    'packages/core/src/version.ts',
+    'stackarr/scripts/telemetry.cjs'
+  ];
+
+  for (const file of requiredVersionFiles) {
+    assert.ok(extraFiles.includes(file), `${file} must be updated by release-please`);
+    assert.match(await readFile(path.join(repoRoot, file), 'utf8'), new RegExp(escapeRegExp(rootPackage.version)));
+  }
+
+  const releaseWorkflow = await readFile(path.join(repoRoot, '.github/workflows/release.yml'), 'utf8');
+  assert.match(releaseWorkflow, /release-please:\n\s+name: Prepare release\n\s+needs: docker-smoke/);
+});
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
