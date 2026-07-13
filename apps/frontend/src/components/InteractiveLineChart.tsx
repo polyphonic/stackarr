@@ -1,6 +1,13 @@
 'use client';
 
-import { VictoryChart, VictoryLine, VictoryScatter, VictoryTooltip, VictoryVoronoiContainer } from 'victory';
+import {
+  VictoryAxis,
+  VictoryChart,
+  VictoryLine,
+  VictoryScatter,
+  VictoryTooltip,
+  VictoryVoronoiContainer
+} from 'victory';
 
 export type LineChartSeries = {
   name: string;
@@ -11,14 +18,22 @@ export type LineChartSeries = {
 export function InteractiveLineChart({
   compact = false,
   height,
-  series
+  series,
+  xDomain,
+  xTickFormat,
+  xTickValues
 }: {
   compact?: boolean;
   height: number;
   series: LineChartSeries[];
+  xDomain?: [number, number];
+  xTickFormat?: (value: number) => string;
+  xTickValues?: number[];
 }) {
   const values = series.flatMap((item) => item.data.map((point) => point.y));
   const maximum = Math.max(compact ? 1 : 20, Math.ceil(Math.max(...values, 0) / 10) * 10);
+  const yStep = maximum <= 20 ? 5 : 10;
+  const yTickValues = Array.from({ length: Math.floor(maximum / yStep) + 1 }, (_, index) => index * yStep);
   const width = compact ? 92 : 620;
 
   return (
@@ -38,11 +53,37 @@ export function InteractiveLineChart({
           voronoiDimension="x"
         />
       }
-      domain={{ y: [0, maximum] }}
+      domain={xDomain ? { x: xDomain, y: [0, maximum] } : { y: [0, maximum] }}
       height={height}
-      padding={compact ? 1 : { top: 10, right: 4, bottom: 20, left: 4 }}
+      padding={compact ? 1 : { top: 10, right: 14, bottom: 34, left: 50 }}
       width={width}
     >
+      {!compact && (
+        <VictoryAxis
+          tickFormat={xTickFormat}
+          tickValues={xTickValues}
+          style={{
+            axis: { stroke: 'var(--borderColor)' },
+            grid: { stroke: 'var(--glass-border-strong)', strokeDasharray: '3 5', strokeWidth: 0.7 },
+            tickLabels: { fill: 'var(--mutedTextColor)', fontFamily: 'inherit', fontSize: 10, padding: 7 },
+            ticks: { stroke: 'var(--glass-border-strong)', size: 4 }
+          }}
+        />
+      )}
+      {!compact && (
+        <VictoryAxis
+          dependentAxis
+          orientation="left"
+          tickFormat={(value) => `${value}%`}
+          tickValues={yTickValues}
+          style={{
+            axis: { stroke: 'var(--borderColor)' },
+            grid: { stroke: 'var(--glass-border-strong)', strokeDasharray: '3 5', strokeWidth: 0.7 },
+            tickLabels: { fill: 'var(--mutedTextColor)', fontFamily: 'inherit', fontSize: 10, padding: 7 },
+            ticks: { stroke: 'var(--glass-border-strong)', size: 4 }
+          }}
+        />
+      )}
       {series.map((item) => (
         <VictoryLine
           data={item.data}

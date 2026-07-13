@@ -6,6 +6,18 @@ import { composePath, composeProjectDir, composeProjectName, repoRoot } from './
 import { getServices } from './services';
 import { readTasks } from './tasks';
 
+type FilesystemUsage = {
+  filesystem: string;
+  type: string;
+  totalKilobytes: number;
+  availableKilobytes: number;
+  usedPercent: number;
+  mountPoint: string | null;
+  reliable: boolean;
+};
+
+const virtiofsUsageCache = new Map<string, { expiresAt: number; usage: FilesystemUsage | null }>();
+
 export type StackMetrics = {
   generatedAt: string;
   serviceCounts: {
@@ -111,7 +123,17 @@ function readDockerRunningCount() {
 function diskUsages(paths: string[]) {
   const requestedPaths = paths.filter(Boolean);
   const fallbackPaths = requestedPaths.length > 0 ? requestedPaths : [repoRoot];
-  const disks = fallbackPaths.map((diskPath) => diskUsage(diskPath));
+  const groupedPaths = new Map<string, string[]>();
+
+  for (const diskPath of fallbackPaths) {
+    const probePath = externalVolumeRoot(diskPath) ?? diskPath;
+    groupedPaths.set(probePath, [...(groupedPaths.get(probePath) ?? []), diskPath]);
+  }
+
+  const disks = [...groupedPaths.entries()].map(([diskPath, originalPaths]) => ({
+    ...diskUsage(diskPath),
+    paths: [...new Set(originalPaths)]
+  }));
   const byVolume = new Map<string, (typeof disks)[number]>();
 
   for (const disk of disks) {
@@ -134,10 +156,11 @@ function diskUsages(paths: string[]) {
 function diskUsage(diskPath: string) {
   try {
     const normalizedPath = fs.existsSync(diskPath) ? fs.realpathSync(diskPath) : diskPath;
-    const usage = readFilesystemUsage(diskPath);
+    const containerUsage = readFilesystemUsage(diskPath);
+    const usage = containerUsage?.type === 'virtiofs' ? readVirtiofsHostUsage(diskPath) : containerUsage;
     if (!usage) throw new Error('Disk is not mounted');
-    const freeSpace = usage.reliable ? usage.availableKilobytes * 1024 : null;
-    const totalSpace = usage.reliable ? usage.totalKilobytes * 1024 : null;
+    const freeSpace = usage.availableKilobytes * 1024;
+    const totalSpace = usage.totalKilobytes * 1024;
     const mountPoint = usage.mountPoint;
     const displayPath = displayVolumePath(diskPath, normalizedPath, mountPoint);
 
@@ -149,7 +172,7 @@ function diskUsage(diskPath: string) {
       mountPoint,
       freeSpace,
       totalSpace,
-      usedPercent: usage.reliable ? usage.usedPercent : null
+      usedPercent: usage.usedPercent
     };
   } catch {
     return {
@@ -227,25 +250,70 @@ function volumeRank(disk: { path: string; mountPoint: string | null }) {
   return 1;
 }
 
-function readFilesystemUsage(diskPath: string) {
+function readFilesystemUsage(diskPath: string): FilesystemUsage | null {
   try {
     const output = execFileSync('df', ['-PTk', diskPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    const line = output.trim().split(/\r?\n/)[1];
-    if (!line) return null;
-    const [filesystem, type, total, , available, capacity, ...mountParts] = line.trim().split(/\s+/);
-    const totalKilobytes = Number(total);
-    const availableKilobytes = Number(available);
-    if (!filesystem || !Number.isFinite(totalKilobytes) || !Number.isFinite(availableKilobytes)) return null;
-    return {
-      filesystem,
-      type,
-      totalKilobytes,
-      availableKilobytes,
-      usedPercent: Number.parseInt(capacity ?? '', 10) || 0,
-      mountPoint: mountParts.join(' ') || null,
-      reliable: type !== 'virtiofs'
-    };
+    return parseFilesystemUsage(output, false);
   } catch {
     return null;
   }
+}
+
+function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
+  const cached = virtiofsUsageCache.get(diskPath);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.usage;
+  }
+
+  let usage: FilesystemUsage | null = null;
+  try {
+    const env = readEnv();
+    const image = env.STACKARR_IMAGE || 'polyphonic/stackarr:latest';
+    const output = execFileSync(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '--network',
+        'none',
+        '--entrypoint',
+        'df',
+        '--mount',
+        `type=bind,source=${diskPath},target=/stackarr-storage-probe,readonly`,
+        image,
+        '-PTk',
+        '/stackarr-storage-probe'
+      ],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, ...env },
+        timeout: 8000,
+        stdio: ['ignore', 'pipe', 'ignore']
+      }
+    );
+    usage = parseFilesystemUsage(output, true);
+  } catch {
+    usage = null;
+  }
+
+  virtiofsUsageCache.set(diskPath, { expiresAt: Date.now() + 5 * 60 * 1000, usage });
+  return usage;
+}
+
+function parseFilesystemUsage(output: string, reliable: boolean): FilesystemUsage | null {
+  const line = output.trim().split(/\r?\n/)[1];
+  if (!line) return null;
+  const [filesystem, type, total, , available, capacity, ...mountParts] = line.trim().split(/\s+/);
+  const totalKilobytes = Number(total);
+  const availableKilobytes = Number(available);
+  if (!filesystem || !type || !Number.isFinite(totalKilobytes) || !Number.isFinite(availableKilobytes)) return null;
+  return {
+    filesystem,
+    type,
+    totalKilobytes,
+    availableKilobytes,
+    usedPercent: Number.parseInt(capacity ?? '', 10) || 0,
+    mountPoint: mountParts.join(' ') || null,
+    reliable: reliable || type !== 'virtiofs'
+  };
 }

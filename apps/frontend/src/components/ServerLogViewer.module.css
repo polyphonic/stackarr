@@ -32,7 +32,7 @@
 }
 .fileActive {
   border-color: var(--glass-border-strong);
-  background: var(--accent-soft);
+  background: var(--glass-raised);
 }
 .file strong {
   overflow: hidden;

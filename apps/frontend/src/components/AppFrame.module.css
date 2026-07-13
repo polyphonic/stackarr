@@ -2,9 +2,7 @@
   display: grid;
   grid-template-columns: var(--sidebar-width, 252px) minmax(0, 1fr);
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 18% -10%, var(--ambient-accent), transparent 34rem),
-    radial-gradient(circle at 92% 6%, var(--ambient-cool), transparent 30rem), var(--bg);
+  background: var(--bg);
 }
 
 .skipLink {
@@ -34,8 +32,7 @@
   border-right: 1px solid var(--glass-border);
   background: var(--sidebar-glass);
   color: var(--nav-text);
-  box-shadow: 16px 0 50px rgb(9 13 24 / 4%);
-  backdrop-filter: blur(28px) saturate(150%);
+  box-shadow: 10px 0 32px oklch(0.08 0.01 286 / 0.08);
 }
 
 .brand {
@@ -80,11 +77,6 @@
   padding-top: 12px;
   overflow-y: auto;
   scrollbar-width: thin;
-}
-
-.pinnedExternal {
-  margin-left: auto;
-  color: var(--muted);
 }
 
 .navGroup {
@@ -152,7 +144,7 @@
 }
 
 .active .iconWell {
-  background: var(--accent-soft);
+  background: var(--icon-well);
 }
 
 .sidebarFooter {
@@ -202,7 +194,7 @@
   border-bottom: 1px solid var(--glass-border);
   background: var(--toolbar-glass);
   flex-shrink: 0;
-  backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(18px);
 }
 
 .pageTitle {
@@ -366,8 +358,8 @@
   }
 
   .mobileNavActive {
-    background: var(--accent-soft);
-    color: var(--accent-soft-foreground);
+    background: var(--nav-active-bg);
+    color: var(--accent);
   }
 
   .mobileNavItem:hover,

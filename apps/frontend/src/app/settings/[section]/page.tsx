@@ -1,9 +1,9 @@
-import { getServices, readEnv, readJsonPreset, readSettings, redactEnv } from '@stackarr/core';
+import { readEnv, readJsonPreset, readSettings, redactEnv } from '@stackarr/core';
 import { redirect } from 'next/navigation';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { SettingsEditor } from '../../../components/SettingsEditor';
 import { SubNav } from '../../../components/SubNav';
-import { Badge, Panel, Table } from '../../../components/ui';
+import { Panel, Table } from '../../../components/ui';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,6 @@ const titles: Record<string, string> = {
   profiles: 'Profiles',
   connect: 'Connect',
   account: 'Account',
-  security: 'Security',
   general: 'General',
   ui: 'UI'
 };
@@ -28,11 +27,11 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
   await requireDashboardAuth(`/settings/${section}`);
 
   const env = readEnv();
+  if (section === 'security') redirect('/stack/services');
   const appRedirect = appSettingsRedirect(section, env.PREFERRED_TORRENT_CLIENT);
   if (appRedirect) redirect(appRedirect);
   const safeEnv = redactEnv(env);
   const settings = readSettings();
-  const mediaServers = getServices().filter((service) => service.category === 'media');
   const title = titles[section] ?? 'Settings';
 
   return (
@@ -73,18 +72,6 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
                   <th>Backup Retention</th>
                   <td>{env.BACKUP_RETENTION_COUNT ?? '52'} latest archive(s)</td>
                 </tr>
-                {mediaServers.map((service) => (
-                  <tr key={service.name}>
-                    <th>{service.name}</th>
-                    <td>
-                      <Badge tone={service.detected ? 'good' : 'purple'}>
-                        {service.mode}
-                        {service.detected ? ' detected' : ''}
-                      </Badge>{' '}
-                      {service.configPath}
-                    </td>
-                  </tr>
-                ))}
               </tbody>
             </Table>
           </Panel>
@@ -109,12 +96,12 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
               URL publishing.
             </p>
             <p>
-              <Badge tone="purple">Events</Badge> Test, Health, StackStart, StackStop, Configure, Backup, Update,
+              <strong>Events:</strong> Test, Health, StackStart, StackStop, Configure, Backup, Update,
               ServiceStateChange, SetupComplete.
             </p>
           </Panel>
         )}
-        {['account', 'security', 'general', 'ui'].includes(section) && (
+        {['account', 'general', 'ui'].includes(section) && (
           <Panel title={title}>
             <SettingsEditor section={section} env={safeEnv} settings={settings} />
           </Panel>

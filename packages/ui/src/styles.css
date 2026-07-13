@@ -1,5 +1,3 @@
-@import "@heroui/styles";
-
 /* Shared Stackarr HeroUI theme: compact Arr surface. */
 :root {
   --background: var(--bg, #f6f8fb);

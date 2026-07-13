@@ -50,7 +50,7 @@ export function maybeServiceBaseUrl(service: string) {
   const env = readEnv();
   const prefix = service.toUpperCase().replace(/[^A-Z0-9]/g, '_');
   const configured = env[`${prefix}_URL`] ?? env[`${prefix}_BASE_URL`];
-  const stackarrRuntime = env.STACKARR_RUNTIME?.trim() || process.env.STACKARR_RUNTIME?.trim();
+  const stackarrRuntime = process.env.STACKARR_RUNTIME?.trim() || env.STACKARR_RUNTIME?.trim();
   const summary = getServices().find((item) => item.name === service);
   const dockerPort = containerPort(service, env, summary);
   const port = stackarrRuntime === 'docker' ? dockerPort : (summary?.port ?? defaults[service]);

@@ -2,11 +2,10 @@
 .unavailable {
   margin-bottom: 24px;
   overflow: hidden;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--borderColor);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--panelBackground) 88%, transparent);
+  background: var(--panelBackground);
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .header,
@@ -19,8 +18,8 @@
 }
 
 .header {
-  border-bottom: 1px solid var(--glass-border);
-  background: linear-gradient(135deg, var(--glass-subtle), transparent);
+  border-bottom: 1px solid var(--borderColor);
+  background: var(--panelBackgroundHigh);
 }
 
 .header > div:first-child > span,
@@ -67,7 +66,7 @@
   padding: 8px 10px;
   border: 1px solid var(--glass-border);
   border-radius: 11px;
-  background: var(--glass-subtle);
+  background: var(--panelBackground);
 }
 
 .current span {
@@ -79,6 +78,27 @@
 
 .current strong {
   font-size: 14px;
+}
+
+.intervalControl {
+  display: grid;
+  min-width: 118px;
+  gap: 3px;
+  padding: 7px 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: 11px;
+  background: var(--panelBackground);
+}
+
+.intervalControl select {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--textColor);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .current a,
@@ -107,7 +127,7 @@
 .chart {
   min-width: 0;
   padding: 15px 18px 12px;
-  background: color-mix(in srgb, var(--panelBackground) 96%, transparent);
+  background: var(--panelBackground);
 }
 
 .chart header {
@@ -125,8 +145,7 @@
   font-size: 12px;
 }
 
-.chart header span,
-.axis {
+.chart header span {
   color: var(--mutedTextColor);
   font-size: 9px;
 }
@@ -158,15 +177,9 @@
 .victoryChart,
 .victoryChart svg {
   width: 100%;
-  height: 160px;
+  height: 190px;
   margin-top: 6px;
   overflow: visible;
-}
-
-.axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: -15px;
 }
 
 .unavailable {

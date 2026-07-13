@@ -1,6 +1,5 @@
 'use client';
 
-import { Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { stackarrFetch } from './clientApi';
@@ -53,7 +52,6 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
   const [url, setUrl] = useState('');
   const [source, setSource] = useState('deezer');
   const [query, setQuery] = useState('');
-  const [missingOnly, setMissingOnly] = useState(true);
   const [albums, setAlbums] = useState<LidarrAlbum[]>([]);
   const [albumOffset, setAlbumOffset] = useState(0);
   const [albumTotal, setAlbumTotal] = useState<number | null>(null);
@@ -81,7 +79,6 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
       const nextOffset = reset ? 0 : albumOffset;
       setLoadingAlbums(true);
       const params = new URLSearchParams({
-        missingOnly: String(missingOnly),
         limit: String(pageSize),
         offset: String(nextOffset)
       });
@@ -93,7 +90,7 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
       if (response.ok) {
         const nextAlbums = body.albums ?? [];
         setAlbums((current) => (reset ? nextAlbums : [...current, ...nextAlbums]));
-        setAlbumOffset(nextOffset + nextAlbums.length);
+        setAlbumOffset(nextOffset + (body.limit ?? pageSize));
         setAlbumTotal(typeof body.total === 'number' ? body.total : null);
         setHasMoreAlbums(Boolean(body.hasMore));
         setMessage('');
@@ -105,7 +102,7 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
         toast.error(errorMessage);
       }
     },
-    [albumOffset, loadingAlbums, missingOnly, query]
+    [albumOffset, loadingAlbums, query]
   );
 
   async function startUrlDownload() {
@@ -163,7 +160,7 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
     setAlbumOffset(0);
     setSelectedAlbumId(null);
     void loadAlbums({ reset: true });
-  }, [open, missingOnly]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -261,14 +258,6 @@ export function StreamripDownloader({ open, onClose }: { open: boolean; onClose:
                 </select>
                 <small>Used with `rip search --first`.</small>
               </label>
-              <Switch className={styles.switchField} isSelected={missingOnly} onChange={setMissingOnly}>
-                <Switch.Content>
-                  <Label>Missing albums only</Label>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                </Switch.Content>
-              </Switch>
             </div>
 
             <div

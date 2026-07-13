@@ -29,7 +29,7 @@
 
 .active {
   border-color: var(--glass-border-strong);
-  background: var(--accent-soft);
-  color: var(--accent-soft-foreground);
+  background: var(--glass-raised);
+  color: var(--textColor);
   box-shadow: var(--soft-shadow);
 }

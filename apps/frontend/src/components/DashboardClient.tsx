@@ -352,8 +352,7 @@ function heroTitle(configured: boolean, metrics: StackMetrics, appCount: number)
 }
 
 function heroSummary(configured: boolean, metrics: StackMetrics, appCount: number) {
-  if (!configured)
-    return 'Stackarr keeps complexity out of the way, then lets you peel back the layers when you need them.';
+  if (!configured) return 'Choose the apps, storage, and shared defaults for this homelab.';
   if (appCount === 0) return 'Your homelab is ready for its first app.';
   const active = metrics.tasks.running + metrics.tasks.queued;
   return `${appCount} enabled apps${active ? ` · ${active} active ${active === 1 ? 'task' : 'tasks'}` : ' · no active work'}.`;

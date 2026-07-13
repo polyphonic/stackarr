@@ -35,6 +35,11 @@
     },
     "globals": ["Buffer", "CustomEvent", "process"]
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {

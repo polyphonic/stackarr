@@ -128,9 +128,7 @@ export function ConnectionsPanel({
             <p>{connection.description}</p>
             <div className={styles.fields}>
               {connection.managedFields.map((field) => (
-                <Badge key={field} tone="purple">
-                  {field}
-                </Badge>
+                <span key={field}>{field}</span>
               ))}
             </div>
           </button>
@@ -172,7 +170,7 @@ export function ConnectionsPanel({
                     <h4>{selected.name}</h4>
                     <p>{selected.description}</p>
                   </div>
-                  <Badge tone="purple">{selected.kind}</Badge>
+                  <span className={styles.connectionKind}>{selected.kind}</span>
                 </div>
 
                 <form
@@ -235,9 +233,7 @@ export function ConnectionsPanel({
                   {selected.events && (
                     <div className={styles.events}>
                       {selected.events.map((eventName) => (
-                        <Badge key={eventName} tone="neutral">
-                          {eventName}
-                        </Badge>
+                        <span key={eventName}>{eventName}</span>
                       ))}
                     </div>
                   )}

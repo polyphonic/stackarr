@@ -1,29 +1,31 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@import "@heroui/styles";
 @import "@stackarr/ui/styles.css";
+@source "../";
 
 /* Stackarr control-plane theme: calm, layered, and intentionally content-first. */
 :root,
 html[data-theme="light"],
 body[data-theme="light"] {
   /* Core light palette */
-  --bg: #f6f8fb;
-  --sidebar-bg: #edf1f6;
-  --toolbar-bg: #ffffff;
-  --panel-bg: #ffffff;
-  --input-bg: #f3f6fa;
-  --border: #d7dee8;
-  --text: #172033;
-  --muted: #657386;
-  --accent: #6d5bd0;
-  --accent-hover: #5744b8;
-  --success: #16a34a;
-  --warning: #b7791f;
-  --danger: #dc2626;
-  --info: #2563eb;
-  --overlay: #ffffff;
-  --default: #f3f6fa;
-  --default-hover: #e7ecf3;
-  --accent-foreground: #fff;
+  --bg: oklch(0.973 0.006 286);
+  --sidebar-bg: oklch(0.952 0.007 286);
+  --toolbar-bg: oklch(0.986 0.004 286);
+  --panel-bg: oklch(0.994 0.003 286);
+  --input-bg: oklch(0.958 0.006 286);
+  --border: oklch(0.872 0.012 286);
+  --text: oklch(0.246 0.022 286);
+  --muted: oklch(0.535 0.018 286);
+  --accent: oklch(0.575 0.205 286);
+  --accent-hover: oklch(0.51 0.218 286);
+  --success: oklch(0.61 0.17 150);
+  --warning: oklch(0.59 0.14 74);
+  --danger: oklch(0.58 0.22 27);
+  --info: oklch(0.57 0.17 250);
+  --overlay: oklch(0.994 0.003 286);
+  --default: oklch(0.958 0.006 286);
+  --default-hover: oklch(0.925 0.009 286);
+  --accent-foreground: oklch(0.985 0.005 286);
   --accent-soft: rgba(109, 91, 208, 0.12);
   --accent-soft-foreground: #4338a5;
   --accent-soft-hover: rgba(109, 91, 208, 0.18);
@@ -55,10 +57,9 @@ body[data-theme="light"] {
   --stat-warn: #a16207;
   --stat-bad: #b91c1c;
   --track-bg: #dce4ee;
-  --highlight-bg: #f7f3ff;
-  --highlight-strong-bg: #eee8ff;
-  --favorite-star: #b8860b;
-  --favorite-star-border: #d9a900;
+  --highlight-bg: var(--row-hover-bg);
+  --highlight-strong-bg: var(--default-hover);
+  --favorite-pin: var(--accent);
   --modal-shadow: 0 24px 90px rgba(22, 30, 45, 0.16);
   --button-primary-bg: #5c4abe;
   --button-primary-hover: #6d5bd0;
@@ -71,17 +72,17 @@ body[data-theme="light"] {
   --button-danger-hover: #b91c1c;
   --button-danger-pressed: #991b1b;
   --button-primary-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset;
-  --sidebar-glass: rgba(240, 244, 249, 0.78);
-  --toolbar-glass: rgba(250, 252, 255, 0.78);
-  --glass-subtle: rgba(255, 255, 255, 0.58);
-  --glass-raised: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(100, 116, 139, 0.16);
-  --glass-border-strong: rgba(109, 91, 208, 0.2);
-  --ambient-accent: rgba(109, 91, 208, 0.1);
-  --ambient-cool: rgba(37, 99, 235, 0.07);
-  --icon-well: rgba(100, 116, 139, 0.08);
-  --soft-shadow: 0 12px 38px rgba(36, 43, 68, 0.08);
-  --panel-shadow: 0 18px 52px rgba(36, 43, 68, 0.07);
+  --sidebar-glass: var(--sidebar-bg);
+  --toolbar-glass: color-mix(in oklch, var(--toolbar-bg) 94%, transparent);
+  --glass-subtle: oklch(0.97 0.005 286);
+  --glass-raised: oklch(0.985 0.004 286);
+  --glass-border: var(--border);
+  --glass-border-strong: color-mix(in oklch, var(--text) 14%, var(--border));
+  --ambient-accent: transparent;
+  --ambient-cool: transparent;
+  --icon-well: oklch(0.93 0.009 286);
+  --soft-shadow: 0 8px 24px oklch(0.25 0.02 286 / 0.07);
+  --panel-shadow: 0 14px 38px oklch(0.25 0.02 286 / 0.06);
 
   /* HeroUI semantic tokens, kept aligned with the Arr surface */
   --background: var(--bg);
@@ -102,6 +103,7 @@ body[data-theme="light"] {
   /* Legacy Stackarr tokens used across existing settings/forms. */
   --pageBackground: var(--bg);
   --panelBackground: var(--panel-bg);
+  --panelBackgroundHigh: var(--toolbar-bg);
   --inputBackground: var(--input-bg);
   --borderColor: var(--border);
   --textColor: var(--text);
@@ -124,24 +126,24 @@ body[data-theme="light"] {
 html[data-theme="dark"],
 body[data-theme="dark"] {
   /* Core dark palette - classic *arr dark theme */
-  --bg: #0f1117;
-  --sidebar-bg: #16181f;
-  --toolbar-bg: #1a1c24;
-  --panel-bg: #1f222b;
-  --input-bg: #252833;
-  --border: #2a2d38;
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #8b5cf6; /* modern purple/violet like Sonarr accents */
-  --accent-hover: #a78bfa;
-  --success: #22c55e;
-  --warning: #eab308;
-  --danger: #ef4444;
-  --info: #3b82f6;
-  --overlay: #20232c;
-  --default: #252833;
-  --default-hover: #2d3140;
-  --accent-foreground: #fff;
+  --bg: oklch(0.15 0.012 286);
+  --sidebar-bg: oklch(0.178 0.012 286);
+  --toolbar-bg: oklch(0.19 0.012 286);
+  --panel-bg: oklch(0.215 0.013 286);
+  --input-bg: oklch(0.25 0.014 286);
+  --border: oklch(0.31 0.015 286);
+  --text: oklch(0.925 0.012 286);
+  --muted: oklch(0.69 0.016 286);
+  --accent: oklch(0.69 0.19 286);
+  --accent-hover: oklch(0.76 0.155 286);
+  --success: oklch(0.72 0.17 150);
+  --warning: oklch(0.78 0.15 83);
+  --danger: oklch(0.68 0.2 25);
+  --info: oklch(0.68 0.15 250);
+  --overlay: oklch(0.225 0.014 286);
+  --default: oklch(0.25 0.014 286);
+  --default-hover: oklch(0.285 0.016 286);
+  --accent-foreground: oklch(0.985 0.005 286);
   --accent-soft: rgba(139, 92, 246, 0.16);
   --accent-soft-foreground: #d8c8ff;
   --accent-soft-hover: rgba(139, 92, 246, 0.22);
@@ -173,10 +175,9 @@ body[data-theme="dark"] {
   --stat-warn: #fde047;
   --stat-bad: #fca5a5;
   --track-bg: #374151;
-  --highlight-bg: #2b2438;
-  --highlight-strong-bg: #302844;
-  --favorite-star: #facc15;
-  --favorite-star-border: #d9a900;
+  --highlight-bg: var(--row-hover-bg);
+  --highlight-strong-bg: var(--default-hover);
+  --favorite-pin: var(--accent);
   --modal-shadow: 0 24px 90px rgba(0, 0, 0, 0.48);
   --button-primary-bg: #7c3aed;
   --button-primary-hover: #8b5cf6;
@@ -189,17 +190,17 @@ body[data-theme="dark"] {
   --button-danger-hover: #f87171;
   --button-danger-pressed: #dc2626;
   --button-primary-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
-  --sidebar-glass: rgba(16, 18, 26, 0.84);
-  --toolbar-glass: rgba(20, 22, 31, 0.76);
-  --glass-subtle: rgba(255, 255, 255, 0.045);
-  --glass-raised: rgba(255, 255, 255, 0.075);
-  --glass-border: rgba(255, 255, 255, 0.085);
-  --glass-border-strong: rgba(167, 139, 250, 0.24);
-  --ambient-accent: rgba(139, 92, 246, 0.15);
-  --ambient-cool: rgba(59, 130, 246, 0.08);
-  --icon-well: rgba(255, 255, 255, 0.045);
-  --soft-shadow: 0 16px 44px rgba(0, 0, 0, 0.22);
-  --panel-shadow: 0 20px 64px rgba(0, 0, 0, 0.18);
+  --sidebar-glass: var(--sidebar-bg);
+  --toolbar-glass: color-mix(in oklch, var(--toolbar-bg) 94%, transparent);
+  --glass-subtle: oklch(0.245 0.013 286);
+  --glass-raised: oklch(0.275 0.015 286);
+  --glass-border: var(--border);
+  --glass-border-strong: color-mix(in oklch, var(--text) 16%, var(--border));
+  --ambient-accent: transparent;
+  --ambient-cool: transparent;
+  --icon-well: oklch(0.24 0.014 286);
+  --soft-shadow: 0 12px 34px oklch(0.07 0.01 286 / 0.28);
+  --panel-shadow: 0 18px 46px oklch(0.07 0.01 286 / 0.22);
   --purple-300: #c4b5fd;
   --purple-500: #8b5cf6;
   --purple-600: #7c3aed;
@@ -209,23 +210,23 @@ body[data-theme="dark"] {
 @media (prefers-color-scheme: dark) {
   html[data-theme="system"],
   body[data-theme="system"] {
-    --bg: #0f1117;
-    --sidebar-bg: #16181f;
-    --toolbar-bg: #1a1c24;
-    --panel-bg: #1f222b;
-    --input-bg: #252833;
-    --border: #2a2d38;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --accent: #8b5cf6;
-    --accent-hover: #a78bfa;
-    --success: #22c55e;
-    --warning: #eab308;
-    --danger: #ef4444;
-    --info: #3b82f6;
-    --overlay: #20232c;
-    --default: #252833;
-    --default-hover: #2d3140;
+    --bg: oklch(0.15 0.012 286);
+    --sidebar-bg: oklch(0.178 0.012 286);
+    --toolbar-bg: oklch(0.19 0.012 286);
+    --panel-bg: oklch(0.215 0.013 286);
+    --input-bg: oklch(0.25 0.014 286);
+    --border: oklch(0.31 0.015 286);
+    --text: oklch(0.925 0.012 286);
+    --muted: oklch(0.69 0.016 286);
+    --accent: oklch(0.69 0.19 286);
+    --accent-hover: oklch(0.76 0.155 286);
+    --success: oklch(0.72 0.17 150);
+    --warning: oklch(0.78 0.15 83);
+    --danger: oklch(0.68 0.2 25);
+    --info: oklch(0.68 0.15 250);
+    --overlay: oklch(0.225 0.014 286);
+    --default: oklch(0.25 0.014 286);
+    --default-hover: oklch(0.285 0.016 286);
     --accent-soft: rgba(139, 92, 246, 0.16);
     --accent-soft-foreground: #d8c8ff;
     --accent-soft-hover: rgba(139, 92, 246, 0.22);
@@ -257,10 +258,9 @@ body[data-theme="dark"] {
     --stat-warn: #fde047;
     --stat-bad: #fca5a5;
     --track-bg: #374151;
-    --highlight-bg: #2b2438;
-    --highlight-strong-bg: #302844;
-    --favorite-star: #facc15;
-    --favorite-star-border: #d9a900;
+    --highlight-bg: var(--row-hover-bg);
+    --highlight-strong-bg: var(--default-hover);
+    --favorite-pin: var(--accent);
     --modal-shadow: 0 24px 90px rgba(0, 0, 0, 0.48);
     --button-primary-bg: #7c3aed;
     --button-primary-hover: #8b5cf6;
@@ -273,17 +273,17 @@ body[data-theme="dark"] {
     --button-danger-hover: #f87171;
     --button-danger-pressed: #dc2626;
     --button-primary-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
-    --sidebar-glass: rgba(16, 18, 26, 0.84);
-    --toolbar-glass: rgba(20, 22, 31, 0.76);
-    --glass-subtle: rgba(255, 255, 255, 0.045);
-    --glass-raised: rgba(255, 255, 255, 0.075);
-    --glass-border: rgba(255, 255, 255, 0.085);
-    --glass-border-strong: rgba(167, 139, 250, 0.24);
-    --ambient-accent: rgba(139, 92, 246, 0.15);
-    --ambient-cool: rgba(59, 130, 246, 0.08);
-    --icon-well: rgba(255, 255, 255, 0.045);
-    --soft-shadow: 0 16px 44px rgba(0, 0, 0, 0.22);
-    --panel-shadow: 0 20px 64px rgba(0, 0, 0, 0.18);
+    --sidebar-glass: var(--sidebar-bg);
+    --toolbar-glass: color-mix(in oklch, var(--toolbar-bg) 94%, transparent);
+    --glass-subtle: oklch(0.245 0.013 286);
+    --glass-raised: oklch(0.275 0.015 286);
+    --glass-border: var(--border);
+    --glass-border-strong: color-mix(in oklch, var(--text) 16%, var(--border));
+    --ambient-accent: transparent;
+    --ambient-cool: transparent;
+    --icon-well: oklch(0.24 0.014 286);
+    --soft-shadow: 0 12px 34px oklch(0.07 0.01 286 / 0.28);
+    --panel-shadow: 0 18px 46px oklch(0.07 0.01 286 / 0.22);
     --purple-300: #c4b5fd;
     --purple-500: #8b5cf6;
     --purple-600: #7c3aed;
@@ -571,7 +571,6 @@ tr:hover td {
   padding: 9px 16px;
   color: var(--nav-text);
   font-size: 13.5px;
-  border-left: 3px solid transparent;
   transition: all 0.05s;
 }
 
@@ -583,7 +582,6 @@ tr:hover td {
 .nav-item.active {
   background: var(--nav-active-bg);
   color: var(--nav-active-text);
-  border-left-color: var(--accent);
   font-weight: 500;
 }
 

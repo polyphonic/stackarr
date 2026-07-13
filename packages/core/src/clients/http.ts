@@ -41,7 +41,11 @@ export async function requestJson<T = unknown>(url: string, options: JsonRequest
     return data as T;
   } catch (error) {
     if (error instanceof ServiceApiError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
+    const message = controller.signal.aborted
+      ? `Timed out after ${Math.round((options.timeoutMs ?? 10000) / 1000)} seconds`
+      : error instanceof Error
+        ? error.message
+        : String(error);
     throw new ServiceApiError(`Request failed for ${redactUrl(url)}: ${message}`);
   } finally {
     clearTimeout(timeout);

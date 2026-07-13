@@ -3,9 +3,8 @@
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--panelBackground) 88%, transparent);
+  background: var(--panelBackground);
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .runtimeHeader {
@@ -16,7 +15,7 @@
   min-height: 92px;
   padding: 16px 18px;
   border-bottom: 1px solid var(--glass-border);
-  background: linear-gradient(135deg, var(--glass-subtle), transparent);
+  background: var(--panelBackgroundHigh);
 }
 
 .runtimeTitle,
@@ -179,8 +178,8 @@
 
 .tabActive {
   border-color: var(--glass-border-strong);
-  background: var(--accent-soft);
-  color: var(--accent-soft-foreground);
+  background: var(--glass-raised);
+  color: var(--textColor);
   box-shadow: var(--soft-shadow);
 }
 
@@ -345,7 +344,7 @@
 
 .appCardActive {
   box-shadow:
-    inset 3px 0 var(--accent),
+    inset 0 0 0 1px var(--glass-border-strong),
     var(--soft-shadow);
 }
 
@@ -434,7 +433,7 @@
   height: 52px;
   place-items: center;
   border-radius: 16px;
-  background: var(--accent-soft);
+  background: var(--icon-well);
 }
 
 .stackSummary h2,

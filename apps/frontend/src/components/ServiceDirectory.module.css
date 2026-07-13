@@ -45,16 +45,16 @@
   gap: 12px;
   min-height: 132px;
   padding: 16px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--borderColor);
   border-radius: 15px;
-  background: var(--glass-subtle);
+  background: var(--panelBackground);
   box-shadow: var(--soft-shadow);
   cursor: default;
 }
 
 .card:hover {
   border-color: var(--glass-border-strong);
-  background: var(--glass-raised);
+  background: var(--panelBackgroundHigh);
 }
 
 .disabled {
@@ -120,7 +120,7 @@
 
 .configButton,
 .openButton,
-.starButton,
+.pinButton,
 .closeButton {
   display: inline-flex;
   align-items: center;
@@ -166,19 +166,19 @@
   opacity: 0.42;
 }
 
-.starButton {
+.pinButton {
   width: 44px;
   padding: 0;
   color: var(--mutedTextColor);
 }
 
-.starButton:hover:not(:disabled),
-.starred {
-  border-color: var(--favorite-star-border);
-  color: var(--favorite-star);
+.pinButton:hover:not(:disabled),
+.pinned {
+  border-color: color-mix(in oklch, var(--favorite-pin) 54%, var(--borderColor));
+  color: var(--favorite-pin);
 }
 
-.starButton:disabled {
+.pinButton:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -186,12 +186,24 @@
 .modal {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(860px, 100%);
-  border: 1px solid var(--glass-border) !important;
+  width: min(860px, calc(100vw - 32px)) !important;
+  max-width: min(860px, calc(100vw - 32px)) !important;
+  max-height: min(820px, calc(100dvh - 32px));
+  border: 1px solid var(--borderColor) !important;
   border-radius: 22px !important;
-  background: color-mix(in srgb, var(--panelBackground) 92%, transparent);
+  background: var(--overlay);
   box-shadow: var(--modal-shadow);
-  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.modal:focus-visible {
+  outline: none;
+}
+
+.modalTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .modalHeader,
@@ -231,9 +243,9 @@
   display: grid;
   gap: 12px;
   padding: 14px;
-  border: 1px solid var(--glass-border-strong);
+  border: 1px solid var(--borderColor);
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--accent-soft), var(--glass-subtle));
+  background: var(--panelBackgroundHigh);
 }
 
 .accessHeading {
