@@ -3,7 +3,9 @@ const { randomUUID } = require('node:crypto');
 const os = require('node:os');
 const { readSetting, writeRawSetting } = require('./stackarr-db.cjs');
 
-const appVersion = '0.3.0-alpha.1';
+const appVersion = process.env.STACKARR_VERSION || '0.3.0-alpha.1'; // x-release-please-version
+const telemetrySchemaVersion = 2;
+const defaultEndpoint = 'https://stackarr.app/api/telemetry/events';
 const settingKey = 'stackarr.settings';
 const command = process.argv[2] || 'status';
 const args = process.argv.slice(3);
@@ -40,7 +42,7 @@ function usage() {
   process.stderr.write(`Usage:
   stackarr telemetry status
   stackarr telemetry preview
-  stackarr telemetry enable --endpoint <https-url> [--channel stable] --yes
+  stackarr telemetry enable [--endpoint <https-url>] [--channel stable] --yes
   stackarr telemetry disable
   stackarr telemetry send [--yes] [--force]
 `);
@@ -52,9 +54,8 @@ function enableTelemetry() {
     throw new Error('Telemetry is feature-gated in this build.');
   }
 
-  const endpoint = valueAfter('--endpoint');
-  const channel = valueAfter('--channel') || settings().telemetry.channel || 'stable';
-  if (!endpoint) throw new Error('--endpoint is required');
+  const endpoint = valueAfter('--endpoint') || settings().telemetry.endpoint || defaultEndpoint;
+  const channel = valueAfter('--channel') || settings().telemetry.channel || process.env.STACKARR_CHANNEL || 'stable';
   validateEndpoint(endpoint);
   if (!hasFlag('--yes')) {
     throw new Error('Pass --yes after reviewing `stackarr telemetry preview` to enable telemetry.');
@@ -99,11 +100,15 @@ async function sendTelemetry() {
   }
 
   validateEndpoint(current.telemetry.endpoint);
-  const response = await fetch(current.telemetry.endpoint, {
-    method: 'POST',
-    headers: telemetryHeaders(),
-    body: JSON.stringify(event)
-  });
+  const config = runtimeConfig();
+  let credential = config.STACKARR_TELEMETRY_INGEST_KEY || config.STACKARR_TELEMETRY_CLIENT_TOKEN || '';
+  if (!credential) credential = await registerTelemetryClient(current.telemetry.endpoint, event.install.id);
+
+  let response = await postTelemetry(current.telemetry.endpoint, event, credential);
+  if (response.status === 401 && !config.STACKARR_TELEMETRY_INGEST_KEY) {
+    credential = await registerTelemetryClient(current.telemetry.endpoint, event.install.id);
+    response = await postTelemetry(current.telemetry.endpoint, event, credential);
+  }
 
   if (!response.ok) {
     throw new Error(`Telemetry endpoint returned HTTP ${response.status}`);
@@ -112,6 +117,14 @@ async function sendTelemetry() {
   const sentAt = new Date().toISOString();
   updateSettings({ telemetry: { lastSentAt: sentAt } });
   printJson({ accepted: true, completed: true, status: response.status, sentAt });
+}
+
+function postTelemetry(endpoint, event, credential) {
+  return fetch(endpoint, {
+    method: 'POST',
+    headers: telemetryHeaders(credential),
+    body: JSON.stringify(event)
+  });
 }
 
 function status() {
@@ -128,7 +141,7 @@ function status() {
 }
 
 function telemetryFeatureEnabled() {
-  return envFlag(runtimeConfig().STACKARR_TELEMETRY_FEATURE_ENABLED, false);
+  return envFlag(runtimeConfig().STACKARR_TELEMETRY_FEATURE_ENABLED, true);
 }
 
 function payload({ persistInstallId }) {
@@ -139,13 +152,13 @@ function payload({ persistInstallId }) {
   const enabledServices = serviceNames(config).sort();
 
   return {
-    schemaVersion: 1,
+    schemaVersion: telemetrySchemaVersion,
     eventId: randomUUID(),
     eventName: 'stackarr.heartbeat',
     generatedAt: new Date().toISOString(),
     install: {
       id: installId,
-      channel: current.telemetry.channel || 'stable',
+      channel: current.telemetry.channel || process.env.STACKARR_CHANNEL || 'stable',
       appVersion,
       osFamily: osFamily(),
       arch: os.arch()
@@ -174,6 +187,11 @@ function payload({ persistInstallId }) {
       enabledServices: enabledServices.length,
       configuredServices: enabledServices.length,
       disabledServices: 0
+    },
+    health: {
+      issueCodes: [],
+      recentTaskFailures: '0',
+      recentBlockedTasks: '0'
     }
   };
 }
@@ -191,18 +209,39 @@ function runtimeConfig() {
   return readJsonSetting('stackarr.runtimeConfig');
 }
 
-function telemetryHeaders() {
-  const config = runtimeConfig();
-  const headers = {
-    'Content-Type': 'application/json',
-    'X-Stackarr-Telemetry-Schema': '1'
-  };
+function updateRuntimeConfig(patch) {
+  writeRawSetting('stackarr.runtimeConfig', JSON.stringify({ ...runtimeConfig(), ...patch }));
+}
 
-  if (config.STACKARR_TELEMETRY_INGEST_KEY) {
-    headers.Authorization = `Bearer ${config.STACKARR_TELEMETRY_INGEST_KEY}`;
+function telemetryHeaders(credential) {
+  return {
+    'Content-Type': 'application/json',
+    'X-Stackarr-Telemetry-Schema': String(telemetrySchemaVersion),
+    Authorization: `Bearer ${credential}`
+  };
+}
+
+async function registerTelemetryClient(endpoint, installId) {
+  const url = new URL(endpoint);
+  const segments = url.pathname.split('/').filter(Boolean);
+  if (segments.at(-1) === 'events') segments[segments.length - 1] = 'register';
+  else segments.push('register');
+  url.pathname = `/${segments.join('/')}`;
+  url.search = '';
+  url.hash = '';
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ schemaVersion: telemetrySchemaVersion, installId, appVersion })
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || typeof body.token !== 'string' || body.token.length < 32) {
+    throw new Error(`Telemetry registration returned HTTP ${response.status}`);
   }
 
-  return headers;
+  updateRuntimeConfig({ STACKARR_TELEMETRY_CLIENT_TOKEN: body.token });
+  return body.token;
 }
 
 function readJsonSetting(key) {
@@ -227,7 +266,13 @@ function mergeSettings(base, patch) {
 function defaultSettings() {
   return {
     setup: { onboardingComplete: false, installMode: 'unknown' },
-    telemetry: { enabled: false, endpoint: '', installId: '', channel: 'stable', lastSentAt: '' }
+    telemetry: {
+      enabled: false,
+      endpoint: defaultEndpoint,
+      installId: '',
+      channel: process.env.STACKARR_CHANNEL || 'stable',
+      lastSentAt: ''
+    }
   };
 }
 

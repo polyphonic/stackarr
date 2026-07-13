@@ -33,5 +33,5 @@ export async function POST(request: NextRequest) {
     email: result.email
   });
 
-  return setStackarrSessionCookie(response, request, result.username);
+  return setStackarrSessionCookie(response, request, result.env);
 }

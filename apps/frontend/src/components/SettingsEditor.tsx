@@ -253,6 +253,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
   const [serviceCurrentPassword, setServiceCurrentPassword] = useState('');
   const [servicePassword, setServicePassword] = useState('');
   const [servicePasswordConfirm, setServicePasswordConfirm] = useState('');
+  const [telemetryPreview, setTelemetryPreview] = useState<Record<string, unknown> | null>(null);
   const [message, setMessage] = useState('');
 
   function envValue(key: string) {
@@ -297,7 +298,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
   }
 
   const separate4kEnabled = envBool('ENABLE_4K_SERVARR', draftSettings.profiles.preferSeparateHd4kInstances);
-  const telemetryFeatureEnabled = envBool('STACKARR_TELEMETRY_FEATURE_ENABLED', false);
+  const telemetryFeatureEnabled = true;
   const advancedEnvKeys = Object.keys(draftEnv)
     .filter((key) => /^[A-Z][A-Z0-9_]*$/.test(key))
     .filter((key) => telemetryFeatureEnabled || !key.startsWith('STACKARR_TELEMETRY_'))
@@ -343,6 +344,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
       body: JSON.stringify({
         config,
         settings: nextSettings,
+        confirmTelemetry: nextSettings.telemetry.enabled && !settings.telemetry.enabled,
         ...(currentPassword !== undefined ? { currentPassword } : {})
       })
     });
@@ -383,6 +385,13 @@ export function SettingsEditor({ section, env, settings }: Props) {
     setState(response.ok ? 'saved' : 'error');
     if (response.ok) {
       setGeneralCurrentPassword('');
+      let telemetryMessage = '';
+      if (draftSettings.telemetry.enabled && !settings.telemetry.enabled) {
+        const heartbeat = await stackarrFetch('/api/v1/telemetry/heartbeat', { method: 'POST' });
+        telemetryMessage = heartbeat.ok
+          ? ' Anonymous usage data is enabled and the first heartbeat was sent.'
+          : ' Anonymous usage data is enabled; the first heartbeat will retry automatically.';
+      }
       if (storageChanged) {
         const applyResponse = await stackarrFetch('/api/v1/command', {
           method: 'POST',
@@ -393,12 +402,13 @@ export function SettingsEditor({ section, env, settings }: Props) {
           ? 'Saved. Storage mounts apply queued.'
           : 'Saved. Storage mounts need apply from System.';
 
-        setMessage(nextMessage);
-        toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
+        const combinedMessage = `${nextMessage}${telemetryMessage}`;
+        setMessage(combinedMessage);
+        toast[applyResponse.ok ? 'success' : 'error'](combinedMessage, { id: toastId });
         return;
       }
 
-      const nextMessage = portlessSaveMessage(body.portlessTask);
+      const nextMessage = `${portlessSaveMessage(body.portlessTask)}${telemetryMessage}`;
       setMessage(nextMessage);
       toast.success(nextMessage, { id: toastId });
     } else {
@@ -645,18 +655,20 @@ export function SettingsEditor({ section, env, settings }: Props) {
   }
 
   function updateTelemetryEnabled(value: boolean) {
-    if (value && !draftSettings.telemetry.enabled) {
-      const confirmed = window.confirm(
-        'Share anonymous Stackarr heartbeat metrics for product decisions? No paths, hostnames, titles, usernames, or secrets are sent.'
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
     updateSettings('telemetry', 'enabled', value);
     updateEnvBool('STACKARR_TELEMETRY_ENABLED', value);
+  }
+
+  async function previewTelemetry() {
+    const response = await stackarrFetch('/api/v1/telemetry', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ preview: true })
+    });
+    const body = (await response.json().catch(() => ({}))) as { payload?: unknown };
+    setTelemetryPreview(
+      body.payload && typeof body.payload === 'object' ? (body.payload as Record<string, unknown>) : {}
+    );
   }
 
   return (
@@ -1258,9 +1270,12 @@ export function SettingsEditor({ section, env, settings }: Props) {
               <Text label="Username" value={envValue('USERNAME')} onChange={(value) => updateEnv('USERNAME', value)} />
               <Text label="Email" value={envValue('USER_EMAIL')} onChange={(value) => updateEnv('USER_EMAIL', value)} />
               <Select
-                label="Authentication"
+                label="Access protection"
                 value={draftSettings.host.authenticationMethod}
-                options={['forms', 'apikey', 'none']}
+                options={[
+                  { value: 'forms', label: 'Dashboard sign-in + API key' },
+                  { value: 'none', label: 'No authentication (unsafe)' }
+                ]}
                 onChange={(value) =>
                   updateSettings(
                     'host',
@@ -1311,9 +1326,10 @@ export function SettingsEditor({ section, env, settings }: Props) {
           </section>
 
           <div className={styles.securityNote}>
-            Username and email changes follow managed owner fields such as Tracearr when those fields still match the
-            old global identity. The account password updates managed app sign-ins only; Postgres passwords stay under
-            Security.
+            Dashboard sign-in protects people with a username, password, and private browser session. The API key stays
+            active at the same time for agents and integrations. Username and email changes keep this browser signed in;
+            password changes renew this browser and revoke older sessions. Managed app sign-ins follow the account
+            password, while Postgres passwords stay under Security.
           </div>
         </div>
       )}
@@ -1430,11 +1446,20 @@ export function SettingsEditor({ section, env, settings }: Props) {
             onChange={(value) => updateSettings('host', 'enableSsl', value)}
           />
           {telemetryFeatureEnabled && (
-            <Check
-              label="Anonymous Telemetry"
-              checked={draftSettings.telemetry.enabled}
-              onChange={updateTelemetryEnabled}
-            />
+            <div className={styles.telemetryControl}>
+              <Check
+                label="Send Anonymous Usage Data"
+                description="Opt in to one first-party heartbeat per day. It includes the Stackarr version, platform, enabled-app categories, backup shape, and anonymous issue codes—never paths, hostnames, account data, media activity, logs, or credentials. Takes effect immediately."
+                checked={draftSettings.telemetry.enabled}
+                onChange={updateTelemetryEnabled}
+              />
+              <button className={styles.previewButton} onClick={previewTelemetry} type="button">
+                {telemetryPreview ? 'Refresh exact payload' : 'Preview exact payload'}
+              </button>
+              {telemetryPreview && (
+                <pre className={styles.telemetryPreview}>{JSON.stringify(telemetryPreview, null, 2)}</pre>
+              )}
+            </div>
           )}
         </FormGrid>
       )}
@@ -1689,11 +1714,24 @@ function Select({
   );
 }
 
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+function Check({
+  label,
+  description,
+  checked,
+  onChange
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
     <Switch className={styles.check} isSelected={checked} onChange={onChange}>
       <Switch.Content>
-        <Label>{label}</Label>
+        <span className={styles.checkCopy}>
+          <Label>{label}</Label>
+          {description && <small>{description}</small>}
+        </span>
         <Switch.Control>
           <Switch.Thumb />
         </Switch.Control>

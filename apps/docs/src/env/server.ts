@@ -15,7 +15,7 @@ export const env = createEnv({
   },
   server: {
     STACKARR_TELEMETRY_COLLECTOR_ENABLED: booleanString,
-    STACKARR_TELEMETRY_INGEST_KEY: z.string().min(16).optional(),
+    STACKARR_TELEMETRY_INGEST_KEY: z.string().min(32).optional(),
     STACKARR_TELEMETRY_MAX_PAYLOAD_BYTES: z.coerce.number().int().positive().default(16_384)
   },
   experimental__runtimeEnv: process.env,

@@ -12,7 +12,7 @@ import {
   writeSettings
 } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
-import { json, requireApiKey } from '../../../../../lib/api';
+import { hasValidStackarrSession, json, requireApiKey, setStackarrSessionCookie } from '../../../../../lib/api';
 import { queuePortlessSetupIfNeeded } from '../../../../../lib/portlessSetup';
 
 const accessPasswordKeys = [
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const currentEnv = readEnv();
+  const renewBrowserSession = hasValidStackarrSession(request, currentEnv);
   const existingApiKey = currentEnv.STACKARR_API_KEY?.trim() ?? '';
   if (existingApiKey) {
     const auth = requireApiKey(request);
@@ -65,6 +66,17 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   let afterSettings = beforeSettings;
   let nextEnv: StackarrEnv | null = null;
+
+  if (
+    !beforeSettings.telemetry.enabled &&
+    body.settings?.telemetry?.enabled === true &&
+    body.confirmTelemetry !== true
+  ) {
+    return json(
+      { accepted: false, error: 'Explicit confirmation is required to enable anonymous usage data.' },
+      { status: 400 }
+    );
+  }
 
   const config = typeof body.config === 'object' && body.config ? body.config : null;
   if (config && typeof config === 'object') {
@@ -107,11 +119,13 @@ export async function PUT(request: NextRequest) {
 
   const task = queuePortlessSetupIfNeeded(beforeSettings, afterSettings);
 
-  return json({
+  const response = json({
     accepted: true,
     apiKey: !existingApiKey && nextEnv?.STACKARR_API_KEY ? nextEnv.STACKARR_API_KEY : undefined,
     portlessTask: task ?? undefined
   });
+
+  return renewBrowserSession ? setStackarrSessionCookie(response, request, nextEnv ?? readEnv()) : response;
 }
 
 function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
@@ -119,6 +133,10 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   const safeCurrent = redactEnv(current);
   const stackPassword =
     unredactedConfigValue('PASSWORD') || current.PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+  const currentSessionVersion = normalizedSessionVersion(current.STACKARR_SESSION_VERSION);
+  const passwordChanged = Boolean(
+    current.PASSWORD && unredactedConfigValue('PASSWORD') && unredactedConfigValue('PASSWORD') !== current.PASSWORD
+  );
   const databasePassword =
     unredactedConfigValue('DATABASE_SUPERUSER_PASSWORD') ||
     current.DATABASE_SUPERUSER_PASSWORD ||
@@ -184,6 +202,11 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       unredactedConfigValue('STACKARR_API_KEY') ||
       current.STACKARR_API_KEY?.trim() ||
       nodeCrypto.randomBytes(24).toString('hex'),
+    STACKARR_SESSION_SECRET:
+      unredactedConfigValue('STACKARR_SESSION_SECRET') ||
+      current.STACKARR_SESSION_SECRET?.trim() ||
+      nodeCrypto.randomBytes(32).toString('hex'),
+    STACKARR_SESSION_VERSION: String(passwordChanged ? currentSessionVersion + 1 : currentSessionVersion),
     STACKARR_DATABASE_MODE: databaseMode,
     PASSWORD: unredactedConfigValue('PASSWORD') || current.PASSWORD || stackPassword,
     DATABASE_IMAGE: databaseImage,
@@ -461,6 +484,11 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
 
     return value;
   }
+}
+
+function normalizedSessionVersion(value: string | undefined) {
+  const version = Number(value);
+  return Number.isSafeInteger(version) && version > 0 ? version : 1;
 }
 
 function normalizeDatabaseMode(value: string | undefined) {

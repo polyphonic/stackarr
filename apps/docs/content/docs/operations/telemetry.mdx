@@ -5,7 +5,7 @@ description: See exactly what Stackarr may collect and how to keep it disabled.
 
 # Privacy and telemetry
 
-Telemetry is first-party, opt-in, and disabled by default. Public early-access images currently keep the telemetry control feature-gated off.
+Telemetry is first-party, opt-in, and disabled by default. The control is available in **Settings → General** as **Send Anonymous Usage Data** and takes effect immediately; no restart is required.
 
 When telemetry becomes available, Stackarr will show the exact payload before you opt in.
 
@@ -19,6 +19,7 @@ When telemetry becomes available, Stackarr will show the exact payload before yo
 - enabled service names and management modes
 - backup schedule and retention shape
 - counts of configured and disabled services
+- coarse issue codes and bucketed counts for failed or blocked Stackarr tasks in the last 24 hours
 
 ## What it never includes
 
@@ -30,6 +31,20 @@ When telemetry becomes available, Stackarr will show the exact payload before yo
 
 ## Agent behavior
 
-An agent must preview the payload and receive explicit approval before enabling telemetry. Enabling or sending telemetry is never part of normal setup defaults.
+The dashboard and an agent can preview the exact payload before telemetry is enabled. An agent must receive explicit approval before enabling it. Enabling or sending telemetry is never part of normal setup defaults, and Stackarr sends at most one heartbeat every 24 hours.
+
+Each opted-in installation requests its own scoped, expiring collector token. The collector signing key stays on the Stackarr landing-page server and is never included in the public Docker image. Registration and ingestion enforce small request limits, strict schemas, event deduplication, and token-to-install binding. Production deployments should also rate-limit `/api/telemetry/register` and `/api/telemetry/events` at the edge.
 
 If you prefer no product telemetry, leave it disabled. Stackarr's local dashboard, MCP server, and managed apps continue to work normally.
+
+## Collector deployment
+
+The landing-page deployment needs these server-only values before collection is enabled:
+
+```dotenv
+STACKARR_TELEMETRY_COLLECTOR_ENABLED=true
+STACKARR_TELEMETRY_INGEST_KEY=<at-least-32-random-characters>
+STACKARR_CLOUD_DATABASE_URL=<postgres-connection-url>
+```
+
+Apply the `@stackarr/db` production migration before enabling the collector. Keep the signing key out of client settings, public environment variables, build arguments, and source control.

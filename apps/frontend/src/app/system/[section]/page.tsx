@@ -63,6 +63,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
         {section === 'status' && (
           <>
             <Grid>
+              <Stat label="Version" value={`v${status.version} · ${status.branch}`} tone="neutral" />
               <Stat label="OS" value={`${status.os.platform} ${status.os.arch}`} tone="neutral" />
               <Stat
                 label="CLI"

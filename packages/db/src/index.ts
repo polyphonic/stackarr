@@ -29,12 +29,21 @@ export type TelemetryPayload = {
   };
   backups: Record<string, unknown>;
   counts: Record<string, unknown>;
+  health?: Record<string, unknown>;
 };
 
 export async function recordTelemetryEvent(input: { payload: TelemetryPayload; receivedAt?: Date }) {
   const { payload } = input;
   const receivedAt = input.receivedAt ?? new Date();
   const generatedAt = new Date(payload.generatedAt);
+  const existing = await database.telemetryInstallation.findUnique({
+    where: { installId: payload.install.id },
+    select: { lastSeenAt: true }
+  });
+
+  if (existing && receivedAt.getTime() - existing.lastSeenAt.getTime() < 60 * 60 * 1000) {
+    return { accepted: true, throttled: true, installId: payload.install.id, eventId: payload.eventId };
+  }
 
   await database.$transaction([
     database.telemetryInstallation.upsert({
