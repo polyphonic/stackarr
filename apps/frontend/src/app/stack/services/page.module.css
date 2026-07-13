@@ -38,7 +38,7 @@
   place-items: center;
   border: 1px solid var(--glass-border-strong);
   border-radius: 17px;
-  background: var(--accent-soft);
+  background: var(--icon-well);
   color: var(--accent-soft-foreground);
   font-size: 30px;
   font-weight: 300;

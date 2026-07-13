@@ -11,7 +11,7 @@
   padding: 14px;
   border: 1px solid var(--borderColor);
   border-radius: 16px;
-  background: var(--glass-subtle);
+  background: var(--panelBackground);
   color: var(--textColor);
   cursor: pointer;
   font: inherit;
@@ -56,7 +56,15 @@
 .fields {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0;
+  color: var(--mutedTextColor);
+  font-size: 11px;
+}
+
+.fields span + span::before,
+.events span + span::before {
+  margin: 0 7px;
+  content: "·";
 }
 
 .addButton,
@@ -103,8 +111,7 @@
   overflow: hidden;
   border: 1px solid var(--borderColor);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--panelBackground) 94%, transparent);
-  backdrop-filter: blur(24px) saturate(140%);
+  background: var(--overlay);
   box-shadow: var(--modal-shadow);
 }
 
@@ -200,6 +207,13 @@
   justify-self: center;
 }
 
+.connectionKind {
+  color: var(--mutedTextColor);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
 .form {
   display: grid;
   gap: 12px;
@@ -245,7 +259,9 @@
 .events {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0;
+  color: var(--mutedTextColor);
+  font-size: 11px;
 }
 
 .modalActions {

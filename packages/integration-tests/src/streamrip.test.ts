@@ -167,3 +167,43 @@ test('Streamrip config ignores undecryptable restored secrets', async () => {
     ''
   );
 });
+
+test('Streamrip reads a bounded page of missing Lidarr albums', async () => {
+  const previousFetch = globalThis.fetch;
+  const requests: string[] = [];
+  globalThis.fetch = async (input) => {
+    requests.push(String(input));
+    return Response.json({
+      page: 1,
+      pageSize: 60,
+      totalRecords: 33057,
+      records: [
+        {
+          id: 42,
+          title: 'A Test Album',
+          releaseDate: '2026-01-01',
+          monitored: true,
+          statistics: { percentOfTracks: 0, trackFileCount: 0, trackCount: 10 },
+          artist: { id: 7, artistName: 'A Test Artist' }
+        }
+      ]
+    });
+  };
+
+  try {
+    const { listLidarrStreamripAlbumsAction, writeEnvConfig } = await core();
+    writeEnvConfig({ LIDARR_URL: 'http://lidarr.invalid:8686', LIDARR_API_KEY: 'test-lidarr-key' });
+    const result = await listLidarrStreamripAlbumsAction({ limit: 60, offset: 0 });
+
+    assert.equal(result.albums.length, 1);
+    assert.equal(result.total, 33057);
+    assert.equal(result.hasMore, true);
+    assert.equal(requests.length, 1);
+    const request = new URL(requests[0]!);
+    assert.equal(request.pathname, '/api/v1/wanted/missing');
+    assert.equal(request.searchParams.get('pageSize'), '60');
+    assert.equal(request.searchParams.get('includeArtist'), 'true');
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

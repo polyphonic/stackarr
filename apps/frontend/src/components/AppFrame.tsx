@@ -111,7 +111,6 @@ export function AppFrame({
                     <ServiceLogo name={favorite.name} size={19} />
                   </span>
                   <span>{favorite.displayName}</span>
-                  <icons.link aria-hidden="true" className={styles.pinnedExternal} size={12} />
                 </a>
               ))}
             </div>

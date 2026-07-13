@@ -10,7 +10,7 @@
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent-soft), transparent 42%), var(--panel-bg);
+  background: var(--panel-bg);
 }
 
 .eyebrow {
@@ -54,7 +54,7 @@
 
 .clientActive {
   border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--panel-header-bg);
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
@@ -129,17 +129,18 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 0;
 }
 
 .tags span {
-  padding: 3px 8px;
-  border: 1px solid var(--badge-accent-border);
-  border-radius: 999px;
-  background: var(--badge-accent-bg);
-  color: var(--badge-accent-text);
+  color: var(--muted);
   font-size: 10px;
   font-weight: 650;
+}
+
+.tags span + span::before {
+  margin: 0 7px;
+  content: "·";
 }
 
 .steps {
@@ -228,9 +229,9 @@
 .firstPrompt {
   margin: 0 18px 18px;
   padding: 13px 14px;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 7px 7px 0;
-  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-header-bg);
 }
 
 .firstPrompt p {

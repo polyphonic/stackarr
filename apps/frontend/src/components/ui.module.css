@@ -8,12 +8,11 @@
 
 .panel {
   margin-bottom: 22px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
-  border: 1px solid var(--glass-border);
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .panelHeader {
@@ -79,11 +78,10 @@
 .stat {
   min-height: 94px;
   padding: 16px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  background: color-mix(in srgb, var(--panel-bg) 84%, transparent);
+  background: var(--panel-bg);
   box-shadow: var(--soft-shadow);
-  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .stat span {

@@ -707,37 +707,6 @@ export function SettingsEditor({ section, env, settings }: Props) {
               updateEnv('BACKUP_RETENTION_COUNT', value);
             }}
           />
-          <Select
-            label="Backup Mode"
-            value={envValue('PLEX_BACKUP_MODE') || 'lite'}
-            options={['lite', 'full']}
-            onChange={(value) => updateEnv('PLEX_BACKUP_MODE', value)}
-          />
-          <Select
-            label="Plex"
-            value={envValue('PLEX_INSTALL_MODE') || 'docker'}
-            options={[
-              { value: 'docker', label: 'Managed container' },
-              { value: 'native', label: 'Existing server' },
-              { value: 'disabled', label: 'Disabled' }
-            ]}
-            onChange={(value) => updateEnv('PLEX_INSTALL_MODE', value)}
-          />
-          <Select
-            label="Jellyfin"
-            value={envValue('JELLYFIN_INSTALL_MODE') || 'disabled'}
-            options={[
-              { value: 'disabled', label: 'Disabled' },
-              { value: 'docker', label: 'Managed container' },
-              { value: 'native', label: 'Existing server' }
-            ]}
-            onChange={(value) => updateEnv('JELLYFIN_INSTALL_MODE', value)}
-          />
-          <Path
-            label="Jellyfin Config Path"
-            value={envValue('JELLYFIN_CONFIG_PATH')}
-            onChange={(value) => updateEnv('JELLYFIN_CONFIG_PATH', value)}
-          />
         </FormGrid>
       )}
 

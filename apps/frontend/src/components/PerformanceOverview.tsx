@@ -9,6 +9,7 @@ import styles from './PerformanceOverview.module.css';
 
 export function PerformanceOverview({ initial }: { initial: HomelabPerformance }) {
   const [performance, setPerformance] = useState(initial);
+  const [refreshSeconds, setRefreshSeconds] = useState(6);
 
   useEffect(() => {
     const refresh = () => {
@@ -22,13 +23,13 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
     };
     const interval = window.setInterval(() => {
       refresh();
-    }, 30_000);
+    }, refreshSeconds * 1000);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, []);
+  }, [refreshSeconds]);
 
   if (!performance.available) {
     return (
@@ -58,6 +59,15 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
         <div className={styles.current} aria-label="Current performance">
           <Metric label="Host CPU" value={latest?.hostCpuPercent ?? 0} />
           <Metric label="Host memory" value={latest?.hostMemoryPercent ?? 0} />
+          <label className={styles.intervalControl}>
+            <span>Update every</span>
+            <select value={refreshSeconds} onChange={(event) => setRefreshSeconds(Number(event.target.value))}>
+              <option value={1}>1 second</option>
+              <option value={3}>3 seconds</option>
+              <option value={6}>6 seconds</option>
+              <option value={10}>10 seconds</option>
+            </select>
+          </label>
           <Link href="/containers">All containers</Link>
         </div>
       </header>
@@ -103,14 +113,16 @@ function ResourceChart({
   label: string;
   points: HomelabPerformancePoint[];
 }) {
+  const latestAt = points.at(-1)?.at ?? Math.floor(Date.now() / 1000);
+  const windowedPoints = points.filter((point) => point.at >= latestAt - 120);
   const series: LineChartSeries[] = [
     {
       name: 'System',
       color: 'var(--accent)',
-      data: points.map((point) => ({
-        x: point.at,
+      data: windowedPoints.map((point) => ({
+        x: point.at - latestAt,
         y: point[hostKey],
-        tooltip: `System · ${formatPercent(point[hostKey])} · ${formatPointTime(point.at)}`
+        tooltip: `System · ${formatPercent(point[hostKey])} · ${formatRelativeTime(point.at - latestAt)}`
       }))
     },
     ...(appLabel
@@ -118,10 +130,10 @@ function ResourceChart({
           {
             name: appLabel,
             color: 'var(--success)',
-            data: points.map((point) => ({
-              x: point.at,
+            data: windowedPoints.map((point) => ({
+              x: point.at - latestAt,
               y: point[appKey],
-              tooltip: `${appLabel} · ${formatPercent(point[appKey])} · ${formatPointTime(point.at)}`
+              tooltip: `${appLabel} · ${formatPercent(point[appKey])} · ${formatRelativeTime(point.at - latestAt)}`
             }))
           }
         ]
@@ -133,7 +145,7 @@ function ResourceChart({
       <header>
         <div>
           <strong>{label}</strong>
-          <span>Last {historyWindow(points)}</span>
+          <span>2 min live window</span>
         </div>
         <div className={styles.legend} aria-label="Chart legend">
           <span>
@@ -149,11 +161,13 @@ function ResourceChart({
         </div>
       </header>
       <div aria-label={`${label} history`} className={styles.victoryChart} role="img">
-        <InteractiveLineChart height={160} series={series} />
-      </div>
-      <div className={styles.axis} aria-hidden="true">
-        <span>Earlier</span>
-        <span>Now</span>
+        <InteractiveLineChart
+          height={190}
+          series={series}
+          xDomain={[-120, 0]}
+          xTickFormat={formatAxisTime}
+          xTickValues={[-120, -100, -80, -60, -40, -20, 0]}
+        />
       </div>
     </article>
   );
@@ -163,14 +177,9 @@ function mergePerformance(current: HomelabPerformance, next: HomelabPerformance)
   if (next.provider === 'plex' || current.provider !== next.provider || current.appLabel !== next.appLabel) return next;
   const byTime = new Map(current.points.map((point) => [point.at, point]));
   for (const point of next.points) byTime.set(point.at, point);
-  return { ...next, points: [...byTime.values()].sort((a, b) => a.at - b.at).slice(-60) };
-}
-
-function historyWindow(points: HomelabPerformancePoint[]) {
-  if (points.length < 2) return 'a few moments';
-  const seconds = Math.max(0, points.at(-1)!.at - points[0].at);
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  return `${minutes} min`;
+  const merged = [...byTime.values()].sort((a, b) => a.at - b.at);
+  const latestAt = merged.at(-1)?.at ?? 0;
+  return { ...next, points: merged.filter((point) => point.at >= latestAt - 120) };
 }
 
 function formatPercent(value: number) {
@@ -182,6 +191,16 @@ function formatTime(value: string) {
   return Number.isNaN(date.getTime()) ? 'now' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatPointTime(value: number) {
-  return new Date(value * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function formatAxisTime(value: number) {
+  if (value === 0) return 'Now';
+  const totalSeconds = Math.abs(value);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+}
+
+function formatRelativeTime(value: number) {
+  if (value >= -1) return 'Now';
+  return `${formatAxisTime(value)} ago`;
 }

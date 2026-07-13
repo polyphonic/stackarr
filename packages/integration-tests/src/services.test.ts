@@ -11,7 +11,7 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
-test('new installs default to Portless links and expose shared link settings on each app', async () => {
+test('new installs default to Portless links without duplicating global link settings on each app', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 
   try {
@@ -48,7 +48,7 @@ test('new installs default to Portless links and expose shared link settings on 
     assert.deepEqual(JSON.parse(stdout), {
       mode: 'portless',
       browserUrl: 'https://transmission.stack',
-      groups: ['Photos (Immich)', 'Immich Database', 'App links']
+      groups: ['Photos (Immich)', 'Immich Database']
     });
   } finally {
     await rm(root, { recursive: true, force: true });

@@ -174,7 +174,8 @@
 .note {
   max-width: 780px;
   padding: 14px;
-  border-left: 4px solid var(--purple-600);
+  border: 1px solid var(--borderColor);
+  border-radius: 12px;
   background: var(--panelBackground);
 }
 

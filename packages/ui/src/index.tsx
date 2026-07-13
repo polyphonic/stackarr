@@ -3,32 +3,45 @@ import {
   IconBell,
   IconBookOpen,
   IconBoxArchive,
+  IconCircleArrowRight,
   IconCirclePowerOff,
   IconCircleWrench,
   IconCloudDownload,
+  IconCloudUpload,
+  IconComputerDownload,
+  IconConnections,
   IconCube,
+  IconDeleteX,
   IconEye,
   IconFileDownload,
+  IconGauge,
   IconGear,
   IconGrid,
   IconHouse,
   IconImage,
+  IconImageDepth,
   IconKey,
   IconLayers,
   IconLink,
   IconLock,
+  IconMagicWandSparkle,
   IconMagnifier,
   IconMonitor,
   IconOpenInBrowser,
+  IconPin,
   IconRocket,
   IconSettingsWrench,
   IconSlider,
   IconSsd,
+  IconStackPerspective,
   IconStar,
   IconStorage,
-  IconTasks
+  IconSwap,
+  IconTasks,
+  IconTimelineVertical,
+  IconVideo
 } from 'nucleo-glass';
-import type { ComponentType, SVGProps } from 'react';
+import { type ComponentType, type SVGProps, useId } from 'react';
 
 export { Button } from '@heroui/react/button';
 export { Description } from '@heroui/react/description';
@@ -44,12 +57,14 @@ export { TextField } from '@heroui/react/textfield';
 export type GlassIconProps = SVGProps<SVGSVGElement> & {
   size?: number | string;
   title?: string;
+  uniqueId?: string;
 };
 
 export type GlassIcon = ComponentType<GlassIconProps>;
 
 function glassIcon(Icon: GlassIcon): GlassIcon {
-  function StackarrGlassIcon({ className, size = 18, ...props }: GlassIconProps) {
+  function StackarrGlassIcon({ className, size = 18, uniqueId, ...props }: GlassIconProps) {
+    const generatedId = useId();
     const resolvedSize = typeof size === 'number' ? Math.max(12, Math.round(size * 1.12)) : size;
 
     return (
@@ -57,6 +72,7 @@ function glassIcon(Icon: GlassIcon): GlassIcon {
         aria-hidden={props['aria-label'] ? undefined : true}
         className={['stackarr-glass-icon', className].filter(Boolean).join(' ')}
         size={resolvedSize}
+        uniqueId={uniqueId ?? generatedId}
         {...props}
       />
     );
@@ -67,36 +83,38 @@ function glassIcon(Icon: GlassIcon): GlassIcon {
 }
 
 export const icons = {
-  activity: glassIcon(IconTasks),
+  activity: glassIcon(IconTimelineVertical),
   backup: glassIcon(IconBoxArchive),
   bell: glassIcon(IconBell),
   book: glassIcon(IconBookOpen),
-  cloud: glassIcon(IconCloudDownload),
+  cloud: glassIcon(IconCloudUpload),
   container: glassIcon(IconCube),
   containers: glassIcon(IconAppStack),
   dashboard: glassIcon(IconHouse),
-  download: glassIcon(IconFileDownload),
+  download: glassIcon(IconComputerDownload),
   drive: glassIcon(IconSsd),
-  image: glassIcon(IconImage),
+  image: glassIcon(IconImageDepth),
   link: glassIcon(IconLink),
+  open: glassIcon(IconOpenInBrowser),
   eye: glassIcon(IconEye),
   key: glassIcon(IconKey),
   lock: glassIcon(IconLock),
-  manage: glassIcon(IconTasks),
-  network: glassIcon(IconGrid),
-  play: glassIcon(IconRocket),
-  playSolid: glassIcon(IconRocket),
-  refresh: glassIcon(IconCircleWrench),
+  manage: glassIcon(IconMagicWandSparkle),
+  network: glassIcon(IconConnections),
+  pin: glassIcon(IconPin),
+  play: glassIcon(IconCircleArrowRight),
+  playSolid: glassIcon(IconCircleArrowRight),
+  refresh: glassIcon(IconSwap),
   search: glassIcon(IconMagnifier),
   settings: glassIcon(IconGear),
   sliders: glassIcon(IconSlider),
-  stack: glassIcon(IconLayers),
+  stack: glassIcon(IconStackPerspective),
   star: glassIcon(IconStar),
   starSolid: glassIcon(IconStar),
   stop: glassIcon(IconCirclePowerOff),
-  system: glassIcon(IconMonitor),
-  trash: glassIcon(IconCirclePowerOff),
-  tv: glassIcon(IconOpenInBrowser),
+  system: glassIcon(IconGauge),
+  trash: glassIcon(IconDeleteX),
+  tv: glassIcon(IconVideo),
   wrench: glassIcon(IconSettingsWrench)
 } satisfies Record<string, GlassIcon>;
 
@@ -105,28 +123,41 @@ export {
   IconBell,
   IconBookOpen,
   IconBoxArchive,
+  IconCircleArrowRight,
   IconCirclePowerOff,
   IconCircleWrench,
   IconCloudDownload,
+  IconCloudUpload,
+  IconComputerDownload,
+  IconConnections,
   IconCube,
+  IconDeleteX,
   IconEye,
   IconFileDownload,
+  IconGauge,
   IconGear,
   IconGrid,
   IconHouse,
   IconImage,
+  IconImageDepth,
   IconKey,
   IconLayers,
   IconLink,
   IconLock,
+  IconMagicWandSparkle,
   IconMagnifier,
   IconMonitor,
   IconOpenInBrowser,
+  IconPin,
   IconRocket,
   IconSettingsWrench,
   IconSlider,
   IconSsd,
+  IconStackPerspective,
   IconStar,
   IconStorage,
-  IconTasks
+  IconSwap,
+  IconTasks,
+  IconTimelineVertical,
+  IconVideo
 };

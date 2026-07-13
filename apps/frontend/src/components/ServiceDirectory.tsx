@@ -3,7 +3,7 @@
 import type { ServiceConfigField, ServiceConfigModel } from '@stackarr/core';
 import { Button, Description, Input, Label, Modal, Switch, TextArea, TextField } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { stackarrFetch } from './clientApi';
 import { icons } from './icons';
 import { PathInput } from './PathPicker';
@@ -32,16 +32,9 @@ export function ServiceDirectory({
   initialService?: string;
 }) {
   const [items, setItems] = useState(configs);
-  const [activeName, setActiveName] = useState<string | null>(null);
-  const [draft, setDraft] = useState<DraftValues>({});
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [applyState, setApplyState] = useState<'idle' | 'ready' | 'confirming' | 'queueing' | 'queued'>('idle');
   const [favorites, setFavorites] = useState(() => [] as ReturnType<typeof readServiceFavorites>);
-  const initialOpened = useRef<string | undefined>(undefined);
 
-  const active = useMemo(() => items.find((item) => item.service.name === activeName) ?? null, [activeName, items]);
   const favoriteNames = useMemo(() => new Set(favorites.map((favorite) => favorite.name)), [favorites]);
   const orderedItems = useMemo(
     () =>
@@ -51,12 +44,6 @@ export function ServiceDirectory({
       }),
     [favoriteNames, items]
   );
-  const currentPasswordRequired = Boolean(
-    active?.currentPasswordRequiredForProtectedChanges && protectedDraftChangeRequiresCurrentPassword(active, draft)
-  );
-  const commonGroups = active ? filterConfigGroups(active.groups, (field) => !isAdvancedField(field)) : [];
-  const advancedGroups = active ? filterConfigGroups(active.groups, isAdvancedField) : [];
-
   useEffect(() => {
     let active = true;
     loadServiceFavorites()
@@ -79,15 +66,6 @@ export function ServiceDirectory({
     };
   }, []);
 
-  useEffect(() => {
-    if (!initialService || initialOpened.current === initialService) return;
-    const initial = items.find((item) => item.service.name === initialService);
-    if (initial && (initial.service.requirement?.satisfied ?? true)) {
-      initialOpened.current = initialService;
-      openConfig(initial);
-    }
-  }, [initialService, items]);
-
   function openService(config: ServiceConfigModel) {
     const handled = onServiceOpen?.(config);
     if (!handled) {
@@ -96,27 +74,7 @@ export function ServiceDirectory({
     }
   }
 
-  function openConfig(config: ServiceConfigModel) {
-    setActiveName(config.service.name);
-    setDraft(valuesFromConfig(config));
-    setCurrentPassword('');
-    setError('');
-  }
-
-  function closeConfig() {
-    setActiveName(null);
-    setCurrentPassword('');
-    setError('');
-  }
-
-  function updateDraft(field: ServiceConfigField, value: unknown) {
-    setDraft((current) => ({ ...current, [field.id]: value }));
-  }
-
-  async function toggleFavorite(config: ServiceConfigModel, event: MouseEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-
+  async function toggleFavorite(config: ServiceConfigModel) {
     const serviceUrl = serviceLink(config.service);
 
     if (!serviceUrl) {
@@ -140,59 +98,8 @@ export function ServiceDirectory({
     } catch (error) {
       setFavorites(previous);
       const errorMessage = error instanceof Error ? error.message : 'Could not update pinned apps.';
-      setError(errorMessage);
       toast.error(errorMessage);
     }
-  }
-
-  async function save() {
-    if (!active) {
-      return;
-    }
-
-    const payload = normalizeDraft(active, draft);
-
-    if (payload.error) {
-      setError(payload.error);
-      toast.error(payload.error);
-      return;
-    }
-
-    if (currentPasswordRequired && !currentPassword.trim()) {
-      const message = 'Current admin password is required to change protected account or secret fields.';
-      setError(message);
-      toast.error(message);
-      return;
-    }
-
-    setSaving(true);
-    setError('');
-    const toastId = toast.loading(`Saving ${active.service.displayName} settings...`);
-
-    const response = await stackarrFetch(`/api/v1/services/config/${active.service.name}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        values: payload.values,
-        ...(currentPasswordRequired ? { currentPassword } : {})
-      })
-    });
-    const body = await response.json().catch(() => ({}));
-
-    setSaving(false);
-
-    if (!response.ok || body.accepted === false) {
-      const errorMessage = body.error ?? body.message ?? 'Save failed';
-      setError(errorMessage);
-      toast.error(errorMessage, { id: toastId });
-      return;
-    }
-
-    const nextConfig = body.config as ServiceConfigModel;
-    setItems((current) => current.map((item) => (item.service.name === nextConfig.service.name ? nextConfig : item)));
-    setApplyState('ready');
-    closeConfig();
-    toast.success(`${active.service.displayName} is ready to apply.`, { id: toastId });
   }
 
   async function applyChanges() {
@@ -278,7 +185,6 @@ export function ServiceDirectory({
                     <Badge tone={requirementMet ? badgeTone(config.service.status) : 'warn'}>
                       {requirementMet ? serviceStateLabel(config.service.status, variant) : 'Unavailable'}
                     </Badge>
-                    {isFavorite && <Badge tone="purple">Pinned</Badge>}
                   </span>
                 </div>
                 <p>{config.service.description}</p>
@@ -288,123 +194,221 @@ export function ServiceDirectory({
               </div>
               <div className={styles.cardActions}>
                 {canOpen && (
-                  <button className={styles.openButton} onClick={() => openService(config)} type="button">
-                    <icons.link aria-hidden="true" size={14} />
+                  <Button
+                    className={styles.openButton}
+                    onPress={() => openService(config)}
+                    size="sm"
+                    variant="tertiary"
+                  >
+                    <icons.open aria-hidden="true" size={14} />
                     <span>Open</span>
-                  </button>
+                  </Button>
                 )}
                 {variant === 'installed' && (
-                  <button
+                  <Button
                     aria-label={`${isFavorite ? 'Unpin' : 'Pin'} ${config.service.displayName}`}
                     aria-pressed={isFavorite}
-                    className={`${styles.starButton} ${isFavorite ? styles.starred : ''}`}
-                    disabled={!canFavorite}
-                    onClick={(event) => toggleFavorite(config, event)}
-                    type="button"
-                    title={
-                      canFavorite
-                        ? `${isFavorite ? 'Unpin' : 'Pin'} ${config.service.displayName}`
-                        : 'Add an app URL before pinning'
-                    }
+                    className={`${styles.pinButton} ${isFavorite ? styles.pinned : ''}`}
+                    isDisabled={!canFavorite}
+                    isIconOnly
+                    onPress={() => toggleFavorite(config)}
+                    size="sm"
+                    variant="tertiary"
                   >
-                    {isFavorite ? (
-                      <icons.starSolid aria-hidden="true" size={15} />
-                    ) : (
-                      <icons.star aria-hidden="true" size={15} />
-                    )}
-                  </button>
+                    <icons.pin aria-hidden="true" size={15} />
+                  </Button>
                 )}
                 {config.groups.length > 0 && (
-                  <button
-                    className={styles.configButton}
-                    disabled={!requirementMet}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      openConfig(config);
+                  <ServiceSettingsModal
+                    config={config}
+                    isAvailable={isAvailable}
+                    requestedOpen={initialService === config.service.name}
+                    requirementMet={requirementMet}
+                    onSaved={(nextConfig) => {
+                      setItems((current) =>
+                        current.map((item) => (item.service.name === nextConfig.service.name ? nextConfig : item))
+                      );
+                      setApplyState('ready');
                     }}
-                    type="button"
-                    title={
-                      requirementMet
-                        ? `${isAvailable ? 'Add' : 'Configure'} ${config.service.displayName}`
-                        : config.service.requirement?.message
-                    }
-                  >
-                    {isAvailable ? <span aria-hidden="true">+</span> : <icons.sliders aria-hidden="true" size={15} />}
-                    <span>{isAvailable ? 'Add' : 'Settings'}</span>
-                  </button>
+                  />
                 )}
               </div>
             </article>
           );
         })}
       </div>
+    </>
+  );
+}
 
-      <Modal>
-        <Modal.Backdrop
-          isOpen={Boolean(active)}
-          onOpenChange={(open) => {
-            if (!open) closeConfig();
-          }}
-          variant="blur"
-        >
-          <Modal.Container placement="center" scroll="inside" size="lg">
-            <Modal.Dialog className={styles.modal}>
-              <Modal.CloseTrigger aria-label="Close app settings" />
-              <Modal.Header className={styles.modalHeader}>
+function ServiceSettingsModal({
+  config,
+  isAvailable,
+  requestedOpen,
+  requirementMet,
+  onSaved
+}: {
+  config: ServiceConfigModel;
+  isAvailable: boolean;
+  requestedOpen: boolean;
+  requirementMet: boolean;
+  onSaved: (config: ServiceConfigModel) => void;
+}) {
+  const [draft, setDraft] = useState<DraftValues>(() => valuesFromConfig(config));
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const setModalState = useCallback((nextOpen: boolean) => {
+    setModalOpen(nextOpen);
+    if (!nextOpen) {
+      setCurrentPassword('');
+      setError('');
+    }
+  }, []);
+  const openModal = useCallback(() => setModalState(true), [setModalState]);
+  const closeModal = useCallback(() => setModalState(false), [setModalState]);
+  const commonGroups = filterConfigGroups(config.groups, (field) => !isAdvancedField(field));
+  const advancedGroups = filterConfigGroups(config.groups, isAdvancedField);
+  const currentPasswordRequired = Boolean(
+    config.currentPasswordRequiredForProtectedChanges && protectedDraftChangeRequiresCurrentPassword(config, draft)
+  );
+
+  useEffect(() => {
+    setDraft(valuesFromConfig(config));
+  }, [config]);
+
+  useEffect(() => {
+    if (requestedOpen && requirementMet) {
+      openModal();
+    }
+  }, [requestedOpen, requirementMet, openModal]);
+
+  function updateDraft(field: ServiceConfigField, value: unknown) {
+    setDraft((current) => ({ ...current, [field.id]: value }));
+  }
+
+  function close() {
+    closeModal();
+    setCurrentPassword('');
+    setError('');
+  }
+
+  async function save() {
+    const normalized = normalizeDraft(config, draft);
+    if (normalized.error) {
+      setError(normalized.error);
+      return;
+    }
+
+    if (currentPasswordRequired && !currentPassword.trim()) {
+      setError('Enter the current admin password to change protected settings.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    const response = await stackarrFetch(`/api/v1/services/config/${config.service.name}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ values: normalized.values, currentPassword: currentPassword || undefined })
+    });
+    const body = await response.json().catch(() => ({}));
+    setSaving(false);
+
+    if (!response.ok || body.accepted === false) {
+      setError(
+        typeof body.error === 'string'
+          ? body.error
+          : typeof body.message === 'string'
+            ? body.message
+            : 'Could not save these app settings.'
+      );
+      return;
+    }
+
+    const nextConfig = body.config as ServiceConfigModel | undefined;
+    if (nextConfig) {
+      onSaved(nextConfig);
+    }
+    toast.success(`${config.service.displayName} settings saved.`);
+    close();
+  }
+
+  return (
+    <Modal isOpen={modalOpen} onOpenChange={setModalState}>
+      <Button
+        aria-label={
+          requirementMet
+            ? `${isAvailable ? 'Add' : 'Configure'} ${config.service.displayName}`
+            : config.service.requirement?.message
+        }
+        className={styles.configButton}
+        isDisabled={!requirementMet}
+        size="sm"
+        variant="secondary"
+      >
+        {isAvailable ? <span aria-hidden="true">+</span> : <icons.sliders aria-hidden="true" size={15} />}
+        <span>{isAvailable ? 'Add' : 'Settings'}</span>
+      </Button>
+      <Modal.Backdrop variant="blur">
+        <Modal.Container placement="center" scroll="inside" size="lg">
+          <Modal.Dialog className={styles.modal}>
+            <Modal.CloseTrigger aria-label="Close app settings" className={styles.closeButton} />
+            <Modal.Header className={styles.modalHeader}>
+              <div className={styles.modalTitle}>
+                <ServiceLogo name={config.service.name} size={38} />
                 <div>
                   <Modal.Heading>
-                    {active
-                      ? `${active.service.mode === 'disabled' ? 'Add' : 'Configure'} ${active.service.displayName}`
-                      : ''}
+                    {isAvailable ? `Add ${config.service.displayName}` : `${config.service.displayName} settings`}
                   </Modal.Heading>
-                  {active && <p>{active.service.description}</p>}
+                  <p>{config.service.description}</p>
                 </div>
-              </Modal.Header>
+              </div>
+            </Modal.Header>
 
-              <Modal.Body className={styles.modalBody}>
-                {active && <AppAccessSettings key={active.service.name} config={active} />}
-                <ConfigGroups groups={commonGroups} draft={draft} onChange={updateDraft} />
-                {advancedGroups.length > 0 && (
-                  <details className={styles.advancedSettings}>
-                    <summary>
-                      <span>Advanced settings</span>
-                      <small>Images, ports, databases, secrets, and integration internals</small>
-                    </summary>
-                    <div className={styles.advancedBody}>
-                      <ConfigGroups groups={advancedGroups} draft={draft} onChange={updateDraft} />
-                    </div>
-                  </details>
-                )}
-                {active && currentPasswordRequired && (
-                  <section className={styles.currentPasswordGate}>
-                    <TextField className={styles.textField} fullWidth>
-                      <Label>Current admin password</Label>
-                      <Input
-                        autoComplete="current-password"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(event) => setCurrentPassword(event.target.value)}
-                      />
-                    </TextField>
-                  </section>
-                )}
-              </Modal.Body>
+            <Modal.Body className={styles.modalBody}>
+              <AppAccessSettings key={config.service.name} config={config} />
+              <ConfigGroups groups={commonGroups} draft={draft} onChange={updateDraft} />
+              {advancedGroups.length > 0 && (
+                <details className={styles.advancedSettings}>
+                  <summary>
+                    <span>Advanced app settings</span>
+                    <small>Images, ports, databases, and credentials</small>
+                  </summary>
+                  <div className={styles.advancedBody}>
+                    <ConfigGroups groups={advancedGroups} draft={draft} onChange={updateDraft} />
+                  </div>
+                </details>
+              )}
+              {currentPasswordRequired && (
+                <section className={styles.currentPasswordGate}>
+                  <TextField className={styles.textField} fullWidth>
+                    <Label>Current admin password</Label>
+                    <Input
+                      autoComplete="current-password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </TextField>
+                </section>
+              )}
+            </Modal.Body>
 
-              <Modal.Footer className={styles.modalFooter}>
-                {error && <span className={styles.error}>{error}</span>}
-                <Button onPress={closeConfig} variant="tertiary">
-                  Cancel
-                </Button>
-                <Button isPending={saving} onPress={save} variant="primary">
-                  {active?.service.mode === 'disabled' ? 'Save app' : 'Save changes'}
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </Modal>
-    </>
+            <Modal.Footer className={styles.modalFooter}>
+              {error && <span className={styles.error}>{error}</span>}
+              <Button onPress={close} variant="tertiary">
+                Cancel
+              </Button>
+              <Button isPending={saving} onPress={save} variant="primary">
+                {isAvailable ? 'Save app' : 'Save changes'}
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }
 
@@ -514,12 +518,14 @@ function AppAccessSettings({ config }: { config: ServiceConfigModel }) {
     <section className={styles.accessPanel}>
       <div className={styles.accessHeading}>
         <div>
-          <h3>Open and connect</h3>
-          <p>Stable local links and optional remote access for this app.</p>
+          <h3 className="m-0 text-sm font-semibold">Open and connect</h3>
+          <p className="m-0 text-xs leading-relaxed text-muted">
+            Stable local links and optional remote access for this app.
+          </p>
         </div>
         {href && (
           <a href={href} rel="noreferrer" target="_blank">
-            <icons.link aria-hidden="true" size={14} /> Open app
+            <icons.open aria-hidden="true" size={14} /> Open app
           </a>
         )}
       </div>
@@ -544,10 +550,10 @@ function AppAccessSettings({ config }: { config: ServiceConfigModel }) {
             </Switch.Content>
             <Description>Ask approved users to sign in before this app opens remotely.</Description>
           </Switch>
-          <button className={styles.routeButton} disabled={saving} onClick={saveAccess} type="button">
+          <Button className={styles.routeButton} isDisabled={saving} onPress={saveAccess} size="sm" variant="secondary">
             <icons.cloud aria-hidden="true" size={14} />
             {saving ? 'Applying…' : state.route ? 'Update route' : 'Add route'}
-          </button>
+          </Button>
         </div>
       )}
       {state && !state.tunnelConfigured && (

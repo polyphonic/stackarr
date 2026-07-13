@@ -26,8 +26,8 @@
 }
 
 .active {
-  border-left: 3px solid var(--purple-600);
   background: var(--glass-raised);
+  box-shadow: inset 0 0 0 1px var(--glass-border-strong);
   color: var(--textColor) !important;
 }
 

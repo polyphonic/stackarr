@@ -20,28 +20,42 @@ type LidarrArtist = {
   foreignArtistId?: string;
 };
 
+type LidarrAlbumPage = {
+  totalRecords?: number;
+  records?: LidarrAlbum[];
+};
+
 export async function listLidarrStreamripAlbumsAction(
   input: { query?: string; missingOnly?: boolean; limit?: number; offset?: number } = {}
 ) {
-  const albums = await lidarrGet<LidarrAlbum[]>('album');
   const normalizedQuery = String(input.query ?? '')
     .trim()
     .toLowerCase();
-  const limit = Math.max(1, Math.min(Number(input.limit ?? 100) || 100, 500));
+  const limit = Math.max(1, Math.min(Number(input.limit ?? 100) || 100, 200));
   const offset = Math.max(0, Number(input.offset ?? 0) || 0);
+  const page = Math.floor(offset / limit) + 1;
+  const response = await lidarrGet<LidarrAlbumPage>(
+    'wanted/missing',
+    {
+      page,
+      pageSize: limit,
+      sortKey: 'releaseDate',
+      sortDirection: 'descending',
+      includeArtist: true
+    },
+    20000
+  );
 
-  const filtered = albums
+  const filtered = (response.records ?? [])
     .map((album) => toPreparedAlbum(album))
     .filter((item) => {
       const haystack = `${item.artist?.name ?? ''} ${item.album.title}`.toLowerCase();
-      const missing = (item.album.percentOfTracks ?? 0) < 100;
-      return (!normalizedQuery || haystack.includes(normalizedQuery)) && (!input.missingOnly || missing);
+      return !normalizedQuery || haystack.includes(normalizedQuery);
     })
     .sort((a, b) => Number(b.album.monitored) - Number(a.album.monitored) || a.query.localeCompare(b.query));
 
-  const items = filtered.slice(offset, offset + limit);
-
-  return { albums: items, total: filtered.length, offset, limit, hasMore: offset + items.length < filtered.length };
+  const total = Number(response.totalRecords ?? filtered.length);
+  return { albums: filtered, total, offset, limit, hasMore: offset + limit < total };
 }
 
 export async function prepareLidarrStreamripAlbumAction(input: { albumId: number }) {
@@ -104,9 +118,15 @@ function toPreparedAlbum(album: LidarrAlbum) {
   };
 }
 
-async function lidarrGet<T>(path: string, query: Record<string, string | number | boolean | undefined> = {}) {
+async function lidarrGet<T>(
+  path: string,
+  query: Record<string, string | number | boolean | undefined> = {},
+  timeoutMs = 10000
+) {
   const baseUrl = serviceBaseUrl('lidarr');
   const apiKey = serviceApiKey('lidarr');
   if (!apiKey) throw new Error('Missing API key for Lidarr. Save the Lidarr API key in Stackarr configuration.');
-  return requestJson<T>(withQuery(`${baseUrl}/api/v1/${path.replace(/^\//, '')}`, { ...query, apikey: apiKey }));
+  return requestJson<T>(withQuery(`${baseUrl}/api/v1/${path.replace(/^\//, '')}`, { ...query, apikey: apiKey }), {
+    timeoutMs
+  });
 }

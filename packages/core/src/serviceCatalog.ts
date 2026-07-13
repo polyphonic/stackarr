@@ -624,16 +624,6 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
   ]
 };
 
-const browserLinkGroup = group(
-  'App links',
-  [
-    settingsSelect('serviceUrlMode', 'Open apps with', ['ui', 'serviceUrlMode'], ['portless', 'localhost', 'loopback']),
-    settingsSelect('serviceUrlScheme', 'Portless scheme', ['ui', 'serviceUrlScheme'], ['https', 'http']),
-    settingsText('serviceUrlHostSuffix', 'Portless domain', ['ui', 'serviceUrlHostSuffix'])
-  ],
-  'Shared link behavior for every app. Portless gives apps stable names without visible port numbers.'
-);
-
 export function listServiceConfigsAction() {
   return getServices().map((service) => buildModel(service));
 }
@@ -786,8 +776,7 @@ function buildModel(service: ServiceSummary): ServiceConfigModel {
 }
 
 function definitionsForService(serviceName: string) {
-  const definitions = serviceGroups[serviceName] ?? [];
-  return serviceName === 'stackarr' ? definitions : [...definitions, browserLinkGroup];
+  return serviceGroups[serviceName] ?? [];
 }
 
 function updateStreamripServiceConfig(

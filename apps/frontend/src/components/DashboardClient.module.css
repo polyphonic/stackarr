@@ -12,26 +12,13 @@
   overflow: hidden;
   border: 1px solid var(--glass-border-strong);
   border-radius: 24px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--panel-bg) 86%, transparent),
-    color-mix(in srgb, var(--accent-soft) 72%, transparent)
-  );
+  background: var(--panel-bg);
   box-shadow:
     var(--panel-shadow),
     inset 0 1px rgb(255 255 255 / 12%);
 }
 .hero::before {
-  position: absolute;
-  top: -65%;
-  right: -8%;
-  width: 390px;
-  height: 390px;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent), transparent 68%);
-  content: "";
-  filter: blur(10px);
-  pointer-events: none;
+  content: none;
 }
 .heroCopy {
   position: relative;
@@ -107,9 +94,8 @@
   padding: 24px;
   border: 1px solid var(--glass-border);
   border-radius: 20px;
-  background: var(--glass-subtle);
+  background: var(--panelBackgroundHigh);
   text-align: center;
-  backdrop-filter: blur(20px);
 }
 .heroPulse > span {
   width: 14px;
@@ -153,11 +139,10 @@
   padding: 11px 13px;
   border: 1px solid var(--glass-border);
   border-radius: 15px;
-  background: color-mix(in srgb, var(--panel-bg) 76%, transparent);
+  background: var(--panel-bg);
   color: var(--text);
   box-shadow: var(--soft-shadow);
   text-decoration: none;
-  backdrop-filter: blur(15px);
   transition:
     transform 150ms ease,
     background 150ms ease;
@@ -174,7 +159,7 @@
   height: 40px;
   place-items: center;
   border-radius: 12px;
-  background: var(--accent-soft);
+  background: var(--icon-well);
 }
 .quickLink div {
   display: grid;
@@ -380,7 +365,7 @@
   padding: 20px;
   border: 1px solid var(--glass-border-strong);
   border-radius: 20px;
-  background: linear-gradient(135deg, var(--glass-raised), var(--glass-subtle));
+  background: var(--panel-bg);
   box-shadow: var(--soft-shadow);
 }
 
@@ -404,11 +389,10 @@
   padding: 15px;
   border: 1px solid var(--glass-border);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--panel-bg) 82%, transparent);
+  background: var(--panel-bg);
   color: var(--text);
   box-shadow: var(--soft-shadow);
   text-decoration: none;
-  backdrop-filter: blur(16px);
   transition:
     transform 150ms ease,
     border-color 150ms ease;

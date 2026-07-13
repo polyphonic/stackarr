@@ -85,7 +85,7 @@ export function StorageOverview({ metrics }: { metrics: StackMetrics }) {
               <span>
                 {disk.usedPercent === null
                   ? disk.mountPoint
-                    ? 'Mounted · Capacity is unavailable from Docker on this host'
+                    ? 'Mounted · Capacity unavailable'
                     : 'Not mounted'
                   : `${formatBytes((disk.totalSpace ?? 0) - (disk.freeSpace ?? 0))} of ${formatBytes(
                       disk.totalSpace ?? 0

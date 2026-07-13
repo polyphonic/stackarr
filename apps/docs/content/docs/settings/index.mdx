@@ -4,17 +4,17 @@ title: Settings
 
 # Settings
 
-Stackarr follows the arr settings shape: focused sections, advanced details where they belong, and explicit Connect integrations.
+Global Settings contains only choices shared by the homelab. Open **Apps**, choose an app, and use its **Settings** button for that app's connection, credentials, container options, and optional Cloudflare route.
 
 ## Sections
 
 | Section | Purpose |
 | --- | --- |
-| Media Management | Storage roots and ownership assumptions. |
-| Profiles and Presets | Naming, downloads, request defaults, HD/4K presets. |
-| Download Clients | Transmission/qBittorrent selection and port/bind defaults. |
-| Indexers | Prowlarr and indexer sync status. |
-| Connect | API integrations and webhooks. |
-| Metadata | Media-server metadata and naming guidance. |
-| General | Host, auth, API key, URL base, public URL. |
+| Media Management | Shared storage roots and backup schedule. |
+| Profiles | Defaults shared by related media apps, including HD and 4K profiles. |
+| Connect | Cloudflare tunnel, shared webhooks, and public access. |
+| Account | Stackarr sign-in, owner identity, and API access. |
+| General | Timezone, update windows, and Stackarr paths. |
 | UI | Theme, density, time format, dashboard presentation. |
+
+App-specific passwords and isolated database credentials are no longer duplicated in global Settings. They remain protected and are edited from the owning app's HeroUI settings panel.

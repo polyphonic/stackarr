@@ -5,15 +5,10 @@ import { Grid, Panel } from '../../components/ui';
 import { requireDashboardAuth } from '../../lib/serverAuth';
 
 const settings = [
-  [
-    'mediamanagement',
-    'Media Management',
-    'Root folders, Plex/Jellyfin modes, backup schedule, retention, and import paths'
-  ],
+  ['mediamanagement', 'Media Management', 'Shared root folders, backup schedule, retention, and import paths'],
   ['profiles', 'Profiles', 'Stackarr presets for HD, 4K, and request routing'],
   ['connect', 'Connect', 'Stackarr integrations with other app APIs, configs, webhooks, and public URLs'],
   ['account', 'Account', 'Stackarr sign-in, global identity, service owner email, and API key'],
-  ['security', 'Security', 'Per-service passwords and isolated Postgres role credentials'],
   ['general', 'General', 'API key, timezone, update windows, and paths'],
   ['ui', 'UI', 'Theme and display preferences']
 ];
@@ -23,10 +18,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <Toolbar
-        title="Settings"
-        description="Start with common choices, then open advanced controls only when you need them"
-      />
+      <Toolbar title="Settings" description="Shared storage, access, account, and dashboard preferences" />
       <PageBody>
         <Panel title="Your Stackarr setup" description="Storage, defaults, and behavior shared across your homelab">
           <Grid>
@@ -62,12 +54,6 @@ export default async function SettingsPage() {
               icon={icons.key}
               title="Account"
               description="Dashboard sign-in, owner identity, and API access"
-            />
-            <DestinationCard
-              href="/settings/security"
-              icon={icons.lock}
-              title="Security"
-              description="Service credentials and isolated database roles"
             />
           </Grid>
         </Panel>

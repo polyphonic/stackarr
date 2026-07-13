@@ -10,6 +10,7 @@
     "victory": "^37.3.6"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.3.1",
     "@types/node": "^26.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -18,8 +19,8 @@
   },
   "private": true,
   "scripts": {
-    "build": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next build",
-    "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next dev -p 7777",
+    "build": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next build --webpack",
+    "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next dev --webpack -p 7777",
     "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next start -p 7777",
     "typecheck": "tsc --noEmit"
   },

@@ -69,12 +69,12 @@ export default async function AgentPage() {
           />
         </Grid>
         <Panel
-          title="Peel back the layers"
+          title="Advanced control"
           description="These controls are useful when you need to tune authority or inspect the action catalog"
         >
           <p>
             <Link href="/agent/tools">Browse available agent actions</Link> ·{' '}
-            <Link href="/settings/security">Review security settings</Link> ·{' '}
+            <Link href="/stack/services">Review app credentials</Link> ·{' '}
             <Link href="/system/logs">Open server logs</Link>
           </p>
         </Panel>

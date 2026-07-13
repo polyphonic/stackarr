@@ -120,7 +120,7 @@
 
 .selectedRoot {
   border-color: var(--purple-600) !important;
-  background: var(--badge-accent-bg) !important;
+  background: var(--glass-raised) !important;
 }
 
 .browser {
