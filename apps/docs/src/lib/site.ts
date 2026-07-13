@@ -11,7 +11,7 @@ export const siteDescription =
 export const githubRepo = 'polyphonic/stackarr';
 export const githubUrl = process.env.NEXT_PUBLIC_GITHUB_URL || `https://github.com/${githubRepo}`;
 export const googleTagManagerId = 'GTM-MZ5T4FZH';
-export const siteVersion = '0.3.0-alpha.1';
+export const siteVersion = process.env.NEXT_PUBLIC_STACKARR_VERSION || '0.3.0-alpha.1'; // x-release-please-version
 
 export function absoluteUrl(path = '/') {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;

@@ -44,3 +44,4 @@ export * from './settings';
 export * from './streamrip/config';
 export * from './streamrip/schema';
 export * from './tasks';
+export * from './version';

@@ -35,6 +35,7 @@ for f in bin/stackarr stackarr/bin/stackarr stackarr/lib/common.sh stackarr/scri
 - Put user-facing product docs under `apps/docs/content/docs`.
 - Put maintainer, integration, and verification notes under `docs`.
 - Keep Docker release notes with the Compose and image documentation.
+- Follow [docs/RELEASES.md](docs/RELEASES.md) for SemVer, image tags, release notes, and platform support.
 - Put contribution workflow in this file.
 - Keep committed plugin templates path-portable; install/export commands may write install-specific paths at runtime.
 

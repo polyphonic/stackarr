@@ -83,6 +83,7 @@ The dashboard uses Portless app URLs by default, keeps pinned apps in the main n
 - [Hermes and OpenClaw](https://stackarr.app/docs/agent/plugins)
 - [Safety and control](https://stackarr.app/docs/agent/safety)
 - [Troubleshooting](https://stackarr.app/docs/operations/troubleshooting)
+- [Release and container-image policy](docs/RELEASES.md)
 
 Development and contribution guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 

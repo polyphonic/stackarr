@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { type McpProfile, resolveMcpProfile, type ToolCategory } from '@stackarr/core';
+import { type McpProfile, resolveMcpProfile, stackarrVersion, type ToolCategory } from '@stackarr/core';
 import { getRegisteredControlPlaneSummary, registerStackarrTools } from './registry';
 
 export function createStackarrMcpServer(
@@ -8,7 +8,7 @@ export function createStackarrMcpServer(
   const profile = options.profile ?? resolveMcpProfile();
   const summary = getRegisteredControlPlaneSummary(profile, { groups: options.groups });
   const server = new McpServer(
-    { name: 'stackarr', version: '0.3.0-alpha.1' },
+    { name: 'stackarr', version: stackarrVersion },
     {
       instructions: [
         'Stackarr is a local homelab control plane. Prefer typed native-service actions over shell commands.',
