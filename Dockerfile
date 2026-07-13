@@ -29,9 +29,14 @@ RUN pnpm --dir apps/frontend build
 FROM node:22-alpine3.20@sha256:2289fb1fba0f4633b08ec47b94a89c7e20b829fc5679f9b7b298eaa2f1ed8b7e AS runner
 WORKDIR /app
 
+ARG STACKARR_VERSION=0.3.0-alpha.1 # x-release-please-version
+ARG STACKARR_CHANNEL=alpha
+ARG STACKARR_REVISION=unknown
+
 LABEL org.opencontainers.image.title="Stackarr" \
       org.opencontainers.image.description="[Stackarr](https://stackarr.app/) is a chat-first Docker control plane for self-hosted apps and homelabs." \
-      org.opencontainers.image.version="0.3.0-alpha.1" \
+      org.opencontainers.image.version="${STACKARR_VERSION}" \
+      org.opencontainers.image.revision="${STACKARR_REVISION}" \
       org.opencontainers.image.authors="Stackarr" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.vendor="Polyphonic" \
@@ -46,6 +51,9 @@ LABEL org.opencontainers.image.title="Stackarr" \
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS=--disable-warning=ExperimentalWarning \
+    STACKARR_VERSION=${STACKARR_VERSION} \
+    STACKARR_CHANNEL=${STACKARR_CHANNEL} \
+    STACKARR_REVISION=${STACKARR_REVISION} \
     HOSTNAME=0.0.0.0 \
     PORT=7777 \
     STACKARR_WEB_PORT=7777 \

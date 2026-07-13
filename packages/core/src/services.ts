@@ -4,6 +4,7 @@ import { databaseExists } from './database';
 import { readEnv, type StackarrEnv } from './env';
 import { appDatabasePath, composePath, stackarrBin } from './paths';
 import { readSettings, type StackarrSettings } from './settings';
+import { stackarrChannel, stackarrVersion } from './version';
 
 export type ServiceSummary = {
   name: string;
@@ -148,8 +149,8 @@ export function getSystemStatus() {
 
   return {
     appName: 'Stackarr',
-    version: '0.3.0-alpha.1',
-    branch: 'alpha',
+    version: stackarrVersion,
+    branch: stackarrChannel,
     runtime: 'Next.js',
     os: {
       platform: os.platform(),

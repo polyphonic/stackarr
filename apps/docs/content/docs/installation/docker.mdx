@@ -41,17 +41,29 @@ Stackarr starts other services only after you select them during setup.
 
 ## Choose an image channel
 
-The moving early-access image is:
+The moving early-access image is published to Docker Hub:
 
 ```dotenv
 STACKARR_IMAGE=polyphonic/stackarr:alpha
 ```
 
-Use a versioned tag when you want repeatable deployments:
+`alpha` is intentionally a moving tag. Use an exact version for reproducible deployments, support reports, and rollback:
+
+{/* x-release-please-start-version */}
 
 ```dotenv
 STACKARR_IMAGE=polyphonic/stackarr:0.3.0-alpha.1
 ```
+
+GitHub Container Registry is a supported mirror when Docker Hub is unavailable:
+
+```dotenv
+STACKARR_IMAGE=ghcr.io/polyphonic/stackarr:0.3.0-alpha.1
+```
+
+{/* x-release-please-end */}
+
+For an incident or production-like test, record the exact image digest as well as the version tag. See the repository [release and container-image policy](https://github.com/polyphonic/stackarr/blob/production/docs/RELEASES.md) for channel, platform, and rollback details.
 
 ## Connect an MCP client
 

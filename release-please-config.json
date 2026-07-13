@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "253008e95be2a022fbcef08d8e622d6592906770",
+  "release-type": "node",
+  "versioning": "prerelease",
+  "prerelease": true,
+  "prerelease-type": "alpha",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "changelog-path": "CHANGELOG.md",
+  "changelog-sections": [
+    { "type": "feat", "section": "Added" },
+    { "type": "fix", "section": "Fixed" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "security", "section": "Security" },
+    { "type": "docs", "section": "Documentation" },
+    { "type": "refactor", "section": "Changed" },
+    { "type": "build", "section": "Build and distribution" },
+    { "type": "ci", "section": "Continuous integration" },
+    { "type": "chore", "section": "Maintenance", "hidden": true },
+    { "type": "test", "section": "Tests", "hidden": true }
+  ],
+  "extra-files": [
+    { "type": "json", "path": "apps/docs/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "apps/frontend/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "packages/cli/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "packages/core/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "packages/db/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "packages/integration-tests/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "packages/mcp/package.json", "jsonpath": "$.version" },
+    { "type": "json", "path": "packages/ui/package.json", "jsonpath": "$.version" },
+    "Dockerfile",
+    "apps/docs/src/lib/site.ts",
+    "apps/docs/content/docs/installation/docker.mdx",
+    "packages/core/src/version.ts"
+  ]
+}

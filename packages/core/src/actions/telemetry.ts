@@ -3,9 +3,10 @@ import os from 'node:os';
 import { readEnv } from '../env';
 import { getServices } from '../services';
 import { readSettings, type StackarrSettings, writeSettings } from '../settings';
+import { stackarrVersion } from '../version';
 
 const telemetrySchemaVersion = 1;
-const stackarrAppVersion = '0.3.0-alpha.1';
+const stackarrAppVersion = stackarrVersion;
 const defaultSendTimeoutMs = 10_000;
 
 export type TelemetryUpdateInput = {
