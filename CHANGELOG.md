@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.5](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.4...v0.3.0-alpha.5) (2026-07-14)
+
+
+### Fixed
+
+* **telemetry:** unify CLI heartbeat reporting ([308314c](https://github.com/polyphonic/stackarr/commit/308314c8ef930d8b22d7ea37b8d182800979f094))
+
 ## [0.3.0-alpha.4](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.3...v0.3.0-alpha.4) (2026-07-14)
 
 

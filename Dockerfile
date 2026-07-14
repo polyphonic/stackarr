@@ -29,7 +29,7 @@ RUN pnpm --dir apps/frontend build
 FROM node:22-alpine3.20@sha256:2289fb1fba0f4633b08ec47b94a89c7e20b829fc5679f9b7b298eaa2f1ed8b7e AS runner
 WORKDIR /app
 
-ARG STACKARR_VERSION=0.3.0-alpha.4 # x-release-please-version
+ARG STACKARR_VERSION=0.3.0-alpha.5 # x-release-please-version
 ARG STACKARR_CHANNEL=alpha
 ARG STACKARR_REVISION=unknown
 ARG STACKARR_TELEMETRY_ENDPOINT=
