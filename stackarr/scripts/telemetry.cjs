@@ -3,7 +3,7 @@ const { randomUUID } = require('node:crypto');
 const os = require('node:os');
 const { readSetting, writeRawSetting } = require('./stackarr-db.cjs');
 
-const appVersion = process.env.STACKARR_VERSION || '0.3.0-alpha.2'; // x-release-please-version
+const appVersion = process.env.STACKARR_VERSION || '0.3.0-alpha.3'; // x-release-please-version
 const telemetrySchemaVersion = 2;
 const defaultEndpoint = process.env.STACKARR_TELEMETRY_ENDPOINT || 'https://stackarr.app/api/telemetry/events';
 const settingKey = 'stackarr.settings';
