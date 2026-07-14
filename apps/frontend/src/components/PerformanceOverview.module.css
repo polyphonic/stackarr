@@ -80,27 +80,6 @@
   font-size: 14px;
 }
 
-.intervalControl {
-  display: grid;
-  min-width: 118px;
-  gap: 3px;
-  padding: 7px 9px;
-  border: 1px solid var(--glass-border);
-  border-radius: 11px;
-  background: var(--panelBackground);
-}
-
-.intervalControl select {
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--textColor);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
-}
-
 .current a,
 .unavailable > a {
   display: inline-flex;
