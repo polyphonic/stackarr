@@ -4,7 +4,7 @@
   "version": "0.3.0-alpha.1",
   "license": "GPL-3.0-only",
   "devDependencies": {
-    "@biomejs/biome": "^2.5.0",
+    "@biomejs/biome": "^2.5.3",
     "syncpack": "^15.3.2",
     "turbo": "^2.9.18"
   },
