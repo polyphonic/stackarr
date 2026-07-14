@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0-alpha.3](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.2...v0.3.0-alpha.3) (2026-07-14)
+
+
+### Fixed
+
+* **dashboard:** label live resource charts ([f77cf4f](https://github.com/polyphonic/stackarr/commit/f77cf4ffd8ddca6d4c9ac2fd2cb9ae25c384028e))
+* **release:** align telemetry and image traceability ([a1f090f](https://github.com/polyphonic/stackarr/commit/a1f090fca96b21cb1600ce6248ead82c24107c3c))
+
+
+### Documentation
+
+* **ui:** refresh product screenshots ([4d6cd17](https://github.com/polyphonic/stackarr/commit/4d6cd172d9c08ac0d4ad4b808a411c43cb4ccc92))
+
 ## [0.3.0-alpha.2](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.1...v0.3.0-alpha.2) (2026-07-14)
 
 
