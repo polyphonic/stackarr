@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/core",
-  "version": "0.3.0-alpha.5",
+  "version": "0.3.0-alpha.6",
   "devDependencies": {
     "@types/node": "^26.0.0",
     "typescript": "^6.0.3"
