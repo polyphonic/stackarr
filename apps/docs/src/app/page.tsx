@@ -37,12 +37,12 @@ const showcaseScreens = [
   {
     title: 'Dashboard',
     slug: 'dashboard',
-    copy: 'The first screen gives you the pulse of the stack: health, storage, resources, notifications, and the next move.'
+    copy: 'The first screen gives you the pulse of the stack: active work, running containers, live performance, and the next move.'
   },
   {
-    title: 'Stack services',
+    title: 'Apps',
     slug: 'stack-services',
-    copy: 'See only the apps you installed, with app-owned settings and helpers tucked away until you need them.'
+    copy: 'Open the apps you installed, pin the ones you use most, and keep each connection and behavior setting close to its app.'
   },
   {
     title: 'UI settings',
@@ -231,7 +231,7 @@ export default function LandingPage() {
         <div className="screenshotHeroCard">
           <ThemeShot
             slug="dashboard"
-            alt="Stackarr dashboard showing service status, resource gauges, storage, and configured services"
+            alt="Stackarr dashboard showing active work, running containers, and live CPU and memory history"
           />
         </div>
         <div className="screenshotGrid">
