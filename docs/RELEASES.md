@@ -64,4 +64,4 @@ Use Conventional Commit types so Release Please can group notes predictably: `fe
 - [ ] `linux/amd64` and `linux/arm64` are present for the exact tag in Docker Hub and GHCR.
 - [ ] The moving `alpha` tag points at the exact alpha-version manifest in both registries.
 - [ ] The release digest, version, host OS, Docker runtime, and architecture are requested in alpha feedback.
-- [ ] The landing-page telemetry collector has its database migration, server-only signing key, and edge rate limits configured before the public telemetry feature is announced.
+- [ ] The landing-page telemetry collector has its database migration, server-only signing key, and Upstash rate-limit credentials configured before the public telemetry feature is announced.

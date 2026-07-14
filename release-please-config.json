@@ -34,7 +34,7 @@
         { "type": "json", "path": "packages/mcp/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "packages/ui/package.json", "jsonpath": "$.version" },
         "Dockerfile",
-        "apps/docs/src/lib/site.ts",
+        "apps/docs/src/env/client.ts",
         "apps/docs/content/docs/installation/docker.mdx",
         "packages/core/src/version.ts",
         "stackarr/scripts/telemetry.cjs"
