@@ -7,9 +7,10 @@ import { stackarrFetch } from './clientApi';
 import { InteractiveLineChart, type LineChartSeries } from './InteractiveLineChart';
 import styles from './PerformanceOverview.module.css';
 
+const RESOURCE_REFRESH_SECONDS = 6;
+
 export function PerformanceOverview({ initial }: { initial: HomelabPerformance }) {
   const [performance, setPerformance] = useState(initial);
-  const [refreshSeconds, setRefreshSeconds] = useState(6);
 
   useEffect(() => {
     const refresh = () => {
@@ -23,13 +24,13 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
     };
     const interval = window.setInterval(() => {
       refresh();
-    }, refreshSeconds * 1000);
+    }, RESOURCE_REFRESH_SECONDS * 1000);
     document.addEventListener('visibilitychange', refresh);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [refreshSeconds]);
+  }, []);
 
   if (!performance.available) {
     return (
@@ -59,15 +60,6 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
         <div className={styles.current} aria-label="Current performance">
           <Metric label="Host CPU" value={latest?.hostCpuPercent ?? 0} />
           <Metric label="Host memory" value={latest?.hostMemoryPercent ?? 0} />
-          <label className={styles.intervalControl}>
-            <span>Update every</span>
-            <select value={refreshSeconds} onChange={(event) => setRefreshSeconds(Number(event.target.value))}>
-              <option value={1}>1 second</option>
-              <option value={3}>3 seconds</option>
-              <option value={6}>6 seconds</option>
-              <option value={10}>10 seconds</option>
-            </select>
-          </label>
           <Link href="/containers">All containers</Link>
         </div>
       </header>
@@ -145,7 +137,7 @@ function ResourceChart({
       <header>
         <div>
           <strong>{label}</strong>
-          <span>2 min live window</span>
+          <span>Past 2 minutes · 6-second samples</span>
         </div>
         <div className={styles.legend} aria-label="Chart legend">
           <span>
@@ -164,9 +156,11 @@ function ResourceChart({
         <InteractiveLineChart
           height={190}
           series={series}
+          xAxisLabel="Time"
           xDomain={[-120, 0]}
           xTickFormat={formatAxisTime}
           xTickValues={[-120, -100, -80, -60, -40, -20, 0]}
+          yAxisLabel="Utilization"
         />
       </div>
     </article>
@@ -192,7 +186,7 @@ function formatTime(value: string) {
 }
 
 function formatAxisTime(value: number) {
-  if (value === 0) return 'Now';
+  if (value === 0) return 'NOW';
   const totalSeconds = Math.abs(value);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
