@@ -1,3 +1,5 @@
+import { clientEnv } from '../env/client';
+
 export const siteName = 'Stackarr';
 export const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -11,7 +13,7 @@ export const siteDescription =
 export const githubRepo = 'polyphonic/stackarr';
 export const githubUrl = process.env.NEXT_PUBLIC_GITHUB_URL || `https://github.com/${githubRepo}`;
 export const googleTagManagerId = 'GTM-MZ5T4FZH';
-export const siteVersion = process.env.NEXT_PUBLIC_STACKARR_VERSION || '0.3.0-alpha.1'; // x-release-please-version
+export const siteVersion = clientEnv.NEXT_PUBLIC_STACKARR_VERSION;
 
 export function absoluteUrl(path = '/') {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;

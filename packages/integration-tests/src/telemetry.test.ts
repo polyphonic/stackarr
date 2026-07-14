@@ -11,6 +11,65 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
+test('telemetry rate-limit identifiers are opaque and policy scoped', async () => {
+  const { telemetryRateLimitIdentifier } = await import('../../../apps/docs/src/app/api/telemetry/rate-limit.ts');
+  const key = 'collector-signing-key-with-at-least-32-characters';
+  const address = '203.0.113.42';
+  const registration = telemetryRateLimitIdentifier('registration', address, key);
+  const ingest = telemetryRateLimitIdentifier('ingest', address, key);
+
+  assert.match(registration, /^[a-f0-9]{64}$/);
+  assert.doesNotMatch(registration, /203\.0\.113\.42/);
+  assert.notEqual(registration, ingest);
+  assert.notEqual(registration, telemetryRateLimitIdentifier('registration', address, `${key}-rotated`));
+});
+
+test('telemetry collector fails closed without Upstash and accepts a complete server configuration', async () => {
+  const evaluateConfig = async (upstashConfigured: boolean) => {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { getTelemetryCollectorConfig } = await import('./apps/docs/src/env/server.ts');
+          try {
+            const config = getTelemetryCollectorConfig();
+            console.log(JSON.stringify({
+              enabled: config.enabled,
+              hasRateLimit: Boolean(config.enabled && config.rateLimit.url && config.rateLimit.token),
+              maxPayloadBytes: config.enabled ? config.maxPayloadBytes : 0
+            }));
+          } catch (error) {
+            console.log(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+          }
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_TELEMETRY_COLLECTOR_ENABLED: 'true',
+          STACKARR_TELEMETRY_INGEST_KEY: 'collector-signing-key-with-at-least-32-characters',
+          DATABASE_URL: 'postgresql://stackarr:secret@example.test/stackarr?sslmode=require',
+          UPSTASH_REDIS_REST_URL: upstashConfigured ? 'https://example.upstash.io' : '',
+          UPSTASH_REDIS_REST_TOKEN: upstashConfigured ? 'upstash-rest-token' : ''
+        }
+      }
+    );
+
+    return JSON.parse(stdout);
+  };
+
+  const missing = await evaluateConfig(false);
+  const configured = await evaluateConfig(true);
+
+  assert.match(missing.error, /UPSTASH_REDIS_REST_URL/);
+  assert.deepEqual(configured, { enabled: true, hasRateLimit: true, maxPayloadBytes: 16_384 });
+});
+
 test('collector tokens are scoped to one installation and expire', async () => {
   const { issueTelemetryClientToken, verifyTelemetryClientToken } = await import(
     '../../../apps/docs/src/app/api/telemetry/auth.ts'

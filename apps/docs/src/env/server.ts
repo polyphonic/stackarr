@@ -16,7 +16,9 @@ export const env = createEnv({
   server: {
     STACKARR_TELEMETRY_COLLECTOR_ENABLED: booleanString,
     STACKARR_TELEMETRY_INGEST_KEY: z.string().min(32).optional(),
-    STACKARR_TELEMETRY_MAX_PAYLOAD_BYTES: z.coerce.number().int().positive().default(16_384)
+    STACKARR_TELEMETRY_MAX_PAYLOAD_BYTES: z.coerce.number().int().positive().default(16_384),
+    UPSTASH_REDIS_REST_URL: z.url().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional()
   },
   experimental__runtimeEnv: process.env,
   skipValidation: Boolean(process.env.SKIP_ENV_VALIDATION),
@@ -32,15 +34,23 @@ export function getTelemetryCollectorConfig() {
     throw new Error('STACKARR_TELEMETRY_INGEST_KEY is required when telemetry collector is enabled.');
   }
 
-  const databaseUrl = env.STACKARR_CLOUD_DATABASE_URL || env.DATABASE_URL;
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+    throw new Error(
+      'UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required when telemetry collection is enabled.'
+    );
+  }
 
-  if (!databaseUrl) {
-    throw new Error('STACKARR_CLOUD_DATABASE_URL or DATABASE_URL is required when telemetry collector is enabled.');
+  if (!env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required when telemetry collector is enabled.');
   }
 
   return {
     enabled: true as const,
     ingestKey: env.STACKARR_TELEMETRY_INGEST_KEY,
-    maxPayloadBytes: env.STACKARR_TELEMETRY_MAX_PAYLOAD_BYTES
+    maxPayloadBytes: env.STACKARR_TELEMETRY_MAX_PAYLOAD_BYTES,
+    rateLimit: {
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN
+    }
   };
 }

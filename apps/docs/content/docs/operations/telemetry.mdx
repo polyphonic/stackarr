@@ -44,7 +44,28 @@ The landing-page deployment needs these server-only values before collection is 
 ```dotenv
 STACKARR_TELEMETRY_COLLECTOR_ENABLED=true
 STACKARR_TELEMETRY_INGEST_KEY=<at-least-32-random-characters>
-STACKARR_CLOUD_DATABASE_URL=<postgres-connection-url>
+DATABASE_URL=<postgres-connection-url>
+DIRECT_URL=<direct-postgres-connection-url-for-migrations>
+UPSTASH_REDIS_REST_URL=<upstash-redis-rest-url>
+UPSTASH_REDIS_REST_TOKEN=<upstash-redis-rest-token>
 ```
 
-Apply the `@stackarr/db` production migration before enabling the collector. Keep the signing key out of client settings, public environment variables, build arguments, and source control.
+Use Neon's pooled connection for `DATABASE_URL` and its direct connection for `DIRECT_URL`. Apply the `@stackarr/db` production migration before enabling the collector.
+
+The collector defaults to a 16 KiB maximum event payload. `NEXT_PUBLIC_STACKARR_VERSION`, telemetry registration, and the payload limit have typed application defaults; override them at deployment only when intentionally testing a different release or limit.
+
+The ingest key signs each installation's expiring collector token, authorizes administrative ingestion, and HMAC-hashes rate-limit identifiers before they reach Upstash. Generate it with `openssl rand -hex 32`. Rotating it invalidates existing installation tokens; clients recover by registering again after the next rejected heartbeat. Keep it out of client settings, public environment variables, build arguments, source control, and logs.
+
+Upstash enforces distributed sliding-window limits of 10 registration requests per source per hour and 60 ingestion requests per source per minute. Source addresses are one-way HMAC-hashed and are not written to the telemetry database. An additional Vercel firewall limit can still be used as defense in depth.
+
+### Local collector services
+
+The docs app includes an isolated PostgreSQL 18 database, Redis 8.2, and an Upstash-compatible Redis HTTP proxy for local development. All ports bind to loopback and use disposable development credentials:
+
+```bash
+pnpm --dir apps/docs services:up
+pnpm --dir apps/docs db:migrate:local
+pnpm --dir apps/docs dev
+```
+
+Stop the services without deleting their named volumes with `pnpm --dir apps/docs services:down`. Hosted deployments should continue to use managed Postgres and Upstash credentials rather than the local development values.

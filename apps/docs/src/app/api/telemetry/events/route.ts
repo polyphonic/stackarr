@@ -2,6 +2,7 @@ import type { TelemetryPayload } from '@stackarr/db';
 import type { NextRequest } from 'next/server';
 import { getTelemetryCollectorConfig } from '../../../../env/server';
 import { safeEqual, verifyTelemetryClientToken } from '../auth';
+import { checkTelemetryRateLimit } from '../rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,15 @@ export async function POST(request: NextRequest) {
   if (!config.enabled) {
     const error = 'error' in config ? config.error : undefined;
     return json({ accepted: false, error: error ?? 'Telemetry collector is disabled.' }, { status: error ? 503 : 404 });
+  }
+
+  const rateLimit = await telemetryRateLimit(request, config, 'ingest');
+  if (!rateLimit.ok) return rateLimit.response;
+  if (!rateLimit.result.allowed) {
+    return json(
+      { accepted: false, error: 'Too many telemetry events. Try again later.' },
+      { status: 429, headers: rateLimit.result.headers }
+    );
   }
 
   const raw = await readBoundedBody(request, config.maxPayloadBytes);
@@ -32,7 +42,7 @@ export async function POST(request: NextRequest) {
   try {
     const { recordTelemetryEvent } = await import('@stackarr/db');
     const result = await recordTelemetryEvent({ payload: payload as TelemetryPayload });
-    return json(result, { status: 202 });
+    return json(result, { status: 202, headers: rateLimit.result.headers });
   } catch (error) {
     return json(
       {
@@ -41,6 +51,21 @@ export async function POST(request: NextRequest) {
       },
       { status: 503 }
     );
+  }
+}
+
+async function telemetryRateLimit(
+  request: NextRequest,
+  config: ReturnType<typeof getTelemetryCollectorConfig> & { enabled: true },
+  policy: 'ingest'
+) {
+  try {
+    return { ok: true as const, result: await checkTelemetryRateLimit(request, config, policy) };
+  } catch {
+    return {
+      ok: false as const,
+      response: json({ accepted: false, error: 'Telemetry rate limiting is unavailable.' }, { status: 503 })
+    };
   }
 }
 

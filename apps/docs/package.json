@@ -7,6 +7,9 @@
     "@stackarr/ui": "workspace:*",
     "@t3-oss/env-core": "^0.13.11",
     "@t3-oss/env-nextjs": "^0.13.11",
+    "@upstash/ratelimit": "2.0.8",
+    "@upstash/redis": "1.38.0",
+    "@vercel/functions": "3.6.0",
     "fumadocs-core": "16.10.5",
     "fumadocs-mdx": "15.0.12",
     "fumadocs-ui": "16.10.5",
@@ -29,7 +32,10 @@
   "private": true,
   "scripts": {
     "build": "next build --webpack",
+    "db:migrate:local": "node --env-file=.env ../../packages/db/node_modules/prisma/build/index.js migrate deploy --config ../../packages/db/prisma.config.ts",
     "dev": "next dev --webpack",
+    "services:down": "docker compose down",
+    "services:up": "docker compose up -d --wait",
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },

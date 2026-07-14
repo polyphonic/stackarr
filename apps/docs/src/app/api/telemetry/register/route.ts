@@ -1,14 +1,10 @@
-import { createHmac } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { getTelemetryCollectorConfig } from '../../../../env/server';
 import { issueTelemetryClientToken } from '../auth';
+import { checkTelemetryRateLimit } from '../rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const registrationWindowMs = 60 * 60 * 1000;
-const registrationLimit = 10;
-const registrationBuckets = new Map<string, { count: number; resetAt: number }>();
 
 export async function POST(request: NextRequest) {
   const config = telemetryCollectorConfig();
@@ -17,11 +13,12 @@ export async function POST(request: NextRequest) {
     return json({ accepted: false, error: error ?? 'Telemetry collector is disabled.' }, { status: error ? 503 : 404 });
   }
 
-  const rateLimit = checkRegistrationRateLimit(request, config.ingestKey);
-  if (rateLimit) {
+  const rateLimit = await telemetryRateLimit(request, config, 'registration');
+  if (!rateLimit.ok) return rateLimit.response;
+  if (!rateLimit.result.allowed) {
     return json(
       { accepted: false, error: 'Too many telemetry registrations. Try again later.' },
-      { status: 429, headers: { 'Retry-After': String(rateLimit) } }
+      { status: 429, headers: rateLimit.result.headers }
     );
   }
 
@@ -44,29 +41,8 @@ export async function POST(request: NextRequest) {
       accepted: true,
       ...issueTelemetryClientToken(body.installId, config.ingestKey)
     },
-    { status: 201 }
+    { status: 201, headers: rateLimit.result.headers }
   );
-}
-
-function checkRegistrationRateLimit(request: NextRequest, signingKey: string) {
-  const address =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip')?.trim() ||
-    'unknown';
-  const key = createHmac('sha256', signingKey).update(address).digest('hex');
-  const now = Date.now();
-  const current = registrationBuckets.get(key);
-  const bucket = current && current.resetAt > now ? current : { count: 0, resetAt: now + registrationWindowMs };
-  bucket.count += 1;
-  registrationBuckets.set(key, bucket);
-
-  if (registrationBuckets.size > 1000) {
-    for (const [bucketKey, value] of registrationBuckets) {
-      if (value.resetAt <= now) registrationBuckets.delete(bucketKey);
-    }
-  }
-
-  return bucket.count > registrationLimit ? Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) : undefined;
 }
 
 function telemetryCollectorConfig() {
@@ -76,6 +52,21 @@ function telemetryCollectorConfig() {
     return {
       enabled: false as const,
       error: error instanceof Error ? error.message : 'Telemetry collector is not configured.'
+    };
+  }
+}
+
+async function telemetryRateLimit(
+  request: NextRequest,
+  config: ReturnType<typeof getTelemetryCollectorConfig> & { enabled: true },
+  policy: 'registration'
+) {
+  try {
+    return { ok: true as const, result: await checkTelemetryRateLimit(request, config, policy) };
+  } catch {
+    return {
+      ok: false as const,
+      response: json({ accepted: false, error: 'Telemetry rate limiting is unavailable.' }, { status: 503 })
     };
   }
 }
