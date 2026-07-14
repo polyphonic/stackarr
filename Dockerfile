@@ -32,6 +32,7 @@ WORKDIR /app
 ARG STACKARR_VERSION=0.3.0-alpha.1 # x-release-please-version
 ARG STACKARR_CHANNEL=alpha
 ARG STACKARR_REVISION=unknown
+ARG STACKARR_TELEMETRY_ENDPOINT=
 
 LABEL org.opencontainers.image.title="Stackarr" \
       org.opencontainers.image.description="[Stackarr](https://stackarr.app/) is a chat-first Docker control plane for self-hosted apps and homelabs." \
@@ -54,6 +55,7 @@ ENV NODE_ENV=production \
     STACKARR_VERSION=${STACKARR_VERSION} \
     STACKARR_CHANNEL=${STACKARR_CHANNEL} \
     STACKARR_REVISION=${STACKARR_REVISION} \
+    STACKARR_TELEMETRY_ENDPOINT=${STACKARR_TELEMETRY_ENDPOINT} \
     HOSTNAME=0.0.0.0 \
     PORT=7777 \
     STACKARR_WEB_PORT=7777 \

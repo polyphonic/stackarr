@@ -5,7 +5,7 @@ const { readSetting, writeRawSetting } = require('./stackarr-db.cjs');
 
 const appVersion = process.env.STACKARR_VERSION || '0.3.0-alpha.1'; // x-release-please-version
 const telemetrySchemaVersion = 2;
-const defaultEndpoint = 'https://stackarr.app/api/telemetry/events';
+const defaultEndpoint = process.env.STACKARR_TELEMETRY_ENDPOINT || 'https://stackarr.app/api/telemetry/events';
 const settingKey = 'stackarr.settings';
 const command = process.argv[2] || 'status';
 const args = process.argv.slice(3);
