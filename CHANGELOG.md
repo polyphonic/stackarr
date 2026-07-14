@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0-alpha.6](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.5...v0.3.0-alpha.6) (2026-07-14)
+
+
+### Fixed
+
+* **cli:** delegate telemetry from docker hosts ([69fd69b](https://github.com/polyphonic/stackarr/commit/69fd69b0e355887215dc0d5d8e69b49d5891936c))
+
+
+### Continuous integration
+
+* **release:** streamline container publishing ([c2542b5](https://github.com/polyphonic/stackarr/commit/c2542b58b4ced016b29353dbc3ce2848e2da823b))
+
 ## [0.3.0-alpha.5](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.4...v0.3.0-alpha.5) (2026-07-14)
 
 
