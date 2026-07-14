@@ -29,6 +29,22 @@ RUN pnpm --dir apps/frontend build
 FROM node:22-alpine3.20@sha256:2289fb1fba0f4633b08ec47b94a89c7e20b829fc5679f9b7b298eaa2f1ed8b7e AS runner
 WORKDIR /app
 
+ARG STREAMRIP_PACKAGE=https://github.com/nathom/streamrip/archive/e3291615ba6be34aa76df19da8aeb6f41673c6a0.tar.gz
+ARG STREAMRIP_SHA256=88e2026a348ef11025cf7103a7e4f68973f45e656b42edc5becd10af2d4c7fc0
+
+RUN apk add --no-cache --upgrade bash curl docker-cli docker-cli-compose postgresql-client python3 py3-pip rsync sqlite \
+    && python3 -m venv /opt/streamrip \
+    && /opt/streamrip/bin/python -m pip install --no-cache-dir --upgrade pip \
+    && curl --fail --location \
+        --retry 5 --retry-all-errors --retry-delay 2 \
+        --connect-timeout 20 --max-time 300 \
+        --output /tmp/streamrip.tar.gz "${STREAMRIP_PACKAGE}" \
+    && echo "${STREAMRIP_SHA256}  /tmp/streamrip.tar.gz" | sha256sum -c \
+    && /opt/streamrip/bin/pip install --no-cache-dir --retries 5 --timeout 60 /tmp/streamrip.tar.gz \
+    && rm /tmp/streamrip.tar.gz \
+    && ln -s /opt/streamrip/bin/rip /usr/local/bin/rip
+
+# Release metadata changes frequently, so keep it after the stable runtime dependency layer.
 ARG STACKARR_VERSION=0.3.0-alpha.5 # x-release-please-version
 ARG STACKARR_CHANNEL=alpha
 ARG STACKARR_REVISION=unknown
@@ -63,21 +79,6 @@ ENV NODE_ENV=production \
     STACKARR_CONTAINER_NAME=stackarr \
     STACKARR_REPO_ROOT=/stackarr-workspace \
     STACKARR_DATABASE_FILE=/stackarr-workspace/stackarr/config/stackarr.db
-
-ARG STREAMRIP_PACKAGE=https://github.com/nathom/streamrip/archive/e3291615ba6be34aa76df19da8aeb6f41673c6a0.tar.gz
-ARG STREAMRIP_SHA256=88e2026a348ef11025cf7103a7e4f68973f45e656b42edc5becd10af2d4c7fc0
-
-RUN apk add --no-cache --upgrade bash curl docker-cli docker-cli-compose postgresql-client python3 py3-pip rsync sqlite \
-    && python3 -m venv /opt/streamrip \
-    && /opt/streamrip/bin/python -m pip install --no-cache-dir --upgrade pip \
-    && curl --fail --location \
-        --retry 5 --retry-all-errors --retry-delay 2 \
-        --connect-timeout 20 --max-time 300 \
-        --output /tmp/streamrip.tar.gz "${STREAMRIP_PACKAGE}" \
-    && echo "${STREAMRIP_SHA256}  /tmp/streamrip.tar.gz" | sha256sum -c \
-    && /opt/streamrip/bin/pip install --no-cache-dir --retries 5 --timeout 60 /tmp/streamrip.tar.gz \
-    && rm /tmp/streamrip.tar.gz \
-    && ln -s /opt/streamrip/bin/rip /usr/local/bin/rip
 
 COPY --from=builder /app/apps/frontend/.next/standalone ./
 COPY --from=builder /app/apps/frontend/.next/static ./apps/frontend/.next/static

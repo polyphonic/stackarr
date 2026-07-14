@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - production
-  push:
-    branches:
-      - production
   workflow_dispatch:
 
 permissions:
@@ -51,5 +48,8 @@ jobs:
           context: .
           push: false
           platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Keep PR smoke builds from replacing ARM64 layers exported by releases.
+          cache-from: |
+            type=gha,scope=stackarr-multiplatform
+            type=gha,scope=stackarr-amd64
+          cache-to: type=gha,mode=max,scope=stackarr-amd64
