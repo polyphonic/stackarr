@@ -65,11 +65,18 @@ ENV NODE_ENV=production \
     STACKARR_DATABASE_FILE=/stackarr-workspace/stackarr/config/stackarr.db
 
 ARG STREAMRIP_PACKAGE=https://github.com/nathom/streamrip/archive/e3291615ba6be34aa76df19da8aeb6f41673c6a0.tar.gz
+ARG STREAMRIP_SHA256=88e2026a348ef11025cf7103a7e4f68973f45e656b42edc5becd10af2d4c7fc0
 
 RUN apk add --no-cache --upgrade bash curl docker-cli docker-cli-compose postgresql-client python3 py3-pip rsync sqlite \
     && python3 -m venv /opt/streamrip \
     && /opt/streamrip/bin/python -m pip install --no-cache-dir --upgrade pip \
-    && /opt/streamrip/bin/pip install --no-cache-dir "${STREAMRIP_PACKAGE}" \
+    && curl --fail --location \
+        --retry 5 --retry-all-errors --retry-delay 2 \
+        --connect-timeout 20 --max-time 300 \
+        --output /tmp/streamrip.tar.gz "${STREAMRIP_PACKAGE}" \
+    && echo "${STREAMRIP_SHA256}  /tmp/streamrip.tar.gz" | sha256sum -c \
+    && /opt/streamrip/bin/pip install --no-cache-dir --retries 5 --timeout 60 /tmp/streamrip.tar.gz \
+    && rm /tmp/streamrip.tar.gz \
     && ln -s /opt/streamrip/bin/rip /usr/local/bin/rip
 
 COPY --from=builder /app/apps/frontend/.next/standalone ./
