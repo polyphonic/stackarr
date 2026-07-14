@@ -4,3 +4,5 @@ description: TinyMediaManager integration overview for Stackarr.
 ---
 
 <ServiceIntegration slug="tinymediamanager" />
+
+Radarr and Sonarr remain responsible for importing, moving, and naming media. After a completed import, Stackarr copies recognized video extras into Plex-compatible folders, then calls tinyMediaManager's HTTP API to update its internal database and scrape new items. The automated request never includes a rename action.

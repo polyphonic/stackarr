@@ -29,7 +29,7 @@ The **Apps → Everyday app actions** screen uses the same operation catalog. Yo
 | BookOrbit | library and metadata queue status; pause, resume or retry metadata; approve a library-wide metadata fetch |
 | Bazarr | status, tasks and wanted subtitles; approve a configured scheduler task |
 | Lidarr | artists, queue and missing albums; refresh an artist or search missing albums; approve a folder rescan |
-| tinyMediaManager | scan movie or TV sources; approve atomic scan + scrape or scan + scrape + rename workflows for new items |
+| tinyMediaManager | scan Arr-managed movie or TV destinations; approve scan + scrape workflows for new items; never rename media |
 | Recyclarr | preview a configured sync; approve applying it to Radarr, Sonarr or both |
 | FlareSolverr | list, create and destroy named browser sessions |
 | Tidarr | inspect and control queue/sync state; approve downloads, removal or clearing history |
@@ -44,6 +44,7 @@ Try prompts such as:
 - “Show me Immich storage and library statistics.”
 - “Refresh the Jellyfin library.”
 - “Scan tinyMediaManager's movie and TV library locations.”
+- “Scrape new Arr imports in tinyMediaManager without renaming media.”
 - “Preview my Recyclarr changes for Sonarr.”
 - “Check Maintainerr readiness and storage metrics.”
 - “Create a daily routine that checks Immich server health at 08:00.”
