@@ -42,7 +42,7 @@ function usage() {
   process.stderr.write(`Usage:
   stackarr telemetry status
   stackarr telemetry preview
-  stackarr telemetry enable [--endpoint <https-url>] [--channel stable] --yes
+  stackarr telemetry enable [--endpoint <https-url>] [--channel <custom-channel>] --yes
   stackarr telemetry disable
   stackarr telemetry send [--yes] [--force]
 `);
@@ -55,7 +55,7 @@ function enableTelemetry() {
   }
 
   const endpoint = valueAfter('--endpoint') || settings().telemetry.endpoint || defaultEndpoint;
-  const channel = valueAfter('--channel') || settings().telemetry.channel || process.env.STACKARR_CHANNEL || 'stable';
+  const channel = valueAfter('--channel') || telemetryChannel(settings().telemetry);
   validateEndpoint(endpoint);
   if (!hasFlag('--yes')) {
     throw new Error('Pass --yes after reviewing `stackarr telemetry preview` to enable telemetry.');
@@ -134,7 +134,7 @@ function status() {
     enabled: telemetry.enabled,
     endpoint: telemetry.endpoint,
     endpointConfigured: Boolean(telemetry.endpoint),
-    channel: telemetry.channel,
+    channel: telemetryChannel(telemetry),
     installId: telemetry.installId ? 'configured' : 'not-generated',
     lastSentAt: telemetry.lastSentAt
   };
@@ -158,7 +158,7 @@ function payload({ persistInstallId }) {
     generatedAt: new Date().toISOString(),
     install: {
       id: installId,
-      channel: current.telemetry.channel || process.env.STACKARR_CHANNEL || 'stable',
+      channel: telemetryChannel(current.telemetry),
       appVersion,
       osFamily: osFamily(),
       arch: os.arch()
@@ -270,10 +270,28 @@ function defaultSettings() {
       enabled: false,
       endpoint: defaultEndpoint,
       installId: '',
-      channel: process.env.STACKARR_CHANNEL || 'stable',
+      channel: releaseChannel(),
       lastSentAt: ''
     }
   };
+}
+
+function telemetryChannel(telemetry) {
+  const configured = String(telemetry?.channel || '').trim();
+  return configured && !isAutomaticChannel(configured) ? configured : releaseChannel();
+}
+
+function releaseChannel() {
+  const configured = String(process.env.STACKARR_CHANNEL || '').trim();
+  if (configured) return configured;
+  if (appVersion.includes('-alpha.')) return 'alpha';
+  if (appVersion.includes('-beta.')) return 'beta';
+  if (appVersion.includes('-')) return 'preview';
+  return 'stable';
+}
+
+function isAutomaticChannel(channel) {
+  return ['stable', 'alpha', 'beta', 'preview'].includes(channel);
 }
 
 function persistInstallIdSetting(current) {

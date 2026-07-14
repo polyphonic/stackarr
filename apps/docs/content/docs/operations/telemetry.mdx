@@ -7,7 +7,9 @@ description: See exactly what Stackarr may collect and how to keep it disabled.
 
 Telemetry is first-party, opt-in, and disabled by default. The control is available in **Settings → General** as **Send Anonymous Usage Data** and takes effect immediately; no restart is required.
 
-When telemetry becomes available, Stackarr will show the exact payload before you opt in.
+Stackarr shows the exact payload before you opt in and lets you refresh that preview at any time.
+
+The reported release channel is derived from the running build: `alpha`, `beta`, `preview`, or `stable`. It is not inferred from whether the installation is local or hosted. A local container running the `alpha` image therefore reports `alpha`. `STACKARR_TELEMETRY_CHANNEL` is empty by default and should only be set for an intentional custom test channel.
 
 ## What it may include
 
@@ -52,7 +54,7 @@ UPSTASH_REDIS_REST_TOKEN=<upstash-redis-rest-token>
 
 Use Neon's pooled connection for `DATABASE_URL` and its direct connection for `DIRECT_URL`. Apply the `@stackarr/db` production migration before enabling the collector.
 
-The collector defaults to a 16 KiB maximum event payload. `NEXT_PUBLIC_STACKARR_VERSION`, telemetry registration, and the payload limit have typed application defaults; override them at deployment only when intentionally testing a different release or limit.
+The collector defaults to a 16 KiB maximum event payload. `NEXT_PUBLIC_STACKARR_VERSION`, telemetry registration, and the payload limit have typed application defaults; override them at deployment only when intentionally testing a different release or limit. The app version and release channel come from immutable build metadata so upgrades automatically report the new values.
 
 The ingest key signs each installation's expiring collector token, authorizes administrative ingestion, and HMAC-hashes rate-limit identifiers before they reach Upstash. Generate it with `openssl rand -hex 32`. Rotating it invalidates existing installation tokens; clients recover by registering again after the next rejected heartbeat. Keep it out of client settings, public environment variables, build arguments, source control, and logs.
 

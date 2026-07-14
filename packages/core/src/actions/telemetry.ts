@@ -7,7 +7,7 @@ import { composePath, stackarrBin } from '../paths';
 import { getServices } from '../services';
 import { readSettings, type StackarrSettings, writeSettings } from '../settings';
 import { readTasks } from '../tasks';
-import { stackarrVersion } from '../version';
+import { stackarrChannel, stackarrVersion } from '../version';
 
 const telemetrySchemaVersion = 2;
 const stackarrAppVersion = stackarrVersion;
@@ -277,7 +277,7 @@ export function buildTelemetryPayload(options: { persistInstallId?: boolean } = 
     generatedAt: new Date().toISOString(),
     install: {
       id: installId,
-      channel: settings.telemetry.channel || 'stable',
+      channel: settings.telemetry.channel || stackarrChannel,
       appVersion: stackarrAppVersion,
       osFamily: osFamily(),
       arch: os.arch()
@@ -443,7 +443,7 @@ function normalizeTelemetryEndpoint(value: string | undefined) {
 
 function normalizeTelemetryChannel(value: string | undefined) {
   const channel = String(value ?? '').trim();
-  return channel || 'stable';
+  return channel || stackarrChannel;
 }
 
 function validateTelemetryEndpoint(endpoint: string) {
