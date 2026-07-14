@@ -16,6 +16,14 @@ The Stackarr app is the optional visual control room for the same homelab capabi
 - **Automation & Access** contains routines, chat connections, authority profiles, agent history, and Cloudflare tunnel controls.
 - **Settings** contains only homelab-wide storage, profiles, access, account, and display preferences. App-owned configuration stays with its app.
 
+<figure className="docsScreenshot">
+  <span className="themeShot">
+    <img className="themeShotLight" src="/screenshots/stackarr-stack-services-light.png" alt="Stackarr Apps screen with installed app cards, readiness status, pin controls, and settings actions" />
+    <img className="themeShotDark" src="/screenshots/stackarr-stack-services-dark.png" alt="" aria-hidden="true" />
+  </span>
+  <figcaption>Apps keep the changing status visible while connection details and secondary actions stay out of the way.</figcaption>
+</figure>
+
 On macOS virtualization, Stackarr measures each configured `/Volumes/...` drive with a cached, read-only Docker mount probe. This avoids reporting the container's internal disk for an external library while keeping media mounts read-only.
 
 The layout works as a desktop sidebar and a mobile navigation surface. Keyboard focus, reduced motion, minimum touch targets, and skip navigation are built in.
