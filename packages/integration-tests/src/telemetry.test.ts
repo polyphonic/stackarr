@@ -86,6 +86,28 @@ test('collector tokens are scoped to one installation and expire', async () => {
   assert.equal(verifyTelemetryClientToken(token, signingKey, firstInstall, now + 181 * 24 * 60 * 60 * 1000), false);
 });
 
+test('packaged telemetry CLI honors a locally encoded collector endpoint', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-cli-test-'));
+  const endpoint = 'https://preview.example.test/api/telemetry/events';
+
+  try {
+    const { stdout } = await execFile(process.execPath, ['stackarr/scripts/telemetry.cjs', 'status'], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db'),
+        STACKARR_TELEMETRY_ENDPOINT: endpoint
+      }
+    });
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.enabled, false);
+    assert.equal(result.endpoint, endpoint);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('telemetry preview is opt-in and excludes host paths and secrets', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-test-'));
 

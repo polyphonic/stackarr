@@ -1,4 +1,4 @@
-name: stackarr-docs
+name: stackarr-dev
 
 services:
   postgres:
