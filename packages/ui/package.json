@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/ui",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "dependencies": {
     "@heroui/react": "^3.2.2",
     "@heroui/styles": "^3.2.1",
