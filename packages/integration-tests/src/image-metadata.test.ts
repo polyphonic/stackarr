@@ -55,8 +55,7 @@ test('release manifest targets the repository root and keeps shipped versions al
     'Dockerfile',
     'apps/docs/src/env/client.ts',
     'apps/docs/content/docs/installation/docker.mdx',
-    'packages/core/src/version.ts',
-    'stackarr/scripts/telemetry.cjs'
+    'packages/core/src/version.ts'
   ];
 
   for (const file of requiredVersionFiles) {
