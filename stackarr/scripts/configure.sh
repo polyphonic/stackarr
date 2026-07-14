@@ -23,6 +23,9 @@ ensure_dir "$STATE_ROOT"
 DONE_FILE="$STATE_ROOT/configure.done"
 TORRENT_ARCHIVE_HOOK_SOURCE="$ROOT_DIR/scripts/hooks/archive-torrent.sh"
 TORRENT_ARCHIVE_HOOK_DEST="$CONFIG_ROOT/hooks/archive-torrent.sh"
+POST_IMPORT_HOOK_SOURCE="$ROOT_DIR/scripts/hooks/post-import-media.sh"
+POST_IMPORT_HOOK_DEST="$CONFIG_ROOT/hooks/post-import-media.sh"
+TMM_API_KEY_DEST="$CONFIG_ROOT/hooks/tinymediamanager-api-key"
 
 if [[ -f "$DONE_FILE" && "$FORCE" != true ]]; then
     warn "Configuration already completed. Use --force to re-run."
@@ -1752,7 +1755,7 @@ ensure_notification() {
     api_post_json "$label" "$create_url" "$api_key" "$payload" || true
 }
 
-sync_torrent_archive_hook() {
+sync_media_hooks() {
     ensure_dir "$CONFIG_ROOT/hooks"
     ensure_dir "$CONFIG_ROOT/transmission/torrents"
     ensure_dir "$CONFIG_ROOT/qbittorrent/qBittorrent/BT_backup"
@@ -1761,7 +1764,16 @@ sync_torrent_archive_hook() {
 
     cp "$TORRENT_ARCHIVE_HOOK_SOURCE" "$TORRENT_ARCHIVE_HOOK_DEST"
     chmod 755 "$TORRENT_ARCHIVE_HOOK_DEST"
-    ok "Torrent archive hook synced"
+    cp "$POST_IMPORT_HOOK_SOURCE" "$POST_IMPORT_HOOK_DEST"
+    chmod 755 "$POST_IMPORT_HOOK_DEST"
+
+    if optional_service_enabled tinymediamanager && [[ -n "${TINYMEDIAMANAGER_API_KEY:-}" ]]; then
+        printf '%s\n' "$TINYMEDIAMANAGER_API_KEY" > "$TMM_API_KEY_DEST"
+        chmod 600 "$TMM_API_KEY_DEST"
+    else
+        rm -f "$TMM_API_KEY_DEST"
+    fi
+    ok "Media import hooks synced"
 }
 
 configure_servarr_auth() {
@@ -2551,6 +2563,18 @@ EOF
 sonarr_torrent_archive_notification_payload() {
     cat <<EOF
 {"name":"Stackarr Torrent Archive","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":false,"onDownload":true,"onUpgrade":true,"onImportComplete":false,"onRename":false,"onSeriesAdd":false,"onSeriesDelete":false,"onEpisodeFileDelete":false,"onEpisodeFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"/stackarr-hooks/archive-torrent.sh"}],"tags":[]}
+EOF
+}
+
+radarr_post_import_notification_payload() {
+    cat <<EOF
+{"name":"Stackarr Post-Import Metadata","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":false,"onDownload":true,"onUpgrade":true,"onRename":false,"onMovieAdded":false,"onMovieDelete":false,"onMovieFileDelete":false,"onMovieFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"/stackarr-hooks/post-import-media.sh"}],"tags":[]}
+EOF
+}
+
+sonarr_post_import_notification_payload() {
+    cat <<EOF
+{"name":"Stackarr Post-Import Metadata","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":false,"onDownload":false,"onUpgrade":false,"onImportComplete":true,"onRename":false,"onSeriesAdd":false,"onSeriesDelete":false,"onEpisodeFileDelete":false,"onEpisodeFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"/stackarr-hooks/post-import-media.sh"}],"tags":[]}
 EOF
 }
 
@@ -3613,7 +3637,8 @@ Path(os.environ['TMM_KEY_FILE']).write_text(config['httpApiKey'])
 PY
 
     if [[ -s "$key_file" ]]; then
-        set_env_value "TINYMEDIAMANAGER_API_KEY" "$(cat "$key_file")"
+        TINYMEDIAMANAGER_API_KEY="$(cat "$key_file")"
+        set_env_value "TINYMEDIAMANAGER_API_KEY" "$TINYMEDIAMANAGER_API_KEY"
         set_env_value "TINYMEDIAMANAGER_URL" "http://127.0.0.1:7878"
     fi
     if [[ -s "$changed_file" ]]; then
@@ -3678,7 +3703,7 @@ fi
 if optional_service_enabled flaresolverr; then
     wait_for_http "FlareSolverr" "$FLARESOLVERR_URL"
 fi
-sync_torrent_archive_hook
+sync_media_hooks
 
 if torrent_client_enabled transmission; then
     wait_for_http "Transmission" "$TRANSMISSION_URL"
@@ -3750,17 +3775,21 @@ fi
 
 ensure_notification "Radarr torrent archive notification configured" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_KEY" "Stackarr Torrent Archive" "$(radarr_torrent_archive_notification_payload)"
 ensure_notification "Sonarr torrent archive notification configured" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_KEY" "Stackarr Torrent Archive" "$(sonarr_torrent_archive_notification_payload)"
+ensure_notification "Radarr post-import metadata notification configured" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_KEY" "Stackarr Post-Import Metadata" "$(radarr_post_import_notification_payload)"
+ensure_notification "Sonarr post-import metadata notification configured" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_KEY" "Stackarr Post-Import Metadata" "$(sonarr_post_import_notification_payload)"
 delete_named_service "Radarr prefer English audio notification removed" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_KEY" "Stackarr Prefer English Audio"
 delete_named_service "Sonarr prefer English audio notification removed" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_KEY" "Stackarr Prefer English Audio"
 delete_named_service "Radarr Plex notification removed" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_KEY" "Plex"
 delete_named_service "Sonarr Plex notification removed" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_KEY" "Plex"
 if optional_service_enabled radarr4k; then
     ensure_notification "Radarr 4K torrent archive notification configured" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Torrent Archive" "$(radarr_torrent_archive_notification_payload)"
+    ensure_notification "Radarr 4K post-import metadata notification configured" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Post-Import Metadata" "$(radarr_post_import_notification_payload)"
     delete_named_service "Radarr 4K prefer English audio notification removed" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Prefer English Audio"
     delete_named_service "Radarr 4K Plex notification removed" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Plex"
 fi
 if optional_service_enabled sonarr4k; then
     ensure_notification "Sonarr 4K torrent archive notification configured" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Torrent Archive" "$(sonarr_torrent_archive_notification_payload)"
+    ensure_notification "Sonarr 4K post-import metadata notification configured" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Post-Import Metadata" "$(sonarr_post_import_notification_payload)"
     delete_named_service "Sonarr 4K prefer English audio notification removed" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Prefer English Audio"
     delete_named_service "Sonarr 4K Plex notification removed" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Plex"
 fi

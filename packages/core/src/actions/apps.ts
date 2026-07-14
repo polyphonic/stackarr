@@ -316,7 +316,7 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
   },
   tinymediamanager: {
     notice:
-      'Scanning is ready to run. Scrape and rename can update NFO files, artwork, and media paths, so Stackarr always asks for approval first.',
+      'Radarr and Sonarr own media moves and naming. tinyMediaManager can scan their destinations and scrape metadata, NFO files, and artwork, but it is not allowed to rename media.',
     reads: {},
     manages: {
       scan_movies: operation('POST', '/api/movie', 'Scan configured movie data sources for changes.', 'tmm-api-key', [
@@ -345,28 +345,6 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
         [
           { action: 'update', scope: { name: 'all' } },
           { action: 'scrape', scope: { name: 'new' } }
-        ]
-      ),
-      rename_new_movies: operation(
-        'POST',
-        '/api/movie',
-        'Scan, scrape, then rename and clean up new movie files using configured templates.',
-        'tmm-api-key',
-        [
-          { action: 'update', scope: { name: 'all' } },
-          { action: 'scrape', scope: { name: 'new' } },
-          { action: 'rename', scope: { name: 'new' } }
-        ]
-      ),
-      rename_new_tvshows: operation(
-        'POST',
-        '/api/tvshow',
-        'Scan, scrape, then rename and clean up new TV files using configured templates.',
-        'tmm-api-key',
-        [
-          { action: 'update', scope: { name: 'all' } },
-          { action: 'scrape', scope: { name: 'new' } },
-          { action: 'rename', scope: { name: 'new' } }
         ]
       )
     }

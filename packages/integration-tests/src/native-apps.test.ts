@@ -139,14 +139,14 @@ test('native app router only calls named Immich operations and sends the API key
 
     let dangerousBlocked = false;
     try {
-      await administerNativeAppAction({ app: 'tinymediamanager', operation: 'rename_new_movies' });
+      await administerNativeAppAction({ app: 'tinymediamanager', operation: 'scrape_new_movies' });
     } catch (error) {
       dangerousBlocked = String(error).includes('confirmDangerous');
     }
     assert.equal(dangerousBlocked, true);
     await administerNativeAppAction({
       app: 'tinymediamanager',
-      operation: 'rename_new_movies',
+      operation: 'scrape_new_movies',
       confirmDangerous: true,
       reason: 'Mock-only route contract test'
     });
@@ -163,6 +163,18 @@ test('native app router only calls named Immich operations and sends the API key
       ['sync']
     );
     assert.match(recyclarr?.notice ?? '', /safe Recyclarr preview/);
+    const tinyMediaManager = capabilities.apps.find((app) => app.app === 'tinymediamanager');
+    assert.deepEqual(
+      tinyMediaManager?.dangerousOperations.map((operation) => operation.name),
+      ['scrape_new_movies', 'scrape_new_tvshows']
+    );
+    assert.match(tinyMediaManager?.notice ?? '', /not allowed to rename media/);
+    assert.throws(() =>
+      assertNativeAppOperationSupported('dangerous', {
+        app: 'tinymediamanager',
+        operation: 'rename_new_movies'
+      })
+    );
     assert.equal(
       assertNativeAppOperationSupported('read', { app: 'recyclarr', operation: 'preview_sync', scope: 'radarr' }),
       undefined
@@ -197,8 +209,7 @@ test('native app router only calls named Immich operations and sends the API key
         authorization: undefined,
         body: JSON.stringify([
           { action: 'update', scope: { name: 'all' } },
-          { action: 'scrape', scope: { name: 'new' } },
-          { action: 'rename', scope: { name: 'new' } }
+          { action: 'scrape', scope: { name: 'new' } }
         ])
       }
     ]);
