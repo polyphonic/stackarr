@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.4](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.3...v0.3.0-alpha.4) (2026-07-14)
+
+
+### Fixed
+
+* **docker:** harden pinned runtime download ([f3daef7](https://github.com/polyphonic/stackarr/commit/f3daef7d14218934675ea6475fd0ec078610cb73))
+
 ## [0.3.0-alpha.3](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.2...v0.3.0-alpha.3) (2026-07-14)
 
 
