@@ -89,20 +89,74 @@ test('collector tokens are scoped to one installation and expire', async () => {
 test('packaged telemetry CLI honors a locally encoded collector endpoint', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-cli-test-'));
   const endpoint = 'https://preview.example.test/api/telemetry/events';
+  const env = {
+    ...process.env,
+    STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+  };
 
   try {
-    const { stdout } = await execFile(process.execPath, ['stackarr/scripts/telemetry.cjs', 'status'], {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db'),
-        STACKARR_TELEMETRY_ENDPOINT: endpoint
-      }
-    });
+    await execFile(
+      process.execPath,
+      ['--import', tsxLoader, 'packages/mcp/src/index.ts', 'telemetry', 'enable', '--endpoint', endpoint, '--yes'],
+      { cwd: repoRoot, env }
+    );
+    const { stdout } = await execFile(
+      process.execPath,
+      ['--import', tsxLoader, 'packages/mcp/src/index.ts', 'telemetry', 'status'],
+      { cwd: repoRoot, env }
+    );
 
     const result = JSON.parse(stdout);
-    assert.equal(result.enabled, false);
+    assert.equal(result.enabled, true);
     assert.equal(result.endpoint, endpoint);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('packaged telemetry CLI uses the canonical service inventory', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-cli-inventory-test-'));
+  const env = {
+    ...process.env,
+    STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+  };
+
+  try {
+    await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeEnvConfig } = await import('./packages/core/src/index.ts');
+          writeEnvConfig({
+            ENABLE_IMMICH: 'true',
+            ENABLE_LIDARR: 'true',
+            ENABLE_ROMM: 'true',
+            ENABLE_TRACEARR: 'true',
+            PLEX_INSTALL_MODE: 'native',
+            PREFERRED_TORRENT_CLIENT: 'transmission'
+          });
+        `
+      ],
+      { cwd: repoRoot, env }
+    );
+
+    const { stdout } = await execFile(
+      process.execPath,
+      ['--import', tsxLoader, 'packages/mcp/src/index.ts', 'telemetry', 'preview'],
+      { cwd: repoRoot, env }
+    );
+    const result = JSON.parse(stdout);
+    const { payload } = result;
+
+    for (const service of ['backup', 'immich', 'plex', 'redis', 'romm', 'streamrip', 'tracearr', 'transmission']) {
+      assert.ok(payload.services.enabled.includes(service), `${service} should be included in the CLI heartbeat`);
+    }
+    assert.equal(payload.counts.enabledServices, payload.services.enabled.length);
+    assert.ok(payload.counts.disabledServices > 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

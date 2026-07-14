@@ -36,8 +36,7 @@
         "Dockerfile",
         "apps/docs/src/env/client.ts",
         "apps/docs/content/docs/installation/docker.mdx",
-        "packages/core/src/version.ts",
-        "stackarr/scripts/telemetry.cjs"
+        "packages/core/src/version.ts"
       ]
     }
   }

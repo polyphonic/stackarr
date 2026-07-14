@@ -2,11 +2,15 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   getMcpConnectionKit,
+  getTelemetryStatusAction,
   isMcpClientId,
   type McpProfile,
+  previewTelemetryPayloadAction,
   resolveMcpGroups,
   runDueRoutinesAction,
-  type ToolCategory
+  sendTelemetryAction,
+  type ToolCategory,
+  updateTelemetryConfigAction
 } from '@stackarr/core';
 import { startStackarrMcpHttpServer } from './httpServer';
 import { createStackarrMcpServer } from './server';
@@ -21,12 +25,65 @@ if (command === 'config') {
   await server.connect(new StdioServerTransport());
 } else if (command === 'routines' && process.argv[3] === 'run-due') {
   process.stdout.write(`${JSON.stringify(await runDueRoutinesAction())}\n`);
+} else if (command === 'telemetry') {
+  await runTelemetryCli(process.argv.slice(3));
 } else if (command === 'serve-http') {
   await startStackarrMcpHttpServer();
 } else {
   throw new Error(
-    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due'
+    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due | stackarr telemetry status|preview|enable|disable|send'
   );
+}
+
+async function runTelemetryCli(args: string[]) {
+  const subcommand = args.shift() ?? 'status';
+
+  switch (subcommand) {
+    case 'status': {
+      const { payloadPreview: _, ...status } = getTelemetryStatusAction();
+      printJson(status);
+      return;
+    }
+    case 'preview':
+      printJson(previewTelemetryPayloadAction());
+      return;
+    case 'enable': {
+      if (!args.includes('--yes')) {
+        throw new Error('Pass --yes after reviewing `stackarr telemetry preview` to enable telemetry.');
+      }
+
+      const result = updateTelemetryConfigAction({
+        enabled: true,
+        endpoint: valueAfter(args, '--endpoint'),
+        channel: valueAfter(args, '--channel'),
+        confirmTelemetry: true
+      });
+      printJson(result);
+      return;
+    }
+    case 'disable':
+      printJson(updateTelemetryConfigAction({ enabled: false }));
+      return;
+    case 'send':
+      printJson(
+        await sendTelemetryAction({
+          dryRun: !args.includes('--yes'),
+          force: args.includes('--force')
+        })
+      );
+      return;
+    default:
+      throw new Error(`Unknown telemetry command: ${subcommand}`);
+  }
+}
+
+function valueAfter(args: string[], flag: string) {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+function printJson(value: unknown) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
 function connectionKitFromArgs(args: string[]) {

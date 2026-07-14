@@ -49,7 +49,13 @@ case "$cmd" in
         shift || true
         load_env
         export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}"
-        exec node "$ROOT_DIR/scripts/telemetry.cjs" "$@"
+        export STACKARR_REPO_ROOT="$REPO_ROOT"
+        export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+        if stackarr_runtime_is_container; then
+            exec node "$mcp_entrypoint" telemetry "$@"
+        fi
+        ensure_docker_runtime
+        exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js telemetry "$@"
         ;;
     naming)
         shift || true
