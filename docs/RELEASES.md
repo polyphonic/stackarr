@@ -29,7 +29,7 @@ Keep both registries:
 - **Docker Hub** (`polyphonic/stackarr`) remains the primary pull location in installation docs because it is familiar to self-hosters and NAS package managers.
 - **GHCR** (`ghcr.io/polyphonic/stackarr`) is the GitHub-native mirror for repository traceability, permissions, and artifact attestations.
 
-The release workflow builds once from the release tag and publishes both multi-platform images. It verifies `linux/amd64` and `linux/arm64` in **each** registry, then records each registry's manifest digest in the GitHub Release. A release is incomplete if either registry does not receive the exact version tag.
+The release workflow builds once from the release tag and publishes the same multi-platform image to both registries. It verifies the exact version tag and immutable `sha-<commit>` tag for Linux AMD64 and Linux ARM64 in **each** registry, then records the tags and each registry's manifest digest in the GitHub Release. A release is incomplete if either registry does not receive both traceable tags.
 
 ## Platforms
 
@@ -63,5 +63,6 @@ Use Conventional Commit types so Release Please can group notes predictably: `fe
 - [ ] The GitHub prerelease is marked prerelease and contains upgrade guidance.
 - [ ] `linux/amd64` and `linux/arm64` are present for the exact tag in Docker Hub and GHCR.
 - [ ] The moving `alpha` tag points at the exact alpha-version manifest in both registries.
+- [ ] The immutable `sha-<40-character Git commit>` tag resolves to the same multi-platform manifest in both registries.
 - [ ] The release digest, version, host OS, Docker runtime, and architecture are requested in alpha feedback.
 - [ ] The landing-page telemetry collector has its database migration, server-only signing key, and Upstash rate-limit credentials configured before the public telemetry feature is announced.

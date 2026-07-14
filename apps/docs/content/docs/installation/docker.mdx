@@ -65,6 +65,8 @@ STACKARR_IMAGE=ghcr.io/polyphonic/stackarr:0.3.0-alpha.2
 
 For an incident or production-like test, record the exact image digest as well as the version tag. See the repository [release and container-image policy](https://github.com/polyphonic/stackarr/blob/production/docs/RELEASES.md) for channel, platform, and rollback details.
 
+Every release also publishes an immutable commit-trace tag to both registries in the form `sha-<40-character-git-commit>`. Use that tag when correlating a container with a source commit; ordinary installations should prefer an exact version tag, while the registry digest remains the strongest deployment pin.
+
 ## Connect an MCP client
 
 Chat clients run on the Docker host. Generate the correct stdio configuration for the client you use:

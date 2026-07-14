@@ -108,6 +108,49 @@ test('packaged telemetry CLI honors a locally encoded collector endpoint', async
   }
 });
 
+test('telemetry reports the running build channel instead of a legacy stable default', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-channel-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const {
+            getTelemetryStatusAction,
+            updateTelemetryConfigAction,
+            writeEnvConfig
+          } = await import('./packages/core/src/index.ts');
+
+          writeEnvConfig({ STACKARR_TELEMETRY_CHANNEL: 'stable' });
+          updateTelemetryConfigAction({ channel: 'stable' });
+
+          const status = getTelemetryStatusAction();
+          console.log(JSON.stringify({ status }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_CHANNEL: 'alpha',
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.status.channel, 'alpha');
+    assert.equal(result.status.payloadPreview.install.channel, 'alpha');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('telemetry preview is opt-in and excludes host paths and secrets', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-test-'));
 

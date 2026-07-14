@@ -259,7 +259,7 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_TELEMETRY_FEATURE_ENABLED: 'true',
   STACKARR_TELEMETRY_ENABLED: 'false',
   STACKARR_TELEMETRY_ENDPOINT: 'https://stackarr.app/api/telemetry/events',
-  STACKARR_TELEMETRY_CHANNEL: 'stable',
+  STACKARR_TELEMETRY_CHANNEL: '',
   STACKARR_TELEMETRY_INGEST_KEY: '',
   STACKARR_TELEMETRY_CLIENT_TOKEN: '',
 

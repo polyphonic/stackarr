@@ -8,6 +8,7 @@ import {
   normalizeMediaProfilePreset,
   normalizeMusicProfilePreset
 } from './profilePresets';
+import { stackarrChannel } from './version';
 
 export type StackarrTheme = 'light' | 'dark' | 'system';
 
@@ -159,7 +160,7 @@ export const defaultSettings: StackarrSettings = {
     enabled: false,
     endpoint: '',
     installId: '',
-    channel: 'stable',
+    channel: stackarrChannel,
     lastSentAt: ''
   }
 };
@@ -252,7 +253,7 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       ...defaultSettings.telemetry,
       enabled: envFlag(env.STACKARR_TELEMETRY_ENABLED, defaultSettings.telemetry.enabled),
       endpoint: env.STACKARR_TELEMETRY_ENDPOINT || 'https://stackarr.app/api/telemetry/events',
-      channel: env.STACKARR_TELEMETRY_CHANNEL || process.env.STACKARR_CHANNEL || defaultSettings.telemetry.channel
+      channel: effectiveTelemetryChannel(env.STACKARR_TELEMETRY_CHANNEL)
     }
   };
 }
@@ -307,7 +308,7 @@ function syncEnvBackedSettings(current: StackarrSettings, envSettings: StackarrS
     next.telemetry.endpoint = envSettings.telemetry.endpoint;
   }
 
-  if (envSettings.telemetry?.channel && current.telemetry.channel === defaultSettings.telemetry.channel) {
+  if (envSettings.telemetry?.channel && isAutomaticTelemetryChannel(current.telemetry.channel)) {
     next.telemetry.channel = envSettings.telemetry.channel;
   }
 
@@ -384,7 +385,16 @@ function normalizeTheme(value: unknown): StackarrTheme {
 
 function normalizeTelemetryChannel(value: unknown) {
   const channel = String(value ?? '').trim();
-  return channel || 'stable';
+  return channel || stackarrChannel;
+}
+
+function effectiveTelemetryChannel(override: unknown) {
+  const channel = String(override ?? '').trim();
+  return channel && !isAutomaticTelemetryChannel(channel) ? channel : stackarrChannel;
+}
+
+function isAutomaticTelemetryChannel(channel: string) {
+  return ['stable', 'alpha', 'beta', 'preview'].includes(channel);
 }
 
 function normalizeTelemetryEndpoint(value: unknown) {
