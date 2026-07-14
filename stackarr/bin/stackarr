@@ -51,7 +51,7 @@ case "$cmd" in
         export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}"
         export STACKARR_REPO_ROOT="$REPO_ROOT"
         export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
-        if stackarr_runtime_is_container; then
+        if [[ -f "/.dockerenv" || -f "/run/.containerenv" ]]; then
             exec node "$mcp_entrypoint" telemetry "$@"
         fi
         ensure_docker_runtime

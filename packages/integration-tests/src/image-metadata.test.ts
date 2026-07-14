@@ -32,6 +32,9 @@ test('release metadata points at the public Stackarr logo URL', async () => {
     await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8'),
     new RegExp(escapeRegExp(iconUrl))
   );
+
+  const stackarrCli = await readFile(path.join(repoRoot, 'stackarr/bin/stackarr'), 'utf8');
+  assert.match(stackarrCli, /-f "\/\.dockerenv" \|\| -f "\/run\/\.containerenv"/);
 });
 
 test('release manifest targets the repository root and keeps shipped versions aligned', async () => {
