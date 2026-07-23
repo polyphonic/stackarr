@@ -138,7 +138,7 @@ update_stackarr_app_worker() {
     fi
 
     update_task_note "Reconciling database access before recreating Stackarr"
-    if ! ensure_shared_database; then
+    if ! reconcile_running_shared_database; then
         update_task_note "Database reconciliation failed; the running controller was left unchanged"
         finish_update_task failed 1
         worker_task_finished=true
