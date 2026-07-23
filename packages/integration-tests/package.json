@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/integration-tests",
-  "version": "0.3.0-alpha.8",
+  "version": "0.3.0-alpha.9",
   "dependencies": {
     "@stackarr/core": "workspace:*"
   },

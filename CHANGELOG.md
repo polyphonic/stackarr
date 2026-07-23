@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.9](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.8...v0.3.0-alpha.9) (2026-07-23)
+
+
+### Fixed
+
+* **updates:** preserve database during controller refresh ([#26](https://github.com/polyphonic/stackarr/issues/26)) ([b056ea1](https://github.com/polyphonic/stackarr/commit/b056ea139d7544ded6573303c265d4dd00c239d3))
+
 ## [0.3.0-alpha.8](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.7...v0.3.0-alpha.8) (2026-07-23)
 
 
