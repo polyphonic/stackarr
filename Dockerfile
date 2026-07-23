@@ -45,7 +45,7 @@ RUN apk add --no-cache --upgrade bash curl docker-cli docker-cli-compose postgre
     && ln -s /opt/streamrip/bin/rip /usr/local/bin/rip
 
 # Release metadata changes frequently, so keep it after the stable runtime dependency layer.
-ARG STACKARR_VERSION=0.3.0-alpha.6 # x-release-please-version
+ARG STACKARR_VERSION=0.3.0-alpha.7 # x-release-please-version
 ARG STACKARR_CHANNEL=alpha
 ARG STACKARR_REVISION=unknown
 ARG STACKARR_TELEMETRY_ENDPOINT=

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.7](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.6...v0.3.0-alpha.7) (2026-07-23)
+
+
+### Added
+
+* **stack:** integrate Agregarr and harden operations UX ([#22](https://github.com/polyphonic/stackarr/issues/22)) ([3274147](https://github.com/polyphonic/stackarr/commit/3274147708b3cbe72941969d5ab404e48fb19146))
+
 ## [0.3.0-alpha.6](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.5...v0.3.0-alpha.6) (2026-07-14)
 
 
