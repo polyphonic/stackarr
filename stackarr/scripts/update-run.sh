@@ -5,10 +5,19 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$ROOT_DIR/lib/common.sh"
 
+action="${1:-services}"
+
 print_header "Stackarr Update"
 load_env
 write_compose_env_file
-wait_for_stackarr_storage
+# The controller update does not read media libraries. Requiring every media
+# mount here would prevent the isolated updater from ever starting because it
+# deliberately mounts only Stackarr's config and runtime state.
+case "$action" in
+    run|services)
+        wait_for_stackarr_storage
+        ;;
+esac
 ensure_docker_runtime
 
 profile_args=()
@@ -84,7 +93,10 @@ stackarr_image_is_local() {
 }
 
 start_app_update_worker() {
-    local -a run_args=(--profile maintenance run -d --rm)
+    # The updater must not start from a stale moving-tag image: an older
+    # controller image may not know the app-worker command yet. Compose pulls
+    # the worker before it starts, then the worker pulls/recreates the app.
+    local -a run_args=(--profile maintenance run --pull always --quiet-pull -d --rm)
     if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
         run_args+=(-e "STACKARR_UPDATE_TASK_ID=$STACKARR_TASK_ID")
     fi
@@ -98,6 +110,10 @@ start_app_update_worker() {
 update_stackarr_app_worker() {
     local health_url
     local worker_task_finished=false
+
+    if [[ "${STACKARR_RUNTIME:-}" != "docker-updater" ]]; then
+        fail "Stackarr app-worker is an internal maintenance command"
+    fi
 
     finish_failed_worker_task() {
         local exit_code="$?"
@@ -158,15 +174,9 @@ update_stackarr_app() {
         return 0
     fi
 
-    if [[ "${STACKARR_RUNTIME:-}" == "docker" ]]; then
-        start_app_update_worker
-        return 0
-    fi
-
-    update_stackarr_app_worker
+    start_app_update_worker
 }
 
-action="${1:-services}"
 case "$action" in
     run|services)
         update_managed_services

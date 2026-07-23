@@ -30,6 +30,10 @@ test('local Stackarr images are preserved while published images use an independ
 
   assert.match(update, /"\$\{STACKARR_IMAGE:-\}" == \*:local/);
   assert.match(update, /STACKARR_UPDATE_HANDOFF_STARTED/);
+  assert.match(update, /run --pull always --quiet-pull -d --rm/);
+  assert.match(update, /case "\$action" in\n\s+run\|services\)\n\s+wait_for_stackarr_storage/);
+  assert.match(update, /STACKARR_RUNTIME:-}" != "docker-updater"/);
+  assert.match(update, /update_stackarr_app\(\)[\s\S]*?start_app_update_worker\n}/);
   assert.match(update, /pull --quiet app/);
   assert.match(update, /up -d --force-recreate --no-deps app/);
   assert.match(update, /ensure_shared_database/);
