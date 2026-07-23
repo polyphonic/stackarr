@@ -38,6 +38,7 @@ const nativeAppServices = [
   'immich',
   'pulsarr',
   'maintainerr',
+  'agregarr',
   'tracearr',
   'romm',
   'bookorbit',
@@ -151,7 +152,11 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
   const { name, category } = tool;
 
   if (category === 'plex') return { anyOf: ['plex'] };
-  if (category === 'apps') return { anyOf: nativeAppServices };
+  if (category === 'apps') {
+    if (name.includes('_pulsarr_')) return { allOf: ['pulsarr'] };
+    if (name.includes('_agregarr_')) return { allOf: ['agregarr'] };
+    return { anyOf: nativeAppServices };
+  }
   if (category === 'seerr') return { anyOf: ['seerr'] };
   if (category === 'releases') return { anyOf: ['prowlarr'] };
   if (category === 'backups') return { anyOf: ['backup'] };

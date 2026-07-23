@@ -7,7 +7,7 @@ Stackarr connects through Hermes' native MCP client from the Docker host. This p
 ```bash
 hermes mcp add stackarr \
   --command docker \
-  --args exec -i -e STACKARR_MCP_PROFILE=manage app /app/bin/stackarr mcp serve
+  --args exec -i -e STACKARR_MCP_PROFILE=manage -e STACKARR_MCP_CLIENT=hermes app /app/bin/stackarr mcp serve
 ```
 
 Generate this command for any authority profile from the running container:

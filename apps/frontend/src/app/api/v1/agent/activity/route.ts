@@ -8,5 +8,7 @@ export async function GET(request: NextRequest) {
     return auth;
   }
 
-  return json({ activity: await listAgentActivityRecords(100) });
+  const requestedLimit = Number(request.nextUrl.searchParams.get('limit') ?? 100);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(200, Math.trunc(requestedLimit))) : 100;
+  return json({ activity: await listAgentActivityRecords(limit) });
 }

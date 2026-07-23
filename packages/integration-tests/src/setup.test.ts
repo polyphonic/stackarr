@@ -107,6 +107,8 @@ test('dry-run setup config carries shared credentials without personal Pulsarr r
   assert.equal(result.plan.config.STACKARR_CONFIGURE_SEERR, 'false');
   assert.equal(result.plan.config.ENABLE_PULSARR, 'true');
   assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'false');
+  assert.equal(result.plan.config.AGREGARR_IMAGE, 'agregarr/agregarr:latest');
+  assert.equal(result.plan.config.AGREGARR_PLACEHOLDER_FOLDER, '_Trailers');
   assert.equal(result.plan.config.ENABLE_TRACEARR, 'false');
   assert.equal(result.plan.config.ENABLE_IMMICH, 'false');
   assert.equal(result.plan.config.ENABLE_ROMM, 'false');
@@ -212,14 +214,24 @@ test('dry-run setup lets music root differ from media root', async () => {
   assert.equal(result.plan.config.MUSIC_ROOT, '/srv/music-library');
 });
 
-test('dry-run setup rejects global passwords that need connection-string escaping', async () => {
+test('dry-run setup safely accepts global passwords that need connection-string escaping', async () => {
   const result = await setupMediaServerAction({
     dryRun: true,
-    globalPassword: 'bad://pass:word'
+    globalPassword: `valid://pass:word $with 'quotes'`
   });
 
   assert.equal(result.accepted, false);
-  assert.match(result.error ?? '', /may only use letters, numbers, dot, underscore, and hyphen/);
+  assert.equal(result.error, undefined);
+  assert.equal(result.plan.config.PASSWORD, '********');
+  assert.match(result.plan.config.TRACEARR_DATABASE_URL ?? '', /postgres:\/\/tracearr:\*{8}@database:5432\/tracearr/);
+});
+
+test('dry-run setup rejects invalid and oversized global usernames', async () => {
+  const invalid = await setupMediaServerAction({ dryRun: true, globalUsername: 'not valid' });
+  const oversized = await setupMediaServerAction({ dryRun: true, globalUsername: 'a'.repeat(65) });
+
+  assert.match(invalid.error ?? '', /may only use letters, numbers, dot, underscore, and hyphen/);
+  assert.match(oversized.error ?? '', /64 characters or fewer/);
 });
 
 test('confirmed setup does not mark onboarding complete when a setup command fails', async () => {
@@ -422,6 +434,10 @@ test('dry-run setup stays Docker-native and leaves chat clients on the host', as
 
 test('configure script bootstraps Pulsarr but does not create personal router rules for new users', async () => {
   const configure = await readFile(new URL('../../../stackarr/scripts/configure.sh', import.meta.url), 'utf8');
+  const agregarrConfigure = await readFile(
+    new URL('../../../stackarr/scripts/agregarr-configure.py', import.meta.url),
+    'utf8'
+  );
   const common = await readFile(new URL('../../../stackarr/lib/common.sh', import.meta.url), 'utf8');
   const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
   const databaseInit = await readFile(new URL('../../../stackarr/scripts/database-init.sh', import.meta.url), 'utf8');
@@ -445,6 +461,19 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /rm -f[\s\S]*hd-bluray-web\.yml[\s\S]*web-2160p\.yml/);
   assert.match(configure, /PULSARR_DISCOVERED_API_KEY_FILE/);
   assert.match(configure, /\/v1\/api-keys\/api-keys/);
+  assert.match(configure, /SAVED_API_KEY = os\.environ\.get\('PULSARR_API_KEY'/);
+  assert.match(configure, /Pulsarr authenticated with its saved Stackarr agent key/);
+  assert.match(configure, /neither the saved agent key nor admin login was accepted/);
+  assert.match(agregarrConfigure, /placeholderMovieRootFolders/);
+  assert.match(agregarrConfigure, /AGREGARR_PLACEHOLDER_FOLDER/);
+  assert.match(agregarrConfigure, /_Trailers/);
+  assert.match(agregarrConfigure, /FILTERED_HUB_SUBTYPES/);
+  assert.match(agregarrConfigure, /\/discovery\/hubs\/scan/);
+  assert.match(agregarrConfigure, /\/defaulthubs\/\{hub\['id'\]\}\/settings/);
+  assert.match(agregarrConfigure, /\/settings\/jobs\/plex-collections-sync\/run/);
+  assert.doesNotMatch(agregarrConfigure, /for collection_id in \[\*collection_ids, \*filtered_hub_ids\]/);
+  assert.match(configure, /media_config\['skipFolder'\]/);
+  assert.match(configure, /AGREGARR_PLACEHOLDER_FOLDER="\$\{AGREGARR_PLACEHOLDER_FOLDER:-_Trailers\}"/);
   assert.match(configure, /RADARR_DEFAULT_PROFILE/);
   assert.match(configure, /LIDARR_DEFAULT_PROFILE/);
   assert.ok(configure.includes('Season[ ._-]?\\\\d{1,2}'));
@@ -471,12 +500,13 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /Tracearr auto-configuration disabled/);
   assert.match(
     compose,
-    /DATABASE_URL: postgres:\/\/\$\{TRACEARR_POSTGRES_USER:-tracearr\}:\$\{TRACEARR_POSTGRES_PASSWORD:-\$\{TRACEARR_DB_PASSWORD:-stackarr\}\}@database:5432\/\$\{TRACEARR_POSTGRES_DATABASE:-tracearr\}/
+    /DATABASE_URL: \$\{TRACEARR_DATABASE_URL:-postgres:\/\/tracearr:stackarr@database:5432\/tracearr\}/
   );
   assert.match(compose, /REDIS_URL: redis:\/\/redis:6379/);
   assert.match(compose, /container_name: redis/);
   assert.match(compose, /image: \$\{REDIS_IMAGE:-redis:8\.8\.0-alpine\}/);
   assert.doesNotMatch(compose, /container_name: database-init/);
+  assert.match(common, /stackarr_compose --profile database up -d --wait database/);
   assert.match(common, /stackarr_compose --profile database exec -T/);
   assert.match(compose, /container_name: immich/);
   assert.match(compose, /container_name: immich-ml/);
@@ -499,6 +529,9 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.doesNotMatch(configure, /HD Lite watchlist users/);
   assert.doesNotMatch(configure, /PULSARR_HD_LITE_USERS/);
   assert.doesNotMatch(common, /PULSARR_HD_LITE_USERS/);
+  assert.match(configure, /Monitoring state is intentionally owned by Sonarr\/Radarr/);
+  assert.doesNotMatch(configure, /apply_movie_monitoring_policy "Radarr/);
+  assert.doesNotMatch(configure, /apply_series_monitoring_policy "Sonarr/);
 });
 
 test('Lidarr is configured as download-only for manually curated music libraries', async () => {
@@ -515,6 +548,7 @@ test('Lidarr is configured as download-only for manually curated music libraries
 test('Stackarr dashboard uses mounted runtime config inside Docker', async () => {
   const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
 
+  assert.match(compose, /^name: \$\{STACKARR_COMPOSE_PROJECT_NAME:-stackarr\}$/m);
   assert.match(compose, /STACKARR_REPO_ROOT: \/app/);
   assert.match(compose, /STACKARR_DATABASE_FILE: \/stackarr-config\/stackarr\.db/);
   assert.match(compose, /\$\{STACKARR_DATABASE_DIR:-\.\/\.stackarr\/config\}:\/stackarr-config/);
@@ -522,4 +556,18 @@ test('Stackarr dashboard uses mounted runtime config inside Docker', async () =>
   assert.match(compose, /container_name: app/);
   assert.doesNotMatch(compose, /STACKARR_DATABASE_FILE: \$\{STACKARR_DATABASE_FILE/);
   assert.doesNotMatch(compose, /\.\.:\/stackarr-workspace/);
+});
+
+test('docs development services use one stable project and are removed when the server exits', async () => {
+  const packageJson = JSON.parse(
+    await readFile(new URL('../../../apps/docs/package.json', import.meta.url), 'utf8')
+  ) as { scripts: Record<string, string> };
+  const devScript = await readFile(new URL('../../../apps/docs/scripts/dev.sh', import.meta.url), 'utf8');
+
+  assert.equal(packageJson.scripts.dev, 'bash scripts/dev.sh');
+  assert.match(packageJson.scripts['services:up'], /--project-name stackarr-dev/);
+  assert.match(packageJson.scripts['services:down'], /down --remove-orphans/);
+  assert.match(devScript, /--project-name stackarr-dev/);
+  assert.match(devScript, /trap cleanup EXIT/);
+  assert.match(devScript, /docs_compose down --remove-orphans/);
 });

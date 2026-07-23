@@ -1,5 +1,14 @@
 'use client';
 
+import {
+  accountUsernameDescription,
+  accountUsernameMaximumLength,
+  accountUsernamePattern,
+  accountUsernameValidationError,
+  portablePasswordMaximumLength,
+  portablePasswordMinimumLength,
+  portablePasswordValidationError
+} from '@stackarr/core/passwordPolicy';
 import { Description, Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useMemo, useState } from 'react';
@@ -9,10 +18,6 @@ import styles from './SetupWizard.module.css';
 import { TaskProgressView, useLiveTasks } from './TaskProgress';
 
 type SetupMode = 'fresh' | 'restore' | 'migrate';
-
-const portablePasswordPattern = /^[A-Za-z0-9._-]+$/;
-const portablePasswordDescription = 'letters, numbers, dot, underscore, and hyphen';
-const portablePasswordMinimumLength = 8;
 
 const steps = ['Welcome', 'Storage', 'Choose Apps', 'Playback', 'Requests', 'Account', 'Review', 'Run Setup'];
 
@@ -64,6 +69,7 @@ type SetupState = {
   enableFlaresolverr: boolean;
   enableTidarr: boolean;
   enableMaintainerr: boolean;
+  enableAgregarr: boolean;
   enableTracearr: boolean;
   maintainerrCleanupPresets: string[];
   rommLibraryRoot: string;
@@ -119,6 +125,7 @@ const defaults: SetupState = {
   enableFlaresolverr: true,
   enableTidarr: true,
   enableMaintainerr: false,
+  enableAgregarr: false,
   enableTracearr: false,
   maintainerrCleanupPresets: [],
   rommLibraryRoot: '/stackarr/media/Games',
@@ -182,8 +189,10 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const effectiveEnablePulsarr =
     state.enableRequestManagement && plexEnabled && videoAutomationEnabled && state.enablePulsarr;
   const effectiveEnableMaintainerr = mediaServerEnabled && state.enableMaintainerr;
+  const effectiveEnableAgregarr = plexEnabled && state.enableAgregarr;
   const effectiveEnableTracearr = mediaServerEnabled && state.enableTracearr;
   const passwordValidationMessage = validateRequiredPortablePassword(state.globalPassword);
+  const usernameValidationMessage = accountUsernameValidationError(state.globalUsername, 'Global username') ?? '';
   const liveTasks = useLiveTasks([], { limit: 10 });
   const setupTask = setupTaskId ? liveTasks.find((task) => task.id === setupTaskId) : undefined;
 
@@ -226,6 +235,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_FLARESOLVERR: String(arrEnabled && state.enableFlaresolverr),
       ENABLE_TIDARR: String(state.enableTidarr),
       ENABLE_MAINTAINERR: String(effectiveEnableMaintainerr),
+      ENABLE_AGREGARR: String(effectiveEnableAgregarr),
       ENABLE_TRACEARR: String(effectiveEnableTracearr),
       MAINTAINERR_BIND_IP: '127.0.0.1',
       MAINTAINERR_PORT: '6246',
@@ -233,6 +243,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       MAINTAINERR_BASE_PATH: '',
       MAINTAINERR_GITHUB_TOKEN: '',
       MAINTAINERR_CLEANUP_PRESETS: state.maintainerrCleanupPresets.join(','),
+      AGREGARR_BIND_IP: '127.0.0.1',
+      AGREGARR_PORT: '7171',
+      AGREGARR_URL: 'http://127.0.0.1:7171',
+      AGREGARR_PLACEHOLDER_FOLDER: '_Trailers',
+      AGREGARR_IMAGE: 'agregarr/agregarr:latest',
       TRACEARR_BIND_IP: '127.0.0.1',
       TRACEARR_PORT: '3000',
       TRACEARR_URL: 'http://127.0.0.1:3000',
@@ -379,6 +394,10 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           : 'Disabled'
       ],
       ['Maintainerr', effectiveEnableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
+      [
+        'Agregarr',
+        effectiveEnableAgregarr ? 'Enabled; Plex, Arr apps, and Coming Soon configured automatically' : 'Disabled'
+      ],
       ['Tracearr', effectiveEnableTracearr ? 'Enabled' : 'Disabled'],
       ['Immich', state.enableImmich ? 'Enabled' : 'Disabled'],
       ['RomM', state.enableRomm ? 'Enabled privately' : 'Disabled'],
@@ -409,6 +428,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     [
       state,
       effectiveEnableMaintainerr,
+      effectiveEnableAgregarr,
       effectiveEnablePulsarr,
       effectiveEnableSeerr,
       effectiveEnableTracearr,
@@ -443,6 +463,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     onboardingComplete?: boolean;
     installMode?: 'fresh' | 'restore' | 'migrate';
   } = {}) {
+    if (usernameValidationMessage) {
+      setMessage(usernameValidationMessage);
+      toast.error(usernameValidationMessage);
+      return false;
+    }
+
     if (passwordValidationMessage) {
       setMessage(passwordValidationMessage);
       toast.error(passwordValidationMessage);
@@ -1075,6 +1101,13 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               onChange={(value) => update('enableMaintainerr', value)}
             />
             <ServiceChoice
+              checked={effectiveEnableAgregarr}
+              disabled={!plexEnabled}
+              label="Agregarr Collections"
+              description="Private Plex collection curation. Stackarr connects Plex and the Arr apps, then creates Coming Soon as the default release-date-sorted source while preserving handmade collections."
+              onChange={(value) => update('enableAgregarr', value)}
+            />
+            <ServiceChoice
               checked={effectiveEnableTracearr}
               disabled={!mediaServerEnabled}
               label="Tracearr Monitoring"
@@ -1107,20 +1140,25 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               Global Username
               <input
                 autoComplete="username"
+                aria-invalid={Boolean(usernameValidationMessage)}
+                maxLength={accountUsernameMaximumLength}
+                pattern={accountUsernamePattern.source}
                 value={state.globalUsername}
                 onChange={(event) => update('globalUsername', event.target.value)}
+                title={`Use up to ${accountUsernameMaximumLength} characters: ${accountUsernameDescription}.`}
               />
+              {usernameValidationMessage && <small>{usernameValidationMessage}</small>}
             </label>
             <label>
               Global Password
               <input
                 autoComplete="new-password"
                 aria-invalid={Boolean(passwordValidationMessage)}
-                pattern="[A-Za-z0-9._-]{8,}"
+                maxLength={portablePasswordMaximumLength}
                 type="password"
                 value={state.globalPassword}
                 onChange={(event) => update('globalPassword', event.target.value)}
-                title={`Use at least ${portablePasswordMinimumLength} characters: ${portablePasswordDescription}.`}
+                title={`Use ${portablePasswordMinimumLength}–${portablePasswordMaximumLength} characters. Spaces, punctuation, and Unicode are supported.`}
               />
               {passwordValidationMessage && <small>{passwordValidationMessage}</small>}
             </label>
@@ -1367,15 +1405,7 @@ function validateRequiredPortablePassword(password: string) {
     return 'Global password is required before Stackarr can configure managed services.';
   }
 
-  if (password.length < portablePasswordMinimumLength) {
-    return `Global password must be at least ${portablePasswordMinimumLength} characters.`;
-  }
-
-  if (!portablePasswordPattern.test(password)) {
-    return `Global password may only use ${portablePasswordDescription}.`;
-  }
-
-  return '';
+  return portablePasswordValidationError(password, 'Global password') ?? '';
 }
 
 function ServiceChoice({

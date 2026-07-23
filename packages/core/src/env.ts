@@ -65,6 +65,7 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_CONFIGURE_SEERR: 'false',
   ENABLE_PULSARR: 'true',
   ENABLE_MAINTAINERR: 'false',
+  ENABLE_AGREGARR: 'false',
   ENABLE_TRACEARR: 'false',
   ENABLE_BACKUP: 'true',
   STACKARR_MOVIE_PROFILE_PRESET: 'lite',
@@ -117,6 +118,11 @@ export const managedEnvDefaults: StackarrEnv = {
   MAINTAINERR_PLEX_SERVER_URL: '',
   MAINTAINERR_JELLYFIN_SERVER_URL: '',
   MAINTAINERR_QBITTORRENT_URL: '',
+  AGREGARR_BIND_IP: '127.0.0.1',
+  AGREGARR_PORT: '7171',
+  AGREGARR_URL: 'http://127.0.0.1:7171',
+  AGREGARR_API_KEY: '',
+  AGREGARR_PLACEHOLDER_FOLDER: '_Trailers',
   TRACEARR_BIND_IP: '127.0.0.1',
   TRACEARR_PORT: '3000',
   TRACEARR_URL: 'http://127.0.0.1:3000',
@@ -132,6 +138,7 @@ export const managedEnvDefaults: StackarrEnv = {
   TRACEARR_POSTGRES_DATABASE: 'tracearr',
   TRACEARR_POSTGRES_USER: 'tracearr',
   TRACEARR_POSTGRES_PASSWORD: '',
+  TRACEARR_DATABASE_URL: '',
   TRACEARR_JWT_SECRET: '',
   TRACEARR_COOKIE_SECRET: '',
   TRACEARR_LOG_LEVEL: 'info',
@@ -272,6 +279,7 @@ export const managedEnvDefaults: StackarrEnv = {
   SEERR_IMAGE: 'ghcr.io/seerr-team/seerr:latest',
   PULSARR_IMAGE: 'lakker/pulsarr:latest',
   MAINTAINERR_IMAGE: 'ghcr.io/maintainerr/maintainerr:latest',
+  AGREGARR_IMAGE: 'agregarr/agregarr:latest',
   TRACEARR_IMAGE: 'ghcr.io/connorgallopo/tracearr:latest',
   REDIS_IMAGE: 'redis:8.8.0-alpine',
   RECYCLARR_IMAGE: 'ghcr.io/recyclarr/recyclarr:latest',
@@ -745,11 +753,20 @@ function applyTracearrSecretDefaults(env: StackarrEnv, databasePassword: string)
 
   env.TRACEARR_DB_PASSWORD = env.TRACEARR_DB_PASSWORD || databasePassword || nodeCrypto.randomBytes(24).toString('hex');
   env.TRACEARR_POSTGRES_PASSWORD = env.TRACEARR_POSTGRES_PASSWORD || env.TRACEARR_DB_PASSWORD;
+  env.TRACEARR_DATABASE_URL = buildPostgresUrl(
+    env.TRACEARR_POSTGRES_USER || 'tracearr',
+    env.TRACEARR_POSTGRES_PASSWORD,
+    env.TRACEARR_POSTGRES_DATABASE || 'tracearr'
+  );
   env.TRACEARR_JWT_SECRET = env.TRACEARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
   env.TRACEARR_COOKIE_SECRET = env.TRACEARR_COOKIE_SECRET || nodeCrypto.randomBytes(32).toString('hex');
   env.TRACEARR_ADMIN_USERNAME = env.TRACEARR_ADMIN_USERNAME || env.USERNAME || 'stackarr';
   env.TRACEARR_ADMIN_EMAIL = env.TRACEARR_ADMIN_EMAIL || env.USER_EMAIL || '';
   env.TRACEARR_ADMIN_PASSWORD = env.TRACEARR_ADMIN_PASSWORD || env.PASSWORD || '';
+}
+
+function buildPostgresUrl(user: string, password: string, database: string) {
+  return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@database:5432/${encodeURIComponent(database)}`;
 }
 
 function applyImmichSecretDefaults(env: StackarrEnv) {

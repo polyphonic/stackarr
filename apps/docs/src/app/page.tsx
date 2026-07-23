@@ -169,11 +169,15 @@ export default function LandingPage() {
             <div className="agentConnectedApps">
               <span>Tools selected from installed apps</span>
               <div>
-                {serviceIntegrations.slice(0, 7).map((service) => (
-                  <a href={`/docs/integrations/${service.slug}`} key={service.name} title={service.name}>
-                    <img alt={service.name} src={`/logos/${service.logo}.svg`} />
-                  </a>
-                ))}
+                {serviceIntegrations
+                  .filter((service) =>
+                    ['plex', 'radarr', 'sonarr', 'agregarr', 'pulsarr', 'tracearr', 'immich'].includes(service.slug)
+                  )
+                  .map((service) => (
+                    <a href={`/docs/integrations/${service.slug}`} key={service.name} title={service.name}>
+                      <img alt={service.name} src={`/logos/${service.logo}.svg`} />
+                    </a>
+                  ))}
               </div>
             </div>
           </div>

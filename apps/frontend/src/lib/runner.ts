@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import type { CommandDefinition } from '@stackarr/core/commands';
 import { dispatchNotification, type WebhookEvent } from '@stackarr/core/notifications';
 import { repoRoot, stackarrBin } from '@stackarr/core/paths';
-import { readTasks, type StackarrTask, writeTasks } from '@stackarr/core/tasks';
+import { updateTask as persistTaskUpdate, type StackarrTask } from '@stackarr/core/tasks';
 
 type InitialSetupOptions = {
   configureSeerr?: boolean;
@@ -73,6 +73,9 @@ export function runQueuedTask(task: StackarrTask, command: CommandDefinition) {
   });
 
   child.on('close', (exitCode) => {
+    if (command.name === 'UpdateStackarr' && exitCode === 0 && output.includes('STACKARR_UPDATE_HANDOFF_STARTED')) {
+      return;
+    }
     const status = exitCode === 0 ? 'completed' : 'failed';
     updateTask(task.id, {
       status,
@@ -272,7 +275,5 @@ const hostOnlyCommands = new Set([
 ]);
 
 function updateTask(id: string, patch: Partial<StackarrTask>) {
-  const tasks = readTasks();
-  const next = tasks.map((task) => (task.id === id ? { ...task, ...patch } : task));
-  writeTasks(next);
+  persistTaskUpdate(id, patch);
 }

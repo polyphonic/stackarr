@@ -51,7 +51,7 @@ if [[ -n "$MCP_GROUPS" ]]; then
     IFS=',' read -r -a requested_groups <<<"$MCP_GROUPS"
     for group in "${requested_groups[@]}"; do
         case "$group" in
-            stack|services|containers|arr|releases|downloads|plex|seerr|backups|health) ;;
+            stack|services|apps|automations|connections|containers|arr|releases|downloads|plex|seerr|backups|health) ;;
             *) fail "Unknown MCP tool group: $group" ;;
         esac
     done
@@ -99,9 +99,9 @@ install_hermes() {
             docker_groups=" -e STACKARR_MCP_GROUPS='$MCP_GROUPS'"
         fi
         ok "Prepared the Hermes Stackarr MCP integration at $destination"
-        warn "Run on the Docker host: hermes mcp add stackarr --command docker --args exec -i -e STACKARR_MCP_PROFILE='$MCP_PROFILE'$docker_groups '$MCP_CONTAINER_NAME' /app/bin/stackarr mcp serve"
+        warn "Run on the Docker host: hermes mcp add stackarr --command docker --args exec -i -e STACKARR_MCP_PROFILE='$MCP_PROFILE' -e STACKARR_MCP_CLIENT=hermes$docker_groups '$MCP_CONTAINER_NAME' /app/bin/stackarr mcp serve"
     elif $CONFIGURE && command -v hermes >/dev/null 2>&1; then
-        local hermes_env=("STACKARR_REPO_ROOT=$REPO_ROOT" "STACKARR_MCP_PROFILE=$MCP_PROFILE")
+        local hermes_env=("STACKARR_REPO_ROOT=$REPO_ROOT" "STACKARR_MCP_PROFILE=$MCP_PROFILE" "STACKARR_MCP_CLIENT=hermes")
         if [[ -n "$MCP_GROUPS" ]]; then
             hermes_env+=("STACKARR_MCP_GROUPS=$MCP_GROUPS")
         fi
@@ -113,7 +113,7 @@ install_hermes() {
         ok "Configured Stackarr as a native Hermes MCP server with the '$MCP_PROFILE' profile"
     else
         ok "Prepared the Hermes Stackarr MCP integration at $destination"
-        warn "Configure it with: hermes mcp add stackarr --command '$command_path' --env STACKARR_REPO_ROOT='$REPO_ROOT' STACKARR_MCP_PROFILE='$MCP_PROFILE' --args mcp serve"
+        warn "Configure it with: hermes mcp add stackarr --command '$command_path' --env STACKARR_REPO_ROOT='$REPO_ROOT' STACKARR_MCP_PROFILE='$MCP_PROFILE' STACKARR_MCP_CLIENT=hermes --args mcp serve"
     fi
 }
 
@@ -137,7 +137,7 @@ mcp_path = Path(mcp_path)
 if runtime == "docker":
     command = "docker"
     args = [
-        "exec", "-i", "-e", f"STACKARR_MCP_PROFILE={profile}"
+        "exec", "-i", "-e", f"STACKARR_MCP_PROFILE={profile}", "-e", "STACKARR_MCP_CLIENT=openclaw"
     ]
     if groups:
         args.extend(["-e", f"STACKARR_MCP_GROUPS={groups}"])
@@ -147,7 +147,7 @@ if runtime == "docker":
 else:
     args = ["mcp", "serve"]
     cwd_value = cwd
-    env = {"STACKARR_REPO_ROOT": cwd, "STACKARR_MCP_PROFILE": profile}
+    env = {"STACKARR_REPO_ROOT": cwd, "STACKARR_MCP_PROFILE": profile, "STACKARR_MCP_CLIENT": "openclaw"}
     if groups:
         env["STACKARR_MCP_GROUPS"] = groups
 yaml_args = "\n".join(f"    - {json.dumps(value)}" for value in args)

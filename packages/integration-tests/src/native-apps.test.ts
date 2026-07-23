@@ -125,6 +125,9 @@ test('native app router only calls named Immich operations and sends the API key
       ENABLE_TRACEARR: 'true',
       TRACEARR_URL: 'http://mock-tracearr.invalid',
       TRACEARR_API_KEY: 'trr_pub_test',
+      ENABLE_AGREGARR: 'true',
+      AGREGARR_URL: 'http://mock-agregarr.invalid',
+      AGREGARR_API_KEY: 'agregarr-test-key',
       ENABLE_TINYMEDIAMANAGER: 'true',
       TINYMEDIAMANAGER_URL: 'http://mock-tmm.invalid',
       TINYMEDIAMANAGER_API_KEY: 'tmm-test-key',
@@ -135,6 +138,7 @@ test('native app router only calls named Immich operations and sends the API key
 
     await readNativeAppAction({ app: 'pulsarr', operation: 'dashboard_stats', limit: 5, days: 14 });
     await readNativeAppAction({ app: 'tracearr', operation: 'health' });
+    await readNativeAppAction({ app: 'agregarr', operation: 'status' });
     await manageNativeAppAction({ app: 'flaresolverr', operation: 'create_session', sessionId: 'stackarr-test' });
 
     let dangerousBlocked = false;
@@ -152,7 +156,18 @@ test('native app router only calls named Immich operations and sends the API key
     });
 
     const capabilities = getNativeAppCapabilitiesAction();
-    assert.equal(capabilities.apps.length, 13);
+    assert.equal(capabilities.apps.length, 14);
+    const agregarr = capabilities.apps.find((app) => app.app === 'agregarr');
+    assert.deepEqual(
+      agregarr?.readOperations.map((operation) => operation.name),
+      ['status', 'collections', 'preexisting_collections', 'default_hubs', 'sync_status', 'jobs']
+    );
+    assert.deepEqual(
+      agregarr?.manageOperations.map((operation) => operation.name),
+      ['sync_collection', 'run_full_sync', 'run_quick_sync', 'randomize_home_order']
+    );
+    assert.equal(agregarr?.dangerousOperations.length, 0);
+    assert.match(agregarr?.notice ?? '', /bounded reads/);
     const recyclarr = capabilities.apps.find((app) => app.app === 'recyclarr');
     assert.deepEqual(
       recyclarr?.readOperations.map((operation) => operation.name),
@@ -193,6 +208,13 @@ test('native app router only calls named Immich operations and sends the API key
         url: 'http://mock-tracearr.invalid/api/v1/public/health',
         apiKey: undefined,
         authorization: 'Bearer trr_pub_test',
+        body: undefined
+      },
+      {
+        method: 'GET',
+        url: 'http://mock-agregarr.invalid/api/v1/status',
+        apiKey: undefined,
+        authorization: undefined,
         body: undefined
       },
       {

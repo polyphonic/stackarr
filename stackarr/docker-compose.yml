@@ -1,3 +1,5 @@
+name: ${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}
+
 services:
   image-cleanup:
     profiles:
@@ -6,9 +8,38 @@ services:
     command:
       - sh
       - -lc
-      - docker image prune -f --filter dangling=true
+      - docker image prune -f --filter dangling=true >/dev/null
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
+    restart: "no"
+
+  app-updater:
+    profiles:
+      - maintenance
+    image: ${STACKARR_IMAGE:-polyphonic/stackarr:alpha}
+    entrypoint:
+      - /app/bin/stackarr
+    command:
+      - update
+      - app-worker
+    group_add:
+      - "${STACKARR_DOCKER_GID:-0}"
+    environment:
+      STACKARR_REPO_ROOT: /app
+      STACKARR_DATABASE_FILE: /stackarr-config/stackarr.db
+      STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
+      STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
+      STACKARR_COMPOSE_PROJECT_NAME: ${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}
+      STACKARR_COMPOSE_PROJECT_DIR: ${STATE_ROOT:-./.stackarr/state}/compose
+      STACKARR_COMPOSE_FILE: ${STATE_ROOT:-./.stackarr/state}/compose/docker-compose.yml
+      STACKARR_RUNTIME: docker-updater
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "${STACKARR_DATABASE_DIR:-./.stackarr/config}:/stackarr-config"
+      - "${CONFIG_ROOT:-./.stackarr/config}:${CONFIG_ROOT:-/stackarr-host-config}"
+      - "${STATE_ROOT:-./.stackarr/state}:${STATE_ROOT:-/stackarr-runtime-state}"
+      - "${LOG_ROOT:-./.stackarr/logs}:${LOG_ROOT:-/stackarr-logs}"
     restart: "no"
 
   database:
@@ -415,6 +446,40 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  agregarr:
+    profiles:
+      - agregarr
+    container_name: agregarr
+    image: ${AGREGARR_IMAGE:-agregarr/agregarr:latest}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TIMEZONE:-Etc/UTC}
+      CONFIG_DIRECTORY: /app/config
+      # Playwright-backed IMDb/Letterboxd sources need writable Chromium runtime paths.
+      HOME: /tmp
+      XDG_CONFIG_HOME: /tmp/.config
+      XDG_CACHE_HOME: /tmp/.cache
+    volumes:
+      - "${APP_ROOT:-./.stackarr}/config/agregarr:/app/config"
+      # Required only when placeholder-backed sources (e.g. Coming Soon) are enabled.
+      # Agregarr writes to a configurable subfolder (default: _Trailers) inside these Plex library roots
+      # so trailer placeholders are not imported as real Radarr/Sonarr files.
+      - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
+      - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
+    ports:
+      - "${AGREGARR_BIND_IP:-127.0.0.1}:${AGREGARR_PORT:-7171}:7171"
+    labels:
+      org.opencontainers.image.title: Agregarr
+      org.opencontainers.image.description: Plex home-screen and collection curator.
+      org.opencontainers.image.source: https://github.com/agregarr/agregarr
+      org.opencontainers.image.documentation: https://github.com/agregarr/agregarr#readme
+      homepage.name: Agregarr
+      homepage.description: Plex collection curator
+      homepage.href: http://127.0.0.1:${AGREGARR_PORT:-7171}
+      homepage.icon: https://raw.githubusercontent.com/agregarr/agregarr/main/public/os_icon.svg
+      com.stackarr.icon: https://raw.githubusercontent.com/agregarr/agregarr/main/public/os_icon.svg
+    restart: unless-stopped
+
   tracearr:
     profiles:
       - tracearr
@@ -425,7 +490,7 @@ services:
       PORT: 3000
       HOST: 0.0.0.0
       TZ: ${TIMEZONE:-Etc/UTC}
-      DATABASE_URL: postgres://${TRACEARR_POSTGRES_USER:-tracearr}:${TRACEARR_POSTGRES_PASSWORD:-${TRACEARR_DB_PASSWORD:-stackarr}}@database:5432/${TRACEARR_POSTGRES_DATABASE:-tracearr}
+      DATABASE_URL: ${TRACEARR_DATABASE_URL:-postgres://tracearr:stackarr@database:5432/tracearr}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${TRACEARR_JWT_SECRET:-}
       COOKIE_SECRET: ${TRACEARR_COOKIE_SECRET:-}

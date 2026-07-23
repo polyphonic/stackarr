@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import * as nodeCrypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { defaultStackarrAppRoot, type InstallMode, type StackarrEnv, type TorrentClient, writeEnvConfig } from '../env';
-import { portablePasswordValidationError } from '../passwordPolicy';
+import { accountUsernameValidationError, portablePasswordValidationError } from '../passwordPolicy';
 import { repoRoot, stackarrBin } from '../paths';
 import {
   type MediaProfilePreset,
@@ -47,6 +47,7 @@ export type MediaServerSetupInput = {
     | 'flaresolverr'
     | 'tidarr'
     | 'maintainerr'
+    | 'agregarr'
     | 'tracearr'
   >;
   enableMovies?: boolean;
@@ -62,6 +63,7 @@ export type MediaServerSetupInput = {
   enableFlaresolverr?: boolean;
   enableTidarr?: boolean;
   enableMaintainerr?: boolean;
+  enableAgregarr?: boolean;
   enableTracearr?: boolean;
   maintainerrCleanupPresets?: MaintainerrCleanupPreset[];
   rommLibraryRoot?: string;
@@ -122,6 +124,7 @@ type ResolvedMediaServerSetupInput = Required<
     | 'flaresolverr'
     | 'tidarr'
     | 'maintainerr'
+    | 'agregarr'
     | 'tracearr'
   >;
 };
@@ -154,6 +157,7 @@ export const opinionatedSetupDefaults = {
   enableFlaresolverr: true,
   enableTidarr: true,
   enableMaintainerr: false,
+  enableAgregarr: false,
   enableTracearr: false,
   maintainerrCleanupPresets: [] as MaintainerrCleanupPreset[],
   rommLibraryRoot: '',
@@ -326,7 +330,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'enabledServices',
         prompt:
-          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, and Tracearr monitors media-server activity.',
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
         type: 'multi-choice',
         choices: [
           'bazarr',
@@ -339,6 +343,7 @@ export function getMediaServerSetupProfileAction() {
           'immich',
           'romm',
           'maintainerr',
+          'agregarr',
           'tracearr'
         ],
         default: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr']
@@ -476,6 +481,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
         enableTidarr: input.enabledServices.includes('tidarr'),
         enableMaintainerr: input.enabledServices.includes('maintainerr'),
+        enableAgregarr: input.enabledServices.includes('agregarr'),
         enableTracearr: input.enabledServices.includes('tracearr')
       }
     : {};
@@ -520,6 +526,9 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
     merged.enableMaintainerr = false;
     merged.enableTracearr = false;
   }
+  if (!plexEnabled) {
+    merged.enableAgregarr = false;
+  }
   if (!videoAutomationEnabled) {
     merged.enable4kServarr = false;
     merged.enableBazarr = false;
@@ -552,11 +561,21 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         : 'Existing Plex mode connects to a Plex Media Server that is already installed, reachable, and signed in outside Stackarr.',
       'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.',
       'Maintainerr is wired to the selected media server, Arr services, Seerr, and qBittorrent when available; cleanup rules stay user-controlled.',
+      'Agregarr is optional Plex collection curation. Stackarr uses the signed-in Plex owner token to initialize it, connects Radarr and Sonarr, and creates Coming Soon as the default release-date-sorted source while leaving handmade collections user-controlled.',
       'Tracearr uses the shared Postgres/TimescaleDB service plus shared Redis; onboarding attempts first-owner setup and media-server wiring when credentials are available.',
       'Immich is optional photo-library functionality; Stackarr starts the web app and machine-learning worker against shared Postgres and shared Redis, then the user completes first-run setup in Immich or the iOS app.',
       'RomM is optional private game-library functionality; Stackarr starts RomM on the shared Postgres and Redis services, and no public Cloudflare route is added unless the user explicitly creates one later.'
     ]
   };
+  const usernameValidationError = accountUsernameValidationError(merged.globalUsername, 'Global username');
+  if (usernameValidationError) {
+    return {
+      accepted: false,
+      plan,
+      error: usernameValidationError
+    };
+  }
+
   const passwordValidationError = portablePasswordValidationError(merged.globalPassword, 'Global password');
   if (passwordValidationError) {
     return {
@@ -603,6 +622,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       enableSeerr: merged.enableSeerr,
       enablePulsarr: merged.enablePulsarr,
       enableMaintainerr: merged.enableMaintainerr,
+      enableAgregarr: merged.enableAgregarr,
       enableTracearr: merged.enableTracearr
     },
     profiles: {
@@ -692,6 +712,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
     ENABLE_TIDARR: String(input.enableTidarr),
     ENABLE_MAINTAINERR: String(input.enableMaintainerr),
+    ENABLE_AGREGARR: String(input.enableAgregarr),
     ENABLE_TRACEARR: String(input.enableTracearr),
     MAINTAINERR_BIND_IP: '127.0.0.1',
     MAINTAINERR_PORT: '6246',
@@ -699,6 +720,12 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     MAINTAINERR_BASE_PATH: '',
     MAINTAINERR_GITHUB_TOKEN: '',
     MAINTAINERR_CLEANUP_PRESETS: input.maintainerrCleanupPresets.join(','),
+    AGREGARR_BIND_IP: '127.0.0.1',
+    AGREGARR_PORT: '7171',
+    AGREGARR_URL: 'http://127.0.0.1:7171',
+    AGREGARR_API_KEY: '',
+    AGREGARR_PLACEHOLDER_FOLDER: '_Trailers',
+    AGREGARR_IMAGE: 'agregarr/agregarr:latest',
     TRACEARR_BIND_IP: '127.0.0.1',
     TRACEARR_PORT: '3000',
     TRACEARR_URL: 'http://127.0.0.1:3000',
@@ -714,6 +741,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     TRACEARR_POSTGRES_DATABASE: 'tracearr',
     TRACEARR_POSTGRES_USER: 'tracearr',
     TRACEARR_POSTGRES_PASSWORD: databasePassword,
+    TRACEARR_DATABASE_URL: `postgres://tracearr:${encodeURIComponent(databasePassword)}@database:5432/tracearr`,
     TRACEARR_JWT_SECRET: input.enableTracearr ? nodeCrypto.randomBytes(32).toString('hex') : '',
     TRACEARR_COOKIE_SECRET: input.enableTracearr ? nodeCrypto.randomBytes(32).toString('hex') : '',
     TRACEARR_LOG_LEVEL: 'info',

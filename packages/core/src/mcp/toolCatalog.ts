@@ -120,6 +120,96 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Run an explicitly destructive or file-changing named native-app operation after user approval.'
   },
   {
+    name: 'stackarr_list_pulsarr_users',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List Pulsarr users with watchlist counts and configured quotas through its native API.'
+  },
+  {
+    name: 'stackarr_get_pulsarr_user_diagnostics',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read one Pulsarr user profile, watchlist, quota configuration, and held-request count.'
+  },
+  {
+    name: 'stackarr_set_pulsarr_user_sync',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Enable or disable Pulsarr watchlist synchronization for one user through its native API.'
+  },
+  {
+    name: 'stackarr_set_pulsarr_user_quotas',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Create, update, or disable separate Pulsarr movie/show quotas through its native API.'
+  },
+  {
+    name: 'stackarr_get_agregarr_overview',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Summarize Agregarr collections, hubs, sync health, and schedules.'
+  },
+  {
+    name: 'stackarr_get_agregarr_collection',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read one managed Agregarr collection and its sync status.'
+  },
+  {
+    name: 'stackarr_get_agregarr_home_order',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read fixed and randomized Agregarr-managed Plex home rows.'
+  },
+  {
+    name: 'stackarr_sync_agregarr_collection',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start a targeted sync for one managed Agregarr collection.'
+  },
+  {
+    name: 'stackarr_ensure_agregarr_collection_preset',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Create or normalize a common Agregarr collection source across selected Plex libraries.'
+  },
+  {
+    name: 'stackarr_run_agregarr_job',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Run an allowlisted Agregarr sync or home-order randomization job.'
+  },
+  {
     name: 'stackarr_get_routines',
     category: 'automations',
     scopes: ['automations:read'],
