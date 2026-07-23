@@ -1357,6 +1357,25 @@ ensure_shared_database() {
     remove_database_init_sidecar
 }
 
+reconcile_running_shared_database() {
+    local running_services
+
+    if ! running_services="$(stackarr_compose --profile database ps --services --status running)"; then
+        warn "Unable to inspect the shared database before updating Stackarr"
+        return 1
+    fi
+    if ! grep -qx 'database' <<< "$running_services"; then
+        warn "The shared database is not running; the Stackarr controller was left unchanged"
+        return 1
+    fi
+    if ! run_shared_database_init; then
+        warn "Shared database access reconciliation failed"
+        return 1
+    fi
+
+    remove_database_init_sidecar
+}
+
 ensure_database_if_required() {
     if ! database_required; then
         remove_database_init_sidecar
