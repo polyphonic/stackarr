@@ -17,7 +17,7 @@
     "@types/node": "^26.0.0",
     "@types/pg": "8.15.6",
     "@types/ws": "8.18.1",
-    "prisma": "7.8.0",
+    "prisma": "7.9.0",
     "typescript": "^6.0.3"
   },
   "exports": {
