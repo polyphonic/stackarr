@@ -26,6 +26,7 @@ test('managed app updates cannot pull or recreate the Stackarr controller', asyn
 test('local Stackarr images are preserved while published images use an independent worker', async () => {
   const update = await source('stackarr/scripts/update-run.sh');
   const compose = await source('stackarr/docker-compose.yml');
+  const common = await source('stackarr/lib/common.sh');
   const runner = await source('apps/frontend/src/lib/runner.ts');
 
   assert.match(update, /"\$\{STACKARR_IMAGE:-\}" == \*:local/);
@@ -36,7 +37,13 @@ test('local Stackarr images are preserved while published images use an independ
   assert.match(update, /update_stackarr_app\(\)[\s\S]*?start_app_update_worker\n}/);
   assert.match(update, /pull --quiet app/);
   assert.match(update, /up -d --force-recreate --no-deps app/);
-  assert.match(update, /ensure_shared_database/);
+  assert.match(update, /reconcile_running_shared_database/);
+  assert.doesNotMatch(update, /ensure_shared_database/);
+  const reconciliation = common.match(/reconcile_running_shared_database\(\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(reconciliation);
+  assert.match(reconciliation, /ps --services --status running/);
+  assert.match(reconciliation, /run_shared_database_init/);
+  assert.doesNotMatch(reconciliation, /\bup\b/);
   assert.match(compose, /\n  app-updater:\n[\s\S]*?command:\n\s+- update\n\s+- app-worker/);
   assert.match(runner, /command\.name === 'UpdateStackarr'/);
   assert.match(runner, /persistTaskUpdate\(id, patch\)/);
