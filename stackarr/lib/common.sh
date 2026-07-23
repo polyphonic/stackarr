@@ -209,6 +209,18 @@ include = re.compile(
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
 )
+context_only = {
+    "STACKARR_CLI_BIN",
+    "STACKARR_COMPOSE_ENV_FILE",
+    "STACKARR_CONTAINER_NAME",
+    "STACKARR_DATABASE_FILE",
+    "STACKARR_PLEX_HOST",
+    "STACKARR_REPO_ROOT",
+    "STACKARR_RUN_SOURCE",
+    "STACKARR_RUNTIME",
+    "STACKARR_TASK_ID",
+    "STACKARR_UPDATE_TASK_ID",
+}
 
 def shell_quote(value):
     return "'" + str(value).replace("'", "'\\''") + "'"
@@ -229,7 +241,7 @@ try:
                 continue
             key, raw_value = line.split('=', 1)
             key = key.strip()
-            if not include.match(key):
+            if not include.match(key) or key in context_only:
                 continue
             if os.environ.get(key):
                 continue
@@ -874,6 +886,18 @@ include = re.compile(
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
 )
+context_only = {
+    "STACKARR_CLI_BIN",
+    "STACKARR_COMPOSE_ENV_FILE",
+    "STACKARR_CONTAINER_NAME",
+    "STACKARR_DATABASE_FILE",
+    "STACKARR_PLEX_HOST",
+    "STACKARR_REPO_ROOT",
+    "STACKARR_RUN_SOURCE",
+    "STACKARR_RUNTIME",
+    "STACKARR_TASK_ID",
+    "STACKARR_UPDATE_TASK_ID",
+}
 
 def quote(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("$", "$$")
@@ -885,7 +909,7 @@ lines = [
 ]
 
 for key in sorted(os.environ):
-    if include.match(key):
+    if include.match(key) and key not in context_only:
         lines.append(f"{key}={quote(os.environ[key])}")
 
 tmp = target.with_suffix(target.suffix + ".tmp")
