@@ -33,6 +33,11 @@ test('compose env generation preserves runtime roots and the release image', asy
         STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
         STACKARR_IMAGE: 'polyphonic/stackarr:alpha',
         STACKARR_WEB_ENABLED: 'true',
+        STACKARR_RUNTIME: 'docker-updater',
+        STACKARR_RUN_SOURCE: 'web',
+        STACKARR_TASK_ID: 'transient-task-id',
+        STACKARR_UPDATE_TASK_ID: 'transient-update-task-id',
+        STACKARR_REPO_ROOT: '/app',
         PASSWORD: 'Portable435',
         UNRELATED_SECRET: 'should-not-be-written'
       }
@@ -51,6 +56,7 @@ test('compose env generation preserves runtime roots and the release image', asy
     const databasePassword = content.match(/^DATABASE_SUPERUSER_PASSWORD="([^"]+)"$/m)?.[1];
     assert.ok(databasePassword);
     assert.notEqual(databasePassword, 'Portable435');
+    assert.doesNotMatch(content, /STACKARR_(?:RUNTIME|RUN_SOURCE|TASK_ID|UPDATE_TASK_ID|REPO_ROOT)/);
     assert.doesNotMatch(content, /UNRELATED_SECRET/);
   } finally {
     await rm(root, { recursive: true, force: true });
