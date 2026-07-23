@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.8](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.7...v0.3.0-alpha.8) (2026-07-23)
+
+
+### Fixed
+
+* **updates:** harden controller self-update ([#24](https://github.com/polyphonic/stackarr/issues/24)) ([f5d7215](https://github.com/polyphonic/stackarr/commit/f5d7215cd774ff8b537b3d7d11f229622a1c06ac))
+
 ## [0.3.0-alpha.7](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.6...v0.3.0-alpha.7) (2026-07-23)
 
 
