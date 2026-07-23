@@ -1,5 +1,6 @@
 import * as nodeCrypto from 'node:crypto';
 import {
+  accountUsernameValidationError,
   portablePasswordValidationError,
   protectedEnvConfigChanged,
   readEnv,
@@ -80,6 +81,11 @@ export async function PUT(request: NextRequest) {
 
   const config = typeof body.config === 'object' && body.config ? body.config : null;
   if (config && typeof config === 'object') {
+    const usernameError = validateConfigUsernames(config as StackarrEnv, currentEnv);
+    if (usernameError) {
+      return json({ accepted: false, error: usernameError }, { status: 400 });
+    }
+
     const passwordError = validatePortableConfigPasswords(config as StackarrEnv, currentEnv);
     if (passwordError) {
       return json({ accepted: false, error: passwordError }, { status: 400 });
@@ -427,6 +433,11 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       unredactedConfigValue('TRACEARR_POSTGRES_PASSWORD') ||
       current.TRACEARR_POSTGRES_PASSWORD ||
       next.TRACEARR_DB_PASSWORD;
+    next.TRACEARR_DATABASE_URL = buildPostgresUrl(
+      next.TRACEARR_POSTGRES_USER || 'tracearr',
+      next.TRACEARR_POSTGRES_PASSWORD,
+      next.TRACEARR_POSTGRES_DATABASE || 'tracearr'
+    );
     next.TRACEARR_JWT_SECRET =
       unredactedConfigValue('TRACEARR_JWT_SECRET') ||
       current.TRACEARR_JWT_SECRET ||
@@ -600,6 +611,39 @@ function validatePortableConfigPasswords(config: StackarrEnv, current: StackarrE
   }
 
   return undefined;
+}
+
+function validateConfigUsernames(config: StackarrEnv, current: StackarrEnv) {
+  for (const [key, value] of Object.entries(config)) {
+    if (!isUsernameConfigKey(key) || value === current[key]) {
+      continue;
+    }
+
+    if (key !== 'USERNAME' && !String(value ?? '')) {
+      continue;
+    }
+
+    const error = accountUsernameValidationError(String(value ?? ''), humanizeUsernameKey(key));
+    if (error) {
+      return error;
+    }
+  }
+
+  return undefined;
+}
+
+function isUsernameConfigKey(key: string) {
+  return key === 'USERNAME' || key.endsWith('_USERNAME') || key.endsWith('_USER');
+}
+
+function humanizeUsernameKey(key: string) {
+  return key === 'USERNAME'
+    ? 'Global username'
+    : key
+        .toLowerCase()
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
 }
 
 function isPortablePasswordConfigKey(key: string) {

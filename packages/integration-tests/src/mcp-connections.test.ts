@@ -13,6 +13,7 @@ test('Codex connection kit generates a Docker stdio install command', () => {
   assert.equal(kit.transport, 'docker-stdio');
   assert.match(kit.command ?? '', /^codex mcp add stackarr -- docker exec -i/);
   assert.match(kit.command ?? '', /STACKARR_MCP_PROFILE=manage/);
+  assert.match(kit.command ?? '', /STACKARR_MCP_CLIENT=codex/);
   assert.match(kit.command ?? '', /STACKARR_MCP_GROUPS=stack,arr/);
   assert.match(kit.command ?? '', /stackarr-app \/app\/bin\/stackarr mcp serve$/);
 });
@@ -24,7 +25,15 @@ test('LM Studio connection kit uses mcp.json notation and explains fail-closed a
   };
 
   assert.equal(config.mcpServers.stackarr.command, 'docker');
-  assert.deepEqual(config.mcpServers.stackarr.args.slice(0, 4), ['exec', '-i', '-e', 'STACKARR_MCP_PROFILE=admin']);
+  assert.deepEqual(config.mcpServers.stackarr.args.slice(0, 7), [
+    'exec',
+    '-i',
+    '-e',
+    'STACKARR_MCP_PROFILE=admin',
+    '-e',
+    'STACKARR_MCP_CLIENT=lmstudio',
+    'app'
+  ]);
   assert.ok(kit.warnings.some((warning) => warning.includes('fail closed')));
   assert.equal(kit.documentationUrl, 'https://lmstudio.ai/docs/app/mcp');
 });

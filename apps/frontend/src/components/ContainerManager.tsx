@@ -14,7 +14,6 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './ContainerManager.module.css';
 import { stackarrFetch } from './clientApi';
-import { InteractiveLineChart } from './InteractiveLineChart';
 import { icons } from './icons';
 import { ServiceLogo } from './ServiceLogo';
 import { Badge } from './ui';
@@ -397,7 +396,7 @@ function StackSummary({ groups, counts }: { groups: ContainerGroup[]; counts: Do
         <icons.stack aria-hidden="true" size={26} />
       </span>
       <div>
-        <h2>Your infrastructure</h2>
+        <h2>Your Infrastructure</h2>
         <p>Select an app to inspect its ports, mounts, networks, and lifecycle controls.</p>
       </div>
       <dl>
@@ -483,24 +482,30 @@ function MetricCard({ history, label, value }: { history: number[]; label: strin
 
 function Sparkline({ label, values }: { label: string; values: number[] }) {
   const finite = values.map((value) => (Number.isFinite(value) ? value : 0));
+  const width = 92;
+  const height = 28;
+  const padding = 2;
+  const minimum = Math.min(...finite, 0);
+  const maximum = Math.max(...finite, 1);
+  const range = Math.max(1, maximum - minimum);
+  const xStep = finite.length > 1 ? (width - padding * 2) / (finite.length - 1) : 0;
+  const points = finite
+    .map((value, index) => {
+      const x = finite.length > 1 ? padding + index * xStep : width / 2;
+      const y = height - padding - ((value - minimum) / range) * (height - padding * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const latestPoint = points.split(' ').at(-1)?.split(',').map(Number) ?? [width / 2, height / 2];
 
   return (
     <div aria-label={label} className={styles.sparkline} role="img">
-      <InteractiveLineChart
-        compact
-        height={28}
-        series={[
-          {
-            name: label,
-            color: 'var(--accent)',
-            data: finite.map((value, index) => ({
-              x: index,
-              y: value,
-              tooltip: `${label.split(' over ')[0]} · ${value.toFixed(value >= 10 ? 0 : 1)}`
-            }))
-          }
-        ]}
-      />
+      <svg aria-hidden="true" height={height} viewBox={`0 0 ${width} ${height}`} width={width}>
+        {finite.length > 1 && (
+          <polyline fill="none" points={points} stroke="var(--accent)" strokeLinecap="round" strokeWidth="1.7" />
+        )}
+        <circle cx={latestPoint[0]} cy={latestPoint[1]} fill="var(--accent)" r="2" />
+      </svg>
     </div>
   );
 }

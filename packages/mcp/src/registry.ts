@@ -19,6 +19,10 @@ import {
   deleteRoutineAction,
   diagnoseServiceAction,
   downloadLidarrAlbumWithStreamripAction,
+  ensureAgregarrCollectionPresetAction,
+  getAgregarrCollectionAction,
+  getAgregarrHomeOrderAction,
+  getAgregarrOverviewAction,
   getArrQueueAction,
   getBackupStatusAction,
   getCloudflareAccessAction,
@@ -42,6 +46,7 @@ import {
   getPlexServerStatusAction,
   getPlexSessionsAction,
   getPlexWatchSummaryAction,
+  getPulsarrUserDiagnosticsAction,
   getRecentlyAddedAction,
   getRecentlyWatchedAction,
   getRequestStatusAction,
@@ -60,6 +65,7 @@ import {
   listBackupsAction,
   listLidarrStreamripAlbumsAction,
   listMcpConnectionPoliciesAction,
+  listPulsarrUsersAction,
   listServiceConfigsAction,
   listServicesAction,
   listStreamripJobsAction,
@@ -84,6 +90,7 @@ import {
   restoreServiceDatabaseFromBackupAction,
   resumeDownloadAction,
   rotateMcpConnectionPolicyTokenAction,
+  runAgregarrJobAction,
   runBackupWorkflowAction,
   runDoctorAction,
   runPermissionsAuditAction,
@@ -97,11 +104,14 @@ import {
   searchSeriesAction,
   sendTelemetryAction,
   setDownloadPriorityAction,
+  setPulsarrUserQuotasAction,
+  setPulsarrUserSyncAction,
   setupMediaServerAction,
   startStackAction,
   startStreamripDownloadAction,
   startStreamripSearchDownloadAction,
   stopStackAction,
+  syncAgregarrCollectionAction,
   type ToolCatalogEntry,
   type ToolCategory,
   testArrToDownloaderAction,
@@ -164,6 +174,20 @@ const nativeAppOperation = {
   days: z.number().int().min(1).max(365).optional(),
   scope: z.enum(['all', 'radarr', 'sonarr']).optional()
 };
+const pulsarrQuota = z
+  .object({
+    enabled: z.boolean(),
+    quotaType: z.enum(['daily', 'weekly_rolling', 'monthly']).optional(),
+    quotaLimit: z.number().int().min(1).max(1000).optional(),
+    bypassApproval: z.boolean().optional(),
+    watchlistCap: z.number().int().min(1).max(1000).nullable().optional()
+  })
+  .superRefine((value, context) => {
+    if (!value.enabled) return;
+    if (!value.quotaType) context.addIssue({ code: 'custom', path: ['quotaType'], message: 'Required when enabled.' });
+    if (value.quotaLimit === undefined)
+      context.addIssue({ code: 'custom', path: ['quotaLimit'], message: 'Required when enabled.' });
+  });
 const routineStep = z.object({
   kind: z.enum(['read_app', 'manage_app']),
   app: nativeApp,
@@ -361,6 +385,80 @@ const tools: ToolDef[] = [
       'Run a destructive or file-changing named native-app operation. The control plane asks the user for approval first.',
     shape: { ...nativeAppOperation, reason: z.string().max(500).optional() },
     handler: administerNativeAppAction
+  },
+  {
+    name: 'stackarr_list_pulsarr_users',
+    description: 'List Pulsarr users with watchlist counts and configured quotas through Pulsarr’s native API.',
+    shape: empty,
+    handler: listPulsarrUsersAction
+  },
+  {
+    name: 'stackarr_get_pulsarr_user_diagnostics',
+    description:
+      'Read one Pulsarr user profile, watchlist, quota configuration, and held-request count through Pulsarr’s native API.',
+    shape: { userId: z.number().int().min(1).max(2_147_483_647) },
+    handler: getPulsarrUserDiagnosticsAction
+  },
+  {
+    name: 'stackarr_set_pulsarr_user_sync',
+    description: 'Enable or disable Pulsarr watchlist synchronization for one user through Pulsarr’s native API.',
+    shape: { userId: z.number().int().min(1).max(2_147_483_647), canSync: z.boolean() },
+    handler: setPulsarrUserSyncAction
+  },
+  {
+    name: 'stackarr_set_pulsarr_user_quotas',
+    description:
+      'Create, update, or disable separate Pulsarr movie/show quotas through the native API. No held requests are auto-approved unless explicitly requested.',
+    shape: {
+      userId: z.number().int().min(1).max(2_147_483_647),
+      movieQuota: pulsarrQuota.optional(),
+      showQuota: pulsarrQuota.optional(),
+      autoApproveHeld: z.boolean().optional()
+    },
+    handler: setPulsarrUserQuotasAction
+  },
+  {
+    name: 'stackarr_get_agregarr_overview',
+    description:
+      'Summarize Agregarr managed collections, linked pre-existing collections, default hubs, sync health, and schedules.',
+    shape: empty,
+    handler: getAgregarrOverviewAction
+  },
+  {
+    name: 'stackarr_get_agregarr_collection',
+    description: 'Read one managed Agregarr collection and its targeted sync status.',
+    shape: { collectionId: z.string().regex(/^\d{1,10}$/) },
+    handler: getAgregarrCollectionAction
+  },
+  {
+    name: 'stackarr_get_agregarr_home_order',
+    description: 'Read configured Plex home rows in order, including fixed versus randomized rows.',
+    shape: empty,
+    handler: getAgregarrHomeOrderAction
+  },
+  {
+    name: 'stackarr_sync_agregarr_collection',
+    description: 'Start a targeted sync for one managed Agregarr collection.',
+    shape: { collectionId: z.string().regex(/^\d{1,10}$/) },
+    handler: syncAgregarrCollectionAction
+  },
+  {
+    name: 'stackarr_ensure_agregarr_collection_preset',
+    description:
+      'Create or normalize Coming Soon, TMDb Trending, or IMDb Popular across the selected Plex movie and TV libraries.',
+    shape: {
+      preset: z.enum(['coming-soon', 'tmdb-trending', 'imdb-popular']),
+      mediaScope: z.enum(['movie', 'tv', 'both']).optional(),
+      maxItems: z.number().int().min(10).max(200).optional(),
+      daysAhead: z.number().int().min(30).max(1825).optional()
+    },
+    handler: ensureAgregarrCollectionPresetAction
+  },
+  {
+    name: 'stackarr_run_agregarr_job',
+    description: 'Run an allowlisted Agregarr full sync, quick sync, or home-order randomization job.',
+    shape: { job: z.enum(['full-sync', 'quick-sync', 'randomize-home-order']) },
+    handler: runAgregarrJobAction
   },
   {
     name: 'stackarr_get_routines',
@@ -1121,7 +1219,7 @@ const tools: ToolDef[] = [
 export function registerStackarrTools(
   server: McpServer,
   profile: McpProfile = resolveMcpProfile(),
-  options: { groups?: ToolCategory[]; caller?: `mcp-remote:${string}` | 'mcp-local' } = {}
+  options: { groups?: ToolCategory[]; caller?: `mcp-remote:${string}` | 'mcp-local' | `mcp-local:${string}` } = {}
 ) {
   const enabledServices = getEnabledMcpServiceNames();
   const enabledCatalog = getMcpToolCatalog({ profile, enabledServices, groups: options.groups });

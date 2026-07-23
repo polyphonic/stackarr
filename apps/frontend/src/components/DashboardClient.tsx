@@ -81,10 +81,10 @@ export function DashboardClient({
       </section>
 
       <section className={styles.quickLinks} aria-label="Quick destinations">
-        <QuickLink href="/activity/queue" icon="activity" label="Active work" value={String(activeTasks.length)} />
-        <QuickLink href="/containers" icon="containers" label="Infrastructure" value="Explore" />
+        <QuickLink href="/activity/queue" icon="activity" label="Active Work" value={String(activeTasks.length)} />
+        <QuickLink href="/containers" icon="containers" label="Containers" value="Explore" />
         {hasDownloads && <QuickLink href="/downloaders" icon="download" label="Downloads" value="Manage" />}
-        <QuickLink href="/agent" icon="manage" label="Automation" value="Open" />
+        <QuickLink href="/agent" icon="manage" label="Agents" value="Explore" />
       </section>
 
       <PerformanceOverview initial={performance} />
@@ -95,7 +95,7 @@ export function DashboardClient({
 
       <div className={styles.contentGrid}>
         <Panel
-          title="Needs attention"
+          title="Needs Attention"
           description="Only items that may need a decision or follow-up"
           action={<Link href="/system/status">System details</Link>}
         >
@@ -127,7 +127,7 @@ export function DashboardClient({
         </Panel>
 
         <Panel
-          title="Active work"
+          title="Active Work"
           description="Commands and automations currently moving through the stack"
           action={<Link href="/activity/queue">View activity</Link>}
         >
@@ -190,7 +190,7 @@ export function DashboardClient({
         <div className={styles.detailsBody}>
           <DashboardOverview metrics={metrics} />
           <Panel
-            title="All configured apps"
+            title="All Configured Apps"
             description="Search the full catalog without crowding your everyday view"
             action={<SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Find an app" />}
           >
@@ -302,7 +302,7 @@ function buildAttentionItems(
   const fullDisk = metrics.disks.find((disk) => (disk.usedPercent ?? 0) >= 90);
   if (!configured)
     items.push({
-      label: 'Finish initial setup',
+      label: 'Finish Initial Setup',
       detail: 'Choose storage, apps, and sensible defaults.',
       href: '/setup',
       action: 'Finish setup',
@@ -310,7 +310,7 @@ function buildAttentionItems(
     });
   if (missing > 0)
     items.push({
-      label: `${missing} ${missing === 1 ? 'app needs' : 'apps need'} configuration`,
+      label: `${missing} ${missing === 1 ? 'App Needs' : 'Apps Need'} Configuration`,
       detail: 'Review enabled apps and connection details.',
       href: '/stack/services',
       action: 'Configure',
@@ -318,7 +318,7 @@ function buildAttentionItems(
     });
   if (failed > 0)
     items.push({
-      label: `${failed} recent ${failed === 1 ? 'action needs' : 'actions need'} review`,
+      label: `${failed} Recent ${failed === 1 ? 'Action Needs' : 'Actions Need'} Review`,
       detail: 'Open the failure details before deciding whether to retry.',
       href: '/activity/history?status=needs-review',
       action: 'Review failures',
@@ -326,7 +326,7 @@ function buildAttentionItems(
     });
   if (fullDisk)
     items.push({
-      label: `${fullDisk.label} is ${fullDisk.usedPercent}% full`,
+      label: `${fullDisk.label} Is ${fullDisk.usedPercent}% Full`,
       detail: 'Review storage before imports are interrupted.',
       href: '/system/diskspace',
       action: 'Review storage',
@@ -334,7 +334,7 @@ function buildAttentionItems(
     });
   if (metrics.serviceCounts.dockerRunning === null)
     items.push({
-      label: 'Docker status is unavailable',
+      label: 'Docker Status Is Unavailable',
       detail: 'Stackarr could not read the container runtime.',
       href: '/system/status',
       action: 'Diagnose',

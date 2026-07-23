@@ -26,7 +26,7 @@ export default async function AgentSettingsPage() {
     <>
       <Toolbar title="Connect a Chat Client" />
       <PageBody>
-        <Panel title="Current connection policy">
+        <Panel title="Current Connection Policy">
           <p>
             <strong>{profile}</strong> · {tools.length} actions · {getMcpProfileDescription(profile)}
           </p>
@@ -38,7 +38,7 @@ export default async function AgentSettingsPage() {
           </p>
         </Panel>
         <AgentConnectionKit kitsByProfile={kitsByProfile} initialProfile={profile} />
-        <Panel title="Connection policy stays outside the agent">
+        <Panel title="Connection Policy Stays Outside the Agent">
           <p>
             The selected authority is part of the connection you install. An agent can generate these instructions, but
             it cannot install a stronger profile or promote its running connection by itself.

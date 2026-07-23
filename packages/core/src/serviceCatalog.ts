@@ -9,6 +9,7 @@ import {
   type StackarrEnv,
   writeEnvConfig
 } from './env';
+import { accountUsernameValidationError, portablePasswordValidationError } from './passwordPolicy';
 import { presetFiles, readJsonPreset, writeJsonPreset } from './presets';
 import {
   mediaProfileNameFromPreset,
@@ -500,6 +501,31 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPassword('maintainerrGithubToken', 'GitHub Token', 'MAINTAINERR_GITHUB_TOKEN')
     ])
   ],
+  agregarr: [
+    group(
+      'Plex Collections',
+      [
+        envCheckbox('enableAgregarr', 'Enable Agregarr', 'ENABLE_AGREGARR'),
+        envText('agregarrUrl', 'Local URL', 'AGREGARR_URL'),
+        envText('agregarrBindIp', 'Bind IP', 'AGREGARR_BIND_IP'),
+        envNumber('agregarrPort', 'Port', 'AGREGARR_PORT'),
+        envText(
+          'agregarrPlaceholderFolder',
+          'Placeholder Folder',
+          'AGREGARR_PLACEHOLDER_FOLDER',
+          'Folder name created at the top of each Plex movie and TV library. Defaults to _Trailers; Stackarr also excludes the same folder from tinyMediaManager scans.'
+        ),
+        envPassword(
+          'agregarrApiKey',
+          'Stackarr API Key',
+          'AGREGARR_API_KEY',
+          'Generated and saved automatically during Stackarr onboarding for native collection controls, targeted syncs, and agent actions.'
+        ),
+        envText('agregarrImage', 'Docker Image', 'AGREGARR_IMAGE')
+      ],
+      'Stackarr initializes Agregarr with the signed-in Plex owner token, connects Radarr and Sonarr, and creates Coming Soon as the default release-date-sorted source. Existing Plex collections remain pre-existing unless explicitly managed.'
+    )
+  ],
   tracearr: [
     group('Media Server Monitoring', [
       envCheckbox('enableTracearr', 'Enable Tracearr', 'ENABLE_TRACEARR'),
@@ -684,6 +710,16 @@ export function updateServiceConfigAction(input: {
 
   if (Object.keys(envPatch).length > 0) {
     const currentEnv = readEnv();
+    const credentialValidationError = validateCredentialPatch(envPatch, currentEnv);
+    if (credentialValidationError) {
+      return {
+        service: input.service,
+        accepted: false,
+        error: credentialValidationError,
+        config: buildModel(findService(summary.name) ?? summary)
+      };
+    }
+
     if (input.trustedControlPlaneApproval && credentialEnvConfigChanged(envPatch, currentEnv)) {
       return {
         service: input.service,
@@ -722,6 +758,27 @@ export function updateServiceConfigAction(input: {
     accepted: true,
     config: buildModel(findService(summary.name) ?? summary)
   };
+}
+
+function validateCredentialPatch(patch: StackarrEnv, current: StackarrEnv) {
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === current[key]) {
+      continue;
+    }
+
+    if (key === 'USERNAME' || key.endsWith('_USERNAME') || key.endsWith('_USER')) {
+      if (key !== 'USERNAME' && !String(value ?? '')) continue;
+      const error = accountUsernameValidationError(String(value ?? ''), key === 'USERNAME' ? 'Global username' : key);
+      if (error) return error;
+    }
+
+    if ((key === 'PASSWORD' || key.endsWith('_PASSWORD')) && value) {
+      const error = portablePasswordValidationError(String(value), key === 'PASSWORD' ? 'Global password' : key);
+      if (error) return error;
+    }
+  }
+
+  return undefined;
 }
 
 function buildModel(service: ServiceSummary): ServiceConfigModel {

@@ -146,10 +146,10 @@ run_backup_job() {
 run_update_job() {
     local task_id output_file exit_code
     output_file="$(mktemp)"
-    task_id="$(STACKARR_DATABASE_FILE="$STACKARR_DATABASE_FILE" node "$ROOT_DIR/scripts/task-log.cjs" create --command Update --label "Update stack")"
+    task_id="$(STACKARR_DATABASE_FILE="$STACKARR_DATABASE_FILE" node "$ROOT_DIR/scripts/task-log.cjs" create --command Update --label "Update apps")"
 
     set +e
-    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" update run >"$output_file" 2>&1
+    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" update services >"$output_file" 2>&1
     exit_code="$?"
     set -e
 

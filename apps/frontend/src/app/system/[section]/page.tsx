@@ -9,6 +9,7 @@ import {
   readTasks,
   type StackarrTask
 } from '@stackarr/core';
+import { notFound } from 'next/navigation';
 import { ActivityNav } from '../../../components/ActivityNav';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { CommandButton } from '../../../components/CommandButton';
@@ -39,6 +40,7 @@ type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'purple';
 
 export default async function SystemSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
+  if (!Object.prototype.hasOwnProperty.call(titles, section)) notFound();
   await requireDashboardAuth(`/system/${section}`);
 
   const status = getSystemStatus();
@@ -253,9 +255,13 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
           </>
         )}
         {section === 'updates' && (
-          <Panel title="Updates">
+          <Panel
+            title="Updates"
+            description="Update managed apps without interrupting Stackarr, or update the controller separately as a final handoff."
+          >
             <ActionGrid>
               <CommandButton name="Update" label={commandRegistry.Update.label} disruptive />
+              <CommandButton name="UpdateStackarr" label={commandRegistry.UpdateStackarr.label} disruptive />
               <CommandButton name="UpdateInstall" label={commandRegistry.UpdateInstall.label} />
               <CommandButton name="UpdateUninstall" label={commandRegistry.UpdateUninstall.label} />
             </ActionGrid>
@@ -323,23 +329,12 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
         )}
         {section === 'logs' && (
           <Panel
-            title="Server logs"
+            title="Server Logs"
             description="A redacted tail of local Stackarr log files; nothing is sent elsewhere"
           >
             <ServerLogViewer />
           </Panel>
         )}
-        {section !== 'status' &&
-          section !== 'tasks' &&
-          section !== 'backup' &&
-          section !== 'updates' &&
-          section !== 'events' &&
-          section !== 'logs' &&
-          section !== 'diskspace' && (
-            <Panel title={titles[section] ?? 'System'}>
-              <p>Stackarr endpoint support is available under `/api/v1/{section}` where applicable.</p>
-            </Panel>
-          )}
       </PageBody>
     </>
   );

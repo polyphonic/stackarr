@@ -67,6 +67,7 @@ export type StackarrSettings = {
     enableSeerr: boolean;
     enablePulsarr: boolean;
     enableMaintainerr: boolean;
+    enableAgregarr: boolean;
     enableTracearr: boolean;
   };
   metadata: {
@@ -149,6 +150,7 @@ export const defaultSettings: StackarrSettings = {
     enableSeerr: true,
     enablePulsarr: true,
     enableMaintainerr: false,
+    enableAgregarr: false,
     enableTracearr: false
   },
   metadata: {
@@ -242,6 +244,7 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableSeerr: envFlag(env.ENABLE_SEERR, defaultSettings.services.enableSeerr),
       enablePulsarr: envFlag(env.ENABLE_PULSARR, defaultSettings.services.enablePulsarr),
       enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr),
+      enableAgregarr: envFlag(env.ENABLE_AGREGARR, defaultSettings.services.enableAgregarr),
       enableTracearr: envFlag(env.ENABLE_TRACEARR, defaultSettings.services.enableTracearr)
     },
     metadata: {

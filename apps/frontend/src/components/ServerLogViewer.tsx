@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { stackarrFetch } from './clientApi';
 import styles from './ServerLogViewer.module.css';
 
@@ -11,49 +11,51 @@ export function ServerLogViewer() {
   const [files, setFiles] = useState<LogFile[]>([]);
   const [activeFile, setActiveFile] = useState('');
   const [tail, setTail] = useState<LogTail | null>(null);
-  const [message, setMessage] = useState('Loading server logs…');
+  const [lineLimit, setLineLimit] = useState(120);
+  const [fileMessage, setFileMessage] = useState('Loading server logs…');
+  const [tailMessage, setTailMessage] = useState('');
+  const output = useMemo(() => tail?.lines.join('\n') || 'This log is empty.', [tail]);
 
   useEffect(() => {
-    let cancelled = false;
-    stackarrFetch('/api/v1/log/file')
+    const controller = new AbortController();
+    void stackarrFetch('/api/v1/log/file', { signal: controller.signal })
       .then(async (response) => {
         const body = (await response.json().catch(() => [])) as LogFile[];
-        if (cancelled) return;
         if (!response.ok || !Array.isArray(body)) {
-          setMessage('Server logs could not be loaded.');
+          setFileMessage('Server logs could not be loaded.');
           return;
         }
-        const sorted = [...body].sort((a, b) => b.lastWriteTime.localeCompare(a.lastWriteTime));
-        setFiles(sorted);
-        setMessage(sorted.length === 0 ? 'No server log files have been recorded yet.' : '');
-        if (sorted[0]) setActiveFile(sorted[0].filename);
+        setFiles(body);
+        setFileMessage(body.length === 0 ? 'No server log files have been recorded yet.' : '');
+        if (body[0]) setActiveFile(body[0].filename);
       })
-      .catch(() => !cancelled && setMessage('Server logs could not be loaded.'));
-    return () => {
-      cancelled = true;
-    };
+      .catch((error) => {
+        if (error?.name !== 'AbortError') setFileMessage('Server logs could not be loaded.');
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
     if (!activeFile) return;
-    let cancelled = false;
-    setMessage('Loading log tail…');
-    stackarrFetch(`/api/v1/log/file?filename=${encodeURIComponent(activeFile)}&lines=200`)
+    const controller = new AbortController();
+    setTailMessage('Loading log tail…');
+    void stackarrFetch(`/api/v1/log/file?filename=${encodeURIComponent(activeFile)}&lines=${lineLimit}`, {
+      signal: controller.signal
+    })
       .then(async (response) => {
         const body = (await response.json().catch(() => null)) as LogTail | null;
-        if (cancelled) return;
         if (!response.ok || !body || !Array.isArray(body.lines)) {
-          setMessage('This log file could not be loaded.');
+          setTailMessage('This log file could not be loaded.');
           return;
         }
         setTail(body);
-        setMessage('');
+        setTailMessage('');
       })
-      .catch(() => !cancelled && setMessage('This log file could not be loaded.'));
-    return () => {
-      cancelled = true;
-    };
-  }, [activeFile]);
+      .catch((error) => {
+        if (error?.name !== 'AbortError') setTailMessage('This log file could not be loaded.');
+      });
+    return () => controller.abort();
+  }, [activeFile, lineLimit]);
 
   return (
     <div className={styles.viewer}>
@@ -62,7 +64,10 @@ export function ServerLogViewer() {
           <button
             key={file.filename}
             className={activeFile === file.filename ? styles.fileActive : styles.file}
-            onClick={() => setActiveFile(file.filename)}
+            onClick={() => {
+              setLineLimit(120);
+              setActiveFile(file.filename);
+            }}
             type="button"
           >
             <strong>{file.filename}</strong>
@@ -71,7 +76,7 @@ export function ServerLogViewer() {
             </small>
           </button>
         ))}
-        {files.length === 0 && <p>{message}</p>}
+        {files.length === 0 && <p>{fileMessage}</p>}
       </aside>
       <section className={styles.output} aria-live="polite" aria-label="Selected log output">
         <header>
@@ -79,9 +84,13 @@ export function ServerLogViewer() {
             <strong>{tail?.filename ?? 'Server trail'}</strong>
             {tail && <small>Last write {formatDate(tail.lastWriteTime)}</small>}
           </div>
-          {tail?.truncated && <span>Latest 200 lines</span>}
+          {tail?.truncated ? (
+            <button disabled={lineLimit >= 500} onClick={() => setLineLimit(500)} type="button">
+              {lineLimit >= 500 ? 'Latest 500 lines' : 'Load up to 500 lines'}
+            </button>
+          ) : null}
         </header>
-        {message ? <p>{message}</p> : <pre>{tail?.lines.join('\n') || 'This log is empty.'}</pre>}
+        {tailMessage ? <p>{tailMessage}</p> : <pre>{output}</pre>}
       </section>
     </div>
   );

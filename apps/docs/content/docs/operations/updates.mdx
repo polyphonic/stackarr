@@ -13,21 +13,37 @@ STACKARR_IMAGE=polyphonic/stackarr:alpha
 
 ## Update from Stackarr
 
-Ask an admin-profile agent to back up and update the stack, use the dashboard, or run:
+Stackarr separates controller updates from the apps it manages. This keeps an
+unavailable or locally built Stackarr image from blocking updates for Plex,
+the Arr apps, download clients, and the rest of the enabled stack.
+
+Ask an admin-profile agent to back up and update the managed apps, use
+**System → Updates → Update apps**, or run:
 
 ```bash
-docker exec app /app/bin/stackarr update run
+docker exec app /app/bin/stackarr update services
 ```
 
-The update workflow pulls current images, recreates enabled services, reapplies Stackarr's integrations, and cleans up dangling images.
+The app workflow targets managed services explicitly, leaves the Stackarr
+controller and its database running, reapplies integrations, and cleans up
+dangling images.
 
 ## Update only the Stackarr app
 
-From the folder containing `docker-compose.yml`:
+Use **System → Updates → Update Stackarr**, or run:
 
-```bash
-docker compose pull app
-docker compose --profile stackarr up -d app
+```console
+docker exec app /app/bin/stackarr update app
 ```
 
-Use a maintenance window if Plex, Jellyfin, or active downloads must stay uninterrupted.
+The running controller hands this operation to a one-shot maintenance worker.
+That worker pulls only the Stackarr image, reconciles database access, recreates
+only the controller, waits for its health endpoint, and records the result in
+Activity. Other services stay online.
+
+When `STACKARR_IMAGE` ends in `:local`, Stackarr keeps that image and explains
+that it must be rebuilt from its source checkout. Managed app updates still run
+normally.
+
+The legacy `stackarr update run` command remains an alias for
+`stackarr update services`.
