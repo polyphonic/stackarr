@@ -12,6 +12,7 @@ export const nativeAppNames = [
   'immich',
   'pulsarr',
   'maintainerr',
+  'agregarr',
   'tracearr',
   'romm',
   'bookorbit',
@@ -163,6 +164,61 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
         required: ['itemId']
       }
     }
+  },
+  agregarr: {
+    notice:
+      'Agregarr collection ownership and destructive deletion stay in the private UI. Stackarr exposes bounded reads, targeted syncs, scheduled sync jobs, and home-order randomization.',
+    reads: {
+      status: operation('GET', '/api/v1/status', 'Read Agregarr version and restart/update status.', 'none'),
+      collections: operation('GET', '/api/v1/collections', 'List managed collection configurations.', 'api-key'),
+      preexisting_collections: operation(
+        'GET',
+        '/api/v1/preexisting',
+        'List linked pre-existing Plex collection configurations.',
+        'api-key'
+      ),
+      default_hubs: operation('GET', '/api/v1/defaulthubs', 'List managed native Plex hub settings.', 'api-key'),
+      sync_status: operation(
+        'GET',
+        '/api/v1/collections/sync/status',
+        'Read global collection sync status.',
+        'api-key'
+      ),
+      jobs: operation('GET', '/api/v1/settings/jobs', 'List Agregarr schedules and runtime job status.', 'api-key')
+    },
+    manages: {
+      sync_collection: {
+        ...operation(
+          'POST',
+          (input) => `/api/v1/collections/${numericIdentifier(input.itemId, 'itemId')}/sync`,
+          'Start a targeted collection sync.',
+          'api-key'
+        ),
+        required: ['itemId']
+      },
+      run_full_sync: operation(
+        'POST',
+        '/api/v1/settings/jobs/run',
+        'Run the full Plex collections synchronization job.',
+        'api-key',
+        { jobName: 'Plex Collections Sync' }
+      ),
+      run_quick_sync: operation(
+        'POST',
+        '/api/v1/settings/jobs/run',
+        'Run the incremental collections quick-sync job.',
+        'api-key',
+        { jobName: 'Collections Quick Sync' }
+      ),
+      randomize_home_order: operation(
+        'POST',
+        '/api/v1/settings/jobs/run',
+        'Shuffle only collection rows configured for random home ordering.',
+        'api-key',
+        { jobName: 'Plex Randomize Home Order' }
+      )
+    },
+    dangerous: {}
   },
   tracearr: {
     notice:
@@ -526,6 +582,8 @@ function operationSet(definition: NativeAppDefinition, kind: 'read' | 'manage' |
 function summarizeOperations(operations: Record<string, Operation>) {
   return Object.entries(operations).map(([name, value]) => ({
     name,
+    method: value.method,
+    endpoint: typeof value.path === 'string' ? value.path : 'Parameterized endpoint',
     description: value.description,
     requiresCredential: value.credential !== 'none' && value.credential !== 'optional-bearer',
     ...(value.required?.length ? { requiredInput: value.required } : {})

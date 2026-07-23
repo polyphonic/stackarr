@@ -56,6 +56,21 @@ export const serviceIntegrations = [
       'Stackarr can enable Lidarr alongside movies, TV, and books, then keep its links, credentials, download routing, backups, and companion music workflow settings in the same setup flow.'
   },
   {
+    slug: 'tidarr',
+    name: 'Tidarr',
+    logo: 'tidal',
+    category: 'Music acquisition',
+    role: 'Tidal download companion',
+    hero: 'Tidarr adds a Tidal-oriented acquisition path beside Lidarr for music that needs a dedicated downloader.',
+    whatItDoes: [
+      'Provides a focused download surface for Tidal music workflows.',
+      'Keeps its queue and credentials separate from the general torrent client.',
+      'Can hand completed music into the library layout managed around Lidarr.'
+    ],
+    stackarr:
+      'Stackarr can run Tidarr, expose its service link, preserve its configuration, and surface safe status and download actions. Tidal sign-in and the final Lidarr download-client connection remain explicit user steps.'
+  },
+  {
     slug: 'prowlarr',
     name: 'Prowlarr',
     logo: 'prowlarr',
@@ -206,6 +221,21 @@ export const serviceIntegrations = [
       'Stackarr can run Maintainerr, persist its data, link it through localhost or Portless, include it in backups, and wire Plex/Jellyfin, Radarr/Sonarr, Seerr, and qBittorrent when available while leaving destructive cleanup rules user-controlled.'
   },
   {
+    slug: 'agregarr',
+    name: 'Agregarr',
+    logo: 'agregarr',
+    category: 'Collections',
+    role: 'Plex collection curator',
+    hero: 'Agregarr builds and schedules Plex collections from your libraries, Arr monitoring state, and discovery sources.',
+    whatItDoes: [
+      'Creates managed Plex collections from sources such as Coming Soon, TMDb, and IMDb.',
+      'Promotes collections onto Plex Home and Discover while preserving handmade collections as pre-existing.',
+      'Keeps linked movie and TV collection rows synchronized on a schedule.'
+    ],
+    stackarr:
+      'Stackarr initializes Agregarr through its native API with the signed-in Plex owner token, connects Radarr and Sonarr, saves the generated API key, and creates linked Coming Soon rows as the default source ordered by release availability. The dashboard Collection Studio exposes common presets, Home and Discover visibility, shuffle, and targeted sync.'
+  },
+  {
     slug: 'tracearr',
     name: 'Tracearr',
     logo: 'tracearr',
@@ -324,6 +354,21 @@ export const serviceIntegrations = [
     ],
     stackarr:
       'Stackarr can create service databases, keep app-default mode lightweight, switch to shared Postgres where useful, and include database dumps in recoverable backups.'
+  },
+  {
+    slug: 'redis',
+    name: 'Redis',
+    logo: 'redis',
+    category: 'Data services',
+    role: 'Shared cache and message broker',
+    hero: 'Redis provides fast shared state for Stackarr apps that need caching, queues, or real-time coordination.',
+    whatItDoes: [
+      'Keeps frequently accessed application data in memory.',
+      'Supports queues, pub/sub, and short-lived coordination between app processes.',
+      'Provides a shared internal service without exposing another end-user dashboard.'
+    ],
+    stackarr:
+      'Stackarr provisions one private Redis service for compatible apps such as Tracearr, Immich, and RomM, persists its durable data, monitors the container, and keeps it off the public service-link surface.'
   },
   {
     slug: 'cloudflare',

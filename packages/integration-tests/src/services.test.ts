@@ -79,9 +79,11 @@ test('Portless browser links use direct service aliases by default', async () =>
           });
 
           const transmission = getServices().find((service) => service.name === 'transmission');
+          const plex = getServices().find((service) => service.name === 'plex');
           console.log(JSON.stringify({
             browserUrl: transmission?.browserUrl ?? '',
-            directUrl: directPortlessBrowserUrl('transmission', undefined, '/transmission/web/')
+            directUrl: directPortlessBrowserUrl('transmission', undefined, '/transmission/web/'),
+            plexUrl: plex?.browserUrl ?? ''
           }));
         `
       ],
@@ -96,7 +98,8 @@ test('Portless browser links use direct service aliases by default', async () =>
 
     assert.deepEqual(JSON.parse(stdout), {
       browserUrl: 'https://transmission.stack',
-      directUrl: 'https://transmission.stack/transmission/web/'
+      directUrl: 'https://transmission.stack/transmission/web/',
+      plexUrl: 'https://plex.stack/web/index.html'
     });
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -298,6 +301,58 @@ test('App catalog explains dependencies for unavailable media companions', async
   }
 });
 
+test('Service credentials fall back to authoritative local Arr and Plex configuration', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
+  const configRoot = path.join(root, 'config');
+  const preferencesPath = path.join(root, 'Plex Preferences.xml');
+
+  try {
+    await mkdir(path.join(configRoot, 'sonarr'), { recursive: true });
+    await writeFile(
+      path.join(configRoot, 'sonarr', 'config.xml'),
+      '<Config><ApiKey>fixture-sonarr-key</ApiKey></Config>'
+    );
+    await writeFile(
+      preferencesPath,
+      '<plist><dict><key>PlexOnlineToken</key><string>fixture-plex&amp;token</string></dict></plist>'
+    );
+
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { serviceApiKey } = await import('./packages/core/src/clients/serviceConfig.ts');
+          writeEnvConfig({
+            CONFIG_ROOT: ${JSON.stringify(configRoot)},
+            PLEX_PREFS_PATH: ${JSON.stringify(preferencesPath)},
+            SONARR_API_KEY: '',
+            PLEX_TOKEN: ''
+          });
+          const discovered = { sonarr: serviceApiKey('sonarr'), plex: serviceApiKey('plex') };
+          writeEnvConfig({ SONARR_API_KEY: 'explicit-override' });
+          console.log(JSON.stringify({ discovered, override: serviceApiKey('sonarr') }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: { ...process.env, STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db') }
+      }
+    );
+
+    assert.deepEqual(JSON.parse(stdout), {
+      discovered: { sonarr: 'fixture-sonarr-key', plex: 'fixture-plex&token' },
+      override: 'explicit-override'
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Docker runtime service URLs use reachable hosts and skip non-network helpers', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
 
@@ -354,13 +409,14 @@ test('Portless script registers configured tld aliases before host sync', async 
   assert.match(script, /PORTLESS_TLD="\$tld" portless hosts sync/);
 });
 
-test('Portless apply prunes legacy suffix and disabled Stackarr aliases', async () => {
+test('Portless apply restarts a mismatched proxy and keeps the configured suffix', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
   const binDir = path.join(root, 'bin');
   const homeDir = path.join(root, 'home');
   const routesDir = path.join(homeDir, '.portless');
   const routesFile = path.join(routesDir, 'routes.json');
   const fakePortless = path.join(binDir, 'portless');
+  const callsFile = path.join(root, 'portless-calls.log');
 
   try {
     await mkdir(binDir, { recursive: true });
@@ -377,10 +433,12 @@ test('Portless apply prunes legacy suffix and disabled Stackarr aliases', async 
         2
       ) + '\n'
     );
+    await writeFile(path.join(routesDir, 'proxy.tld'), 'stackarr\n');
     await writeFile(
       fakePortless,
       [
         '#!/bin/sh',
+        'printf "%s\\n" "$*" >> "$PORTLESS_CALLS_FILE"',
         'if [ "$1" = "proxy" ] && [ "$2" = "start" ]; then exit 0; fi',
         'if [ "$1" = "alias" ]; then exit 0; fi',
         'if [ "$1" = "hosts" ] && [ "$2" = "sync" ]; then exit 0; fi',
@@ -402,6 +460,7 @@ test('Portless apply prunes legacy suffix and disabled Stackarr aliases', async 
         STATE_ROOT: path.join(root, 'app/state'),
         LOG_ROOT: path.join(root, 'app/logs'),
         STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
+        PORTLESS_CALLS_FILE: callsFile,
         STACKARR_SERVICE_URL_MODE: 'portless',
         STACKARR_SERVICE_URL_SCHEME: 'https',
         STACKARR_SERVICE_URL_HOST_SUFFIX: 'stack',
@@ -415,11 +474,14 @@ test('Portless apply prunes legacy suffix and disabled Stackarr aliases', async 
 
     const routes = JSON.parse(await readFile(routesFile, 'utf8'));
     const hostnames = routes.map((route: { hostname: string }) => route.hostname).sort();
+    const calls = await readFile(callsFile, 'utf8');
 
     assert.ok(hostnames.includes('app.stack'));
     assert.ok(hostnames.includes('custom.stackarr'));
     assert.ok(!hostnames.includes('app.stackarr'));
     assert.ok(!hostnames.includes('maintainerr.stack'));
+    assert.match(calls, /^proxy stop$/m);
+    assert.match(calls, /^proxy start --tld stack$/m);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

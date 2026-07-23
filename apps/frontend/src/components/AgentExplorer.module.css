@@ -1,0 +1,428 @@
+.workspace {
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--soft-shadow);
+}
+
+.workspaceBar,
+.sectionIntro,
+.contractHeader,
+.contractActions,
+.workspaceTools,
+.railHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.workspaceBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 64px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.tabs {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  gap: 4px;
+}
+
+.workspaceTools {
+  width: 100%;
+}
+
+.search {
+  min-width: 0;
+  flex: 1;
+}
+
+.tab,
+.activeTab,
+.source,
+.activeSource,
+.railHeading button,
+.sourceList button {
+  border: 0;
+  font: inherit;
+}
+
+.tab,
+.activeTab {
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tab span,
+.activeTab span {
+  margin-left: 5px;
+  font-size: 11px;
+}
+
+.activeTab {
+  background: var(--nav-active-bg);
+  color: var(--text);
+}
+
+.search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--input-bg, var(--glass-subtle));
+  color: var(--text);
+}
+
+.secondaryAction,
+.contractActions a,
+.sectionIntro > a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.apiLayout {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  min-height: 620px;
+}
+
+.sourceRail {
+  padding: 14px 10px;
+  border-right: 1px solid var(--glass-border);
+  background: var(--glass-subtle);
+}
+
+.railHeading {
+  padding: 0 5px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.railHeading button,
+.sourceList button {
+  min-height: 34px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.source,
+.activeSource {
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.activeSource {
+  background: var(--nav-active-bg);
+}
+
+.source small,
+.activeSource small,
+.contractHeader p,
+.sectionIntro p,
+.sourceList small,
+.table td small,
+.muted,
+.discoveryNote {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.discoveryNote {
+  margin: 12px 6px 0;
+  line-height: 1.5;
+}
+
+.contractPane,
+.actionPane {
+  min-width: 0;
+  padding: clamp(18px, 2.5vw, 30px);
+}
+
+.contractHeader {
+  align-items: flex-start;
+  padding-bottom: 20px;
+}
+
+.contractHeader h2,
+.sectionIntro h2,
+.emptyState h2 {
+  margin: 2px 0 5px;
+  color: var(--text);
+  font-size: 20px;
+  letter-spacing: -0.025em;
+}
+
+.contractHeader p,
+.sectionIntro p,
+.emptyState p {
+  max-width: 720px;
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.contractActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.contractMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+
+.contractMeta div {
+  min-width: 0;
+  padding: 11px 13px;
+}
+
+.contractMeta div + div {
+  border-left: 1px solid var(--glass-border);
+}
+
+.contractMeta dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.contractMeta dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tableScroller {
+  overflow: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.table td {
+  max-width: 430px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--glass-border);
+  vertical-align: top;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table td code,
+.table td strong,
+.sourceList small {
+  display: block;
+}
+
+.table td code {
+  overflow-wrap: anywhere;
+}
+
+.method,
+.risk,
+.deprecated {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--glass-subtle);
+  color: var(--muted);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+}
+
+.get,
+.read {
+  background: color-mix(in srgb, var(--success, #24a46d) 13%, transparent);
+  color: var(--success, #167951);
+}
+
+.post,
+.write {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--accent);
+}
+
+.put,
+.patch {
+  background: color-mix(in srgb, #d68b16 14%, transparent);
+  color: #a76508;
+}
+
+.delete,
+.dangerous,
+.deprecated {
+  background: color-mix(in srgb, var(--danger, #d9485f) 13%, transparent);
+  color: var(--danger, #ba2941);
+}
+
+.deprecated {
+  margin-top: 5px;
+}
+
+.sectionIntro {
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.sourceList {
+  display: grid;
+  gap: 9px;
+}
+
+.sourceList button,
+.sourceList a {
+  padding: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nativeSection {
+  min-width: 0;
+}
+
+.emptyState {
+  max-width: 620px;
+  margin: 80px auto;
+  text-align: center;
+}
+
+.error {
+  color: var(--danger, #ba2941);
+  font-size: 12px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .workspaceBar,
+  .workspaceTools,
+  .contractHeader,
+  .sectionIntro {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search input {
+    width: 100%;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    grid-template-columns: repeat(3, minmax(170px, 1fr));
+  }
+
+  .apiLayout {
+    display: block;
+  }
+
+  .sourceRail {
+    display: flex;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .railHeading {
+    min-width: 120px;
+  }
+
+  .source,
+  .activeSource {
+    min-width: 150px;
+  }
+
+  .contractMeta {
+    grid-template-columns: 1fr;
+  }
+
+  .contractMeta div + div {
+    border-top: 1px solid var(--glass-border);
+    border-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace * {
+    scroll-behavior: auto;
+  }
+}

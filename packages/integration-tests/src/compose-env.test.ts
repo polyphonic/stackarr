@@ -57,6 +57,48 @@ test('compose env generation preserves runtime roots and the release image', asy
   }
 });
 
+test('compose env generation preserves passwords with shell and URL punctuation', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-special-password-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const password = `space $dollar $$pair 'single' "double" :/@\\ unicode-✓`;
+
+  try {
+    await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        APP_ROOT: path.join(root, 'app'),
+        CONFIG_ROOT: path.join(root, 'app/config'),
+        STATE_ROOT: path.join(root, 'app/state'),
+        LOG_ROOT: path.join(root, 'app/logs'),
+        STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+        STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
+        PASSWORD: password
+      }
+    });
+
+    const content = await readFile(composeEnvFile, 'utf8');
+    assert.match(content, /^PASSWORD="space \$\$dollar \$\$\$\$pair/m);
+
+    const { stdout } = await execFile(
+      'bash',
+      ['-c', 'source "$1"; load_compose_runtime_env; printf "%s" "$PASSWORD"', 'bash', commonScript],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PASSWORD: '',
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile
+        }
+      }
+    );
+
+    assert.equal(stdout, password);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('compose env generation keeps legacy Postgres data directory when present', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');
@@ -109,6 +151,9 @@ test('compose env can bootstrap Postgres mode without a SQLite config file', asy
         'STACKARR_DATABASE_URL="postgres://stackarr:secret@database:5432/stackarr-main"',
         'STACKARR_LOG_DATABASE_URL="postgres://stackarr:secret@database:5432/stackarr-log"',
         'STACKARR_DATABASE_MODE="postgres"',
+        'STACKARR_SERVICE_URL_MODE="portless"',
+        'STACKARR_SERVICE_URL_SCHEME="https"',
+        'STACKARR_SERVICE_URL_HOST_SUFFIX="homelab"',
         'ENABLE_MAINTAINERR="false"',
         ''
       ].join('\n')
@@ -118,7 +163,7 @@ test('compose env can bootstrap Postgres mode without a SQLite config file', asy
       'bash',
       [
         '-c',
-        'source "$1"; load_env; printf "%s\\n%s\\n%s\\n" "$STACKARR_DATABASE_MODE" "$STACKARR_DATABASE_URL" "$ENABLE_MAINTAINERR"',
+        'source "$1"; load_env; printf "%s\\n%s\\n%s\\n%s\\n%s\\n" "$STACKARR_DATABASE_MODE" "$STACKARR_DATABASE_URL" "$ENABLE_MAINTAINERR" "$STACKARR_SERVICE_URL_MODE" "$STACKARR_SERVICE_URL_HOST_SUFFIX"',
         'bash',
         commonScript
       ],
@@ -137,7 +182,10 @@ test('compose env can bootstrap Postgres mode without a SQLite config file', asy
       }
     );
 
-    assert.equal(stdout, 'postgres\npostgres://stackarr:secret@database:5432/stackarr-main\nfalse\n');
+    assert.equal(
+      stdout,
+      'postgres\npostgres://stackarr:secret@database:5432/stackarr-main\nfalse\nportless\nhomelab\n'
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

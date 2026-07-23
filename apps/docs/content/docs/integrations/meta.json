@@ -6,6 +6,7 @@
     "sonarr",
     "radarr",
     "lidarr",
+    "tidarr",
     "prowlarr",
     "bazarr",
     "seerr",
@@ -16,6 +17,7 @@
     "plex",
     "pulsarr",
     "maintainerr",
+    "agregarr",
     "tracearr",
     "immich",
     "romm",
@@ -24,6 +26,7 @@
     "recyclarr",
     "flaresolverr",
     "postgres",
+    "redis",
     "cloudflare"
   ]
 }

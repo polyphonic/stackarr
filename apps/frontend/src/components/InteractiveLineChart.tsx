@@ -36,8 +36,10 @@ export function InteractiveLineChart({
 }) {
   const values = series.flatMap((item) => item.data.map((point) => point.y));
   const maximum = Math.max(compact ? 1 : 20, Math.ceil(Math.max(...values, 0) / 10) * 10);
-  const yStep = maximum <= 20 ? 5 : 10;
-  const yTickValues = Array.from({ length: Math.floor(maximum / yStep) + 1 }, (_, index) => index * yStep);
+  const yStep = maximum <= 20 ? 5 : maximum <= 100 ? 10 : Math.ceil(maximum / 5);
+  const yTickValues = compact
+    ? []
+    : Array.from({ length: Math.min(11, Math.floor(maximum / yStep) + 1) }, (_, index) => index * yStep);
   const width = compact ? 92 : 620;
 
   return (

@@ -3,7 +3,11 @@ import { type McpProfile, resolveMcpProfile, stackarrVersion, type ToolCategory 
 import { getRegisteredControlPlaneSummary, registerStackarrTools } from './registry';
 
 export function createStackarrMcpServer(
-  options: { profile?: McpProfile; groups?: ToolCategory[]; caller?: `mcp-remote:${string}` | 'mcp-local' } = {}
+  options: {
+    profile?: McpProfile;
+    groups?: ToolCategory[];
+    caller?: `mcp-remote:${string}` | 'mcp-local' | `mcp-local:${string}`;
+  } = {}
 ) {
   const profile = options.profile ?? resolveMcpProfile();
   const summary = getRegisteredControlPlaneSummary(profile, { groups: options.groups });
@@ -23,6 +27,11 @@ export function createStackarrMcpServer(
       ].join('\n')
     }
   );
-  registerStackarrTools(server, profile, { groups: options.groups, caller: options.caller });
+  registerStackarrTools(server, profile, { groups: options.groups, caller: options.caller ?? localCaller() });
   return server;
+}
+
+function localCaller(): 'mcp-local' | `mcp-local:${string}` {
+  const client = process.env.STACKARR_MCP_CLIENT?.trim().toLowerCase();
+  return client && /^[a-z0-9][a-z0-9_.-]{0,31}$/.test(client) ? `mcp-local:${client}` : 'mcp-local';
 }

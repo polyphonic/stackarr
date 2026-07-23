@@ -22,7 +22,8 @@ function normalizeHostSuffix(value) {
 try {
   if (!dbPath) throw new Error('STACKARR_DATABASE_FILE is required');
   const value = readSetting('stackarr.settings');
-  const settings = value ? JSON.parse(value) : {};
+  if (!value) process.exit(0);
+  const settings = JSON.parse(value);
   const ui = settings.ui && typeof settings.ui === 'object' ? settings.ui : {};
   const mode = ['localhost', 'loopback', 'portless'].includes(ui.serviceUrlMode) ? ui.serviceUrlMode : 'localhost';
   const scheme = ui.serviceUrlScheme === 'http' ? 'http' : 'https';
@@ -34,8 +35,8 @@ try {
   console.log('export STACKARR_SERVICE_URL_HOST_SUFFIX=' + quote(suffix));
   console.log('export STACKARR_UNIFY_SERVICE_URLS=' + quote(unify));
 } catch {
-  console.log("export STACKARR_SERVICE_URL_MODE='localhost'");
-  console.log("export STACKARR_SERVICE_URL_SCHEME='https'");
-  console.log("export STACKARR_SERVICE_URL_HOST_SUFFIX='stack'");
-  console.log("export STACKARR_UNIFY_SERVICE_URLS='false'");
+  // Keep values already loaded from the generated Compose environment when the
+  // host cannot connect to a container-only PostgreSQL hostname. Callers set
+  // portable defaults before invoking this exporter.
+  process.exit(0);
 }

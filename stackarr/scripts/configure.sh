@@ -44,6 +44,7 @@ BAZARR_URL="$(service_url bazarr "$BAZARR_URL" 6767)"
 SEERR_URL="$(service_url seerr "$SEERR_URL" 5055)"
 PULSARR_URL="$(service_url pulsarr "$PULSARR_URL" "${PULSARR_PORT:-3003}")"
 MAINTAINERR_URL="$(service_url maintainerr "$MAINTAINERR_URL" "${MAINTAINERR_PORT:-6246}")"
+AGREGARR_URL="$(service_url agregarr "$AGREGARR_URL" "${AGREGARR_PORT:-7171}")"
 TRACEARR_URL="$(service_url tracearr "$TRACEARR_URL" "${TRACEARR_PORT:-3000}")"
 ROMM_URL="$(service_url romm "${ROMM_URL:-http://127.0.0.1:${ROMM_WEB_PORT:-7583}}" "${ROMM_WEB_PORT:-7583}")"
 FLARESOLVERR_URL="$(service_url flaresolverr "${FLARESOLVERR_URL:-http://127.0.0.1:8191}" 8191)"
@@ -105,6 +106,31 @@ data = json.loads(Path(sys.argv[1]).read_text())
 key = ((data.get("main") or {}).get("apiKey") or "").strip()
 if key:
     print(key)
+PY
+}
+
+read_plex_owner_token() {
+    local token="${PLEX_TOKEN:-}"
+    local docker_preferences="$PLEX_CONFIG_PATH/Library/Application Support/Plex Media Server/Preferences.xml"
+
+    if [[ -n "$token" ]]; then
+        printf '%s\n' "$token"
+        return 0
+    fi
+
+    if [[ "$(lowercase "${PLEX_INSTALL_MODE:-native}")" == "native" ]]; then
+        read_native_plex_pref "PlexOnlineToken"
+        return
+    fi
+
+    [[ -f "$docker_preferences" ]] || return 1
+    python3 - "$docker_preferences" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+token = ET.parse(sys.argv[1]).getroot().get("PlexOnlineToken", "").strip()
+if token:
+    print(token)
 PY
 }
 
@@ -2501,9 +2527,41 @@ radarr_download_payload() {
     local priority
 
     priority="$(torrent_client_priority transmission)"
-    cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$TRANSMISSION_PASSWORD"},{"name":"movieCategory","value":"$category"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
-EOF
+    transmission_download_payload "movieCategory" "$category" "$priority"
+}
+
+transmission_download_payload() {
+    local category_field="$1"
+    local category="$2"
+    local priority="$3"
+
+    python3 - "$category_field" "$category" "$priority" <<'PY'
+import json
+import os
+import sys
+
+category_field, category, priority = sys.argv[1:]
+payload = {
+    "enable": True,
+    "protocol": "torrent",
+    "priority": int(priority),
+    "name": "Transmission",
+    "implementation": "Transmission",
+    "configContract": "TransmissionSettings",
+    "fields": [
+        {"name": "host", "value": "transmission"},
+        {"name": "port", "value": 9091},
+        {"name": "useSsl", "value": False},
+        {"name": "urlBase", "value": "/transmission/"},
+        {"name": "username", "value": os.environ.get("USERNAME", "")},
+        {"name": "password", "value": os.environ.get("TRANSMISSION_PASSWORD", "")},
+        {"name": category_field, "value": category},
+    ],
+    "removeCompletedDownloads": True,
+    "removeFailedDownloads": True,
+}
+print(json.dumps(payload, separators=(",", ":")))
+PY
 }
 
 qbittorrent_download_payload() {
@@ -2516,9 +2574,40 @@ qbittorrent_download_payload() {
 
     priority="$(torrent_client_priority qbittorrent)"
 
-    cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"qBittorrent","implementation":"QBittorrent","configContract":"QBittorrentSettings","fields":[{"name":"host","value":"qbittorrent"},{"name":"port","value":${QBITTORRENT_WEBUI_PORT:-8081}},{"name":"useSsl","value":false},{"name":"urlBase","value":""},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$QBITTORRENT_PASSWORD"},{"name":"$category_field","value":"$category"},{"name":"$imported_category_field","value":""},{"name":"$recent_priority_field","value":0},{"name":"$older_priority_field","value":0},{"name":"initialState","value":0},{"name":"sequentialOrder","value":false},{"name":"firstAndLast","value":false},{"name":"contentLayout","value":0}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
-EOF
+    python3 - "$category_field" "$imported_category_field" "$recent_priority_field" "$older_priority_field" "$category" "$priority" <<'PY'
+import json
+import os
+import sys
+
+category_field, imported_field, recent_field, older_field, category, priority = sys.argv[1:]
+payload = {
+    "enable": True,
+    "protocol": "torrent",
+    "priority": int(priority),
+    "name": "qBittorrent",
+    "implementation": "QBittorrent",
+    "configContract": "QBittorrentSettings",
+    "fields": [
+        {"name": "host", "value": "qbittorrent"},
+        {"name": "port", "value": int(os.environ.get("QBITTORRENT_WEBUI_PORT", "8081"))},
+        {"name": "useSsl", "value": False},
+        {"name": "urlBase", "value": ""},
+        {"name": "username", "value": os.environ.get("USERNAME", "")},
+        {"name": "password", "value": os.environ.get("QBITTORRENT_PASSWORD", "")},
+        {"name": category_field, "value": category},
+        {"name": imported_field, "value": ""},
+        {"name": recent_field, "value": 0},
+        {"name": older_field, "value": 0},
+        {"name": "initialState", "value": 0},
+        {"name": "sequentialOrder", "value": False},
+        {"name": "firstAndLast", "value": False},
+        {"name": "contentLayout", "value": 0},
+    ],
+    "removeCompletedDownloads": True,
+    "removeFailedDownloads": True,
+}
+print(json.dumps(payload, separators=(",", ":")))
+PY
 }
 
 radarr_qbittorrent_download_payload() {
@@ -2531,9 +2620,7 @@ sonarr_download_payload() {
     local priority
 
     priority="$(torrent_client_priority transmission)"
-    cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$TRANSMISSION_PASSWORD"},{"name":"tvCategory","value":"$category"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
-EOF
+    transmission_download_payload "tvCategory" "$category" "$priority"
 }
 
 sonarr_qbittorrent_download_payload() {
@@ -2545,9 +2632,7 @@ lidarr_download_payload() {
     local priority
 
     priority="$(torrent_client_priority transmission)"
-    cat <<EOF
-{"enable":true,"protocol":"torrent","priority":${priority},"name":"Transmission","implementation":"Transmission","configContract":"TransmissionSettings","fields":[{"name":"host","value":"transmission"},{"name":"port","value":9091},{"name":"useSsl","value":false},{"name":"urlBase","value":"/transmission/"},{"name":"username","value":"$USERNAME"},{"name":"password","value":"$TRANSMISSION_PASSWORD"},{"name":"musicCategory","value":"$LIDARR_CATEGORY"}],"removeCompletedDownloads":true,"removeFailedDownloads":true}
-EOF
+    transmission_download_payload "musicCategory" "$LIDARR_CATEGORY" "$priority"
 }
 
 lidarr_qbittorrent_download_payload() {
@@ -2688,6 +2773,7 @@ CONFIG_ROOT = Path(os.environ.get('CONFIG_ROOT', ''))
 PLEX_PREFS_PATH = Path(os.environ.get('PLEX_PREFS_PATH', ''))
 USERNAME = os.environ.get('USERNAME', 'stackarr').strip() or 'stackarr'
 PASSWORD = os.environ.get('PULSARR_PASSWORD') or os.environ.get('PASSWORD', '')
+SAVED_API_KEY = os.environ.get('PULSARR_API_KEY', '').strip()
 USER_EMAIL = os.environ.get('USER_EMAIL', '').strip()
 PLEX_SERVER_URL = os.environ.get('PULSARR_PLEX_SERVER_URL', 'http://host.docker.internal:32400').strip() or 'http://host.docker.internal:32400'
 RADARR_DEFAULT_PROFILE = os.environ.get('STACKARR_MOVIE_DEFAULT_PROFILE', 'HD Lite').strip() or 'HD Lite'
@@ -2695,6 +2781,7 @@ SONARR_DEFAULT_PROFILE = os.environ.get('STACKARR_TV_DEFAULT_PROFILE', 'HD Lite'
 COOKIE_JAR = http.cookiejar.CookieJar()
 OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_JAR))
 SESSION_COOKIE = ''
+USE_API_KEY = False
 API_KEY_FILE = Path(os.environ.get('PULSARR_DISCOVERED_API_KEY_FILE', ''))
 
 
@@ -2708,6 +2795,8 @@ def request(method, path, payload=None, ok=(200, 201, 204, 409)):
     global SESSION_COOKIE
     if SESSION_COOKIE:
         headers['Cookie'] = SESSION_COOKIE
+    if USE_API_KEY and SAVED_API_KEY:
+        headers['X-Api-Key'] = SAVED_API_KEY
     if payload is not None:
         data = json.dumps(payload).encode()
         headers['Content-Type'] = 'application/json'
@@ -2796,7 +2885,27 @@ def login():
     return False
 
 
+def authenticate():
+    global USE_API_KEY
+    if SAVED_API_KEY:
+        USE_API_KEY = True
+        try:
+            request('GET', '/v1/users/users/list', ok=(200,))
+            note('OK', 'Pulsarr authenticated with its saved Stackarr agent key')
+            return True
+        except Exception:
+            USE_API_KEY = False
+
+    return login()
+
+
 def ensure_agent_api_key():
+    if USE_API_KEY and SAVED_API_KEY:
+        if str(API_KEY_FILE):
+            API_KEY_FILE.write_text(SAVED_API_KEY)
+        note('OK', 'Pulsarr agent access connected to Stackarr')
+        return
+
     _, payload = request('GET', '/v1/api-keys/api-keys', ok=(200,))
     keys = payload.get('apiKeys', []) if isinstance(payload, dict) else []
     key = next((str(item.get('key') or '').strip() for item in keys if item.get('is_active') is not False), '')
@@ -2921,8 +3030,8 @@ try:
         }, ok=(201, 409))
         note('OK', 'Pulsarr admin account created from shared Stackarr credentials' if status == 201 else 'Pulsarr admin account already exists')
 
-    if not login():
-        note('WARN', 'Pulsarr Arr wiring skipped because admin login failed')
+    if not authenticate():
+        note('WARN', 'Pulsarr Arr wiring skipped because neither the saved agent key nor admin login was accepted')
         raise SystemExit(0)
 
     ensure_agent_api_key()
@@ -3607,6 +3716,8 @@ configure_tinymediamanager_api() {
     fi
 
     local config_file="$CONFIG_ROOT/tinymediamanager/data/tmm.json"
+    local movies_file="$CONFIG_ROOT/tinymediamanager/data/movies.json"
+    local tv_file="$CONFIG_ROOT/tinymediamanager/data/tvShows.json"
     local key_file changed_file
     key_file="$(mktemp)"
     changed_file="$(mktemp)"
@@ -3616,7 +3727,11 @@ configure_tinymediamanager_api() {
         return 0
     fi
 
-    TMM_KEY_FILE="$key_file" TMM_CHANGED_FILE="$changed_file" python3 - "$config_file" <<'PY'
+    TMM_KEY_FILE="$key_file" \
+        TMM_CHANGED_FILE="$changed_file" \
+        ENABLE_AGREGARR="${ENABLE_AGREGARR:-false}" \
+        AGREGARR_PLACEHOLDER_FOLDER="${AGREGARR_PLACEHOLDER_FOLDER:-_Trailers}" \
+        python3 - "$config_file" "$movies_file" "$tv_file" <<'PY'
 import json
 import os
 import secrets
@@ -3633,6 +3748,24 @@ after = json.dumps(config, sort_keys=True)
 if before != after:
     path.write_text(json.dumps(config, indent=2) + '\n')
     Path(os.environ['TMM_CHANGED_FILE']).write_text('changed')
+
+agregarr_enabled = os.environ.get('ENABLE_AGREGARR', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+placeholder_folder = os.environ.get('AGREGARR_PLACEHOLDER_FOLDER', '_Trailers').strip()
+if placeholder_folder in {'', '.', '..'} or '/' in placeholder_folder or '\\' in placeholder_folder:
+    raise SystemExit('AGREGARR_PLACEHOLDER_FOLDER must be a single folder name')
+if agregarr_enabled and placeholder_folder:
+    for media_path in map(Path, sys.argv[2:]):
+        if not media_path.is_file():
+            continue
+        media_config = json.loads(media_path.read_text())
+        skip_folders = media_config.get('skipFolder')
+        if not isinstance(skip_folders, list):
+            skip_folders = []
+        if not any(str(folder).casefold() == placeholder_folder.casefold() for folder in skip_folders):
+            media_config['skipFolder'] = [*skip_folders, placeholder_folder]
+            media_path.write_text(json.dumps(media_config, indent=2) + '\n')
+            Path(os.environ['TMM_CHANGED_FILE']).write_text('changed')
+
 Path(os.environ['TMM_KEY_FILE']).write_text(config['httpApiKey'])
 PY
 
@@ -3659,6 +3792,54 @@ configure_romm_stack() {
     ok "RomM setup is manual; open $ROMM_URL and complete owner setup, library choices, and first scan in RomM"
 }
 
+configure_agregarr_stack() {
+    local plex_token plex_host browser_url key_file
+
+    if ! optional_service_enabled agregarr; then
+        return 0
+    fi
+
+    plex_token="$(read_plex_owner_token || true)"
+    if [[ -z "$plex_token" ]]; then
+        warn "Agregarr setup skipped because a signed-in Plex owner token is not available yet"
+        return 0
+    fi
+
+    if [[ "$(lowercase "${PLEX_INSTALL_MODE:-native}")" == "docker" ]]; then
+        plex_host="plex"
+    else
+        plex_host="host.docker.internal"
+    fi
+    browser_url="$(browser_service_url agregarr || printf '%s' "$AGREGARR_URL")"
+    key_file="$(mktemp "${TMPDIR:-/tmp}/stackarr-agregarr-key.XXXXXX")"
+
+    if AGREGARR_URL="$AGREGARR_URL" \
+        AGREGARR_SETTINGS_PATH="$CONFIG_ROOT/agregarr/settings.json" \
+        AGREGARR_KEY_OUTPUT="$key_file" \
+        AGREGARR_BROWSER_URL="$browser_url" \
+        AGREGARR_PLEX_HOST="$plex_host" \
+        AGREGARR_PLEX_PORT="${PLEX_DOCKER_PORT:-32400}" \
+        AGREGARR_PLACEHOLDER_FOLDER="${AGREGARR_PLACEHOLDER_FOLDER:-_Trailers}" \
+        PLEX_TOKEN="$plex_token" \
+        RADARR_API_KEY="$RADARR_KEY" \
+        RADARR_DEFAULT_PROFILE="$RADARR_DEFAULT_PROFILE" \
+        SONARR_API_KEY="$SONARR_KEY" \
+        SONARR_DEFAULT_PROFILE="$SONARR_DEFAULT_PROFILE" \
+        ENABLE_MOVIES="${ENABLE_MOVIES:-true}" \
+        ENABLE_TV_SHOWS="${ENABLE_TV_SHOWS:-true}" \
+        python3 "$ROOT_DIR/scripts/agregarr-configure.py"; then
+        if [[ -s "$key_file" ]]; then
+            AGREGARR_API_KEY="$(cat "$key_file")"
+            set_env_value "AGREGARR_API_KEY" "$AGREGARR_API_KEY"
+        fi
+        ok "Agregarr connected to Plex and the enabled Arr libraries"
+    else
+        warn "Agregarr native onboarding did not complete; re-run 'stackarr configure --force' after Plex is signed in"
+    fi
+
+    rm -f "$key_file"
+}
+
 if optional_service_enabled movies; then
     wait_for_http "Radarr" "$RADARR_URL"
 fi
@@ -3683,6 +3864,9 @@ if optional_service_enabled maintainerr; then
     else
         ok "Maintainerr enabled with no cleanup presets configured"
     fi
+fi
+if optional_service_enabled agregarr; then
+    wait_for_http "Agregarr" "$AGREGARR_URL/api/v1/status"
 fi
 if optional_service_enabled tracearr; then
     wait_for_http "Tracearr" "$TRACEARR_URL"
@@ -4031,15 +4215,10 @@ if optional_service_enabled sonarr4k; then
     delete_named_quality_profile "Sonarr 4K old Any profile removed" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_KEY" "Any"
 fi
 
-SEERR_DB="$CONFIG_ROOT/seerr/db/db.sqlite3"
-apply_movie_monitoring_policy "Radarr movie monitoring policy applied" "$RADARR_URL/api/v3/movie" "$RADARR_URL/api/v3/movie" "$RADARR_KEY" "$SEERR_DB" false
-apply_series_monitoring_policy "Sonarr series monitoring policy applied" "$SONARR_URL/api/v3/series" "$SONARR_URL/api/v3/series" "$SONARR_KEY" "$SEERR_DB" false
-if optional_service_enabled radarr4k; then
-    apply_movie_monitoring_policy "Radarr 4K movie monitoring policy applied" "$RADARR_4K_URL/api/v3/movie" "$RADARR_4K_URL/api/v3/movie" "$RADARR_4K_KEY" "$SEERR_DB" true
-fi
-if optional_service_enabled sonarr4k; then
-    apply_series_monitoring_policy "Sonarr 4K series monitoring policy applied" "$SONARR_4K_URL/api/v3/series" "$SONARR_4K_URL/api/v3/series" "$SONARR_4K_KEY" "$SEERR_DB" true
-fi
+# Monitoring state is intentionally owned by Sonarr/Radarr and the request
+# managers that add content. Never derive it from Seerr's local request
+# database: it may be stale, Seerr may be disabled, and it must not override
+# Pulsarr-managed or manually monitored media during `stackarr configure`.
 
 configure_servarr_auth "Radarr UI auth configured" "$RADARR_URL/api/v3/config/host" "$RADARR_KEY" "$RADARR_PASSWORD"
 configure_servarr_auth "Sonarr UI auth configured" "$SONARR_URL/api/v3/config/host" "$SONARR_KEY" "$SONARR_PASSWORD"
@@ -4061,6 +4240,7 @@ fi
 "$ROOT_DIR/scripts/bookorbit.sh" credentials apply --wait || true
 configure_bazarr_auth || true
 configure_native_plex_publish_state || true
+configure_agregarr_stack || true
 
 echo ""
 if optional_service_enabled seerr && flag_enabled "${STACKARR_CONFIGURE_SEERR:-false}"; then

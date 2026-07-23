@@ -10,7 +10,7 @@ import type { RiskLevel, StackarrScope } from '../safety/scopes';
 export type AgentActivityRecord = {
   id: string;
   timestamp: string;
-  caller: 'mcp-local' | 'dashboard' | 'scheduled' | 'future-remote' | `mcp-remote:${string}`;
+  caller: 'mcp-local' | `mcp-local:${string}` | 'dashboard' | 'scheduled' | 'future-remote' | `mcp-remote:${string}`;
   toolName: string;
   category: string;
   scopes: StackarrScope[];

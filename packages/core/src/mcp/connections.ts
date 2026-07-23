@@ -71,7 +71,7 @@ export function getMcpConnectionKit(options: ConnectionKitOptions): McpConnectio
   const profile = options.profile ?? resolveMcpProfile();
   const groups = uniqueGroups(options.groups);
   const containerName = normalizeContainerName(options.containerName);
-  const dockerArgs = dockerMcpArgs(profile, groups, containerName);
+  const dockerArgs = dockerMcpArgs(profile, groups, containerName, options.client);
   const dockerCommand = shellJoin(['docker', ...dockerArgs]);
   const base = {
     client: options.client,
@@ -157,8 +157,8 @@ export function getMcpConnectionKits(options: Omit<ConnectionKitOptions, 'client
   return mcpClientIds.map((client) => getMcpConnectionKit({ ...options, client }));
 }
 
-function dockerMcpArgs(profile: McpProfile, groups: ToolCategory[], containerName: string) {
-  const args = ['exec', '-i', '-e', `STACKARR_MCP_PROFILE=${profile}`];
+function dockerMcpArgs(profile: McpProfile, groups: ToolCategory[], containerName: string, client: McpClientId) {
+  const args = ['exec', '-i', '-e', `STACKARR_MCP_PROFILE=${profile}`, '-e', `STACKARR_MCP_CLIENT=${client}`];
   if (groups.length > 0) {
     args.push('-e', `STACKARR_MCP_GROUPS=${groups.join(',')}`);
   }
@@ -186,7 +186,9 @@ function localClientCommand(
       'exec',
       '-i',
       '-e',
-      `STACKARR_MCP_PROFILE=${profile}`
+      `STACKARR_MCP_PROFILE=${profile}`,
+      '-e',
+      `STACKARR_MCP_CLIENT=${client}`
     ];
     if (groups.length > 0) args.push('-e', `STACKARR_MCP_GROUPS=${groups.join(',')}`);
     args.push(containerName, '/app/bin/stackarr', 'mcp', 'serve');

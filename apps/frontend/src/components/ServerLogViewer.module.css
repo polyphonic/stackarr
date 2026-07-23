@@ -65,12 +65,15 @@
   display: grid;
 }
 .output header small,
-.output header span {
+.output header span,
+.output header button {
   color: var(--muted);
   font-size: 10px;
 }
-.output header span {
+.output header span,
+.output header button {
   padding: 4px 8px;
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
   background: var(--glass-subtle);
 }

@@ -1,6 +1,13 @@
 'use client';
 
 import type { StackarrEnv, StackarrSettings } from '@stackarr/core';
+import {
+  accountUsernameMaximumLength,
+  accountUsernameValidationError,
+  portablePasswordMaximumLength,
+  portablePasswordMinimumLength,
+  portablePasswordValidationError
+} from '@stackarr/core/passwordPolicy';
 import { Button, icons, Label, Switch } from '@stackarr/ui';
 import { applyStackarrDocumentTheme } from '@stackarr/ui/theme-provider';
 import { toast } from '@stackarr/ui/toast';
@@ -217,9 +224,6 @@ const cloudflareServiceOptions = [
   'prowlarr',
   'bazarr'
 ];
-const portablePasswordPattern = /^[A-Za-z0-9._-]+$/;
-const portablePasswordDescription = 'letters, numbers, dot, underscore, and hyphen';
-const portablePasswordMinimumLength = 8;
 const EyeIcon = icons.eye;
 const KeyIcon = icons.key;
 const LockIcon = icons.lock;
@@ -304,6 +308,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
     .filter((key) => telemetryFeatureEnabled || !key.startsWith('STACKARR_TELEMETRY_'))
     .sort();
   const passwordValidationMessage = firstPortablePasswordValidationError(draftEnv, env);
+  const usernameValidationMessage = accountUsernameValidationError(envValue('USERNAME'), 'Username') ?? '';
   const protectedEnvPasswordChanged = protectedEnvChangeRequiresCurrentPassword(draftEnv, env);
   const cloudflareRoutes = parseCloudflareRoutes(envValue('CLOUDFLARE_TUNNEL_ROUTES'));
   const selectedSecurityService = securityServices.find((service) => service.id === securityServiceId);
@@ -355,10 +360,11 @@ export function SettingsEditor({ section, env, settings }: Props) {
   }
 
   async function save() {
-    if (passwordValidationMessage) {
+    if (usernameValidationMessage || passwordValidationMessage) {
+      const validationMessage = usernameValidationMessage || passwordValidationMessage;
       setState('error');
-      setMessage(passwordValidationMessage);
-      toast.error(passwordValidationMessage);
+      setMessage(validationMessage);
+      toast.error(validationMessage);
       return;
     }
 
@@ -502,6 +508,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
     const passwordChanged = Boolean(accountPassword || accountPasswordConfirm);
     const requiresCurrentPassword = usernameChanged || emailChanged || apiKeyChanged || passwordChanged;
     const validation =
+      accountUsernameValidationError(envValue('USERNAME'), 'Username') ||
       currentAdminPasswordError(accountCurrentPassword, requiresCurrentPassword) ||
       (passwordChanged ? passwordConfirmationError('Account password', accountPassword, accountPasswordConfirm) : '') ||
       (!requiresCurrentPassword ? 'No account changes to save.' : '');
@@ -1267,7 +1274,13 @@ export function SettingsEditor({ section, env, settings }: Props) {
               </div>
             </div>
             <FormGrid>
-              <Text label="Username" value={envValue('USERNAME')} onChange={(value) => updateEnv('USERNAME', value)} />
+              <Text
+                label="Username"
+                value={envValue('USERNAME')}
+                error={usernameValidationMessage}
+                maxLength={accountUsernameMaximumLength}
+                onChange={(value) => updateEnv('USERNAME', value)}
+              />
               <Text label="Email" value={envValue('USER_EMAIL')} onChange={(value) => updateEnv('USER_EMAIL', value)} />
               <Select
                 label="Access protection"
@@ -1603,17 +1616,26 @@ function FormGrid({ children }: { children: React.ReactNode }) {
 function Text({
   label,
   value,
+  error,
+  maxLength,
   onChange
 }: {
   label: string;
   value: string;
   error?: string;
+  maxLength?: number;
   onChange: (value: string) => void;
 }) {
   return (
     <label className={styles.field}>
       <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} />
+      <input
+        aria-invalid={Boolean(error)}
+        maxLength={maxLength}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {error && <small className={styles.error}>{error}</small>}
     </label>
   );
 }
@@ -1651,11 +1673,11 @@ function Password({
           id={id}
           aria-invalid={Boolean(error)}
           autoComplete={autoComplete}
-          pattern={isPortablePasswordEnvKey(label) ? '[A-Za-z0-9._-]{8,}' : undefined}
+          maxLength={isPortablePasswordEnvKey(label) ? portablePasswordMaximumLength : undefined}
           spellCheck={false}
           title={
             isPortablePasswordEnvKey(label)
-              ? `Use at least ${portablePasswordMinimumLength} characters: ${portablePasswordDescription}.`
+              ? `Use ${portablePasswordMinimumLength}–${portablePasswordMaximumLength} characters. Spaces, punctuation, and Unicode are supported.`
               : undefined
           }
           type={visible ? 'text' : 'password'}
@@ -1930,15 +1952,7 @@ function portablePasswordValueError(label: string, value: string, currentValue: 
     return '';
   }
 
-  if (value.length < portablePasswordMinimumLength) {
-    return `${label} must be at least ${portablePasswordMinimumLength} characters.`;
-  }
-
-  if (!portablePasswordPattern.test(value)) {
-    return `${label} may only use ${portablePasswordDescription}.`;
-  }
-
-  return '';
+  return portablePasswordValidationError(value, label) ?? '';
 }
 
 function humanizePasswordKey(key: string) {

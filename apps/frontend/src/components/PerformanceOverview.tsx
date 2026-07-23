@@ -1,13 +1,18 @@
 'use client';
 
 import type { HomelabPerformance, HomelabPerformancePoint } from '@stackarr/core';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { stackarrFetch } from './clientApi';
-import { InteractiveLineChart, type LineChartSeries } from './InteractiveLineChart';
+import type { LineChartSeries } from './InteractiveLineChart';
 import styles from './PerformanceOverview.module.css';
 
 const RESOURCE_REFRESH_SECONDS = 6;
+const InteractiveLineChart = dynamic(
+  () => import('./InteractiveLineChart').then((module) => module.InteractiveLineChart),
+  { ssr: false }
+);
 
 export function PerformanceOverview({ initial }: { initial: HomelabPerformance }) {
   const [performance, setPerformance] = useState(initial);
@@ -37,10 +42,10 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
       <section className={styles.unavailable} aria-labelledby="performance-title">
         <div>
           <span>Performance</span>
-          <h2 id="performance-title">Live resource history</h2>
+          <h2 id="performance-title">Live Resource History</h2>
           <p>{performance.note}</p>
         </div>
-        <Link href="/containers">Open Infrastructure</Link>
+        <Link href="/containers">Open Containers</Link>
       </section>
     );
   }
@@ -51,7 +56,7 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
       <header className={styles.header}>
         <div>
           <span>Performance</span>
-          <h2 id="performance-title">Your homelab, over time</h2>
+          <h2 id="performance-title">Your Homelab, Over Time</h2>
           <p>
             {performance.sourceLabel} · refreshed {formatTime(performance.generatedAt)}
           </p>
@@ -59,7 +64,7 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
         </div>
         <div className={styles.current} aria-label="Current performance">
           <Metric label="Host CPU" value={latest?.hostCpuPercent ?? 0} />
-          <Metric label="Host memory" value={latest?.hostMemoryPercent ?? 0} />
+          <Metric label="Host Memory" value={latest?.hostMemoryPercent ?? 0} />
           <Link href="/containers">All containers</Link>
         </div>
       </header>
@@ -68,14 +73,14 @@ export function PerformanceOverview({ initial }: { initial: HomelabPerformance }
           appKey="appCpuPercent"
           appLabel={performance.appLabel}
           hostKey="hostCpuPercent"
-          label="CPU usage"
+          label="CPU Usage"
           points={performance.points}
         />
         <ResourceChart
           appKey="appMemoryPercent"
           appLabel={performance.appLabel}
           hostKey="hostMemoryPercent"
-          label="Memory usage"
+          label="Memory Usage"
           points={performance.points}
         />
       </div>

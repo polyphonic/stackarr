@@ -79,6 +79,19 @@ ensure_portless_installed() {
     require_command portless
 }
 
+active_portless_tld() {
+    local tld_file="$HOME/.portless/proxy.tld"
+    local active_tld
+
+    [[ -f "$tld_file" ]] || return 0
+    active_tld="$(tr -d '[:space:]' < "$tld_file")"
+    active_tld="${active_tld#.}"
+
+    if [[ "$active_tld" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]; then
+        printf '%s\n' "$active_tld"
+    fi
+}
+
 register() {
     local name="$1"
     local port="$2"
@@ -196,6 +209,10 @@ register_aliases() {
         register maintainerr "${MAINTAINERR_PORT:-6246}"
     fi
 
+    if truthy "${ENABLE_AGREGARR:-false}"; then
+        register agregarr "${AGREGARR_PORT:-7171}"
+    fi
+
     if truthy "${ENABLE_TRACEARR:-false}"; then
         register tracearr "${TRACEARR_PORT:-3000}"
     fi
@@ -254,6 +271,7 @@ const stackarrAliases = new Set([
   'seerr',
   'pulsarr',
   'maintainerr',
+  'agregarr',
   'tracearr',
   'plex',
   'jellyfin',
@@ -407,6 +425,14 @@ case "$cmd" in
 
         tld="${STACKARR_SERVICE_URL_HOST_SUFFIX:-stack}"
         scheme="${STACKARR_SERVICE_URL_SCHEME:-https}"
+
+        running_tld="$(active_portless_tld)"
+        if [[ -n "$running_tld" && "$running_tld" != "$tld" ]]; then
+            warn "Portless is running with the '.$running_tld' suffix; restarting it with the configured '.$tld' suffix."
+            if ! portless proxy stop; then
+                fail "Could not stop the existing Portless proxy. Run 'stackarr portless install' from a host terminal, then retry."
+            fi
+        fi
 
         print_header "Registering Stackarr Portless aliases"
         if [[ "${STACKARR_SERVICE_URL_MODE:-localhost}" != "portless" ]]; then

@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { readEnv } from '../env';
 import { getServices, type ServiceSummary } from '../services';
 
@@ -14,6 +17,7 @@ const defaults: Record<string, number> = {
   seerr: 5055,
   pulsarr: 3003,
   maintainerr: 6246,
+  agregarr: 7171,
   tracearr: 3000,
   plex: 32400,
   transmission: 9091,
@@ -113,7 +117,80 @@ function trimTrailingSlash(value: string) {
 export function serviceApiKey(service: string) {
   const env = readEnv();
   const prefix = service.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-  return env[`${prefix}_API_KEY`] ?? env[`${prefix}_APIKEY`] ?? env[`${prefix}_TOKEN`];
+  const configured = env[`${prefix}_API_KEY`] ?? env[`${prefix}_APIKEY`] ?? env[`${prefix}_TOKEN`];
+  if (configured?.trim()) return configured.trim();
+
+  if (service === 'plex') return readPlexToken(env.PLEX_PREFS_PATH);
+  return readServarrApiKey(service, env.CONFIG_ROOT);
+}
+
+const servarrConfigDirectories: Record<string, string> = {
+  sonarr: 'sonarr',
+  sonarr4k: 'sonarr4k',
+  radarr: 'radarr',
+  radarr4k: 'radarr4k',
+  prowlarr: 'prowlarr',
+  lidarr: 'lidarr'
+};
+
+/**
+ * Local Arr deployments persist their API key in config.xml. MCP runs beside
+ * Stackarr and should use that authoritative service configuration when an
+ * optional duplicate environment secret has not been populated.
+ */
+function readServarrApiKey(service: string, configRoot: string | undefined) {
+  const directory = servarrConfigDirectories[service];
+  if (!directory || !configRoot?.trim()) return undefined;
+  return readXmlElement(join(configRoot, directory, 'config.xml'), 'ApiKey');
+}
+
+/** Native Plex stores its server token as an XML attribute in Preferences.xml. */
+function readPlexToken(preferencesPath: string | undefined) {
+  if (!preferencesPath?.trim()) return undefined;
+  const contents = readLocalFile(preferencesPath);
+  const attributeMatch = contents?.match(/\bPlexOnlineToken=(?:"([^"]*)"|'([^']*)')/i);
+  const plistMatch = contents?.match(/<key>\s*PlexOnlineToken\s*<\/key>\s*<string>([^<]*)<\/string>/i);
+  const fromContents = decodeXml(attributeMatch?.[1] ?? attributeMatch?.[2] ?? plistMatch?.[1]);
+  if (fromContents) return fromContents;
+
+  // macOS commonly stores this preferences file as a binary plist. Use the
+  // platform parser when available rather than duplicating the secret in env.
+  if (process.platform !== 'darwin') return undefined;
+  try {
+    return (
+      execFileSync('/usr/bin/plutil', ['-extract', 'PlexOnlineToken', 'raw', '-o', '-', preferencesPath], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).trim() || undefined
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function readXmlElement(filePath: string, elementName: string) {
+  const contents = readLocalFile(filePath);
+  const match = contents?.match(new RegExp(`<${elementName}>([^<]*)</${elementName}>`, 'i'));
+  return decodeXml(match?.[1]);
+}
+
+function readLocalFile(filePath: string) {
+  try {
+    return readFileSync(filePath, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+function decodeXml(value: string | undefined) {
+  const decoded = value
+    ?.trim()
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+  return decoded || undefined;
 }
 
 export function selectedDownloader(input?: Downloader): Downloader {

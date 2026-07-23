@@ -1,5 +1,5 @@
 import { readEnv, readJsonPreset, readSettings, redactEnv } from '@stackarr/core';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { SettingsEditor } from '../../../components/SettingsEditor';
 import { SubNav } from '../../../components/SubNav';
@@ -30,6 +30,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
   if (section === 'security') redirect('/stack/services');
   const appRedirect = appSettingsRedirect(section, env.PREFERRED_TORRENT_CLIENT);
   if (appRedirect) redirect(appRedirect);
+  if (!Object.prototype.hasOwnProperty.call(titles, section)) notFound();
   const safeEnv = redactEnv(env);
   const settings = readSettings();
   const title = titles[section] ?? 'Settings';

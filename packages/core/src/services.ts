@@ -126,6 +126,11 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'Maintainerr',
     description: 'Plex/Jellyfin library cleanup planner and collection manager.'
   },
+  agregarr: {
+    displayName: 'Agregarr',
+    description:
+      'Plex collection and home-screen curator with source lists, scheduling, and existing-collection controls.'
+  },
   tracearr: {
     displayName: 'Tracearr',
     description: 'Real-time Plex, Jellyfin, and Emby monitoring with analytics and account-sharing detection.'
@@ -350,6 +355,21 @@ export function getServices(): ServiceSummary[] {
       }
     ),
     service(
+      'agregarr',
+      'support',
+      dependentMode(env.ENABLE_AGREGARR, plexMode !== 'disabled'),
+      Number(env.AGREGARR_PORT ?? 7171),
+      settings,
+      {
+        requirement: requirement(plexMode !== 'disabled', 'Agregarr requires Plex first.'),
+        notes: [
+          'Stackarr signs Agregarr into the Plex owner account, connects Radarr and Sonarr, and creates a release-date-sorted Coming Soon source.',
+          'Agregarr uses Plex authentication upstream; it does not expose a supported local-password setup flow.',
+          'Existing Plex collections are detected as pre-existing and stay user-controlled unless you explicitly choose to manage one.'
+        ]
+      }
+    ),
+    service(
       'tracearr',
       'support',
       dependentMode(env.ENABLE_TRACEARR, mediaServerEnabled || Boolean(env.TRACEARR_EMBY_SERVER_URL?.trim())),
@@ -516,8 +536,9 @@ function browserUrl(name: string, port: number, settings?: StackarrSettings) {
   if (mode === 'portless') {
     const scheme = settings?.ui.serviceUrlScheme === 'http' ? 'http' : 'https';
     const suffix = normalizeHostSuffix(settings?.ui.serviceUrlHostSuffix ?? 'stack');
+    const path = name === 'plex' ? browserPath(name) : '';
 
-    return `${scheme}://${hostnameLabel(name)}.${suffix}`;
+    return `${scheme}://${hostnameLabel(name)}.${suffix}${path}`;
   }
 
   const path = browserPath(name);
@@ -565,6 +586,10 @@ export function serviceBrowserPath(name: string) {
 }
 
 function browserPath(name: string) {
+  if (name === 'plex') {
+    return '/web/index.html';
+  }
+
   if (name === 'transmission') {
     return '/transmission/web/';
   }

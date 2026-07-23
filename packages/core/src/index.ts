@@ -1,4 +1,6 @@
 export * from './actions/agentActivity';
+export * from './actions/agregarr';
+export * from './actions/apiExplorer';
 export * from './actions/apps';
 export * from './actions/arr';
 export * from './actions/backups';
@@ -10,6 +12,7 @@ export * from './actions/lidarrStreamrip';
 export * from './actions/migration';
 export * from './actions/performance';
 export * from './actions/plex';
+export * from './actions/pulsarr';
 export * from './actions/releases';
 export * from './actions/routines';
 export * from './actions/seerr';

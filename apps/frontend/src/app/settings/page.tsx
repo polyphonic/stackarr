@@ -20,7 +20,7 @@ export default async function SettingsPage() {
     <>
       <Toolbar title="Settings" description="Shared storage, access, account, and dashboard preferences" />
       <PageBody>
-        <Panel title="Your Stackarr setup" description="Storage, defaults, and behavior shared across your homelab">
+        <Panel title="Your Stackarr Setup" description="Storage, defaults, and behavior shared across your homelab">
           <Grid>
             {settings
               .filter(([slug]) => ['mediamanagement'].includes(slug))
@@ -36,17 +36,17 @@ export default async function SettingsPage() {
             <DestinationCard
               href="/stack/services"
               icon={icons.stack}
-              title="App settings"
+              title="App Settings"
               description="Configure each app where you open and manage it"
             />
           </Grid>
         </Panel>
-        <Panel title="Connections & identity" description="Remote access, app integrations, sign-in, and secrets">
+        <Panel title="Connections & Identity" description="Remote access, app integrations, sign-in, and secrets">
           <Grid>
             <DestinationCard
               href="/settings/connect"
               icon={icons.cloud}
-              title="Remote access"
+              title="Remote Access"
               description="Cloudflare tunnel routes, webhooks, and public URLs"
             />
             <DestinationCard
@@ -73,7 +73,7 @@ export default async function SettingsPage() {
             <DestinationCard
               href="/system/status"
               icon={icons.system}
-              title="System & maintenance"
+              title="System & Maintenance"
               description="Backups, updates, disk usage, events, and diagnostic status"
             />
           </Grid>

@@ -1,0 +1,35 @@
+---
+title: Agregarr
+description: Agregarr Plex collection integration overview for Stackarr.
+---
+
+<ServiceIntegration slug="agregarr" />
+
+## Guided setup
+
+When Agregarr is enabled, `stackarr configure` uses Agregarr's native API to reuse the signed-in Plex owner, connect the enabled Radarr and Sonarr services, save Agregarr's generated API key, and finish initialization. Agregarr itself uses Plex authentication; its current upstream release does not expose a supported local-password setup flow.
+
+Stackarr also creates or normalizes a **Coming Soon** source for the enabled movie and TV libraries. The source:
+
+- is the default Agregarr source created during Stackarr onboarding;
+- includes every monitored, missing Radarr movie with release-date metadata inside the configured window, regardless of which quota-approved Pulsarr user requested it;
+- includes monitored Sonarr shows only when the official Agregarr release can find a future, monitored, undownloaded season premiere (`SxxE01`);
+- creates placeholders for titles that have not reached Plex yet;
+- sorts soonest-first using Agregarr's availability-aware release date logic; and
+- appears on Plex Home and Discover by default.
+
+Agregarr reads Radarr and Sonarr directly, so it does not distinguish between the Plex owner and quota-approved Pulsarr users. Pulsarr must route the title as monitored: an unmonitored Arr entry is intentionally excluded. For TV, future non-premiere episodes do not currently qualify in the official Agregarr image. Stackarr does not patch or replace that image to broaden the filter.
+
+For placeholder-backed collections, Stackarr configures Agregarr's supported per-library roots as `_Trailers` subfolders inside the Plex movie and TV libraries. The leading underscore keeps the folder near the top of a file browser. Change **Apps → Agregarr → Placeholder Folder** when another single folder name is preferred. Stackarr keeps the trailers visible to Plex, outside the Arr-managed title folders, and adds the same folder name to tinyMediaManager's native `skipFolder` lists.
+
+Because Plex's built-in Recently Added and Recently Released hubs do not understand Agregarr's placeholder label, they can show trailer entries as ordinary media. During onboarding, Stackarr uses Agregarr's native filtered-hub source to replace any affected visible default hubs, copies their Home and Discover visibility to the replacements, and hides the originals. This resolves Agregarr's **Filtered Hubs Recommended** warning without modifying its image.
+
+Movie ordering prefers the earliest known digital or physical date. When neither is available, Agregarr estimates availability from the theatrical date. Plex may still display the theatrical date on the item card, so the visible date can differ from the availability date used for ordering.
+
+Plex collections belong to a single library, so a movie and TV collection cannot be one physical Plex object. Stackarr creates linked rows for both libraries and presents them as one group in Collection Studio.
+
+## Everyday controls
+
+Open **Apps → Collection Studio** in Stackarr to add the common Coming Soon, TMDb Trending, and IMDb Popular sources. Each managed group has direct controls for Home visibility, Discover recommendation, shuffle, and targeted sync.
+
+Existing handmade Plex collections remain pre-existing and are not adopted automatically.

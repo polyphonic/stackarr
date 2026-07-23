@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+
+async function source(file: string) {
+  return readFile(path.join(repoRoot, file), 'utf8');
+}
+
+test('managed app updates cannot pull or recreate the Stackarr controller', async () => {
+  const update = await source('stackarr/scripts/update-run.sh');
+
+  assert.match(update, /app\|app-updater\|database\|database-init\|image-cleanup/);
+  assert.match(update, /pull --quiet "\$\{services\[@\]\}"/);
+  assert.match(update, /up -d --no-deps --remove-orphans "\$\{services\[@\]\}"/);
+  assert.match(update, /Managed services updated; the Stackarr controller was left running/);
+  assert.doesNotMatch(update, /ensure_docker_runtime\nensure_database_if_required/);
+
+  const compose = await source('stackarr/docker-compose.yml');
+  assert.match(compose, /docker image prune -f --filter dangling=true >\/dev\/null/);
+});
+
+test('local Stackarr images are preserved while published images use an independent worker', async () => {
+  const update = await source('stackarr/scripts/update-run.sh');
+  const compose = await source('stackarr/docker-compose.yml');
+  const runner = await source('apps/frontend/src/lib/runner.ts');
+
+  assert.match(update, /"\$\{STACKARR_IMAGE:-\}" == \*:local/);
+  assert.match(update, /STACKARR_UPDATE_HANDOFF_STARTED/);
+  assert.match(update, /pull --quiet app/);
+  assert.match(update, /up -d --force-recreate --no-deps app/);
+  assert.match(update, /ensure_shared_database/);
+  assert.match(compose, /\n  app-updater:\n[\s\S]*?command:\n\s+- update\n\s+- app-worker/);
+  assert.match(runner, /command\.name === 'UpdateStackarr'/);
+  assert.match(runner, /persistTaskUpdate\(id, patch\)/);
+  assert.doesNotMatch(runner, /writeTasks\(next\)/);
+});
+
+test('dashboard exposes separate managed app and controller update commands', async () => {
+  const commands = await source('packages/core/src/commands.ts');
+  const page = await source('apps/frontend/src/app/system/[section]/page.tsx');
+  const scheduler = await source('stackarr/scripts/scheduler.sh');
+
+  assert.match(commands, /label: 'Update apps',[\s\S]*?args: \['update', 'services'\]/);
+  assert.match(commands, /label: 'Update Stackarr',[\s\S]*?args: \['update', 'app'\]/);
+  assert.match(page, /name="UpdateStackarr"/);
+  assert.match(scheduler, /update services/);
+});

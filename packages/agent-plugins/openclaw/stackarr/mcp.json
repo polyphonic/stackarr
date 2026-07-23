@@ -2,7 +2,18 @@
   "mcpServers": {
     "stackarr": {
       "command": "docker",
-      "args": ["exec", "-i", "-e", "STACKARR_MCP_PROFILE=manage", "app", "/app/bin/stackarr", "mcp", "serve"],
+      "args": [
+        "exec",
+        "-i",
+        "-e",
+        "STACKARR_MCP_PROFILE=manage",
+        "-e",
+        "STACKARR_MCP_CLIENT=openclaw",
+        "app",
+        "/app/bin/stackarr",
+        "mcp",
+        "serve"
+      ],
       "timeout": 120,
       "connect_timeout": 30,
       "sampling": { "enabled": false }

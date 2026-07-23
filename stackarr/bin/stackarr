@@ -198,16 +198,16 @@ case "$cmd" in
         shift || true
         sub="${1:-help}"
         case "$sub" in
-            run)
+            run|services|app|app-worker)
                 shift || true
-                exec "$ROOT_DIR/scripts/update-run.sh" "$@"
+                exec "$ROOT_DIR/scripts/update-run.sh" "$sub" "$@"
                 ;;
             install|uninstall)
                 shift || true
                 exec "$ROOT_DIR/scripts/update-install.sh" "$sub" "$@"
                 ;;
             *)
-                fail "Usage: stackarr update run|install|uninstall"
+                fail "Usage: stackarr update services|app|install|uninstall"
                 ;;
         esac
         ;;
@@ -252,7 +252,7 @@ Stackarr commands:
   stackarr mcp config <codex|claude|lmstudio|chatgpt|hermes|openclaw|generic>
   stackarr routines run-due
   stackarr plugins install|export [hermes|openclaw|all]
-  stackarr update run|install|uninstall
+  stackarr update services|app|install|uninstall
   stackarr permissions audit|fix
   stackarr db-info
   stackarr logs

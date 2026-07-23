@@ -85,11 +85,21 @@ test('native app tools appear as one compact group only when a supported app is 
   const withoutNativeApps = enabledServices.filter((service) => service !== 'lidarr');
   const withoutApps = getMcpToolCatalog({ profile: 'manage', enabledServices: withoutNativeApps });
   const withImmich = getMcpToolCatalog({ profile: 'manage', enabledServices: [...withoutNativeApps, 'immich'] });
+  const withPulsarr = getMcpToolCatalog({ profile: 'manage', enabledServices: [...withoutNativeApps, 'pulsarr'] });
 
   assert.ok(!withoutApps.some((tool) => tool.category === 'apps'));
   assert.deepEqual(
     withImmich.filter((tool) => tool.category === 'apps').map((tool) => tool.name),
     ['stackarr_get_app_capabilities', 'stackarr_read_app', 'stackarr_manage_app', 'stackarr_administer_app']
+  );
+  assert.deepEqual(
+    withPulsarr.filter((tool) => tool.name.includes('_pulsarr_')).map((tool) => tool.name),
+    [
+      'stackarr_list_pulsarr_users',
+      'stackarr_get_pulsarr_user_diagnostics',
+      'stackarr_set_pulsarr_user_sync',
+      'stackarr_set_pulsarr_user_quotas'
+    ]
   );
 });
 

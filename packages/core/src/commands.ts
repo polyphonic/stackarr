@@ -12,6 +12,7 @@ export type CommandName =
   | 'Backup'
   | 'BackupPermissions'
   | 'Update'
+  | 'UpdateStackarr'
   | 'PlexCheck'
   | 'PermissionsAudit'
   | 'PermissionsFix'
@@ -131,8 +132,15 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
   },
   Update: {
     name: 'Update',
-    label: 'Update stack',
-    args: ['update', 'run'],
+    label: 'Update apps',
+    args: ['update', 'services'],
+    disruptive: true,
+    event: 'Update'
+  },
+  UpdateStackarr: {
+    name: 'UpdateStackarr',
+    label: 'Update Stackarr',
+    args: ['update', 'app'],
     disruptive: true,
     event: 'Update'
   },

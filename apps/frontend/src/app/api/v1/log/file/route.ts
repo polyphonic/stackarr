@@ -1,68 +1,91 @@
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readEnv, redactString } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../../lib/api';
 
+type LogFileSummary = { filename: string; size: number; lastWriteTime: string };
+let fileListCache: { root: string; expiresAt: number; files: LogFileSummary[] } | undefined;
+
 export async function GET(request: NextRequest) {
   const auth = requireApiKey(request);
-
-  if (auth) {
-    return auth;
-  }
+  if (auth) return auth;
 
   const env = readEnv();
   const logRoot = env.LOG_ROOT ?? (env.APP_ROOT ? path.join(env.APP_ROOT, 'logs') : '');
+  if (!logRoot) return json([]);
 
-  if (!logRoot || !fs.existsSync(logRoot)) {
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = await fs.realpath(logRoot);
+  } catch {
     return json([]);
   }
 
   const requestedFile = request.nextUrl.searchParams.get('filename')?.trim();
   if (requestedFile) {
-    const resolvedRoot = fs.realpathSync(logRoot);
-    const candidateFile = path.resolve(resolvedRoot, requestedFile);
-    const resolvedFile = fs.existsSync(candidateFile) ? fs.realpathSync(candidateFile) : candidateFile;
-    if (
-      (!resolvedFile.startsWith(`${resolvedRoot}${path.sep}`) && resolvedFile !== resolvedRoot) ||
-      !resolvedFile.endsWith('.log') ||
-      !fs.existsSync(resolvedFile) ||
-      !fs.lstatSync(candidateFile).isFile() ||
-      !fs.statSync(resolvedFile).isFile()
-    ) {
-      return json({ message: 'Log file was not found.' }, { status: 404 });
-    }
+    const resolvedFile = await safeLogPath(resolvedRoot, requestedFile);
+    if (!resolvedFile) return json({ message: 'Log file was not found.' }, { status: 404 });
 
-    const requestedLines = Number(request.nextUrl.searchParams.get('lines') ?? 200);
-    const lineLimit = Number.isFinite(requestedLines) ? Math.min(500, Math.max(20, Math.floor(requestedLines))) : 200;
-    return json(readLogTail(resolvedFile, resolvedRoot, lineLimit));
+    const requestedLines = Number(request.nextUrl.searchParams.get('lines') ?? 120);
+    const lineLimit = Number.isFinite(requestedLines) ? Math.min(500, Math.max(20, Math.floor(requestedLines))) : 120;
+    return json(await readLogTail(resolvedFile, resolvedRoot, lineLimit));
   }
 
-  const files = walk(logRoot)
-    .filter((file) => file.endsWith('.log'))
-    .map((file) => {
-      const stat = fs.statSync(file);
+  const now = Date.now();
+  if (fileListCache?.root === resolvedRoot && fileListCache.expiresAt > now) {
+    return json(fileListCache.files);
+  }
 
-      return {
-        filename: path.relative(logRoot, file),
-        size: stat.size,
-        lastWriteTime: stat.mtime.toISOString()
-      };
-    });
+  const paths = (await walk(resolvedRoot)).filter((file) => file.endsWith('.log'));
+  const files = (
+    await Promise.all(
+      paths.map(async (file) => {
+        try {
+          const stat = await fs.stat(file);
+          if (!stat.isFile()) return undefined;
+          return {
+            filename: path.relative(resolvedRoot, file),
+            size: stat.size,
+            lastWriteTime: stat.mtime.toISOString()
+          };
+        } catch {
+          return undefined;
+        }
+      })
+    )
+  )
+    .filter((file): file is LogFileSummary => Boolean(file))
+    .sort((left, right) => right.lastWriteTime.localeCompare(left.lastWriteTime));
 
+  fileListCache = { root: resolvedRoot, expiresAt: now + 5_000, files };
   return json(files);
 }
 
-function readLogTail(file: string, root: string, lineLimit: number) {
-  const stat = fs.statSync(file);
+async function safeLogPath(root: string, requestedFile: string) {
+  const candidate = path.resolve(root, requestedFile);
+  if ((!candidate.startsWith(`${root}${path.sep}`) && candidate !== root) || !candidate.endsWith('.log'))
+    return undefined;
+  try {
+    const resolved = await fs.realpath(candidate);
+    if (!resolved.startsWith(`${root}${path.sep}`) || !resolved.endsWith('.log')) return undefined;
+    const stat = await fs.stat(resolved);
+    return stat.isFile() ? resolved : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readLogTail(file: string, root: string, lineLimit: number) {
+  const stat = await fs.stat(file);
   const byteLimit = 256 * 1024;
   const bytesToRead = Math.min(stat.size, byteLimit);
   const buffer = Buffer.alloc(bytesToRead);
-  const descriptor = fs.openSync(file, 'r');
+  const handle = await fs.open(file, 'r');
   try {
-    fs.readSync(descriptor, buffer, 0, bytesToRead, Math.max(0, stat.size - bytesToRead));
+    await handle.read(buffer, 0, bytesToRead, Math.max(0, stat.size - bytesToRead));
   } finally {
-    fs.closeSync(descriptor);
+    await handle.close();
   }
 
   let lines = buffer.toString('utf8').split(/\r?\n/);
@@ -77,10 +100,22 @@ function readLogTail(file: string, root: string, lineLimit: number) {
   };
 }
 
-function walk(root: string): string[] {
-  return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
-    const next = path.join(root, entry.name);
-    if (entry.isSymbolicLink()) return [];
-    return entry.isDirectory() ? walk(next) : entry.isFile() ? [next] : [];
-  });
+async function walk(root: string, depth = 0): Promise<string[]> {
+  if (depth > 8) return [];
+  let entries;
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const next = path.join(root, entry.name);
+      if (entry.isSymbolicLink()) return [];
+      if (entry.isDirectory()) return walk(next, depth + 1);
+      return entry.isFile() ? [next] : [];
+    })
+  );
+  return nested.flat().slice(0, 5_000);
 }
