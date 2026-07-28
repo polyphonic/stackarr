@@ -170,6 +170,14 @@ export async function updateAgregarrCollectionGroupAction(input: {
   randomizeHomeOrder?: boolean;
 }) {
   const ids = validCollectionIds(input.collectionIds);
+  if (
+    typeof input.active !== 'boolean' &&
+    typeof input.showOnHome !== 'boolean' &&
+    typeof input.recommended !== 'boolean' &&
+    typeof input.randomizeHomeOrder !== 'boolean'
+  ) {
+    throw new Error('Choose at least one Agregarr collection group setting to update.');
+  }
   const collections = collectionConfigs(await agregarrRequest('/collections'));
 
   for (const id of ids) {

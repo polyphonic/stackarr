@@ -26,10 +26,34 @@ Because Plex's built-in Recently Added and Recently Released hubs do not underst
 
 Movie ordering prefers the earliest known digital or physical date. When neither is available, Agregarr estimates availability from the theatrical date. Plex may still display the theatrical date on the item card, so the visible date can differ from the availability date used for ordering.
 
-Plex collections belong to a single library, so a movie and TV collection cannot be one physical Plex object. Stackarr creates linked rows for both libraries and presents them as one group in Collection Studio.
+Plex collections belong to a single library, so a movie and TV collection cannot be one physical Plex object. Stackarr creates linked rows for both libraries. Manage their presentation in Agregarr itself, or use Stackarr's bounded CLI and MCP commands for agent workflows.
 
 ## Everyday controls
 
-Open **Apps → Collection Studio** in Stackarr to add the common Coming Soon, TMDb Trending, and IMDb Popular sources. Each managed group has direct controls for Home visibility, Discover recommendation, shuffle, and targeted sync.
+Stackarr deliberately does not duplicate Agregarr's collection editor in the dashboard. Open Agregarr from **Apps** for its full UI, or use these host CLI commands:
+
+```bash
+stackarr agregarr overview
+stackarr agregarr collection <collection-id>
+stackarr agregarr home-order
+stackarr agregarr sync <collection-id>
+stackarr agregarr sync-group <movie-id> <tv-id>
+stackarr agregarr ensure-preset coming-soon --media-scope both
+stackarr agregarr update-group <movie-id> <tv-id> --show-on-home true --recommended true
+stackarr agregarr job quick-sync
+```
+
+The same bounded operations are available to trusted MCP clients as:
+
+- `stackarr_get_agregarr_overview`
+- `stackarr_get_agregarr_collection`
+- `stackarr_get_agregarr_home_order`
+- `stackarr_sync_agregarr_collection`
+- `stackarr_sync_agregarr_collection_group`
+- `stackarr_ensure_agregarr_collection_preset`
+- `stackarr_update_agregarr_collection_group`
+- `stackarr_run_agregarr_job`
+
+Write operations require an MCP profile with `apps:write` authority. Stackarr validates collection IDs, presets, jobs, and every mutable option before forwarding the request to Agregarr.
 
 Existing handmade Plex collections remain pre-existing and are not adopted automatically.

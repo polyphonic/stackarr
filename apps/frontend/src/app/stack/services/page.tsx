@@ -1,6 +1,5 @@
 import { getNativeAppCapabilitiesAction, listServiceConfigsAction } from '@stackarr/core';
 import Link from 'next/link';
-import { AgregarrManager } from '../../../components/AgregarrManager';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { NativeAppActions } from '../../../components/NativeAppActions';
 import { ServiceDirectory } from '../../../components/ServiceDirectory';
@@ -39,7 +38,6 @@ export default async function AppsPage({ searchParams }: { searchParams: Promise
       config.service.mode === 'disabled' && config.groups.length > 0 && !automaticServices.has(config.service.name)
   );
   const hasNativeActions = nativeCapabilities.apps.some((app) => app.enabled);
-  const hasAgregarr = installedApps.some((config) => config.service.name === 'agregarr');
   const initialInstalledApp = query.add ? undefined : query.app;
   const initialAvailableApp = query.add ? query.app : undefined;
 
@@ -75,15 +73,6 @@ export default async function AppsPage({ searchParams }: { searchParams: Promise
             description="Open an app, pin it to the front, or change its connection and behavior"
           >
             <ServiceDirectory configs={installedApps} initialService={initialInstalledApp} />
-          </Panel>
-        )}
-
-        {hasAgregarr && (
-          <Panel
-            title="Collection Studio"
-            description="Create and control the Plex rows you use most without leaving Stackarr"
-          >
-            <AgregarrManager />
           </Panel>
         )}
 
