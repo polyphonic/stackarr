@@ -14,7 +14,7 @@ import {
 } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { hasValidStackarrSession, json, requireApiKey, setStackarrSessionCookie } from '../../../../../lib/api';
-import { queuePortlessSetupIfNeeded } from '../../../../../lib/portlessSetup';
+import { portlessHostActionIfNeeded } from '../../../../../lib/portlessSetup';
 
 const accessPasswordKeys = [
   'TRANSMISSION_PASSWORD',
@@ -123,12 +123,12 @@ export async function PUT(request: NextRequest) {
     writeJsonPreset('requests', body.presets.requests);
   }
 
-  const task = queuePortlessSetupIfNeeded(beforeSettings, afterSettings);
+  const portlessHostAction = portlessHostActionIfNeeded(beforeSettings, afterSettings);
 
   const response = json({
     accepted: true,
     apiKey: !existingApiKey && nextEnv?.STACKARR_API_KEY ? nextEnv.STACKARR_API_KEY : undefined,
-    portlessTask: task ?? undefined
+    portlessHostAction: portlessHostAction ?? undefined
   });
 
   return renewBrowserSession ? setStackarrSessionCookie(response, request, nextEnv ?? readEnv()) : response;
@@ -283,6 +283,8 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       unredactedConfigValue('ROMM_SCREENSCRAPER_PASSWORD') || current.ROMM_SCREENSCRAPER_PASSWORD || '',
     ROMM_RETROACHIEVEMENTS_API_KEY:
       unredactedConfigValue('ROMM_RETROACHIEVEMENTS_API_KEY') || current.ROMM_RETROACHIEVEMENTS_API_KEY || '',
+    ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS:
+      config.ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS || current.ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS || '30',
     ROMM_STEAMGRIDDB_API_KEY:
       unredactedConfigValue('ROMM_STEAMGRIDDB_API_KEY') || current.ROMM_STEAMGRIDDB_API_KEY || '',
     ROMM_HASHEOUS_API_ENABLED: config.ROMM_HASHEOUS_API_ENABLED || current.ROMM_HASHEOUS_API_ENABLED || 'true',
@@ -290,6 +292,15 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
     ROMM_LAUNCHBOX_API_ENABLED: config.ROMM_LAUNCHBOX_API_ENABLED || current.ROMM_LAUNCHBOX_API_ENABLED || 'false',
     ROMM_FLASHPOINT_API_ENABLED: config.ROMM_FLASHPOINT_API_ENABLED || current.ROMM_FLASHPOINT_API_ENABLED || 'false',
     ROMM_HLTB_API_ENABLED: config.ROMM_HLTB_API_ENABLED || current.ROMM_HLTB_API_ENABLED || 'false',
+    ROMM_TGDB_API_ENABLED: config.ROMM_TGDB_API_ENABLED || current.ROMM_TGDB_API_ENABLED || 'false',
+    ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA:
+      config.ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ||
+      current.ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ||
+      'false',
+    ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON:
+      config.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON ||
+      current.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON ||
+      '0 4 * * *',
     SEERR_DB_TYPE: config.SEERR_DB_TYPE || current.SEERR_DB_TYPE || 'postgres',
     SEERR_POSTGRES_DATABASE: config.SEERR_POSTGRES_DATABASE || current.SEERR_POSTGRES_DATABASE || 'seerr',
     SEERR_POSTGRES_USER: config.SEERR_POSTGRES_USER || current.SEERR_POSTGRES_USER || 'seerr',

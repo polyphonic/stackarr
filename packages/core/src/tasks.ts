@@ -18,6 +18,7 @@ export type StackarrTask = {
   exitCode?: number;
   output?: string;
   error?: string;
+  reviewedAt?: string | null;
 };
 
 let migratedTaskFile = false;
@@ -67,6 +68,22 @@ export function updateTask(id: string, patch: Partial<StackarrTask>) {
   const tasks = readTaskFile();
   const next = tasks.map((task) => (task.id === id ? { ...task, ...patch } : task));
   writeTaskFile(next);
+}
+
+export function setTaskReviewState(ids: string[], reviewed: boolean): StackarrTask[] {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  const selectedIds = new Set(uniqueIds);
+  const tasks = readTasks();
+  const selected = tasks.filter(
+    (task) => selectedIds.has(task.id) && (task.status === 'failed' || task.status === 'blocked')
+  );
+  const reviewedAt = reviewed ? new Date().toISOString() : null;
+
+  for (const task of selected) {
+    updateTask(task.id, { reviewedAt });
+  }
+
+  return selected.map((task) => ({ ...task, reviewedAt }));
 }
 
 function migrateTaskFileToDatabase() {

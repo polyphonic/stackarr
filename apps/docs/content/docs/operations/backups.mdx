@@ -5,7 +5,7 @@ description: Protect Stackarr settings and the durable data needed to rebuild yo
 
 # Backups and restore
 
-Stackarr backs up its settings, presets, hooks, service configuration, and durable database state. The default schedule is weekly on Sunday at `02:00` and keeps 52 archives.
+Stackarr backs up its settings, presets, hooks, service configuration, credentials, and durable database state. The default schedule is weekly on Sunday at `02:00`, keeps 52 archives, and encrypts new archives as authenticated `.tar.gz.enc` files.
 
 Choose the backup folder during setup. For an external disk or network share, make sure Docker can write to that folder and run **System → Status → Audit permissions**.
 
@@ -19,6 +19,33 @@ docker exec app /app/bin/stackarr backup run
 
 If a required database cannot be read, Stackarr fails the backup instead of creating an incomplete archive.
 
+## Credentials and encryption
+
+Before copying app data, Stackarr creates a portable runtime snapshot. It contains managed passwords, API keys, RomM metadata-provider credentials, database connection credentials, and other runtime settings needed to bootstrap a restore. Any non-empty managed value that only remains in the generated Compose environment is reconciled back into the runtime database first.
+
+The generated `state/compose/.env` file is not archived. Restore regenerates it from the portable snapshot after restoring runtime and database state, which avoids treating a generated plaintext file as the source of truth.
+
+The first encrypted backup creates a mode-`0600` recovery key at `$STATE_ROOT/backup-encryption.key`. The key is deliberately excluded from every archive. After the first backup, open **System → Backup**, enter the current admin password, and choose **Export recovery key**. Store the downloaded file in a password manager or another secure location that is not inside `CONFIG_ROOT`, `STATE_ROOT`, the backup folder, Plex, or Jellyfin data.
+
+Stackarr records the exported key fingerprint and time, never the exported key value. The Backup page warns until the current key has been exported; replacing or regenerating the key automatically returns the warning. Without the matching key, encrypted archives cannot be decrypted, so Stackarr settings and credentials cannot be fully restored and must be entered again.
+
+The export endpoint requires an authenticated dashboard session plus current-password reauthentication. Its response is marked non-cacheable. Export over the local dashboard, a private network, or HTTPS—never over an untrusted plaintext connection.
+
+Set **Backup Encryption** to `none` only when another trusted system encrypts the entire backup destination. Unencrypted archives still use mode `0600`, but they contain recoverable credentials and service databases in plaintext.
+
+Each archive also contains `stackarr/credential-audit.json`. It records credential names and whether they were configured, but never their values, so a backup can be checked for omissions without revealing secrets.
+
+## What is covered
+
+- the portable Stackarr runtime config, including all managed environment credentials
+- Docker-managed app configuration and consistent snapshots of durable SQLite databases
+- globals and per-app dumps for every managed shared PostgreSQL database
+- Plex config and macOS preferences when present
+- native Jellyfin config when `JELLYFIN_INSTALL_MODE=native`
+- state files such as Cloudflare tunnel credentials and app-generated tokens
+
+Media libraries, downloads, caches, logs, generated Compose state, and the backup recovery key are not treated as credential backups.
+
 ## Lite or full
 
 `lite` is recommended. It keeps restore-critical databases, settings, and custom artwork while skipping caches, logs, generated metadata, and other rebuildable files.
@@ -30,7 +57,9 @@ Choose `full` when you intentionally want cache-heavy service data and have enou
 Keep the stack quiet during a restore. Start from **Setup → Restore**, ask an admin-profile agent to prepare a dry-run, or use an archive already visible inside the container's backup folder:
 
 ```bash
-docker exec app /app/bin/stackarr backup restore /path/inside/container/stackarr-backup.tar.gz
+docker exec app /app/bin/stackarr backup restore \
+  /path/inside/container/stackarr-backup.tar.gz.enc \
+  --backup-key-file /path/inside/container/backup-encryption.key
 ```
 
-Review the folders, databases, and services that will be replaced before approving the restore. Stackarr accepts `.tar.gz`, `.tgz`, and `.zip` archives.
+The onboarding restore screen accepts the encrypted archive and recovery-key file separately. Review the folders, databases, and services that will be replaced before approving the restore. Legacy `.tar.gz`, `.tgz`, and `.zip` archives remain supported.

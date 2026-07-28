@@ -209,6 +209,10 @@ register_aliases() {
         register maintainerr "${MAINTAINERR_PORT:-6246}"
     fi
 
+    if truthy "${ENABLE_CLEANUPARR:-false}"; then
+        register cleanuparr "${CLEANUPARR_PORT:-11011}"
+    fi
+
     if truthy "${ENABLE_AGREGARR:-false}"; then
         register agregarr "${AGREGARR_PORT:-7171}"
     fi
@@ -271,6 +275,7 @@ const stackarrAliases = new Set([
   'seerr',
   'pulsarr',
   'maintainerr',
+  'cleanuparr',
   'agregarr',
   'tracearr',
   'plex',

@@ -418,8 +418,10 @@ function telemetryHealthSummary(): TelemetryPayload['health'] {
     const timestamp = Date.parse(task.endedAt || task.startedAt || task.queuedAt);
     return Number.isFinite(timestamp) && timestamp >= cutoff;
   });
-  const failed = recentTasks.filter((task) => task.status === 'failed').length;
-  const blocked = recentTasks.filter((task) => task.status === 'blocked').length;
+  const failed = recentTasks.filter((task) => task.status === 'failed' && !task.reviewedAt).length;
+  const blocked = recentTasks.filter(
+    (task) => task.status === 'blocked' && !task.reviewedAt && !isExpectedHostApprovalBlock(task)
+  ).length;
   if (failed > 0) issueCodes.push('recent_task_failures');
   if (blocked > 0) issueCodes.push('recent_blocked_tasks');
 
@@ -428,6 +430,10 @@ function telemetryHealthSummary(): TelemetryPayload['health'] {
     recentTaskFailures: countBucket(failed),
     recentBlockedTasks: countBucket(blocked)
   };
+}
+
+function isExpectedHostApprovalBlock(task: ReturnType<typeof readTasks>[number]) {
+  return task.output?.startsWith('Host approval required.') === true;
 }
 
 function countBucket(count: number) {

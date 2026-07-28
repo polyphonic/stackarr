@@ -23,6 +23,7 @@ export * from './actions/streamrip';
 export * from './actions/telemetry';
 export * from './clients/serviceConfig';
 export * from './commands';
+export * from './composeRuntime';
 export * from './connections';
 export * from './env';
 export * from './mcp/connections';

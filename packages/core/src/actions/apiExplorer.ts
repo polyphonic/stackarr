@@ -66,6 +66,7 @@ const preferredContractPaths: Record<string, string[]> = {
   bazarr: ['/api/swagger.json', '/openapi.json'],
   pulsarr: ['/api/docs/openapi.json', '/api/openapi.json', '/openapi.json'],
   maintainerr: ['/api/docs-json', '/api-json', '/openapi.json'],
+  cleanuparr: ['/swagger/v1/swagger.json', '/openapi.json'],
   tracearr: ['/api/v1/public/docs', '/api/openapi.json', '/api/docs/json', '/openapi.json'],
   romm: ['/openapi.json', '/api/openapi.json'],
   bookorbit: ['/openapi.json', '/api/openapi.json'],

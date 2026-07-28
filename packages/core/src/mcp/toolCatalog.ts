@@ -192,6 +192,24 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Start a targeted sync for one managed Agregarr collection.'
   },
   {
+    name: 'stackarr_sync_agregarr_collection_group',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start targeted syncs for linked Agregarr movie and TV collections.'
+  },
+  {
+    name: 'stackarr_update_agregarr_collection_group',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Update visibility, active state, and ordering for linked Agregarr collections.'
+  },
+  {
     name: 'stackarr_ensure_agregarr_collection_preset',
     category: 'apps',
     scopes: ['apps:write'],

@@ -4,3 +4,5 @@ description: Radarr integration overview for Stackarr.
 ---
 
 <ServiceIntegration slug="radarr" />
+
+Stackarr's movie filename preset includes Plex's `{edition-Edition Name}` marker whenever Radarr parses a non-empty `Edition Tags` value. Radarr does not allow that token in its movie-folder pattern, but Plex supports the marker in either the filename or folder. The release name must identify the edition, or the edition must be selected explicitly in Radarr or tinyMediaManager; a title appearing in a boutique label's catalog is not enough to identify the particular file's edition.

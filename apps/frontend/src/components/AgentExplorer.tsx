@@ -1,8 +1,9 @@
 'use client';
 
 import type { AgentActionCatalogEntry, ApiExplorerResult, ApiExplorerSource } from '@stackarr/core';
+import { Button, Skeleton } from '@stackarr/ui';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import styles from './AgentExplorer.module.css';
 import { stackarrFetch } from './clientApi';
 
@@ -27,6 +28,7 @@ type NativeCapability = {
 };
 
 type ExplorerView = 'actions' | 'apis' | 'native';
+const actionPageSize = 25;
 
 export function AgentExplorer({
   actions,
@@ -41,16 +43,24 @@ export function AgentExplorer({
   const [selectedService, setSelectedService] = useState('');
   const [loadError, setLoadError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [actionPage, setActionPage] = useState(0);
 
   useEffect(() => {
-    if (window.location.hash === '#apis' || window.location.hash.startsWith('#api-')) setView('apis');
-    if (window.location.hash === '#native') setView('native');
-    void loadContracts(false);
+    if (window.location.hash === '#apis' || window.location.hash.startsWith('#api-')) {
+      setView('apis');
+      void loadContracts(false);
+    } else if (window.location.hash === '#native') {
+      setView('native');
+    }
   }, []);
 
   function selectView(next: ExplorerView) {
     setView(next);
+    setActionPage(0);
     window.history.replaceState(null, '', `#${next}`);
+    if (next === 'apis' && !contracts && !refreshing) {
+      void loadContracts(false);
+    }
   }
 
   async function loadContracts(force: boolean) {
@@ -78,7 +88,7 @@ export function AgentExplorer({
   }
 
   const selectedContract = contracts?.sources.find((source) => source.service === selectedService);
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = useDeferredValue(query.trim().toLowerCase());
   const endpoints = useMemo(
     () =>
       (selectedContract?.endpoints ?? []).filter((endpoint) =>
@@ -102,6 +112,12 @@ export function AgentExplorer({
           .includes(normalizedQuery)
       ),
     [actions, normalizedQuery]
+  );
+  const actionPageCount = Math.max(1, Math.ceil(filteredActions.length / actionPageSize));
+  const safeActionPage = Math.min(actionPage, actionPageCount - 1);
+  const visibleActions = filteredActions.slice(
+    safeActionPage * actionPageSize,
+    safeActionPage * actionPageSize + actionPageSize
   );
   const enabledNativeCapabilities = useMemo(
     () => nativeCapabilities.filter((capability) => capability.enabled),
@@ -158,7 +174,10 @@ export function AgentExplorer({
               Search {view === 'apis' ? 'endpoints' : view === 'native' ? 'native operations' : 'agent actions'}
             </span>
             <input
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActionPage(0);
+              }}
               placeholder={
                 view === 'apis'
                   ? 'Search paths, methods, tags…'
@@ -185,9 +204,7 @@ export function AgentExplorer({
                 {refreshing ? 'Checking…' : 'Refresh'}
               </button>
             </div>
-            {!contracts && !loadError ? (
-              <p className={styles.muted}>Looking for OpenAPI and Swagger contracts…</p>
-            ) : null}
+            {!contracts && !loadError ? <ApiSourceSkeleton /> : null}
             {loadError ? <p className={styles.error}>{loadError}</p> : null}
             {contracts?.sources.map((source) => (
               <button
@@ -216,7 +233,9 @@ export function AgentExplorer({
           </aside>
 
           <div className={styles.contractPane}>
-            {selectedContract ? (
+            {!contracts && !loadError ? (
+              <ApiContractSkeleton />
+            ) : selectedContract ? (
               <ContractView contract={selectedContract} endpoints={endpoints} />
             ) : (
               <div className={styles.emptyState}>
@@ -249,7 +268,7 @@ export function AgentExplorer({
                 </tr>
               </thead>
               <tbody>
-                {filteredActions.map((action) => (
+                {visibleActions.map((action) => (
                   <tr key={action.name}>
                     <td>
                       <strong>{actionLabel(action.name)}</strong>
@@ -287,6 +306,30 @@ export function AgentExplorer({
               </tbody>
             </table>
           </div>
+          <footer className={styles.pagination}>
+            <span>
+              {filteredActions.length === 0 ? 0 : safeActionPage * actionPageSize + 1}–
+              {Math.min((safeActionPage + 1) * actionPageSize, filteredActions.length)} of {filteredActions.length}
+            </span>
+            <div>
+              <Button
+                isDisabled={safeActionPage === 0}
+                onPress={() => setActionPage((current) => Math.max(0, current - 1))}
+                size="sm"
+                variant="tertiary"
+              >
+                Previous
+              </Button>
+              <Button
+                isDisabled={safeActionPage >= actionPageCount - 1}
+                onPress={() => setActionPage((current) => Math.min(actionPageCount - 1, current + 1))}
+                size="sm"
+                variant="tertiary"
+              >
+                Next
+              </Button>
+            </div>
+          </footer>
         </div>
       ) : (
         <div className={styles.actionPane} id="native">
@@ -294,6 +337,27 @@ export function AgentExplorer({
         </div>
       )}
     </section>
+  );
+}
+
+function ApiSourceSkeleton() {
+  return (
+    <div className={`${styles.sourceSkeleton} skeleton--shimmer`} aria-label="Discovering API contracts">
+      <Skeleton animationType="none" />
+      <Skeleton animationType="none" />
+      <Skeleton animationType="none" />
+      <Skeleton animationType="none" />
+    </div>
+  );
+}
+
+function ApiContractSkeleton() {
+  return (
+    <div className={`${styles.contractSkeleton} skeleton--shimmer`} aria-label="Loading API contract">
+      <Skeleton animationType="none" />
+      <Skeleton animationType="none" />
+      <Skeleton animationType="none" />
+    </div>
   );
 }
 

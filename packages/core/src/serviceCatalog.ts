@@ -2,10 +2,12 @@ import * as nodeCrypto from 'node:crypto';
 import {
   credentialEnvConfigChanged,
   isCurrentPasswordProtectedConfigKey,
+  isSecretKey,
   managedEnvDefaults,
   protectedEnvConfigChanged,
   readEnv,
   redactEnv,
+  redactSecretValue,
   type StackarrEnv,
   writeEnvConfig
 } from './env';
@@ -19,7 +21,7 @@ import {
 } from './profilePresets';
 import { getServices, type ServiceSummary } from './services';
 import { readSettings, type StackarrSettings, type StackarrSettingsPatch, writeSettings } from './settings';
-import { getStreamripServiceConfigGroups, updateStreamripConfig } from './streamrip/config';
+import { getStreamripServiceConfigGroups, readStreamripConfig, updateStreamripConfig } from './streamrip/config';
 import { findStreamripField } from './streamrip/schema';
 
 type PresetName = keyof typeof presetFiles;
@@ -346,19 +348,67 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         'rommIgdbClientId',
         'IGDB Client ID',
         'ROMM_IGDB_CLIENT_ID',
-        'https://docs.romm.app/4.9.2/getting-started/metadata-providers/#igdb'
+        'Twitch application client ID. See https://docs.romm.app/latest/getting-started/metadata-providers/#igdb'
       ),
-      envPassword('rommIgdbClientSecret', 'IGDB Client Secret', 'ROMM_IGDB_CLIENT_SECRET'),
-      envPassword('rommMobyGamesApiKey', 'MobyGames API Key', 'ROMM_MOBYGAMES_API_KEY'),
-      envText('rommScreenscraperUser', 'ScreenScraper User', 'ROMM_SCREENSCRAPER_USER'),
-      envPassword('rommScreenscraperPassword', 'ScreenScraper Password', 'ROMM_SCREENSCRAPER_PASSWORD'),
-      envPassword('rommRetroachievementsApiKey', 'RetroAchievements API Key', 'ROMM_RETROACHIEVEMENTS_API_KEY'),
-      envPassword('rommSteamGridDbApiKey', 'SteamGridDB API Key', 'ROMM_STEAMGRIDDB_API_KEY'),
+      envPassword(
+        'rommIgdbClientSecret',
+        'IGDB Client Secret',
+        'ROMM_IGDB_CLIENT_SECRET',
+        'Twitch application client secret paired with the IGDB client ID.'
+      ),
+      envPassword(
+        'rommMobyGamesApiKey',
+        'MobyGames API Key',
+        'ROMM_MOBYGAMES_API_KEY',
+        'MobyGames API access is a paid feature; RomM recommends ScreenScraper as the free alternative.'
+      ),
+      envText(
+        'rommScreenscraperUser',
+        'ScreenScraper User',
+        'ROMM_SCREENSCRAPER_USER',
+        'ScreenScraper account username.'
+      ),
+      envPassword(
+        'rommScreenscraperPassword',
+        'ScreenScraper Password',
+        'ROMM_SCREENSCRAPER_PASSWORD',
+        'ScreenScraper account password.'
+      ),
+      envPassword(
+        'rommRetroachievementsApiKey',
+        'RetroAchievements API Key',
+        'ROMM_RETROACHIEVEMENTS_API_KEY',
+        'Web API key from the RetroAchievements account settings page.'
+      ),
+      envNumber(
+        'rommRefreshRetroAchievementsCacheDays',
+        'RetroAchievements Cache Days',
+        'ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS',
+        'How often RomM refreshes its cached RetroAchievements database.'
+      ),
+      envPassword(
+        'rommSteamGridDbApiKey',
+        'SteamGridDB API Key',
+        'ROMM_STEAMGRIDDB_API_KEY',
+        'Used by the manual Search cover action rather than the library scanner.'
+      ),
       envCheckbox('rommHasheousApiEnabled', 'Use Hasheous Metadata', 'ROMM_HASHEOUS_API_ENABLED'),
       envCheckbox('rommPlaymatchApiEnabled', 'Use Playmatch Metadata', 'ROMM_PLAYMATCH_API_ENABLED'),
       envCheckbox('rommLaunchboxApiEnabled', 'Use LaunchBox Metadata', 'ROMM_LAUNCHBOX_API_ENABLED'),
+      envCheckbox(
+        'rommScheduledLaunchboxUpdateEnabled',
+        'Schedule LaunchBox Metadata Updates',
+        'ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA'
+      ),
+      envText(
+        'rommScheduledLaunchboxUpdateCron',
+        'LaunchBox Update Cron',
+        'ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON',
+        'Cron expression used when scheduled LaunchBox metadata updates are enabled.'
+      ),
       envCheckbox('rommFlashpointApiEnabled', 'Use Flashpoint Metadata', 'ROMM_FLASHPOINT_API_ENABLED'),
-      envCheckbox('rommHltbApiEnabled', 'Use HowLongToBeat Metadata', 'ROMM_HLTB_API_ENABLED')
+      envCheckbox('rommHltbApiEnabled', 'Use HowLongToBeat Metadata', 'ROMM_HLTB_API_ENABLED'),
+      envCheckbox('rommTgdbApiEnabled', 'Use TheGamesDB Metadata', 'ROMM_TGDB_API_ENABLED')
     ])
   ],
   bazarr: [
@@ -500,6 +550,31 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envText('maintainerrImage', 'Docker Image', 'MAINTAINERR_IMAGE'),
       envPassword('maintainerrGithubToken', 'GitHub Token', 'MAINTAINERR_GITHUB_TOKEN')
     ])
+  ],
+  cleanuparr: [
+    group(
+      'Download Security',
+      [
+        envCheckbox('enableCleanuparr', 'Enable Cleanuparr', 'ENABLE_CLEANUPARR'),
+        envText('cleanuparrUrl', 'Local URL', 'CLEANUPARR_URL'),
+        envText('cleanuparrBindIp', 'Bind IP', 'CLEANUPARR_BIND_IP'),
+        envNumber('cleanuparrPort', 'Port', 'CLEANUPARR_PORT'),
+        envCheckbox(
+          'cleanuparrAutoConfigure',
+          'Auto-configure Malware Blocking',
+          'CLEANUPARR_AUTO_CONFIGURE',
+          'Connect the active torrent client and enabled Arr services, then enable Stackarr’s media-safe executable and script blocklist.'
+        ),
+        envText(
+          'cleanuparrMalwareCron',
+          'Malware Scan Schedule',
+          'CLEANUPARR_MALWARE_CRON',
+          'Quartz cron expression. The secure default scans every five seconds.'
+        ),
+        envText('cleanuparrImage', 'Docker Image', 'CLEANUPARR_IMAGE')
+      ],
+      'Cleanuparr runs loopback-only and removes an entire Arr-managed download when any file matches the official malware blacklist.'
+    )
   ],
   agregarr: [
     group(
@@ -762,7 +837,10 @@ export function updateServiceConfigAction(input: {
 
 function validateCredentialPatch(patch: StackarrEnv, current: StackarrEnv) {
   for (const [key, value] of Object.entries(patch)) {
-    if (value === current[key]) {
+    if (
+      value === current[key] ||
+      (isSecretKey(key) && Boolean(current[key]) && value === redactSecretValue(String(current[key])))
+    ) {
       continue;
     }
 
@@ -897,9 +975,20 @@ function updateStreamripServiceConfig(
 }
 
 function streamripSecretConfigChanged(values: Record<string, unknown>) {
+  const current = readStreamripConfig({ redactSecrets: false });
+
   for (const [fieldId, value] of Object.entries(values)) {
     const field = findStreamripField(fieldId);
-    if (!field?.secret || isRedactedSecretValue(value) || String(value ?? '').trim() === '') {
+    const currentValue = field ? current[field.section]?.[field.name] : undefined;
+    const currentPreview = redactSecretValue(
+      typeof currentValue === 'string' ? currentValue : (JSON.stringify(currentValue) ?? String(currentValue ?? ''))
+    );
+    if (
+      !field?.secret ||
+      isRedactedSecretValue(value) ||
+      value === currentPreview ||
+      String(value ?? '').trim() === ''
+    ) {
       continue;
     }
     return true;

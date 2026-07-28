@@ -224,11 +224,11 @@ export function ServiceDirectory({
                     isAvailable={isAvailable}
                     requestedOpen={initialService === config.service.name}
                     requirementMet={requirementMet}
-                    onSaved={(nextConfig) => {
+                    onSaved={(nextConfig, runtimeApplyQueued) => {
                       setItems((current) =>
                         current.map((item) => (item.service.name === nextConfig.service.name ? nextConfig : item))
                       );
-                      setApplyState('ready');
+                      setApplyState(runtimeApplyQueued ? 'queued' : 'ready');
                     }}
                   />
                 )}
@@ -252,7 +252,7 @@ function ServiceSettingsModal({
   isAvailable: boolean;
   requestedOpen: boolean;
   requirementMet: boolean;
-  onSaved: (config: ServiceConfigModel) => void;
+  onSaved: (config: ServiceConfigModel, runtimeApplyQueued: boolean) => void;
 }) {
   const [draft, setDraft] = useState<DraftValues>(() => valuesFromConfig(config));
   const [currentPassword, setCurrentPassword] = useState('');
@@ -268,8 +268,14 @@ function ServiceSettingsModal({
   }, []);
   const openModal = useCallback(() => setModalState(true), [setModalState]);
   const closeModal = useCallback(() => setModalState(false), [setModalState]);
-  const commonGroups = filterConfigGroups(config.groups, (field) => !isAdvancedField(field));
-  const advancedGroups = filterConfigGroups(config.groups, isAdvancedField);
+  const commonGroups = filterConfigGroups(
+    config.groups,
+    (field, group) => group.title === 'Metadata Providers' || !isAdvancedField(field)
+  );
+  const advancedGroups = filterConfigGroups(
+    config.groups,
+    (field, group) => group.title !== 'Metadata Providers' && isAdvancedField(field)
+  );
   const currentPasswordRequired = Boolean(
     config.currentPasswordRequiredForProtectedChanges && protectedDraftChangeRequiresCurrentPassword(config, draft)
   );
@@ -329,9 +335,19 @@ function ServiceSettingsModal({
 
     const nextConfig = body.config as ServiceConfigModel | undefined;
     if (nextConfig) {
-      onSaved(nextConfig);
+      onSaved(nextConfig, Boolean(body.runtimeApplyTask));
     }
-    toast.success(`${config.service.displayName} settings saved.`);
+    const runtimeApplyTargets = Array.isArray(body.runtimeApplyTargets)
+      ? body.runtimeApplyTargets.filter((target: unknown): target is string => typeof target === 'string')
+      : [];
+    const portlessCommand =
+      body.portlessHostAction?.status === 'host-required' && typeof body.portlessHostAction.command === 'string'
+        ? ` Open Terminal and run: ${body.portlessHostAction.command}.`
+        : '';
+    const saveMessage = body.runtimeApplyTask
+      ? `${config.service.displayName} settings saved. Container update queued for ${runtimeApplyTargets.join(', ')}.`
+      : `${config.service.displayName} settings saved.`;
+    toast.success(`${saveMessage}${portlessCommand}`);
     close();
   }
 
@@ -368,7 +384,7 @@ function ServiceSettingsModal({
             </Modal.Header>
 
             <Modal.Body className={styles.modalBody}>
-              <AppAccessSettings key={config.service.name} config={config} />
+              <AppAccessSettings key={config.service.name} config={config} enabled={modalOpen} />
               <ConfigGroups groups={commonGroups} draft={draft} onChange={updateDraft} />
               {advancedGroups.length > 0 && (
                 <details className={styles.advancedSettings}>
@@ -430,7 +446,7 @@ function ConfigGroups({
           <FieldEditor
             key={field.id}
             field={field}
-            saved={Boolean(field.secret && field.value)}
+            savedPreview={field.secret && field.value ? String(field.value) : undefined}
             value={draft[field.id]}
             onChange={(value) => onChange(field, value)}
           />
@@ -448,7 +464,7 @@ type AppAccessState = {
   tunnelConfigured: boolean;
 };
 
-function AppAccessSettings({ config }: { config: ServiceConfigModel }) {
+function AppAccessSettings({ config, enabled }: { config: ServiceConfigModel; enabled: boolean }) {
   const [state, setState] = useState<AppAccessState | null>(null);
   const [hostname, setHostname] = useState('');
   const [protect, setProtect] = useState(config.service.name !== 'immich');
@@ -457,6 +473,10 @@ function AppAccessSettings({ config }: { config: ServiceConfigModel }) {
   const href = serviceLink(config.service);
 
   useEffect(() => {
+    if (!enabled || state) {
+      return undefined;
+    }
+
     let mounted = true;
     void stackarrFetch(`/api/v1/services/access/${config.service.name}`, { cache: 'no-store' })
       .then(async (response) => (response.ok ? ((await response.json()) as AppAccessState) : null))
@@ -470,7 +490,7 @@ function AppAccessSettings({ config }: { config: ServiceConfigModel }) {
     return () => {
       mounted = false;
     };
-  }, [config.service.name]);
+  }, [config.service.name, enabled, state]);
 
   async function saveAccess() {
     const normalizedHostname = hostname.trim();
@@ -584,12 +604,12 @@ function favoriteFromService(service: ServiceConfigModel['service']): ServiceFav
 
 function FieldEditor({
   field,
-  saved,
+  savedPreview,
   value,
   onChange
 }: {
   field: ServiceConfigField;
-  saved?: boolean;
+  savedPreview?: string;
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
@@ -613,6 +633,7 @@ function FieldEditor({
         <Label>{field.label}</Label>
         <TextArea
           className={styles.jsonInput}
+          placeholder={savedPreview}
           value={String(value ?? '')}
           onChange={(event) => onChange(event.target.value)}
           spellCheck={false}
@@ -646,7 +667,7 @@ function FieldEditor({
       ) : (
         <Input
           autoComplete={field.type === 'password' ? 'off' : undefined}
-          placeholder={saved ? 'Saved' : undefined}
+          placeholder={savedPreview}
           spellCheck={field.type === 'password' ? false : undefined}
           type={field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'}
           value={String(value ?? '')}
@@ -750,10 +771,10 @@ function truthy(value: unknown) {
 
 function filterConfigGroups(
   groups: ServiceConfigModel['groups'],
-  include: (field: ServiceConfigField) => boolean
+  include: (field: ServiceConfigField, group: ServiceConfigModel['groups'][number]) => boolean
 ): ServiceConfigModel['groups'] {
   return groups
-    .map((group) => ({ ...group, fields: group.fields.filter(include) }))
+    .map((group) => ({ ...group, fields: group.fields.filter((field) => include(field, group)) }))
     .filter((group) => group.fields.length > 0);
 }
 

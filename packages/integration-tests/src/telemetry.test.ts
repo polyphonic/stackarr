@@ -285,6 +285,51 @@ test('telemetry preview is opt-in and excludes host paths and secrets', async ()
   }
 });
 
+test('telemetry excludes expected host-approval handoffs from blocked-task health', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-host-handoff-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { buildTelemetryPayload, createQueuedTask, updateTask } = await import('./packages/core/src/index.ts');
+          const expected = createQueuedTask('PortlessInstall', 'Install Portless agent');
+          updateTask(expected.id, {
+            status: 'blocked',
+            endedAt: new Date().toISOString(),
+            output: 'Host approval required.\\nRun this command on the Docker host.'
+          });
+          const unexpected = createQueuedTask('StackStart', 'Start Stackarr');
+          updateTask(unexpected.id, {
+            status: 'blocked',
+            endedAt: new Date().toISOString(),
+            output: 'Waiting for a missing prerequisite.'
+          });
+          console.log(JSON.stringify(buildTelemetryPayload()));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    const payload = JSON.parse(stdout);
+    assert.equal(payload.health.recentBlockedTasks, '1');
+    assert.ok(payload.health.issueCodes.includes('recent_blocked_tasks'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('telemetry heartbeat sends to configured collector with auth and throttles repeats', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-telemetry-heartbeat-test-'));
 

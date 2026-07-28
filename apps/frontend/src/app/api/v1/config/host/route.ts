@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { readEnv, readSettings, writeEnvConfig, writeSettings } from '@stackarr/core';
+import { readEnv, readSettings, redactSecretValue, writeEnvConfig, writeSettings } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../../lib/api';
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     urlBase: settings.host.urlBase,
     enableSsl: settings.host.enableSsl,
     authenticationMethod: env.STACKARR_API_KEY ? settings.host.authenticationMethod : 'none',
-    apiKey: env.STACKARR_API_KEY ? '********' : ''
+    apiKey: env.STACKARR_API_KEY ? redactSecretValue(env.STACKARR_API_KEY) : ''
   });
 }
 
@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const requestedApiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
   const nextApiKey =
-    requestedApiKey && requestedApiKey !== '********'
+    requestedApiKey && requestedApiKey !== redactSecretValue(existingApiKey) && requestedApiKey !== '********'
       ? requestedApiKey
       : existingApiKey || crypto.randomBytes(24).toString('hex');
   env.STACKARR_API_KEY = nextApiKey;
@@ -59,6 +59,6 @@ export async function PUT(request: NextRequest) {
 
   return json({
     authenticationMethod: body.authenticationMethod ?? 'forms',
-    apiKey: existingApiKey ? '********' : nextApiKey
+    apiKey: existingApiKey ? redactSecretValue(existingApiKey) : nextApiKey
   });
 }
