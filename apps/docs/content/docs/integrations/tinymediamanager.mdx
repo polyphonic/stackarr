@@ -7,4 +7,10 @@ description: TinyMediaManager integration overview for Stackarr.
 
 Radarr and Sonarr remain responsible for importing, moving, and naming media. After a completed import, Stackarr copies recognized video extras into Plex-compatible folders, then calls tinyMediaManager's HTTP API to update its internal database and scrape new items. The automated request never includes a rename action.
 
+## Editions
+
+Stackarr's Radarr preset uses Radarr's `Edition Tags` value to add Plex's `{edition-Edition Name}` marker to the movie filename. Radarr does not allow the edition token in its movie-folder pattern, but Plex supports the marker in either location. To stay aligned with Radarr, tinyMediaManager keeps the movie folder as `Title (Year)` and adds the same marker to the filename when an edition has been detected or selected in tinyMediaManager. If tinyMediaManager's internal edition field is empty, the Stackarr preset preserves an existing Plex edition marker from the current video filename instead. This prevents a manual tinyMediaManager rename from undoing a Radarr edition name. Edition information must be present in the release name or set explicitly; metadata scrapers cannot reliably infer which physical release a file came from.
+
+Plex TV editions apply to a show as a whole. Sonarr and tinyMediaManager do not currently model that same show-level edition value, so Stackarr leaves the TV show root-folder pattern empty in tinyMediaManager. This prevents a manual tinyMediaManager rename from stripping an explicit Plex edition marker from a folder such as `Babylon 5 (1994) {edition-Bluray Remaster}`. Manage the edition-tagged series path in Sonarr so Sonarr continues to track imports in that folder. Separate copies of the same series may require separate Sonarr instances because a single Sonarr instance manages only one copy of a series.
+
 When Agregarr placeholders are enabled, Stackarr adds the configured placeholder folder (default `_Trailers`) to the movie and TV `skipFolder` settings before tinyMediaManager scans either source. Changing the folder in Stackarr's Agregarr settings updates both systems the next time `stackarr configure` runs.

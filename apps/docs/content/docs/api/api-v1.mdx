@@ -19,6 +19,7 @@ The optional MCP Streamable HTTP endpoint lives at `/mcp`, outside the REST name
 | `POST` | `/api/v1/command` | Queue a command. |
 | `GET` | `/api/v1/command/:id` | Inspect one queued command. |
 | `GET` | `/api/v1/backup` | Backup records. |
+| `POST` | `/api/v1/backup/recovery-key` | Download the current backup recovery key from an authenticated dashboard session after current-password reauthentication. |
 | `GET` | `/api/v1/agent/tools` | Active authority, enabled apps, and available agent actions. |
 | `GET` | `/api/v1/agent/connections` | Generated connection kits for supported MCP clients. |
 | `GET` | `/api/v1/apps/native` | Enabled native apps and their allowlisted operations. |
@@ -30,6 +31,8 @@ The optional MCP Streamable HTTP endpoint lives at `/mcp`, outside the REST name
 | `GET` | `/api/v1/notification/schema` | Notification schema. |
 
 Mutating endpoints require `X-Api-Key`. The first authenticated setup save creates an API key when one is missing; command endpoints fail closed until a key exists.
+
+The recovery-key download is intentionally stricter than ordinary API-key operations: it requires a signed-in browser session and the current admin password, disables response caching, and is not available to API-key-only clients or agents.
 
 The connection endpoint accepts optional `client`, `profile`, `groups`, `containerName`, and `tunnelId` query parameters. It never returns credentials; ChatGPT tunnel output uses a local API-key placeholder.
 

@@ -8,6 +8,12 @@ title: Security
 
 Docker builds exclude SQLite DBs, logs, state, Cloudflare token-looking files, API-token-looking files, and any accidental local config/secret files from the build context.
 
+Backup archives contain service databases and credentials, so new backups use AES-256-GCM authenticated encryption by default. The mode-`0600` recovery key is stored separately under Stackarr state and excluded from the archive. Export requires an authenticated dashboard session and current-password reauthentication, and Stackarr tracks the exported key fingerprint so a replacement key produces a new warning. Keep the exported file in a password manager or secure key store; losing it makes encrypted archives unrecoverable.
+
+Generated Compose `.env` state is mode `0600`, excluded from backups, and regenerated from the restored runtime snapshot. Credential audit metadata reports only whether each managed credential is configured, never its value.
+
+Configuration screens identify saved secrets with middle-truncated previews. The browser never receives the complete saved value; task output, logs, telemetry, and audit data continue to use full redaction instead of previews.
+
 ## API
 
 Mutating API calls require `X-Api-Key`. The first authenticated setup save creates an API key when one is missing; command endpoints fail closed until a key exists.
