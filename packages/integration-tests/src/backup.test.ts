@@ -202,7 +202,7 @@ async function runFixtureBackup(mode: 'full' | 'lite', envOverrides: NodeJS.Proc
   const { stdout: manifest } = encrypted
     ? await execFile('bash', [
         '-c',
-        'node "$1" decrypt --key-file "$2" --input "$3" | tar -xOf - "$4"',
+        'node "$1" decrypt --key-file "$2" --input "$3" | tar -xzOf - "$4"',
         'bash',
         backupCrypto,
         path.join(stateRoot, 'backup-encryption.key'),
@@ -217,7 +217,7 @@ async function runFixtureBackup(mode: 'full' | 'lite', envOverrides: NodeJS.Proc
     const result = encrypted
       ? await execFile('bash', [
           '-c',
-          'node "$1" decrypt --key-file "$2" --input "$3" | tar -xOf - "$4"',
+          'node "$1" decrypt --key-file "$2" --input "$3" | tar -xzOf - "$4"',
           'bash',
           backupCrypto,
           path.join(stateRoot, 'backup-encryption.key'),
