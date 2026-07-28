@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const restoreScript = path.join(repoRoot, 'stackarr/scripts/restore.sh');
+const backupCrypto = path.join(repoRoot, 'stackarr/scripts/backup-crypto.cjs');
 
 function writeRuntimeConfigDatabase(filePath: string, config: Record<string, string>) {
   const db = new DatabaseSync(filePath);
@@ -110,6 +111,16 @@ test('restore brings back runtime config, service config, and state from a backu
       STACKARR_IMAGE: 'polyphonic/stackarr:alpha',
       STACKARR_WEB_ENABLED: 'true'
     });
+    await writeFile(
+      path.join(backupRootFixture, 'stackarr/runtime-config.json'),
+      JSON.stringify({
+        version: 1,
+        createdAt: new Date().toISOString(),
+        runtimeConfig: {
+          ROMM_STEAMGRIDDB_API_KEY: 'portable-snapshot-wins'
+        }
+      })
+    );
 
     await execFile('tar', ['-czf', archivePath, '-C', path.join(root, 'fixture'), backupName]);
     await execFile(
@@ -135,6 +146,7 @@ test('restore brings back runtime config, service config, and state from a backu
     assert.equal(await readFile(path.join(configRoot, 'lidarr/config.xml'), 'utf8'), '<Config />');
     assert.equal(await readFile(path.join(stateRoot, 'torrent-archive/state.txt'), 'utf8'), 'restored state');
     assert.deepEqual(readRuntimeConfig(databaseFile).MEDIA_ROOT, mediaRoot);
+    assert.equal(readRuntimeConfig(databaseFile).ROMM_STEAMGRIDDB_API_KEY, 'portable-snapshot-wins');
     assert.match(await readFile(composeEnvFile, 'utf8'), /^STACKARR_IMAGE="polyphonic\/stackarr:alpha"$/m);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -270,6 +282,107 @@ test('constrained restore ignores archive-controlled host roots', async () => {
     await assert.rejects(readFile(path.join(maliciousRoot, 'state/tasks/task.json'), 'utf8'));
     assert.equal(readRuntimeConfig(databaseFile).CONFIG_ROOT, safeConfigRoot);
     assert.equal(readRuntimeConfig(databaseFile).STATE_ROOT, safeStateRoot);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('encrypted restore bootstraps portable credentials and native Jellyfin data', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-restore-encrypted-test-'));
+  const appRoot = path.join(root, 'app');
+  const configRoot = path.join(appRoot, 'config');
+  const stateRoot = path.join(appRoot, 'state');
+  const logRoot = path.join(appRoot, 'logs');
+  const jellyfinConfigPath = path.join(root, 'jellyfin-native');
+  const backupName = 'stackarr-backup-20260728-120000';
+  const backupRootFixture = path.join(root, 'fixture', backupName);
+  const plainArchivePath = path.join(root, `${backupName}.tar.gz`);
+  const encryptedArchivePath = `${plainArchivePath}.enc`;
+  const backupKeyPath = path.join(root, 'recovery.key');
+  const composeEnvFile = path.join(root, 'compose.env');
+  const databaseFile = path.join(root, 'stackarr.db');
+
+  try {
+    await mkdir(path.join(backupRootFixture, 'stackarr'), { recursive: true });
+    await mkdir(path.join(backupRootFixture, 'jellyfin-native/config'), { recursive: true });
+    await writeFile(
+      path.join(backupRootFixture, 'manifest.txt'),
+      'plex_backup_mode=lite\narchive_encryption=keyfile\n'
+    );
+    await writeFile(
+      path.join(backupRootFixture, 'stackarr/runtime-config.json'),
+      JSON.stringify({
+        version: 1,
+        createdAt: new Date().toISOString(),
+        runtimeConfig: {
+          APP_ROOT: appRoot,
+          CONFIG_ROOT: configRoot,
+          STATE_ROOT: stateRoot,
+          LOG_ROOT: logRoot,
+          MEDIA_ROOT: path.join(appRoot, 'media'),
+          MUSIC_ROOT: path.join(appRoot, 'media/Music'),
+          DOWNLOADS_ROOT: path.join(appRoot, 'downloads'),
+          BACKUP_ROOT: path.join(appRoot, 'backups'),
+          JELLYFIN_INSTALL_MODE: 'native',
+          JELLYFIN_CONFIG_PATH: jellyfinConfigPath,
+          ROMM_STEAMGRIDDB_API_KEY: 'restored-romm-provider-key',
+          STACKARR_WEB_ENABLED: 'true'
+        }
+      })
+    );
+    await writeFile(
+      path.join(backupRootFixture, 'jellyfin-native/config/system.xml'),
+      '<ApiKey>restored-jellyfin-key</ApiKey>'
+    );
+    await execFile('tar', ['-czf', plainArchivePath, '-C', path.join(root, 'fixture'), backupName]);
+    await execFile(process.execPath, [backupCrypto, 'generate-key', '--key-file', backupKeyPath]);
+    await execFile(
+      'bash',
+      [
+        '-c',
+        'node "$1" encrypt --key-file "$2" --output "$3" < "$4"',
+        'bash',
+        backupCrypto,
+        backupKeyPath,
+        encryptedArchivePath,
+        plainArchivePath
+      ],
+      { cwd: repoRoot }
+    );
+
+    await execFile(
+      'bash',
+      [
+        '-c',
+        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --skip-postgres --skip-native-plex --skip-plex-preferences --restore-native-jellyfin --backup-key-file "$3" --adopt-backup-key',
+        'bash',
+        restoreScript,
+        encryptedArchivePath,
+        backupKeyPath
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+          STACKARR_DATABASE_FILE: databaseFile,
+          STACKARR_DATABASE_URL: '',
+          STACKARR_LOG_DATABASE_URL: '',
+          HOME: path.join(root, 'home')
+        }
+      }
+    );
+
+    assert.equal(readRuntimeConfig(databaseFile).ROMM_STEAMGRIDDB_API_KEY, 'restored-romm-provider-key');
+    assert.equal(
+      await readFile(path.join(jellyfinConfigPath, 'config/system.xml'), 'utf8'),
+      '<ApiKey>restored-jellyfin-key</ApiKey>'
+    );
+    assert.equal(
+      await readFile(path.join(stateRoot, 'backup-encryption.key'), 'utf8'),
+      await readFile(backupKeyPath, 'utf8')
+    );
+    assert.match(await readFile(composeEnvFile, 'utf8'), /^ROMM_STEAMGRIDDB_API_KEY="restored-romm-provider-key"$/m);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

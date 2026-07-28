@@ -7,6 +7,7 @@ export type CommandName =
   | 'ApplyNamingPreset'
   | 'ApplyDownloadsPreset'
   | 'SecurityApply'
+  | 'ServiceRuntimeApply'
   | 'ApplyRequestsPreset'
   | 'ClearRequestsPreset'
   | 'Backup'
@@ -99,6 +100,13 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
     name: 'SecurityApply',
     label: 'Apply security credentials',
     args: ['security', 'apply'],
+    disruptive: true,
+    event: 'Configure'
+  },
+  ServiceRuntimeApply: {
+    name: 'ServiceRuntimeApply',
+    label: 'Apply container settings',
+    args: ['service', 'apply'],
     disruptive: true,
     event: 'Configure'
   },

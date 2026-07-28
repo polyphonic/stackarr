@@ -67,6 +67,7 @@ export type StackarrSettings = {
     enableSeerr: boolean;
     enablePulsarr: boolean;
     enableMaintainerr: boolean;
+    enableCleanuparr: boolean;
     enableAgregarr: boolean;
     enableTracearr: boolean;
   };
@@ -74,6 +75,10 @@ export type StackarrSettings = {
     tinyMediaManagerEnabled: boolean;
     plexMetadataMonitoring: boolean;
     jellyfinMetadataMonitoring: boolean;
+  };
+  backups: {
+    recoveryKeyExportedAt: string;
+    recoveryKeyExportedKeyId: string;
   };
   telemetry: {
     enabled: boolean;
@@ -92,6 +97,7 @@ export type StackarrSettingsPatch = {
   profiles?: Partial<StackarrSettings['profiles']>;
   services?: Partial<StackarrSettings['services']>;
   metadata?: Partial<StackarrSettings['metadata']>;
+  backups?: Partial<StackarrSettings['backups']>;
   telemetry?: Partial<StackarrSettings['telemetry']>;
 };
 
@@ -150,6 +156,7 @@ export const defaultSettings: StackarrSettings = {
     enableSeerr: true,
     enablePulsarr: true,
     enableMaintainerr: false,
+    enableCleanuparr: false,
     enableAgregarr: false,
     enableTracearr: false
   },
@@ -157,6 +164,10 @@ export const defaultSettings: StackarrSettings = {
     tinyMediaManagerEnabled: true,
     plexMetadataMonitoring: true,
     jellyfinMetadataMonitoring: false
+  },
+  backups: {
+    recoveryKeyExportedAt: '',
+    recoveryKeyExportedKeyId: ''
   },
   telemetry: {
     enabled: false,
@@ -244,6 +255,7 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableSeerr: envFlag(env.ENABLE_SEERR, defaultSettings.services.enableSeerr),
       enablePulsarr: envFlag(env.ENABLE_PULSARR, defaultSettings.services.enablePulsarr),
       enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr),
+      enableCleanuparr: envFlag(env.ENABLE_CLEANUPARR, defaultSettings.services.enableCleanuparr),
       enableAgregarr: envFlag(env.ENABLE_AGREGARR, defaultSettings.services.enableAgregarr),
       enableTracearr: envFlag(env.ENABLE_TRACEARR, defaultSettings.services.enableTracearr)
     },
@@ -340,6 +352,7 @@ function mergeSettings(base: StackarrSettings, partial: StackarrSettingsPatch): 
     profiles: { ...base.profiles, ...partial.profiles },
     services: { ...base.services, ...partial.services },
     metadata: { ...base.metadata, ...partial.metadata },
+    backups: { ...base.backups, ...partial.backups },
     telemetry: {
       ...base.telemetry,
       ...partial.telemetry,
@@ -378,6 +391,7 @@ function mergeSettingsPatch(base: StackarrSettingsPatch, patch: StackarrSettings
     profiles: { ...base.profiles, ...patch.profiles },
     services: { ...base.services, ...patch.services },
     metadata: { ...base.metadata, ...patch.metadata },
+    backups: { ...base.backups, ...patch.backups },
     telemetry: { ...base.telemetry, ...patch.telemetry }
   };
 }

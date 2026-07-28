@@ -51,6 +51,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal((enabledServicesQuestion.choices as string[]).includes('seerr'), false);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('pulsarr'), false);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('maintainerr'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('cleanuparr'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('tracearr'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('immich'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('romm'), true);
@@ -67,6 +68,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.configureSeerr, false);
   assert.equal(profile.defaults.enablePulsarr, true);
   assert.equal(profile.defaults.enableMaintainerr, false);
+  assert.equal(profile.defaults.enableCleanuparr, false);
   assert.equal(profile.defaults.enableTracearr, false);
   assert.equal(profile.defaults.enableImmich, false);
   assert.equal(profile.defaults.enableRomm, false);
@@ -107,20 +109,40 @@ test('dry-run setup config carries shared credentials without personal Pulsarr r
   assert.equal(result.plan.config.STACKARR_CONFIGURE_SEERR, 'false');
   assert.equal(result.plan.config.ENABLE_PULSARR, 'true');
   assert.equal(result.plan.config.ENABLE_MAINTAINERR, 'false');
+  assert.equal(result.plan.config.ENABLE_CLEANUPARR, 'false');
+  assert.equal(result.plan.config.CLEANUPARR_IMAGE, 'ghcr.io/cleanuparr/cleanuparr:latest');
+  assert.equal(result.plan.config.CLEANUPARR_URL, 'http://127.0.0.1:11011');
   assert.equal(result.plan.config.AGREGARR_IMAGE, 'agregarr/agregarr:latest');
   assert.equal(result.plan.config.AGREGARR_PLACEHOLDER_FOLDER, '_Trailers');
   assert.equal(result.plan.config.ENABLE_TRACEARR, 'false');
   assert.equal(result.plan.config.ENABLE_IMMICH, 'false');
   assert.equal(result.plan.config.ENABLE_ROMM, 'false');
+  assert.equal(result.plan.config.ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS, '30');
+  assert.equal(result.plan.config.ROMM_TGDB_API_ENABLED, 'false');
+  assert.equal(result.plan.config.ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA, 'false');
+  assert.equal(result.plan.config.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON, '0 4 * * *');
   assert.equal(result.plan.config.MAINTAINERR_CLEANUP_PRESETS, '');
   assert.equal(result.plan.config.TRACEARR_JWT_SECRET, '********');
   assert.equal(result.plan.config.TRACEARR_COOKIE_SECRET, '********');
   assert.equal(result.plan.config.PULSARR_HD_LITE_USERS, undefined);
   assert.match(result.plan.notes.join('\n'), /Pulsarr first-run admin/i);
   assert.match(result.plan.notes.join('\n'), /Maintainerr is wired to the selected media server/i);
+  assert.match(result.plan.notes.join('\n'), /Cleanuparr blocks malware-like executable and script files/i);
   assert.match(result.plan.notes.join('\n'), /Tracearr uses the shared Postgres\/TimescaleDB/i);
   assert.match(result.plan.notes.join('\n'), /Immich is optional photo-library functionality/i);
   assert.match(result.plan.notes.join('\n'), /RomM is optional private game-library functionality/i);
+});
+
+test('dry-run setup wires Cleanuparr as an optional download security service', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['bazarr', 'tinymediamanager', 'lidarr', 'recyclarr', 'flaresolverr', 'tidarr', 'cleanuparr']
+  });
+
+  assert.equal(result.plan.config.ENABLE_CLEANUPARR, 'true');
+  assert.equal(result.plan.config.CLEANUPARR_BIND_IP, '127.0.0.1');
+  assert.equal(result.plan.config.CLEANUPARR_PORT, '11011');
+  assert.equal(result.plan.config.CLEANUPARR_AUTO_CONFIGURE, 'true');
 });
 
 test('dry-run setup records Immich config for optional photo libraries', async () => {
@@ -438,6 +460,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
     new URL('../../../stackarr/scripts/agregarr-configure.py', import.meta.url),
     'utf8'
   );
+  const cleanuparrConfigure = await readFile(
+    new URL('../../../stackarr/scripts/cleanuparr-configure.py', import.meta.url),
+    'utf8'
+  );
   const common = await readFile(new URL('../../../stackarr/lib/common.sh', import.meta.url), 'utf8');
   const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
   const databaseInit = await readFile(new URL('../../../stackarr/scripts/database-init.sh', import.meta.url), 'utf8');
@@ -479,6 +505,21 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.ok(configure.includes('Season[ ._-]?\\\\d{1,2}'));
   assert.match(configure, /configure_pulsarr_stack \|\| true/);
   assert.match(configure, /configure_maintainerr_stack \|\| true/);
+  assert.match(configure, /configure_cleanuparr_stack \|\| true/);
+  assert.match(configure, /persist_runtime_api_key "PROWLARR_API_KEY" "\$PROWLARR_KEY"/);
+  assert.match(configure, /persist_runtime_api_key "RADARR_API_KEY" "\$RADARR_KEY"/);
+  assert.match(configure, /persist_runtime_api_key "SONARR_API_KEY" "\$SONARR_KEY"/);
+  assert.match(configure, /persist_runtime_api_key "LIDARR_API_KEY" "\$LIDARR_KEY"/);
+  assert.match(configure, /persist_runtime_api_key "BAZARR_API_KEY" "\$BAZARR_KEY"/);
+  assert.match(configure, /persist_runtime_api_key "TIDARR_API_KEY" "\$TIDARR_KEY"/);
+  assert.match(configure, /persist_runtime_api_key "PLEX_TOKEN" "\$PLEX_OWNER_TOKEN"/);
+  assert.match(configure, /persist_runtime_api_key "SEERR_API_KEY" "\$SEERR_KEY"/);
+  assert.match(configure, /secure_runtime_secret_modes/);
+  assert.match(configure, /chmod 600/);
+  assert.match(cleanuparrConfigure, /\/api\/configuration\/malware_blocker/);
+  assert.match(cleanuparrConfigure, /\*\.exe/);
+  assert.match(cleanuparrConfigure, /\/config\/stackarr-malware-blocklist\.txt/);
+  assert.match(cleanuparrConfigure, /deleteIfAnyFileBlocked/);
   assert.match(configure, /Maintainerr first-run setup is complete/);
   assert.match(configure, /Maintainerr cleanup preset ideas recorded/);
   assert.match(configure, /optional_service_enabled tracearr/);
@@ -508,7 +549,17 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.doesNotMatch(compose, /container_name: database-init/);
   assert.match(common, /stackarr_compose --profile database up -d --wait database/);
   assert.match(common, /stackarr_compose --profile database exec -T/);
+  assert.match(compose, /\$\{PROWLARR_BIND_IP:-127\.0\.0\.1\}:9696:9696/);
+  assert.match(compose, /\$\{RADARR_BIND_IP:-127\.0\.0\.1\}:7878:7878/);
+  assert.match(compose, /\$\{SONARR_BIND_IP:-127\.0\.0\.1\}:8989:8989/);
+  assert.match(compose, /\$\{BAZARR_BIND_IP:-127\.0\.0\.1\}:6767:6767/);
+  assert.match(compose, /\$\{LIDARR_BIND_IP:-127\.0\.0\.1\}:8686:8686/);
+  assert.match(compose, /\$\{TIDARR_BIND_IP:-127\.0\.0\.1\}:8484:8484/);
   assert.match(compose, /container_name: immich/);
+  assert.match(compose, /container_name: cleanuparr/);
+  assert.match(compose, /image: \$\{CLEANUPARR_IMAGE:-ghcr\.io\/cleanuparr\/cleanuparr:latest\}/);
+  assert.match(compose, /\$\{CLEANUPARR_BIND_IP:-127\.0\.0\.1\}:\$\{CLEANUPARR_PORT:-11011\}:11011/);
+  assert.match(compose, /\$\{APP_ROOT:-\.\/\.stackarr\}\/config\/cleanuparr:\/config/);
   assert.match(compose, /container_name: immich-ml/);
   assert.match(compose, /IMMICH_MACHINE_LEARNING_URL: http:\/\/immich-ml:3003/);
   assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);

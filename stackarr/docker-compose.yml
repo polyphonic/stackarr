@@ -202,7 +202,7 @@ services:
     volumes:
       - "${APP_ROOT:-./.stackarr}/config/prowlarr:/config"
     ports:
-      - "9696:9696"
+      - "${PROWLARR_BIND_IP:-127.0.0.1}:9696:9696"
     restart: unless-stopped
 
   sonarr:
@@ -232,7 +232,7 @@ services:
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
-      - "8989:8989"
+      - "${SONARR_BIND_IP:-127.0.0.1}:8989:8989"
     logging:
       driver: "none"
     restart: unless-stopped
@@ -264,7 +264,7 @@ services:
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
-      - "8990:8989"
+      - "${SONARR_4K_BIND_IP:-127.0.0.1}:8990:8989"
     logging:
       driver: "none"
     restart: unless-stopped
@@ -296,7 +296,7 @@ services:
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
-      - "7878:7878"
+      - "${RADARR_BIND_IP:-127.0.0.1}:7878:7878"
     restart: unless-stopped
 
   radarr4k:
@@ -326,7 +326,7 @@ services:
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
-      - "7879:7878"
+      - "${RADARR_4K_BIND_IP:-127.0.0.1}:7879:7878"
     restart: unless-stopped
 
   bazarr:
@@ -349,7 +349,7 @@ services:
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
     ports:
-      - "6767:6767"
+      - "${BAZARR_BIND_IP:-127.0.0.1}:6767:6767"
     restart: unless-stopped
 
   tinymediamanager:
@@ -445,6 +445,25 @@ services:
       retries: 5
       start_period: 40s
     restart: unless-stopped
+
+  cleanuparr:
+    profiles: ['cleanuparr']
+    image: ${CLEANUPARR_IMAGE:-ghcr.io/cleanuparr/cleanuparr:latest}
+    container_name: cleanuparr
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      UMASK: ${UMASK:-002}
+      TZ: ${TZ:-Etc/UTC}
+      PORT: 11011
+      BASE_PATH: ''
+    ports:
+      - '${CLEANUPARR_BIND_IP:-127.0.0.1}:${CLEANUPARR_PORT:-11011}:11011'
+    volumes:
+      - ${APP_ROOT:-./.stackarr}/config/cleanuparr:/config
+    security_opt:
+      - no-new-privileges:true
 
   agregarr:
     profiles:
@@ -550,7 +569,7 @@ services:
     volumes:
       - "${APP_ROOT:-./.stackarr}/config/seerr:/app/config"
     ports:
-      - "${SEERR_BIND_IP:-0.0.0.0}:5055:5055"
+      - "${SEERR_BIND_IP:-127.0.0.1}:5055:5055"
     restart: unless-stopped
 
   plex:
@@ -641,7 +660,7 @@ services:
       - "${MUSIC_ROOT:-./.stackarr/media/Music}:/music:ro"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
-      - "8686:8686"
+      - "${LIDARR_BIND_IP:-127.0.0.1}:8686:8686"
     restart: unless-stopped
 
   tidarr:
@@ -659,7 +678,7 @@ services:
       - "${MUSIC_ROOT:-./.stackarr/media/Music}:/music"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
-      - "8484:8484"
+      - "${TIDARR_BIND_IP:-127.0.0.1}:8484:8484"
     restart: unless-stopped
 
   bookorbit:
@@ -741,12 +760,16 @@ services:
       SCREENSCRAPER_USER: ${ROMM_SCREENSCRAPER_USER:-}
       SCREENSCRAPER_PASSWORD: ${ROMM_SCREENSCRAPER_PASSWORD:-}
       RETROACHIEVEMENTS_API_KEY: ${ROMM_RETROACHIEVEMENTS_API_KEY:-}
+      REFRESH_RETROACHIEVEMENTS_CACHE_DAYS: ${ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS:-30}
       STEAMGRIDDB_API_KEY: ${ROMM_STEAMGRIDDB_API_KEY:-}
       HASHEOUS_API_ENABLED: ${ROMM_HASHEOUS_API_ENABLED:-true}
       PLAYMATCH_API_ENABLED: ${ROMM_PLAYMATCH_API_ENABLED:-false}
       LAUNCHBOX_API_ENABLED: ${ROMM_LAUNCHBOX_API_ENABLED:-false}
       FLASHPOINT_API_ENABLED: ${ROMM_FLASHPOINT_API_ENABLED:-false}
       HLTB_API_ENABLED: ${ROMM_HLTB_API_ENABLED:-false}
+      TGDB_API_ENABLED: ${ROMM_TGDB_API_ENABLED:-false}
+      ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: ${ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA:-false}
+      SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: ${ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON:-0 4 * * *}
     volumes:
       - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"

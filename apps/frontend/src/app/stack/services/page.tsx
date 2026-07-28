@@ -1,10 +1,4 @@
-import {
-  type AgregarrManager as AgregarrManagerState,
-  getAgregarrManagerAction,
-  getNativeAppCapabilitiesAction,
-  listServiceConfigsAction,
-  redactSecrets
-} from '@stackarr/core';
+import { getNativeAppCapabilitiesAction, listServiceConfigsAction } from '@stackarr/core';
 import Link from 'next/link';
 import { AgregarrManager } from '../../../components/AgregarrManager';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
@@ -46,15 +40,6 @@ export default async function AppsPage({ searchParams }: { searchParams: Promise
   );
   const hasNativeActions = nativeCapabilities.apps.some((app) => app.enabled);
   const hasAgregarr = installedApps.some((config) => config.service.name === 'agregarr');
-  let agregarrManager: AgregarrManagerState | null = null;
-  let agregarrError = '';
-  if (hasAgregarr) {
-    try {
-      agregarrManager = await getAgregarrManagerAction();
-    } catch (error) {
-      agregarrError = redactSecrets(error instanceof Error ? error.message : 'Agregarr is not connected yet.');
-    }
-  }
   const initialInstalledApp = query.add ? undefined : query.app;
   const initialAvailableApp = query.add ? query.app : undefined;
 
@@ -98,7 +83,7 @@ export default async function AppsPage({ searchParams }: { searchParams: Promise
             title="Collection Studio"
             description="Create and control the Plex rows you use most without leaving Stackarr"
           >
-            <AgregarrManager initialError={agregarrError} initialManager={agregarrManager} />
+            <AgregarrManager />
           </Panel>
         )}
 

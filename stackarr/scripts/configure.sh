@@ -92,6 +92,43 @@ wait_for_api_key() {
     fail "Could not read $name API key from $file"
 }
 
+read_bazarr_api_key() {
+    local file="$CONFIG_ROOT/bazarr/config/config.yaml"
+
+    [[ -f "$file" ]] || return 1
+    awk '
+        /^auth:/ {
+            in_auth = 1
+            next
+        }
+        in_auth && /^[^[:space:]]/ {
+            exit
+        }
+        in_auth && /^[[:space:]]+apikey:/ {
+            sub(/^[[:space:]]*apikey:[[:space:]]*/, "")
+            gsub(/^['\''"]|['\''"]$/, "")
+            print
+            exit
+        }
+    ' "$file"
+}
+
+read_tidarr_api_key() {
+    local file="$CONFIG_ROOT/tidarr/.tidarr-api-key"
+
+    [[ -f "$file" ]] || return 1
+    tr -d '\r\n' < "$file"
+}
+
+persist_runtime_api_key() {
+    local env_key="$1"
+    local value="$2"
+    local current_value="${!env_key:-}"
+
+    [[ -n "$value" && "$value" != "$current_value" ]] || return 0
+    set_env_value "$env_key" "$value"
+}
+
 read_seerr_api_key() {
     local file="$CONFIG_ROOT/seerr/settings.json"
 
@@ -3792,6 +3829,45 @@ configure_romm_stack() {
     ok "RomM setup is manual; open $ROMM_URL and complete owner setup, library choices, and first scan in RomM"
 }
 
+configure_cleanuparr_stack() {
+    if ! optional_service_enabled cleanuparr; then
+        return 0
+    fi
+    if ! flag_enabled "${CLEANUPARR_AUTO_CONFIGURE:-true}"; then
+        warn "Cleanuparr auto-configuration disabled; complete download client and malware blocker setup in its UI"
+        return 0
+    fi
+    command -v python3 >/dev/null 2>&1 || {
+        warn "Cleanuparr auto-configuration skipped because python3 is unavailable"
+        return 0
+    }
+
+    wait_for_http "Cleanuparr" "$CLEANUPARR_URL/api/auth/status"
+    CLEANUPARR_URL="$CLEANUPARR_URL" \
+        CLEANUPARR_MALWARE_CRON="${CLEANUPARR_MALWARE_CRON:-0/5 * * * * ?}" \
+        python3 "$ROOT_DIR/scripts/cleanuparr-configure.py"
+}
+
+secure_runtime_secret_modes() {
+    local path
+    local -a candidates=(
+        "$CONFIG_ROOT/prowlarr/config.xml"
+        "$CONFIG_ROOT/radarr/config.xml"
+        "$CONFIG_ROOT/sonarr/config.xml"
+        "$CONFIG_ROOT/lidarr/config.xml"
+        "$CONFIG_ROOT/transmission/settings.json"
+        "$CONFIG_ROOT/stackarr.db"
+    )
+
+    shopt -s nullglob
+    candidates+=("$CONFIG_ROOT"/cleanuparr/*.db)
+    shopt -u nullglob
+    for path in "${candidates[@]}"; do
+        [[ -f "$path" ]] || continue
+        chmod 600 "$path" 2>/dev/null || warn "Could not restrict sensitive file permissions: $path"
+    done
+}
+
 configure_agregarr_stack() {
     local plex_token plex_host browser_url key_file
 
@@ -3925,6 +4001,26 @@ if optional_service_enabled lidarr; then
 else
     LIDARR_KEY=""
 fi
+if optional_service_enabled bazarr; then
+    BAZARR_KEY="$(read_bazarr_api_key || true)"
+else
+    BAZARR_KEY=""
+fi
+persist_runtime_api_key "PROWLARR_API_KEY" "$PROWLARR_KEY"
+persist_runtime_api_key "RADARR_API_KEY" "$RADARR_KEY"
+persist_runtime_api_key "RADARR4K_API_KEY" "$RADARR_4K_KEY"
+persist_runtime_api_key "SONARR_API_KEY" "$SONARR_KEY"
+persist_runtime_api_key "SONARR4K_API_KEY" "$SONARR_4K_KEY"
+persist_runtime_api_key "LIDARR_API_KEY" "$LIDARR_KEY"
+persist_runtime_api_key "BAZARR_API_KEY" "$BAZARR_KEY"
+if optional_service_enabled tidarr; then
+    TIDARR_KEY="$(read_tidarr_api_key || true)"
+else
+    TIDARR_KEY=""
+fi
+persist_runtime_api_key "TIDARR_API_KEY" "$TIDARR_KEY"
+PLEX_OWNER_TOKEN="$(read_plex_owner_token || true)"
+persist_runtime_api_key "PLEX_TOKEN" "$PLEX_OWNER_TOKEN"
 LIDARR_QUALITY_PROFILE_ID="$(curl -fsS "$LIDARR_URL/api/v1/qualityprofile" -H "X-Api-Key: $LIDARR_KEY" 2>/dev/null | first_json_id || true)"
 LIDARR_METADATA_PROFILE_ID="$(curl -fsS "$LIDARR_URL/api/v1/metadataprofile" -H "X-Api-Key: $LIDARR_KEY" 2>/dev/null | first_json_id || true)"
 PROWLARR_APP_PROFILE_ID="$(curl -fsS "$PROWLARR_URL/api/v1/appProfile" -H "X-Api-Key: $PROWLARR_KEY" 2>/dev/null | first_json_id || true)"
@@ -4240,8 +4336,10 @@ fi
 "$ROOT_DIR/scripts/bookorbit.sh" credentials apply --wait || true
 configure_bazarr_auth || true
 configure_native_plex_publish_state || true
+configure_cleanuparr_stack || true
 configure_agregarr_stack || true
-
+secure_runtime_secret_modes
+ok "Stack configuration completed"
 echo ""
 if optional_service_enabled seerr && flag_enabled "${STACKARR_CONFIGURE_SEERR:-false}"; then
     SEERR_KEY="$(read_seerr_api_key || true)"
@@ -4265,6 +4363,7 @@ if optional_service_enabled seerr && flag_enabled "${STACKARR_CONFIGURE_SEERR:-f
 elif optional_service_enabled seerr; then
     ok "Seerr first-run is already complete"
 fi
+persist_runtime_api_key "SEERR_API_KEY" "$SEERR_KEY"
 
 if [[ -n "$SEERR_KEY" ]]; then
     RADARR_REQUEST_PROFILE_ID="$(profile_id_by_names "$RADARR_URL/api/v3/qualityprofile" "$RADARR_KEY" "HD" "HD Bluray + WEB" "HD-1080p" || true)"

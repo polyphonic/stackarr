@@ -6,6 +6,27 @@
   box-shadow: var(--soft-shadow);
 }
 
+.loading {
+  display: grid;
+  gap: 14px;
+}
+
+.loadingStatus {
+  height: 70px;
+  border-radius: 13px;
+}
+
+.loadingCards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.loadingCards > * {
+  height: 118px;
+  border-radius: 13px;
+}
+
 .statusBar,
 .sectionIntro,
 .createBar,
@@ -426,5 +447,9 @@
 
   .libraryChips {
     justify-content: flex-start;
+  }
+
+  .loadingCards {
+    grid-template-columns: 1fr;
   }
 }

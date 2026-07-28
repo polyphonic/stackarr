@@ -35,6 +35,12 @@ test('compose env generation preserves runtime roots and the release image', asy
         STACKARR_WEB_ENABLED: 'true',
         STACKARR_RUNTIME: 'docker-updater',
         STACKARR_RUN_SOURCE: 'web',
+        STACKARR_CHANNEL: 'alpha',
+        STACKARR_VERSION: 'fixture-version',
+        STACKARR_REVISION: 'fixture-revision',
+        STACKARR_SCHEDULER_ENABLED: 'true',
+        STACKARR_COMPOSE_PROJECT_DIR: path.join(root, 'transient-compose'),
+        STACKARR_COMPOSE_FILE: path.join(root, 'transient-compose/docker-compose.yml'),
         STACKARR_TASK_ID: 'transient-task-id',
         STACKARR_UPDATE_TASK_ID: 'transient-update-task-id',
         STACKARR_REPO_ROOT: '/app',
@@ -56,7 +62,10 @@ test('compose env generation preserves runtime roots and the release image', asy
     const databasePassword = content.match(/^DATABASE_SUPERUSER_PASSWORD="([^"]+)"$/m)?.[1];
     assert.ok(databasePassword);
     assert.notEqual(databasePassword, 'Portable435');
-    assert.doesNotMatch(content, /STACKARR_(?:RUNTIME|RUN_SOURCE|TASK_ID|UPDATE_TASK_ID|REPO_ROOT)/);
+    assert.doesNotMatch(
+      content,
+      /STACKARR_(?:CHANNEL|COMPOSE_FILE|COMPOSE_PROJECT_DIR|REVISION|RUNTIME|RUN_SOURCE|SCHEDULER_ENABLED|TASK_ID|UPDATE_TASK_ID|REPO_ROOT|VERSION)/
+    );
     assert.doesNotMatch(content, /UNRELATED_SECRET/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -195,4 +204,91 @@ test('compose env can bootstrap Postgres mode without a SQLite config file', asy
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('runtime config export carries Cleanuparr settings into managed Compose', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-cleanuparr-export-test-'));
+  const databaseFile = path.join(root, 'stackarr.db');
+  const patchFile = path.join(root, 'runtime-config.json');
+  const writer = path.join(repoRoot, 'stackarr/scripts/runtime-config-write.cjs');
+  const exporter = path.join(repoRoot, 'stackarr/scripts/runtime-config-export.cjs');
+
+  try {
+    await writeFile(
+      patchFile,
+      JSON.stringify({
+        ENABLE_CLEANUPARR: 'true',
+        CLEANUPARR_URL: 'http://127.0.0.1:11011',
+        CLEANUPARR_IMAGE: 'ghcr.io/cleanuparr/cleanuparr:latest',
+        CLEANUPARR_BIND_IP: '127.0.0.1',
+        CLEANUPARR_PORT: '11011',
+        CLEANUPARR_AUTO_CONFIGURE: 'true',
+        CLEANUPARR_MALWARE_CRON: '0/5 * * * * ?'
+      })
+    );
+    await execFile(process.execPath, [writer, patchFile], {
+      cwd: repoRoot,
+      env: { ...process.env, STACKARR_DATABASE_FILE: databaseFile, STACKARR_DATABASE_URL: '' }
+    });
+
+    const { stdout } = await execFile(process.execPath, [exporter], {
+      cwd: repoRoot,
+      env: { ...process.env, STACKARR_DATABASE_FILE: databaseFile, STACKARR_DATABASE_URL: '' }
+    });
+
+    for (const key of [
+      'ENABLE_CLEANUPARR',
+      'CLEANUPARR_URL',
+      'CLEANUPARR_IMAGE',
+      'CLEANUPARR_BIND_IP',
+      'CLEANUPARR_PORT',
+      'CLEANUPARR_AUTO_CONFIGURE',
+      'CLEANUPARR_MALWARE_CRON'
+    ]) {
+      assert.match(stdout, new RegExp(`^export ${key}=`, 'm'));
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('every managed runtime setting is included in the runtime exporter', async () => {
+  const defaultsSource = await readFile(path.join(repoRoot, 'packages/core/src/env.ts'), 'utf8');
+  const exporterSource = await readFile(path.join(repoRoot, 'stackarr/scripts/runtime-config-export.cjs'), 'utf8');
+  const defaultsStart = defaultsSource.indexOf('export const managedEnvDefaults');
+  const defaultsEnd = defaultsSource.indexOf('\n};', defaultsStart);
+  assert.ok(defaultsStart >= 0 && defaultsEnd > defaultsStart);
+
+  const managedKeys = [...defaultsSource.slice(defaultsStart, defaultsEnd).matchAll(/^  ([A-Z][A-Z0-9_]*):/gm)].map(
+    ([, key]) => key
+  );
+  const exportedKeys = new Set([...exporterSource.matchAll(/^  '([A-Z][A-Z0-9_]*)',?$/gm)].map(([, key]) => key));
+
+  assert.deepEqual(
+    managedKeys.filter((key) => !exportedKeys.has(key)),
+    [],
+    'Managed settings missing from runtime-config-export.cjs can silently disappear from Compose and backups'
+  );
+});
+
+test('every sensitive Compose variable has a managed runtime source', async () => {
+  const defaultsSource = await readFile(path.join(repoRoot, 'packages/core/src/env.ts'), 'utf8');
+  const composeSource = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  const defaultsStart = defaultsSource.indexOf('export const managedEnvDefaults');
+  const defaultsEnd = defaultsSource.indexOf('\n};', defaultsStart);
+  assert.ok(defaultsStart >= 0 && defaultsEnd > defaultsStart);
+
+  const managedKeys = new Set(
+    [...defaultsSource.slice(defaultsStart, defaultsEnd).matchAll(/^  ([A-Z][A-Z0-9_]*):/gm)].map(([, key]) => key)
+  );
+  const composeKeys = [...composeSource.matchAll(/\$\{([A-Z_][A-Z0-9_]*)/g)].map(([, key]) => key);
+  const sensitiveKeys = [...new Set(composeKeys)].filter(
+    (key) => /(PASSWORD|TOKEN|API_KEY|SECRET|CLAIM_CODE)/.test(key) || key.endsWith('_DATABASE_URL')
+  );
+
+  assert.deepEqual(
+    sensitiveKeys.filter((key) => !managedKeys.has(key)),
+    [],
+    'Sensitive Compose settings must be represented in the managed runtime config and portable backup snapshot'
+  );
 });

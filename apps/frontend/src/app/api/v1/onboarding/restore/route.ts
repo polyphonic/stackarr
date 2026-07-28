@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../../lib/api';
 import { runQueuedTask } from '../../../../../lib/runner';
 
-const supportedArchivePattern = /\.(tar\.gz|tgz|zip)$/i;
+const supportedArchivePattern = /\.(tar\.gz\.enc|tgz\.enc|tar\.gz|tgz|zip)$/i;
 const maxRestoreArchiveBytes = 1024 * 1024 * 1024;
 const restoreUploadWindowMs = 15 * 60 * 1000;
 const restoreUploadMaxAttempts = 3;
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
   try {
     const form = await request.formData();
     const archive = form.get('archive') ?? form.get('backup');
+    const backupKey = form.get('backupKey');
 
     if (!formFlag(form, 'confirmRestore', false)) {
       return json({ message: 'Restore confirmation is required.' }, { status: 409 });
@@ -53,7 +54,15 @@ export async function POST(request: NextRequest) {
 
     const originalName = archive.name || 'stackarr-backup.tar.gz';
     if (!supportedArchivePattern.test(originalName)) {
-      return json({ message: 'Backup archive must be .tar.gz, .tgz, or .zip.' }, { status: 400 });
+      return json({ message: 'Backup archive must be .tar.gz.enc, .tar.gz, .tgz, or .zip.' }, { status: 400 });
+    }
+
+    const encrypted = /\.(tar\.gz|tgz)\.enc$/i.test(originalName);
+    if (encrypted && !isUploadedFile(backupKey)) {
+      return json({ message: 'Encrypted backups require the separately stored backup key file.' }, { status: 400 });
+    }
+    if (isUploadedFile(backupKey) && backupKey.size > 4096) {
+      return json({ message: 'Backup key file is larger than expected.' }, { status: 400 });
     }
 
     if (archive.size > maxRestoreArchiveBytes) {
@@ -69,10 +78,16 @@ export async function POST(request: NextRequest) {
     const archivePath = path.join(uploadDir, `${randomUUID()}-${safeArchiveName(originalName)}`);
     await fs.mkdir(uploadDir, { recursive: true });
     await fs.writeFile(archivePath, bytes, { mode: 0o600 });
+    let backupKeyPath = '';
+    if (isUploadedFile(backupKey)) {
+      backupKeyPath = path.join(uploadDir, `${randomUUID()}-backup-encryption.key`);
+      await fs.writeFile(backupKeyPath, Buffer.from(await backupKey.arrayBuffer()), { mode: 0o600 });
+    }
 
     const restorePostgres = formFlag(form, 'restorePostgres', true);
     const restoreNativePlex = formFlag(form, 'restoreNativePlex', false);
     const restorePlexPreferences = formFlag(form, 'restorePlexPreferences', false);
+    const restoreNativeJellyfin = formFlag(form, 'restoreNativeJellyfin', false);
     const forceConfig = formFlag(form, 'forceConfig', true);
     const currentAppRoot = readEnv().APP_ROOT?.trim();
     const command = {
@@ -84,13 +99,18 @@ export async function POST(request: NextRequest) {
         '--yes',
         '--mark-onboarding-complete',
         '--delete-archive-after-restore',
+        backupKeyPath ? '--backup-key-file' : '',
+        backupKeyPath,
+        backupKeyPath ? '--adopt-backup-key' : '',
+        backupKeyPath ? '--delete-backup-key-after-restore' : '',
         '--constrain-runtime-roots',
         currentAppRoot ? '--restore-app-root' : '',
         currentAppRoot || '',
         forceConfig ? '--force-config' : '',
         restorePostgres ? '--restore-postgres' : '--skip-postgres',
         restoreNativePlex ? '--restore-native-plex' : '--skip-native-plex',
-        restorePlexPreferences ? '--restore-plex-preferences' : '--skip-plex-preferences'
+        restorePlexPreferences ? '--restore-plex-preferences' : '--skip-plex-preferences',
+        restoreNativeJellyfin ? '--restore-native-jellyfin' : '--skip-native-jellyfin'
       ].filter(Boolean)
     };
     const task = createQueuedTask(command.name, `${command.label}: ${originalName}`);
