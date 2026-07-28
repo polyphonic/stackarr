@@ -1,4 +1,4 @@
-const packagedVersion = '0.3.0-alpha.9'; // x-release-please-version
+const packagedVersion = '0.3.0-alpha.10'; // x-release-please-version
 
 export const stackarrVersion = process.env.STACKARR_VERSION?.trim() || packagedVersion;
 export const stackarrRevision = process.env.STACKARR_REVISION?.trim() || undefined;
