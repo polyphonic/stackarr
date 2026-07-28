@@ -21,6 +21,7 @@ const logoPaths: Record<string, string> = {
   seerr: '/logos/overseerr.svg',
   pulsarr: '/logos/pulsarr.svg',
   maintainerr: '/logos/maintainerr.svg',
+  cleanuparr: '/logos/cleanuparr.svg',
   agregarr: '/logos/agregarr.svg',
   tracearr: '/logos/tracearr.svg',
   bookorbit: '/logos/bookorbit.svg',

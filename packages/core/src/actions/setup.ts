@@ -47,6 +47,7 @@ export type MediaServerSetupInput = {
     | 'flaresolverr'
     | 'tidarr'
     | 'maintainerr'
+    | 'cleanuparr'
     | 'agregarr'
     | 'tracearr'
   >;
@@ -63,6 +64,7 @@ export type MediaServerSetupInput = {
   enableFlaresolverr?: boolean;
   enableTidarr?: boolean;
   enableMaintainerr?: boolean;
+  enableCleanuparr?: boolean;
   enableAgregarr?: boolean;
   enableTracearr?: boolean;
   maintainerrCleanupPresets?: MaintainerrCleanupPreset[];
@@ -124,6 +126,7 @@ type ResolvedMediaServerSetupInput = Required<
     | 'flaresolverr'
     | 'tidarr'
     | 'maintainerr'
+    | 'cleanuparr'
     | 'agregarr'
     | 'tracearr'
   >;
@@ -157,6 +160,7 @@ export const opinionatedSetupDefaults = {
   enableFlaresolverr: true,
   enableTidarr: true,
   enableMaintainerr: false,
+  enableCleanuparr: false,
   enableAgregarr: false,
   enableTracearr: false,
   maintainerrCleanupPresets: [] as MaintainerrCleanupPreset[],
@@ -187,7 +191,7 @@ export const opinionatedSetupDefaults = {
   globalUsername: 'admin',
   globalPassword: '',
   globalEmail: '',
-  seerrBindIp: '0.0.0.0',
+  seerrBindIp: '127.0.0.1',
   transmissionBindIp: '127.0.0.1',
   qbittorrentBindIp: '127.0.0.1',
   webPort: stackarrDefaultWebPort,
@@ -330,7 +334,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'enabledServices',
         prompt:
-          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Cleanuparr blocks malware-like downloads and cleans queues, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
         type: 'multi-choice',
         choices: [
           'bazarr',
@@ -343,6 +347,7 @@ export function getMediaServerSetupProfileAction() {
           'immich',
           'romm',
           'maintainerr',
+          'cleanuparr',
           'agregarr',
           'tracearr'
         ],
@@ -481,6 +486,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
         enableTidarr: input.enabledServices.includes('tidarr'),
         enableMaintainerr: input.enabledServices.includes('maintainerr'),
+        enableCleanuparr: input.enabledServices.includes('cleanuparr'),
         enableAgregarr: input.enabledServices.includes('agregarr'),
         enableTracearr: input.enabledServices.includes('tracearr')
       }
@@ -536,6 +542,9 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
     merged.enableRecyclarr = false;
   }
   if (!videoAutomationEnabled && !merged.enableLidarr) {
+    merged.enableCleanuparr = false;
+  }
+  if (!videoAutomationEnabled && !merged.enableLidarr) {
     merged.enableFlaresolverr = false;
   }
   const dryRun = input.dryRun !== false;
@@ -561,6 +570,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         : 'Existing Plex mode connects to a Plex Media Server that is already installed, reachable, and signed in outside Stackarr.',
       'Pulsarr first-run admin uses the shared Stackarr username/password and the configured email, falling back to the signed-in Plex account email when available.',
       'Maintainerr is wired to the selected media server, Arr services, Seerr, and qBittorrent when available; cleanup rules stay user-controlled.',
+      'Cleanuparr blocks malware-like executable and script files with a media-safe Stackarr blocklist, scans every five seconds, and deletes a download when any blocked file is present.',
       'Agregarr is optional Plex collection curation. Stackarr uses the signed-in Plex owner token to initialize it, connects Radarr and Sonarr, and creates Coming Soon as the default release-date-sorted source while leaving handmade collections user-controlled.',
       'Tracearr uses the shared Postgres/TimescaleDB service plus shared Redis; onboarding attempts first-owner setup and media-server wiring when credentials are available.',
       'Immich is optional photo-library functionality; Stackarr starts the web app and machine-learning worker against shared Postgres and shared Redis, then the user completes first-run setup in Immich or the iOS app.',
@@ -622,6 +632,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       enableSeerr: merged.enableSeerr,
       enablePulsarr: merged.enablePulsarr,
       enableMaintainerr: merged.enableMaintainerr,
+      enableCleanuparr: merged.enableCleanuparr,
       enableAgregarr: merged.enableAgregarr,
       enableTracearr: merged.enableTracearr
     },
@@ -692,6 +703,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     BACKUP_SCHEDULE: 'weekly',
     BACKUP_WEEKDAY: 'Sun',
     BACKUP_RETENTION_COUNT: String(input.backupRetentionCount),
+    BACKUP_ENCRYPTION: 'keyfile',
     STACKARR_DATABASE_MODE: input.databaseMode,
     ENABLE_SCHEDULED_UPDATES: String(input.installUpdates),
     UPDATE_TIME: '04:30',
@@ -712,6 +724,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
     ENABLE_TIDARR: String(input.enableTidarr),
     ENABLE_MAINTAINERR: String(input.enableMaintainerr),
+    ENABLE_CLEANUPARR: String(input.enableCleanuparr),
     ENABLE_AGREGARR: String(input.enableAgregarr),
     ENABLE_TRACEARR: String(input.enableTracearr),
     MAINTAINERR_BIND_IP: '127.0.0.1',
@@ -720,6 +733,12 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     MAINTAINERR_BASE_PATH: '',
     MAINTAINERR_GITHUB_TOKEN: '',
     MAINTAINERR_CLEANUP_PRESETS: input.maintainerrCleanupPresets.join(','),
+    CLEANUPARR_BIND_IP: '127.0.0.1',
+    CLEANUPARR_PORT: '11011',
+    CLEANUPARR_URL: 'http://127.0.0.1:11011',
+    CLEANUPARR_AUTO_CONFIGURE: 'true',
+    CLEANUPARR_MALWARE_CRON: '0/5 * * * * ?',
+    CLEANUPARR_IMAGE: 'ghcr.io/cleanuparr/cleanuparr:latest',
     AGREGARR_BIND_IP: '127.0.0.1',
     AGREGARR_PORT: '7171',
     AGREGARR_URL: 'http://127.0.0.1:7171',
@@ -817,12 +836,16 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ROMM_SCREENSCRAPER_USER: rommUsesScreenscraper ? input.rommScreenscraperUser : '',
     ROMM_SCREENSCRAPER_PASSWORD: rommUsesScreenscraper ? input.rommScreenscraperPassword : '',
     ROMM_RETROACHIEVEMENTS_API_KEY: rommUsesRetroAchievements ? input.rommRetroAchievementsApiKey : '',
+    ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS: '30',
     ROMM_STEAMGRIDDB_API_KEY: rommUsesSteamGridDb ? input.rommSteamGridDbApiKey : '',
     ROMM_HASHEOUS_API_ENABLED: String(rommHasheousEnabled),
     ROMM_PLAYMATCH_API_ENABLED: String(rommPlaymatchEnabled),
     ROMM_LAUNCHBOX_API_ENABLED: 'false',
     ROMM_FLASHPOINT_API_ENABLED: 'false',
     ROMM_HLTB_API_ENABLED: 'false',
+    ROMM_TGDB_API_ENABLED: 'false',
+    ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
+    ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
     ROMM_IMAGE: 'rommapp/romm:latest',
     ROMM_DB_IMAGE: '',
     DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',

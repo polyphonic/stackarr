@@ -3,8 +3,8 @@
     "renameMovies": true,
     "replaceIllegalCharacters": true,
     "colonReplacementFormat": "smart",
-    "movieFolderFormat": "{Movie Title} ({Release Year}){ {edition-{Movie Edition}}}",
-    "standardMovieFormat": "{Movie Title} ({Release Year}){ {edition-{Movie Edition}}} [{Quality Full}.{MediaInfo VideoCodec}.{MediaInfo AudioCodec}.{MediaInfo AudioChannels}]"
+    "movieFolderFormat": "{Movie Title} ({Release Year})",
+    "standardMovieFormat": "{Movie Title} ({Release Year}) {edition-{Edition Tags}} [{Quality Full}.{MediaInfo VideoCodec}.{MediaInfo AudioCodec}.{MediaInfo AudioChannels}]"
   },
   "sonarr": {
     "renameEpisodes": true,
@@ -29,8 +29,8 @@
       "renameAfterScrape": false,
       "renamerCleanupUnwanted": true,
       "renamerColonReplacement": "-",
-      "renamerPathname": "${title} (${year})${if edition} {edition-${edition}}${end}",
-      "renamerFilename": "${title} (${year})${if edition} {edition-${edition}}${end} [${,mediaSource,.}${,videoFormat,}.${,videoCodec,;upper}.${,audioCodec,}.${,audioChannelsDot,}]"
+      "renamerPathname": "${title} (${year})",
+      "renamerFilename": "${title} (${year})${if edition} {edition-${edition}}${else}${@regexp (?i)(\\x20\\x7Bedition-[^\\x7D]+\\x7D) movie.mainVideoFile.filename $1}${end} [${,mediaSource,.}${,videoFormat,}.${,videoCodec,;upper}.${,audioCodec,}.${,audioChannelsDot,}]"
     },
     "tvShows": {
       "tvShowDataSource": [
@@ -41,7 +41,7 @@
       "renameAfterScrape": false,
       "renamerCleanupUnwanted": true,
       "renamerColonReplacement": " ",
-      "renamerTvShowFoldername": "${showTitle} (${showYear})",
+      "renamerTvShowFoldername": "",
       "renamerSeasonFoldername": "Season ${seasonNr2}",
       "renamerMultiEpisodeStyle": "RANGE",
       "renamerFilename": "${showTitle} (${showYear}) - S${seasonNr2}E${episodeNr2} - ${title} [${,mediaSource,.}${,videoFormat,}.${,videoCodec,;upper}.${,audioCodec,}.${,audioChannelsDot,}]"

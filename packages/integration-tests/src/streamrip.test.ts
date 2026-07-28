@@ -49,8 +49,8 @@ test('Streamrip config exposes typed fields and redacts secrets', async () => {
     }
   });
   const publicConfig = getStreamripConfigAction().config;
-  assert.equal(publicConfig.deezer.arl, '********');
-  assert.equal(publicConfig.qobuz.secrets, '********');
+  assert.equal(publicConfig.deezer.arl, 'secret...okie');
+  assert.equal(publicConfig.qobuz.secrets, '["qobu...wo"]');
   assert.equal(publicConfig.deezer.quality, 1);
   assert.equal(publicConfig.artwork.embed_size, 'large');
   assert.equal(publicConfig.conversion.enabled, true);
@@ -139,7 +139,7 @@ test('Streamrip config normalizes copied Deezer ARL assignments', async () => {
   updateStreamripConfigAction({ values: { 'deezer.arl': 'arl = "wrapped-cookie"' } });
 
   const publicConfig = getStreamripConfigAction().config;
-  assert.equal(publicConfig.deezer.arl, '********');
+  assert.equal(publicConfig.deezer.arl, 'wrappe...okie');
 
   const stored = readJsonSetting<Record<string, Record<string, unknown>>>('stackarr.streamripConfig', {});
   assert.match(String(stored.deezer.arl), /^stackarr:v1:/);

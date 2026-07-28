@@ -85,6 +85,10 @@ case "$cmd" in
         shift || true
         exec "$ROOT_DIR/scripts/romm.sh" "$@"
         ;;
+    service)
+        shift || true
+        exec "$ROOT_DIR/scripts/service-apply.sh" "$@"
+        ;;
     requests)
         shift || true
         exec "$ROOT_DIR/scripts/requests.sh" "$@"
@@ -238,7 +242,8 @@ Stackarr commands:
   stackarr security apply
   stackarr database ensure|status
   stackarr immich status|url|open|enable|disable
-  stackarr romm status|url|open|enable|disable
+  stackarr romm status|url|open|enable|disable|metadata apply
+  stackarr service apply <compose-service> [compose-service...]
   stackarr requests apply|clear
   stackarr doctor
   stackarr plex-check

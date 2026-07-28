@@ -1,9 +1,9 @@
 'use client';
 
 import type { AgregarrManager as AgregarrManagerState, AgregarrMediaScope, AgregarrPreset } from '@stackarr/core';
-import { Button, Label, Switch } from '@stackarr/ui';
+import { Button, Label, Skeleton, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './AgregarrManager.module.css';
 import { stackarrFetch } from './clientApi';
 
@@ -32,15 +32,49 @@ export function AgregarrManager({
   initialManager,
   initialError
 }: {
-  initialManager: AgregarrManagerState | null;
+  initialManager?: AgregarrManagerState | null;
   initialError?: string;
-}) {
+} = {}) {
   const [manager, setManager] = useState(initialManager);
+  const [loadError, setLoadError] = useState(initialError ?? '');
+  const [loading, setLoading] = useState(initialManager === undefined);
   const [preset, setPreset] = useState<AgregarrPreset>('coming-soon');
   const [mediaScope, setMediaScope] = useState<AgregarrMediaScope>('both');
   const [maxItems, setMaxItems] = useState(100);
   const [daysAhead, setDaysAhead] = useState(730);
   const [pending, setPending] = useState('');
+
+  useEffect(() => {
+    if (initialManager !== undefined) {
+      return undefined;
+    }
+
+    let mounted = true;
+    void stackarrFetch('/api/v1/apps/agregarr', { cache: 'no-store' })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as AgregarrManagerState & { message?: string };
+        if (!response.ok) {
+          throw new Error(body.message || 'Agregarr is not connected yet.');
+        }
+        if (mounted) {
+          setManager(body);
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setLoadError(error instanceof Error ? error.message : 'Agregarr is not connected yet.');
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [initialManager]);
 
   async function perform(label: string, body: Record<string, unknown>) {
     setPending(label);
@@ -62,13 +96,26 @@ export function AgregarrManager({
     }
   }
 
+  if (loading) {
+    return (
+      <div className={`${styles.loading} skeleton--shimmer`} aria-label="Loading Collection Studio">
+        <Skeleton className={styles.loadingStatus} animationType="none" />
+        <div className={styles.loadingCards}>
+          <Skeleton animationType="none" />
+          <Skeleton animationType="none" />
+          <Skeleton animationType="none" />
+        </div>
+      </div>
+    );
+  }
+
   if (!manager) {
     return (
       <div className={styles.setupState}>
         <img alt="" height="44" src="/logos/agregarr.svg" width="45" />
         <div>
           <strong>Agregarr needs its Stackarr connection</strong>
-          <p>{initialError || 'Apply setup once to connect Plex and save Agregarr’s generated API key.'}</p>
+          <p>{loadError || 'Apply setup once to connect Plex and save Agregarr’s generated API key.'}</p>
         </div>
         <a href="/stack/services?app=agregarr">Open settings</a>
       </div>

@@ -65,6 +65,7 @@ export const managedEnvDefaults: StackarrEnv = {
   STACKARR_CONFIGURE_SEERR: 'false',
   ENABLE_PULSARR: 'true',
   ENABLE_MAINTAINERR: 'false',
+  ENABLE_CLEANUPARR: 'false',
   ENABLE_AGREGARR: 'false',
   ENABLE_TRACEARR: 'false',
   ENABLE_BACKUP: 'true',
@@ -105,7 +106,15 @@ export const managedEnvDefaults: StackarrEnv = {
   LIDARR_CATEGORY: 'lidarr',
   STREAMRIP_COMMAND: 'rip',
 
-  SEERR_BIND_IP: '0.0.0.0',
+  SEERR_BIND_IP: '127.0.0.1',
+  PROWLARR_BIND_IP: '127.0.0.1',
+  RADARR_BIND_IP: '127.0.0.1',
+  RADARR_4K_BIND_IP: '127.0.0.1',
+  SONARR_BIND_IP: '127.0.0.1',
+  SONARR_4K_BIND_IP: '127.0.0.1',
+  BAZARR_BIND_IP: '127.0.0.1',
+  LIDARR_BIND_IP: '127.0.0.1',
+  TIDARR_BIND_IP: '127.0.0.1',
   PULSARR_BIND_IP: '127.0.0.1',
   PULSARR_PORT: '3003',
   PULSARR_AUTHENTICATION_METHOD: 'requiredExceptLocal',
@@ -118,6 +127,11 @@ export const managedEnvDefaults: StackarrEnv = {
   MAINTAINERR_PLEX_SERVER_URL: '',
   MAINTAINERR_JELLYFIN_SERVER_URL: '',
   MAINTAINERR_QBITTORRENT_URL: '',
+  CLEANUPARR_BIND_IP: '127.0.0.1',
+  CLEANUPARR_PORT: '11011',
+  CLEANUPARR_URL: 'http://127.0.0.1:11011',
+  CLEANUPARR_AUTO_CONFIGURE: 'true',
+  CLEANUPARR_MALWARE_CRON: '0/5 * * * * ?',
   AGREGARR_BIND_IP: '127.0.0.1',
   AGREGARR_PORT: '7171',
   AGREGARR_URL: 'http://127.0.0.1:7171',
@@ -208,12 +222,16 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_SCREENSCRAPER_USER: '',
   ROMM_SCREENSCRAPER_PASSWORD: '',
   ROMM_RETROACHIEVEMENTS_API_KEY: '',
+  ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS: '30',
   ROMM_STEAMGRIDDB_API_KEY: '',
   ROMM_HASHEOUS_API_ENABLED: 'true',
   ROMM_PLAYMATCH_API_ENABLED: 'false',
   ROMM_LAUNCHBOX_API_ENABLED: 'false',
   ROMM_FLASHPOINT_API_ENABLED: 'false',
   ROMM_HLTB_API_ENABLED: 'false',
+  ROMM_TGDB_API_ENABLED: 'false',
+  ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
+  ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
   BAZARR_URL: 'http://127.0.0.1:6767',
   SEERR_URL: 'http://127.0.0.1:5055',
   PULSARR_URL: 'http://127.0.0.1:3003',
@@ -246,6 +264,7 @@ export const managedEnvDefaults: StackarrEnv = {
   BACKUP_SCHEDULE: 'weekly',
   BACKUP_WEEKDAY: 'Sun',
   BACKUP_RETENTION_COUNT: '52',
+  BACKUP_ENCRYPTION: 'keyfile',
   ENABLE_SCHEDULED_UPDATES: 'false',
   UPDATE_TIME: '04:30',
   UPDATE_WEEKDAY: 'Sun',
@@ -279,6 +298,7 @@ export const managedEnvDefaults: StackarrEnv = {
   SEERR_IMAGE: 'ghcr.io/seerr-team/seerr:latest',
   PULSARR_IMAGE: 'lakker/pulsarr:latest',
   MAINTAINERR_IMAGE: 'ghcr.io/maintainerr/maintainerr:latest',
+  CLEANUPARR_IMAGE: 'ghcr.io/cleanuparr/cleanuparr:latest',
   AGREGARR_IMAGE: 'agregarr/agregarr:latest',
   TRACEARR_IMAGE: 'ghcr.io/connorgallopo/tracearr:latest',
   REDIS_IMAGE: 'redis:8.8.0-alpine',
@@ -917,11 +937,15 @@ export function isSecretKey(key: string): boolean {
   );
 }
 
-function redactSecretValue(value: string) {
+export function redactSecretValue(value: string) {
   const text = String(value);
 
+  if (text.length <= 1) {
+    return '***';
+  }
+
   if (text.length <= 4) {
-    return '...';
+    return `${text.slice(0, 1)}...${text.slice(-1)}`;
   }
 
   if (text.length <= 10) {

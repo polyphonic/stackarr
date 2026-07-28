@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -6,6 +7,7 @@ import { promisify } from 'node:util';
 import { readEnv } from '../env';
 import { repoRoot, stackarrBin } from '../paths';
 import { type DangerousConfirmation, requireDangerousConfirmation } from '../safety/dangerous';
+import { readSettings, writeSettings } from '../settings';
 import { runBackupAction } from './commands';
 
 const execFileAsync = promisify(execFile);
@@ -13,6 +15,108 @@ const execFileAsync = promisify(execFile);
 function backupRoot() {
   return readEnv().BACKUP_ROOT ?? path.join(repoRoot, 'backups');
 }
+
+export type BackupRecoveryKeyStatus = {
+  encryptionEnabled: boolean;
+  keyAvailable: boolean;
+  keyValid: boolean;
+  exported: boolean;
+  exportedAt: string;
+  keyId: string;
+};
+
+function backupRecoveryKeyPath() {
+  const env = readEnv();
+  return (
+    process.env.BACKUP_ENCRYPTION_KEY_FILE?.trim() ||
+    path.join(env.STATE_ROOT ?? path.join(repoRoot, 'state'), 'backup-encryption.key')
+  );
+}
+
+function recoveryKeyBytes(value: string) {
+  const text = value.trim();
+  const bytes = /^[a-f0-9]{64}$/i.test(text) ? Buffer.from(text, 'hex') : Buffer.from(text, 'base64');
+  return bytes.length === 32 ? bytes : undefined;
+}
+
+function recoveryKeyId(bytes: Uint8Array) {
+  return crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+}
+
+function readRecoveryKey() {
+  const keyPath = backupRecoveryKeyPath();
+
+  try {
+    const stat = fsSync.lstatSync(keyPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 32 || stat.size > 4096) {
+      return { keyPath, keyAvailable: true, keyValid: false, contents: '', keyId: '' };
+    }
+
+    const contents = fsSync.readFileSync(keyPath, 'utf8');
+    const bytes = recoveryKeyBytes(contents);
+    return {
+      keyPath,
+      keyAvailable: true,
+      keyValid: Boolean(bytes),
+      contents,
+      keyId: bytes ? recoveryKeyId(bytes) : ''
+    };
+  } catch {
+    return { keyPath, keyAvailable: false, keyValid: false, contents: '', keyId: '' };
+  }
+}
+
+export function getBackupRecoveryKeyStatusAction(): BackupRecoveryKeyStatus {
+  const env = readEnv();
+  const settings = readSettings();
+  const recoveryKey = readRecoveryKey();
+  const encryptionEnabled = String(env.BACKUP_ENCRYPTION ?? 'keyfile').toLowerCase() !== 'none';
+  const exported = Boolean(
+    recoveryKey.keyValid &&
+      settings.backups.recoveryKeyExportedAt &&
+      settings.backups.recoveryKeyExportedKeyId === recoveryKey.keyId
+  );
+
+  return {
+    encryptionEnabled,
+    keyAvailable: recoveryKey.keyAvailable,
+    keyValid: recoveryKey.keyValid,
+    exported,
+    exportedAt: exported ? settings.backups.recoveryKeyExportedAt : '',
+    keyId: recoveryKey.keyId
+  };
+}
+
+export async function exportBackupRecoveryKeyAction() {
+  const env = readEnv();
+  if (String(env.BACKUP_ENCRYPTION ?? 'keyfile').toLowerCase() === 'none') {
+    throw new Error('Backup encryption is disabled, so there is no recovery key to export.');
+  }
+  const recoveryKey = readRecoveryKey();
+  if (!recoveryKey.keyAvailable) {
+    throw new Error('Run an encrypted backup first so Stackarr can generate its recovery key.');
+  }
+  if (!recoveryKey.keyValid) {
+    throw new Error('The backup recovery key is invalid and cannot be exported safely.');
+  }
+
+  await fs.chmod(recoveryKey.keyPath, 0o600);
+  const exportedAt = new Date().toISOString();
+  writeSettings({
+    backups: {
+      recoveryKeyExportedAt: exportedAt,
+      recoveryKeyExportedKeyId: recoveryKey.keyId
+    }
+  });
+
+  return {
+    contents: recoveryKey.contents,
+    exportedAt,
+    keyId: recoveryKey.keyId,
+    fileName: `stackarr-backup-recovery-key-${recoveryKey.keyId}.txt`
+  };
+}
+
 export const runBackupWorkflowAction = () => runBackupAction();
 export async function listBackupsAction() {
   const root = backupRoot();
@@ -27,7 +131,13 @@ export async function validateBackupAction(input: { backupPath: string }) {
     backupPath: input.backupPath,
     exists: true,
     size: stat.size,
-    valid: stat.isFile() && (archive.endsWith('.tar.gz') || archive.endsWith('.tgz') || archive.endsWith('.zip'))
+    valid:
+      stat.isFile() &&
+      (archive.endsWith('.tar.gz.enc') ||
+        archive.endsWith('.tgz.enc') ||
+        archive.endsWith('.tar.gz') ||
+        archive.endsWith('.tgz') ||
+        archive.endsWith('.zip'))
   };
 }
 export async function getBackupStatusAction() {
@@ -41,6 +151,8 @@ export type RestoreBackupInput = {
   restorePostgres?: boolean;
   restoreNativePlex?: boolean;
   restorePlexPreferences?: boolean;
+  restoreNativeJellyfin?: boolean;
+  backupKeyPath?: string;
   markOnboardingComplete?: boolean;
 } & DangerousConfirmation;
 
@@ -53,7 +165,8 @@ export async function restoreBackupAction(input: RestoreBackupInput) {
     validation,
     notes: [
       'Restore replaces Stackarr config and state from the backup archive.',
-      'Native Plex/Jellyfin installs outside the Docker stack are host-specific; restore their data only on a matching host.'
+      'Native Plex/Jellyfin installs outside the Docker stack are host-specific; restore their data only on a matching host.',
+      'Encrypted backups require the separately stored backup key file.'
     ]
   };
 
@@ -61,7 +174,7 @@ export async function restoreBackupAction(input: RestoreBackupInput) {
     return {
       accepted: false,
       plan,
-      error: 'Backup archive must be .tar.gz, .tgz, or .zip.'
+      error: 'Backup archive must be .tar.gz.enc, .tar.gz, .tgz, or .zip.'
     };
   }
 
@@ -100,6 +213,9 @@ function buildRestoreArgs(input: RestoreBackupInput) {
   else args.push('--skip-native-plex');
   if (input.restorePlexPreferences) args.push('--restore-plex-preferences');
   else args.push('--skip-plex-preferences');
+  if (input.restoreNativeJellyfin) args.push('--restore-native-jellyfin');
+  else args.push('--skip-native-jellyfin');
+  if (input.backupKeyPath) args.push('--backup-key-file', input.backupKeyPath);
   if (input.markOnboardingComplete) args.push('--mark-onboarding-complete');
 
   return args;

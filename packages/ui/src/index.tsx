@@ -50,6 +50,7 @@ export { Input } from '@heroui/react/input';
 export { Label } from '@heroui/react/label';
 export { Link } from '@heroui/react/link';
 export { Modal } from '@heroui/react/modal';
+export { Skeleton } from '@heroui/react/skeleton';
 export { Surface } from '@heroui/react/surface';
 export { Switch } from '@heroui/react/switch';
 export { TextArea } from '@heroui/react/textarea';

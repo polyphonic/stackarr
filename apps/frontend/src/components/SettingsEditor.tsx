@@ -39,7 +39,14 @@ type SecurityServiceTarget = {
   databaseKeys?: string[];
 };
 
-const storageEnvKeys = ['MEDIA_ROOT', 'MUSIC_ROOT', 'DOWNLOADS_ROOT', 'BACKUP_ROOT'] as const;
+const storageEnvKeys = [
+  'MEDIA_ROOT',
+  'MUSIC_ROOT',
+  'DOWNLOADS_ROOT',
+  'BACKUP_ROOT',
+  'GAMES_ROOT',
+  'ROMM_LIBRARY_ROOT'
+] as const;
 const mediaProfilePresetOptions = ['lite', 'balanced'];
 const musicProfilePresetOptions = ['lossless', 'lossy'];
 const themeOptions: Array<StackarrSettings['ui']['theme']> = ['light', 'dark', 'system'];
@@ -402,7 +409,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
         const applyResponse = await stackarrFetch('/api/v1/command', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: 'StackStart' })
+          body: JSON.stringify({ name: 'StackStart', confirmed: true })
         });
         const nextMessage = applyResponse.ok
           ? 'Saved. Storage mounts apply queued.'
@@ -726,6 +733,12 @@ export function SettingsEditor({ section, env, settings }: Props) {
               updateEnv('BACKUP_RETENTION_COUNT', value);
             }}
           />
+          <Select
+            label="Backup Encryption"
+            value={envValue('BACKUP_ENCRYPTION') || 'keyfile'}
+            options={['keyfile', 'none']}
+            onChange={(value) => updateEnv('BACKUP_ENCRYPTION', value)}
+          />
         </FormGrid>
       )}
 
@@ -951,6 +964,14 @@ export function SettingsEditor({ section, env, settings }: Props) {
             }}
           />
           <Check
+            label="Cleanuparr Download Security"
+            checked={envBool('ENABLE_CLEANUPARR', draftSettings.services.enableCleanuparr)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_CLEANUPARR', value);
+              updateSettings('services', 'enableCleanuparr', value);
+            }}
+          />
+          <Check
             label="Tracearr Monitoring"
             checked={envBool('ENABLE_TRACEARR', draftSettings.services.enableTracearr)}
             onChange={(value) => {
@@ -1163,7 +1184,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
             </div>
             {cloudflareRoutes.length === 0 && <p>No public routes configured.</p>}
             {cloudflareRoutes.map((route, index) => (
-              <div className={styles.routeRow} key={`${route.hostname}-${index}`}>
+              <div className={styles.routeRow} key={`cloudflare-route-${index}`}>
                 <input
                   aria-label="Public hostname"
                   placeholder="books.example.com"
@@ -1664,6 +1685,7 @@ function Password({
 }) {
   const id = useId();
   const [visible, setVisible] = useState(false);
+  const savedPreview = isMiddleTruncatedSecret(value) ? value : '';
 
   return (
     <div className={styles.field}>
@@ -1698,8 +1720,17 @@ function Password({
         </span>
       </div>
       {error && <small>{error}</small>}
+      {!error && savedPreview && (
+        <small className={styles.secretPreview}>
+          Saved as <code>{savedPreview}</code>
+        </small>
+      )}
     </div>
   );
+}
+
+function isMiddleTruncatedSecret(value: string) {
+  return value.includes('...') && value !== '...' && !/^\*+$/.test(value);
 }
 
 function NumberInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

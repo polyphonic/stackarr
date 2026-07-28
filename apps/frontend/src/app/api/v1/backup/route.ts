@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const backups = fs
     .readdirSync(backupRoot)
-    .filter((file) => /\.(tar\.gz|tgz|zip)$/i.test(file))
+    .filter((file) => /\.(tar\.gz|tgz)(?:\.enc)?$|\.zip$/i.test(file))
     .map((file) => {
       const filePath = path.join(backupRoot, file);
       const stat = fs.statSync(filePath);

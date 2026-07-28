@@ -60,7 +60,7 @@ export function DashboardClient({
       <section className={styles.hero} aria-labelledby="stack-summary-title">
         <div className={styles.heroCopy}>
           <span className={styles.eyebrow}>{emptyHomelab ? 'Start with what you need' : 'Today in your homelab'}</span>
-          <h2 id="stack-summary-title">{heroTitle(status.configured, metrics, visibleServices.length)}</h2>
+          <h2 id="stack-summary-title">{heroTitle(status.configured, metrics, visibleServices.length, liveTasks)}</h2>
           <p>{heroSummary(status.configured, metrics, visibleServices.length)}</p>
           <div className={styles.heroActions}>
             <Link className={styles.primaryLink} href="/stack/services#add-app">
@@ -298,7 +298,9 @@ function buildAttentionItems(
 ) {
   const items: Array<{ label: string; detail: string; href: string; action: string; tone: 'warn' | 'bad' }> = [];
   const missing = services.filter((service) => service.mode !== 'disabled' && service.status === 'missing').length;
-  const failed = tasks.filter((task) => task.status === 'failed' || task.status === 'blocked').length;
+  const failed = tasks.filter(
+    (task) => (task.status === 'failed' || task.status === 'blocked') && !task.reviewedAt
+  ).length;
   const fullDisk = metrics.disks.find((disk) => (disk.usedPercent ?? 0) >= 90);
   if (!configured)
     items.push({
@@ -343,10 +345,12 @@ function buildAttentionItems(
   return items.slice(0, 4);
 }
 
-function heroTitle(configured: boolean, metrics: StackMetrics, appCount: number) {
+function heroTitle(configured: boolean, metrics: StackMetrics, appCount: number, tasks: StackarrTask[]) {
   if (!configured) return 'Let’s finish shaping your stack.';
   if (appCount === 0) return 'Your homelab is ready for its first app.';
-  if (metrics.tasks.failed > 0) return 'Your stack is running. A few things need a look.';
+  if (tasks.some((task) => (task.status === 'failed' || task.status === 'blocked') && !task.reviewedAt)) {
+    return 'Your stack is running. A few things need a look.';
+  }
   if (metrics.tasks.running > 0 || metrics.tasks.queued > 0) return 'Your stack is working in the background.';
   return 'Your homelab is ready when you are.';
 }

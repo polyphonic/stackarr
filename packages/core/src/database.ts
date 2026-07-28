@@ -50,6 +50,7 @@ type TaskDbRow = {
   exit_code?: number | null;
   output?: string | null;
   error?: string | null;
+  reviewed_at?: string | null;
 };
 
 export function getDatabase() {
@@ -305,7 +306,8 @@ export function readTaskRows(): StackarrTask[] | undefined {
           ended_at,
           exit_code,
           output,
-          error
+          error,
+          reviewed_at
         from tasks
         order by queued_at desc
         limit 100
@@ -415,9 +417,10 @@ function upsertSqliteTask(task: StackarrTask) {
         exit_code,
         output,
         error,
+        reviewed_at,
         updated_at
       )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       on conflict(id) do update set
         command_name = excluded.command_name,
         command_label = excluded.command_label,
@@ -428,6 +431,7 @@ function upsertSqliteTask(task: StackarrTask) {
         exit_code = excluded.exit_code,
         output = excluded.output,
         error = excluded.error,
+        reviewed_at = excluded.reviewed_at,
         updated_at = excluded.updated_at
     `)
     .run(...taskSqliteValues(task));
@@ -497,12 +501,18 @@ function migrate(db: Database) {
       exit_code integer,
       output text,
       error text,
+      reviewed_at text,
       created_at text not null default (datetime('now')),
       updated_at text not null default (datetime('now'))
     );
 
     create index if not exists tasks_queued_at_idx on tasks(queued_at);
   `);
+
+  const taskColumns = db.prepare('pragma table_info(tasks)').all() as unknown as Array<{ name: string }>;
+  if (!taskColumns.some((column) => column.name === 'reviewed_at')) {
+    db.exec('alter table tasks add column reviewed_at text');
+  }
 }
 
 function postgresConfigured(target: StackarrDatabaseTarget) {
@@ -555,11 +565,13 @@ function migratePostgres(target: StackarrDatabaseTarget) {
         exit_code integer,
         output text,
         error text,
+        reviewed_at timestamptz,
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
 
       create index if not exists tasks_queued_at_idx on tasks(queued_at);
+      alter table tasks add column if not exists reviewed_at timestamptz;
     `,
         {},
         false,
@@ -855,7 +867,8 @@ function readPostgresTasks(): StackarrTask[] | undefined {
           to_char(ended_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as ended_at,
           exit_code,
           output,
-          error
+          error,
+          to_char(reviewed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as reviewed_at
         from tasks
         order by queued_at desc
         limit 100
@@ -886,6 +899,7 @@ function writePostgresTasks(tasks: StackarrTask[]) {
           exit_code,
           output,
           error,
+          reviewed_at,
           updated_at
         )
         values ${tasks.map(taskPostgresValues).join(',\n')}
@@ -899,6 +913,7 @@ function writePostgresTasks(tasks: StackarrTask[]) {
           exit_code = excluded.exit_code,
           output = excluded.output,
           error = excluded.error,
+          reviewed_at = excluded.reviewed_at,
           updated_at = excluded.updated_at;
       `
       : '';
@@ -982,7 +997,8 @@ function taskSqliteValues(task: StackarrTask) {
     task.endedAt ?? null,
     task.exitCode ?? null,
     task.output ?? null,
-    task.error ?? null
+    task.error ?? null,
+    task.reviewedAt ?? null
   ];
 }
 
@@ -998,6 +1014,7 @@ function taskPostgresValues(task: StackarrTask) {
     ${sqlNullableInteger(task.exitCode)},
     ${sqlNullableText(task.output)},
     ${sqlNullableText(task.error)},
+    ${sqlNullableTimestamp(task.reviewedAt)},
     now()
   )`;
 }
@@ -1013,6 +1030,7 @@ function taskPatchSqliteEntries(patch: Partial<StackarrTask>): Array<[string, Sq
   if (patch.exitCode !== undefined) entries.push(['exit_code', patch.exitCode ?? null]);
   if (patch.output !== undefined) entries.push(['output', patch.output ?? null]);
   if (patch.error !== undefined) entries.push(['error', patch.error ?? null]);
+  if (patch.reviewedAt !== undefined) entries.push(['reviewed_at', patch.reviewedAt ?? null]);
   return entries;
 }
 
@@ -1027,6 +1045,7 @@ function taskPatchPostgresEntries(patch: Partial<StackarrTask>): Array<[string, 
   if (patch.exitCode !== undefined) entries.push(['exit_code', sqlNullableInteger(patch.exitCode)]);
   if (patch.output !== undefined) entries.push(['output', sqlNullableText(patch.output)]);
   if (patch.error !== undefined) entries.push(['error', sqlNullableText(patch.error)]);
+  if (patch.reviewedAt !== undefined) entries.push(['reviewed_at', sqlNullableTimestamp(patch.reviewedAt)]);
   return entries;
 }
 
@@ -1083,6 +1102,9 @@ function taskFromDbRow(row: TaskDbRow): StackarrTask {
   }
   if (row.error) {
     task.error = row.error;
+  }
+  if (row.reviewed_at) {
+    task.reviewedAt = row.reviewed_at;
   }
 
   return task;

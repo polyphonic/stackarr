@@ -39,6 +39,15 @@
   font-size: 12px;
 }
 
+.field small.secretPreview {
+  color: var(--mutedTextColor);
+}
+
+.secretPreview code {
+  color: var(--textColor);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 .passwordControl {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px;

@@ -1124,6 +1124,8 @@ const tools: ToolDef[] = [
       restorePostgres: z.boolean().optional(),
       restoreNativePlex: z.boolean().optional(),
       restorePlexPreferences: z.boolean().optional(),
+      restoreNativeJellyfin: z.boolean().optional(),
+      backupKeyPath: z.string().optional(),
       markOnboardingComplete: z.boolean().optional(),
       ...dangerous
     },

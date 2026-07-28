@@ -6,6 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { changedEnvironmentKeys, composeServicesAffectedByEnvironment } from '../../core/src/composeRuntime.ts';
 
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -568,4 +569,140 @@ test('Cloudflare route apply uses route-only command outside host-only runner ga
   assert.match(settingsEditor, /name: 'CloudflareApplyRoutes'/);
   assert.match(script, /apply_cloudflare_routes\(\)/);
   assert.doesNotMatch(runner, /'CloudflareApplyRoutes'/);
+});
+
+test('RomM library path changes queue storage mount reconciliation', async () => {
+  const settingsEditor = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.tsx'), 'utf8');
+
+  assert.match(
+    settingsEditor,
+    /const storageEnvKeys = \[[\s\S]*'GAMES_ROOT',[\s\S]*'ROMM_LIBRARY_ROOT'[\s\S]*\] as const;/
+  );
+  assert.match(settingsEditor, /body: JSON\.stringify\(\{ name: 'StackStart', confirmed: true \}\)/);
+});
+
+test('dashboard settings recreate only Compose services affected by changed environment values', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  const commands = await readFile(path.join(repoRoot, 'packages/core/src/commands.ts'), 'utf8');
+  const route = await readFile(
+    path.join(repoRoot, 'apps/frontend/src/app/api/v1/services/config/[service]/route.ts'),
+    'utf8'
+  );
+  const directory = await readFile(path.join(repoRoot, 'apps/frontend/src/components/ServiceDirectory.tsx'), 'utf8');
+  const script = await readFile(path.join(repoRoot, 'stackarr/scripts/service-apply.sh'), 'utf8');
+
+  for (const key of [
+    'ROMM_IGDB_CLIENT_ID',
+    'ROMM_IGDB_CLIENT_SECRET',
+    'ROMM_MOBYGAMES_API_KEY',
+    'ROMM_SCREENSCRAPER_USER',
+    'ROMM_SCREENSCRAPER_PASSWORD',
+    'ROMM_RETROACHIEVEMENTS_API_KEY',
+    'ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS',
+    'ROMM_STEAMGRIDDB_API_KEY',
+    'ROMM_HASHEOUS_API_ENABLED',
+    'ROMM_PLAYMATCH_API_ENABLED',
+    'ROMM_LAUNCHBOX_API_ENABLED',
+    'ROMM_FLASHPOINT_API_ENABLED',
+    'ROMM_HLTB_API_ENABLED',
+    'ROMM_TGDB_API_ENABLED',
+    'ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA',
+    'ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON'
+  ]) {
+    assert.match(compose, new RegExp(`${key}`));
+  }
+
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ROMM_IGDB_CLIENT_SECRET']), ['romm']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['TRANSMISSION_PASSWORD']), ['transmission']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['RADARR_POSTGRES_PASSWORD']), ['radarr']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['IMMICH_VERSION']), ['immich', 'immich-ml']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_ROMM']), ['romm']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['PREFERRED_TORRENT_CLIENT']), [
+    'qbittorrent',
+    'transmission'
+  ]);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ROMM_API_KEY']), []);
+  assert.deepEqual(
+    changedEnvironmentKeys(
+      { ROMM_IGDB_CLIENT_ID: 'before', ROMM_IGDB_CLIENT_SECRET: 'same' },
+      { ROMM_IGDB_CLIENT_ID: 'after', ROMM_IGDB_CLIENT_SECRET: 'same' }
+    ),
+    ['ROMM_IGDB_CLIENT_ID']
+  );
+
+  assert.match(commands, /ServiceRuntimeApply:[\s\S]*args: \['service', 'apply'\]/);
+  assert.match(route, /runQueuedTask\(runtimeApplyTask, command\)/);
+  assert.match(directory, /group\.title === 'Metadata Providers'/);
+  assert.match(directory, /Container update queued for/);
+  assert.match(script, /write_compose_env_file/);
+  assert.match(script, /up -d --force-recreate --no-deps "\$service"/);
+});
+
+test('saved secret fields expose only a middle-truncated preview', async () => {
+  const { redactEnv } = await import('../../core/src/env.ts');
+  const safe = redactEnv({
+    ROMM_IGDB_CLIENT_SECRET: 'abcdefghijklmnop',
+    MOBYGAMES_API_KEY: 'token123',
+    TRACEARR_CLAIM_CODE: 'abc'
+  });
+  const directory = await readFile(path.join(repoRoot, 'apps/frontend/src/components/ServiceDirectory.tsx'), 'utf8');
+
+  assert.equal(safe.ROMM_IGDB_CLIENT_SECRET, 'abcdef...mnop');
+  assert.equal(safe.MOBYGAMES_API_KEY, 'to...23');
+  assert.equal(safe.TRACEARR_CLAIM_CODE, 'a...c');
+  assert.match(directory, /placeholder=\{savedPreview\}/);
+  assert.doesNotMatch(directory, /placeholder=\{saved \? 'Saved'/);
+});
+
+test('saving an unchanged secret preview preserves the original credential', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-secret-preview-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { readEnv, writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { getServiceConfigAction, updateServiceConfigAction } = await import('./packages/core/src/serviceCatalog.ts');
+
+          writeEnvConfig({
+            PASSWORD: 'valid-admin-password',
+            ROMM_IGDB_CLIENT_SECRET: 'abcdefghijklmnop'
+          });
+          const config = getServiceConfigAction({ service: 'romm' });
+          const preview = config.groups
+            .flatMap((group) => group.fields)
+            .find((field) => field.id === 'rommIgdbClientSecret')?.value;
+          const result = updateServiceConfigAction({
+            service: 'romm',
+            values: { rommIgdbClientSecret: preview }
+          });
+          console.log(JSON.stringify({
+            accepted: result.accepted,
+            preview,
+            preserved: readEnv().ROMM_IGDB_CLIENT_SECRET === 'abcdefghijklmnop'
+          }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    assert.deepEqual(JSON.parse(stdout), {
+      accepted: true,
+      preview: 'abcdef...mnop',
+      preserved: true
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

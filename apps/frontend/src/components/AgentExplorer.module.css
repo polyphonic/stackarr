@@ -244,6 +244,43 @@
   border-radius: 12px;
 }
 
+.pagination,
+.pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination {
+  justify-content: space-between;
+  min-height: 54px;
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.sourceSkeleton,
+.contractSkeleton {
+  display: grid;
+  gap: 9px;
+}
+
+.sourceSkeleton > * {
+  height: 48px;
+  border-radius: 10px;
+}
+
+.contractSkeleton > :first-child {
+  width: min(420px, 80%);
+  height: 30px;
+  border-radius: 10px;
+}
+
+.contractSkeleton > :not(:first-child) {
+  height: 110px;
+  border-radius: 12px;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
