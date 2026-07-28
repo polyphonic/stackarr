@@ -33,6 +33,7 @@ Note: call out important context, exclusions, remaining local changes, or verifi
 ## Local Container Hygiene
 
 - Recreate local Stackarr images through the generated runtime Compose project (`stackarr_compose` or the corresponding `bin/stackarr` workflow), never by running the repository Compose file directly. This keeps the app in the same Docker Compose project as the installed stack.
+- From the repository root, use `stackarr/bin/stackarr up` for a full local reconciliation. Never run `docker compose up` against `stackarr/docker-compose.yml`, even with `--project-name stackarr`: Docker records the Compose file and working directory on each container, which splits the stack into separate Docker Desktop groups. Use `stackarr/bin/stackarr update services` or `stackarr/bin/stackarr update app` when the task specifically requires the corresponding update workflow.
 - Run the managed database reconciliation before recreating only the app container so its runtime credentials stay synchronized with the existing PostgreSQL roles.
 - After containerized tests or temporary development services finish, run the matching Compose `down --remove-orphans` workflow and remove disposable test images or build artifacts created for that run so containers and images do not dangle.
 - Never prune persistent volumes, installed-service images, or unrelated Docker resources as part of routine test cleanup.

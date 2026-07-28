@@ -17,6 +17,7 @@ const defaults: Record<string, number> = {
   seerr: 5055,
   pulsarr: 3003,
   maintainerr: 6246,
+  cleanuparr: 11011,
   agregarr: 7171,
   tracearr: 3000,
   plex: 32400,

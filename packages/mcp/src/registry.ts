@@ -112,6 +112,7 @@ import {
   startStreamripSearchDownloadAction,
   stopStackAction,
   syncAgregarrCollectionAction,
+  syncAgregarrCollectionGroupAction,
   type ToolCatalogEntry,
   type ToolCategory,
   testArrToDownloaderAction,
@@ -125,6 +126,7 @@ import {
   triggerArrSearchAction,
   unmonitorMovieAction,
   unmonitorSeriesAction,
+  updateAgregarrCollectionGroupAction,
   updateCloudflareAccessAction,
   updateCloudflareRoutesAction,
   updateMcpConnectionPolicyAction,
@@ -441,6 +443,32 @@ const tools: ToolDef[] = [
     description: 'Start a targeted sync for one managed Agregarr collection.',
     shape: { collectionId: z.string().regex(/^\d{1,10}$/) },
     handler: syncAgregarrCollectionAction
+  },
+  {
+    name: 'stackarr_sync_agregarr_collection_group',
+    description: 'Start targeted syncs for a linked group of Agregarr movie and TV collections.',
+    shape: {
+      collectionIds: z
+        .array(z.string().regex(/^\d{1,10}$/))
+        .min(1)
+        .max(20)
+    },
+    handler: syncAgregarrCollectionGroupAction
+  },
+  {
+    name: 'stackarr_update_agregarr_collection_group',
+    description: 'Update visibility, active state, or home-order randomization for linked Agregarr collections.',
+    shape: {
+      collectionIds: z
+        .array(z.string().regex(/^\d{1,10}$/))
+        .min(1)
+        .max(20),
+      active: z.boolean().optional(),
+      showOnHome: z.boolean().optional(),
+      recommended: z.boolean().optional(),
+      randomizeHomeOrder: z.boolean().optional()
+    },
+    handler: updateAgregarrCollectionGroupAction
   },
   {
     name: 'stackarr_ensure_agregarr_collection_preset',
@@ -1124,6 +1152,8 @@ const tools: ToolDef[] = [
       restorePostgres: z.boolean().optional(),
       restoreNativePlex: z.boolean().optional(),
       restorePlexPreferences: z.boolean().optional(),
+      restoreNativeJellyfin: z.boolean().optional(),
+      backupKeyPath: z.string().optional(),
       markOnboardingComplete: z.boolean().optional(),
       ...dangerous
     },

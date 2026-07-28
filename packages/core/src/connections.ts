@@ -358,6 +358,25 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       ]
     },
     {
+      implementation: 'Cleanuparr',
+      name: 'Cleanuparr',
+      target: 'cleanuparr',
+      kind: 'api',
+      description:
+        'Connect the active download client and enabled Arr services to Stackarr’s media-safe executable and script blocklist.',
+      fields: [
+        urlField('Base URL', 'http://cleanuparr:11011'),
+        { name: 'downloadClient', label: 'Download Client', type: 'select', options: ['Transmission', 'qBittorrent'] },
+        { name: 'arrServices', label: 'Arr Services', type: 'text', placeholder: 'Radarr, Sonarr, Lidarr' },
+        {
+          name: 'blockPolicy',
+          label: 'Blocked-file Policy',
+          type: 'select',
+          options: ['Delete the whole download if any file is blocked']
+        }
+      ]
+    },
+    {
       implementation: 'Tracearr',
       name: 'Tracearr',
       target: 'tracearr',

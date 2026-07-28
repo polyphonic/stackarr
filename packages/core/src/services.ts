@@ -126,6 +126,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'Maintainerr',
     description: 'Plex/Jellyfin library cleanup planner and collection manager.'
   },
+  cleanuparr: {
+    displayName: 'Cleanuparr',
+    description: 'Download queue cleaner and malware-like file blocker for Arr-managed media.'
+  },
   agregarr: {
     displayName: 'Agregarr',
     description:
@@ -352,6 +356,20 @@ export function getServices(): ServiceSummary[] {
       {
         requirement: requirement(mediaServerEnabled, 'Maintainerr needs Plex or Jellyfin first.'),
         notes: ['Cleanup rules are created inside Maintainerr; Stackarr only starts and links the app.']
+      }
+    ),
+    service(
+      'cleanuparr',
+      'support',
+      dependentMode(env.ENABLE_CLEANUPARR, arrEnabled),
+      Number(env.CLEANUPARR_PORT ?? 11011),
+      settings,
+      {
+        requirement: requirement(arrEnabled, 'Cleanuparr needs Radarr, Sonarr, or Lidarr first.'),
+        notes: [
+          'Stackarr connects the active torrent client and Arr instances, then enables a media-safe executable/script blocklist on a five-second schedule.',
+          'Cleanuparr is loopback-only by default and stores only its own configuration under the Stackarr app root.'
+        ]
       }
     ),
     service(

@@ -69,6 +69,7 @@ type SetupState = {
   enableFlaresolverr: boolean;
   enableTidarr: boolean;
   enableMaintainerr: boolean;
+  enableCleanuparr: boolean;
   enableAgregarr: boolean;
   enableTracearr: boolean;
   maintainerrCleanupPresets: string[];
@@ -125,6 +126,7 @@ const defaults: SetupState = {
   enableFlaresolverr: true,
   enableTidarr: true,
   enableMaintainerr: false,
+  enableCleanuparr: false,
   enableAgregarr: false,
   enableTracearr: false,
   maintainerrCleanupPresets: [],
@@ -152,7 +154,7 @@ const defaults: SetupState = {
   globalEmail: '',
   databaseMode: 'app-default',
   preferredTorrentClient: 'transmission',
-  seerrBindIp: '0.0.0.0',
+  seerrBindIp: '127.0.0.1',
   transmissionBindIp: '127.0.0.1',
   qbittorrentBindIp: '127.0.0.1',
   webPort: '7777',
@@ -167,9 +169,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const [state, setState] = useState(resolvedDefaults);
   const [message, setMessage] = useState('');
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreKeyFile, setRestoreKeyFile] = useState<File | null>(null);
   const [restorePostgres, setRestorePostgres] = useState(true);
   const [restoreNativePlex, setRestoreNativePlex] = useState(false);
   const [restorePlexPreferences, setRestorePlexPreferences] = useState(false);
+  const [restoreNativeJellyfin, setRestoreNativeJellyfin] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState('');
   const [migrateSourceRoot, setMigrateSourceRoot] = useState('');
@@ -189,6 +193,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const effectiveEnablePulsarr =
     state.enableRequestManagement && plexEnabled && videoAutomationEnabled && state.enablePulsarr;
   const effectiveEnableMaintainerr = mediaServerEnabled && state.enableMaintainerr;
+  const effectiveEnableCleanuparr = arrEnabled && state.enableCleanuparr;
   const effectiveEnableAgregarr = plexEnabled && state.enableAgregarr;
   const effectiveEnableTracearr = mediaServerEnabled && state.enableTracearr;
   const passwordValidationMessage = validateRequiredPortablePassword(state.globalPassword);
@@ -216,6 +221,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       BACKUP_SCHEDULE: 'weekly',
       BACKUP_WEEKDAY: 'Sun',
       BACKUP_RETENTION_COUNT: '52',
+      BACKUP_ENCRYPTION: 'keyfile',
       ENABLE_SCHEDULED_UPDATES: String(state.installUpdates),
       UPDATE_TIME: '04:30',
       UPDATE_WEEKDAY: 'Sun',
@@ -235,6 +241,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_FLARESOLVERR: String(arrEnabled && state.enableFlaresolverr),
       ENABLE_TIDARR: String(state.enableTidarr),
       ENABLE_MAINTAINERR: String(effectiveEnableMaintainerr),
+      ENABLE_CLEANUPARR: String(effectiveEnableCleanuparr),
       ENABLE_AGREGARR: String(effectiveEnableAgregarr),
       ENABLE_TRACEARR: String(effectiveEnableTracearr),
       MAINTAINERR_BIND_IP: '127.0.0.1',
@@ -243,6 +250,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       MAINTAINERR_BASE_PATH: '',
       MAINTAINERR_GITHUB_TOKEN: '',
       MAINTAINERR_CLEANUP_PRESETS: state.maintainerrCleanupPresets.join(','),
+      CLEANUPARR_BIND_IP: '127.0.0.1',
+      CLEANUPARR_PORT: '11011',
+      CLEANUPARR_URL: 'http://127.0.0.1:11011',
+      CLEANUPARR_AUTO_CONFIGURE: 'true',
+      CLEANUPARR_MALWARE_CRON: '0/5 * * * * ?',
       AGREGARR_BIND_IP: '127.0.0.1',
       AGREGARR_PORT: '7171',
       AGREGARR_URL: 'http://127.0.0.1:7171',
@@ -333,12 +345,16 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ROMM_SCREENSCRAPER_USER: rommUsesScreenscraper ? state.rommScreenscraperUser : '',
       ROMM_SCREENSCRAPER_PASSWORD: rommUsesScreenscraper ? state.rommScreenscraperPassword : '',
       ROMM_RETROACHIEVEMENTS_API_KEY: rommUsesRetroAchievements ? state.rommRetroAchievementsApiKey : '',
+      ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS: '30',
       ROMM_STEAMGRIDDB_API_KEY: rommUsesSteamGridDb ? state.rommSteamGridDbApiKey : '',
       ROMM_HASHEOUS_API_ENABLED: String(rommHasheousEnabled),
       ROMM_PLAYMATCH_API_ENABLED: String(rommPlaymatchEnabled),
       ROMM_LAUNCHBOX_API_ENABLED: 'false',
       ROMM_FLASHPOINT_API_ENABLED: 'false',
       ROMM_HLTB_API_ENABLED: 'false',
+      ROMM_TGDB_API_ENABLED: 'false',
+      ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
+      ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
       STACKARR_MOVIE_4K_PROFILE_PRESET: '',
       STACKARR_TV_4K_PROFILE_PRESET: '',
       STACKARR_MOVIE_4K_DEFAULT_PROFILE: '',
@@ -359,6 +375,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   }, [
     state,
     arrEnabled,
+    effectiveEnableCleanuparr,
     effectiveEnableMaintainerr,
     effectiveEnablePulsarr,
     effectiveEnableSeerr,
@@ -394,6 +411,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
           : 'Disabled'
       ],
       ['Maintainerr', effectiveEnableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
+      ['Cleanuparr', effectiveEnableCleanuparr ? 'Enabled with Stackarr media-malware blocklist' : 'Disabled'],
       [
         'Agregarr',
         effectiveEnableAgregarr ? 'Enabled; Plex, Arr apps, and Coming Soon configured automatically' : 'Disabled'
@@ -563,6 +581,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       return;
     }
 
+    if (/\.(tar\.gz|tgz)\.enc$/i.test(restoreFile.name) && !restoreKeyFile) {
+      setRestoreMessage('Choose the separately stored backup key file for this encrypted archive.');
+      toast.error('Choose the backup key file for this encrypted archive.');
+      return;
+    }
+
     setRestoreMessage('Queueing restore...');
     const saved = await saveSetup({
       loadingMessage: 'Saving restore setup choices...',
@@ -579,9 +603,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     const toastId = toast.loading('Queueing restore...');
     const form = new FormData();
     form.set('archive', restoreFile);
+    if (restoreKeyFile) form.set('backupKey', restoreKeyFile);
     form.set('restorePostgres', String(restorePostgres));
     form.set('restoreNativePlex', String(restoreNativePlex));
     form.set('restorePlexPreferences', String(restorePlexPreferences));
+    form.set('restoreNativeJellyfin', String(restoreNativeJellyfin));
     form.set('confirmRestore', String(confirmRestore));
     form.set('forceConfig', 'true');
 
@@ -720,11 +746,20 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                 <label>
                   Backup Archive
                   <input
-                    accept=".tar.gz,.tgz,.zip,application/gzip,application/zip"
+                    accept=".tar.gz.enc,.tgz.enc,.tar.gz,.tgz,.zip,application/gzip,application/zip"
                     type="file"
-                    onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)}
+                    onChange={(event) => {
+                      setRestoreFile(event.target.files?.[0] ?? null);
+                      setRestoreKeyFile(null);
+                    }}
                   />
                 </label>
+                {restoreFile && /\.(tar\.gz|tgz)\.enc$/i.test(restoreFile.name) && (
+                  <label>
+                    Backup Recovery Key
+                    <input type="file" onChange={(event) => setRestoreKeyFile(event.target.files?.[0] ?? null)} />
+                  </label>
+                )}
                 <div className={styles.checks}>
                   <ToggleChoice
                     checked={restorePostgres}
@@ -740,6 +775,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                     checked={restorePlexPreferences}
                     label="Restore Plex host preferences when compatible"
                     onChange={setRestorePlexPreferences}
+                  />
+                  <ToggleChoice
+                    checked={restoreNativeJellyfin}
+                    label="Restore the existing native Jellyfin configuration"
+                    onChange={setRestoreNativeJellyfin}
                   />
                   <label>
                     <input
@@ -1099,6 +1139,13 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               label="Maintainerr Cleanup"
               description="Plex/Jellyfin cleanup planner. Stackarr connects media server, Arr services, and supported download cleanup."
               onChange={(value) => update('enableMaintainerr', value)}
+            />
+            <ServiceChoice
+              checked={effectiveEnableCleanuparr}
+              disabled={!arrEnabled}
+              label="Cleanuparr Download Security"
+              description="Runs loopback-only, connects the active torrent client and Arr apps, then removes downloads containing media-unsafe executables, scripts, shortcuts, or disk images."
+              onChange={(value) => update('enableCleanuparr', value)}
             />
             <ServiceChoice
               checked={effectiveEnableAgregarr}

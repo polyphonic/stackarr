@@ -1,11 +1,17 @@
 #!/bin/bash
 set -Eeuo pipefail
+umask 077
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$ROOT_DIR/lib/common.sh"
 
 load_env
+
+BACKUP_ENCRYPTION="$(lowercase "${BACKUP_ENCRYPTION:-keyfile}")"
+BACKUP_ENCRYPTION_KEY_FILE="${BACKUP_ENCRYPTION_KEY_FILE:-$STATE_ROOT/backup-encryption.key}"
+BACKUP_CRYPTO="$ROOT_DIR/scripts/backup-crypto.cjs"
+RUNTIME_SNAPSHOT="$ROOT_DIR/scripts/runtime-config-snapshot.cjs"
 
 TASK_LOGGER="$ROOT_DIR/scripts/task-log.cjs"
 BACKUP_TASK_ID="${STACKARR_TASK_ID:-}"
@@ -201,6 +207,10 @@ LITE_CONFIG_POSTGRES_EXCLUDES=(
     "sonarr4k/xdg/Sonarr/*.db"
 )
 FULL_CONFIG_EXCLUDES=("${LITE_CONFIG_EXCLUDES[@]}")
+STATE_EXCLUDES=(
+    "compose/.env"
+    "backup-encryption.key"
+)
 FULL_PLEX_EXCLUDES=(
     "Codecs/"
     "Crash Reports/"
@@ -210,6 +220,12 @@ FULL_PLEX_EXCLUDES=(
     "Plug-in Support/Caches/"
     "Plug-in Support/Databases/*-20??-??-??"
     "Updates/"
+)
+JELLYFIN_EXCLUDES=(
+    "cache/"
+    "log/"
+    "logs/"
+    "transcodes/"
 )
 
 cleanup() {
@@ -368,11 +384,62 @@ copy_plex_collection_artwork() {
 
 copy_stackarr_runtime_config() {
     local db_file
+
+    # PostgreSQL installs can retain an obsolete SQLite bootstrap file. Never
+    # let that stale file take precedence over the portable runtime snapshot.
+    database_mode_is_postgres && return 0
     db_file="$(default_stackarr_database_file)"
 
     [[ -f "$db_file" ]] || return 0
     mkdir -p "$STAGING/stackarr"
     snapshot_db "$db_file" "$STAGING/stackarr/stackarr.db"
+}
+
+create_portable_runtime_snapshot() {
+    local compose_env_file
+    compose_env_file="${STACKARR_COMPOSE_ENV_FILE:-$(stackarr_compose_project_dir)/.env}"
+
+    [[ -f "$RUNTIME_SNAPSHOT" ]] || fail "Missing $RUNTIME_SNAPSHOT"
+    mkdir -p "$STAGING/stackarr"
+    STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$(default_stackarr_database_file)}" \
+        node "$RUNTIME_SNAPSHOT" create \
+        --output "$STAGING/stackarr/runtime-config.json" \
+        --audit-output "$STAGING/stackarr/credential-audit.json" \
+        --compose-env "$compose_env_file"
+
+    # The database remains authoritative, but import non-empty values that only
+    # survived in an older generated Compose environment before replacing it.
+    load_sqlite_runtime_config
+    write_compose_env_file
+}
+
+ensure_backup_encryption_key() {
+    local key_created=false
+
+    case "$BACKUP_ENCRYPTION" in
+        keyfile)
+            [[ -f "$BACKUP_CRYPTO" ]] || fail "Missing $BACKUP_CRYPTO"
+            if [[ "$BACKUP_ENCRYPTION_KEY_FILE" != "$STATE_ROOT/backup-encryption.key" ]]; then
+                case "$BACKUP_ENCRYPTION_KEY_FILE" in
+                    "$CONFIG_ROOT"|"$CONFIG_ROOT"/*|"$STATE_ROOT"|"$STATE_ROOT"/*|"$PLEX_CONFIG_PATH"|"$PLEX_CONFIG_PATH"/*|"$JELLYFIN_CONFIG_PATH"|"$JELLYFIN_CONFIG_PATH"/*)
+                        fail "BACKUP_ENCRYPTION_KEY_FILE must live outside backed-up config, state, and media-server roots"
+                        ;;
+                esac
+            fi
+            [[ -f "$BACKUP_ENCRYPTION_KEY_FILE" ]] || key_created=true
+            BACKUP_KEY_ID="$(node "$BACKUP_CRYPTO" generate-key --key-file "$BACKUP_ENCRYPTION_KEY_FILE")"
+            if [[ "$key_created" == true ]]; then
+                warn "Created backup recovery key at $BACKUP_ENCRYPTION_KEY_FILE. Store a separate copy in a password manager; it is intentionally excluded from backups."
+            fi
+            ;;
+        none)
+            BACKUP_KEY_ID=""
+            warn "Backup encryption is disabled; the archive contains credentials and will only be protected by file permissions"
+            ;;
+        *)
+            fail "BACKUP_ENCRYPTION must be 'keyfile' or 'none'"
+            ;;
+    esac
 }
 
 database_service_running() {
@@ -435,7 +502,18 @@ dump_postgres_databases() {
 }
 
 create_archive() {
-    COPYFILE_DISABLE=1 tar -czf "$ARCHIVE_PATH" -C "$TMP_DIR" "$BACKUP_NAME"
+    case "$BACKUP_ENCRYPTION" in
+        keyfile)
+            COPYFILE_DISABLE=1 tar -czf - -C "$TMP_DIR" "$BACKUP_NAME" | \
+                node "$BACKUP_CRYPTO" encrypt \
+                    --key-file "$BACKUP_ENCRYPTION_KEY_FILE" \
+                    --output "$ARCHIVE_PATH"
+            ;;
+        none)
+            COPYFILE_DISABLE=1 tar -czf "$ARCHIVE_PATH" -C "$TMP_DIR" "$BACKUP_NAME"
+            chmod 600 "$ARCHIVE_PATH"
+            ;;
+    esac
 }
 
 prune_old_backups() {
@@ -457,7 +535,7 @@ prune_old_backups() {
     # iCloud Drive/Backups/Plex.
     {
         shopt -s nullglob
-        for archive in "$BACKUP_ROOT"/stackarr-backup-*.tar.gz; do
+        for archive in "$BACKUP_ROOT"/stackarr-backup-*.tar.gz "$BACKUP_ROOT"/stackarr-backup-*.tar.gz.enc; do
             [[ -f "$archive" ]] || continue
             printf '%s\n' "$archive"
         done
@@ -466,7 +544,13 @@ prune_old_backups() {
         if [[ -f "$BACKUP_INDEX_FILE" ]]; then
             while IFS= read -r archive; do
                 basename="$(basename "$archive")"
-                [[ "$basename" == stackarr-backup-*.tar.gz ]] || continue
+                case "$basename" in
+                    stackarr-backup-*.tar.gz|stackarr-backup-*.tar.gz.enc)
+                        ;;
+                    *)
+                        continue
+                        ;;
+                esac
 
                 candidate="$BACKUP_ROOT/$basename"
                 if [[ -f "$candidate" ]]; then
@@ -633,7 +717,10 @@ snapshot_tree_dbs() {
 
 progress 2 "Preparing backup staging"
 mkdir -p "$STAGING/config" "$STAGING/state"
-progress 5 "Snapshotting Stackarr runtime config"
+ensure_backup_encryption_key
+progress 4 "Creating portable runtime and credential snapshot"
+create_portable_runtime_snapshot
+progress 5 "Snapshotting Stackarr runtime config database"
 copy_stackarr_runtime_config
 case "$PLEX_BACKUP_MODE_NORMALIZED" in
     full)
@@ -651,7 +738,8 @@ case "$PLEX_BACKUP_MODE_NORMALIZED" in
         fail "PLEX_BACKUP_MODE must be 'full' or 'lite'"
         ;;
 esac
-with_progress_heartbeat 25 "Copying Stackarr state" "$STAGING/state" copy_tree "$STATE_ROOT/" "$STAGING/state/"
+with_progress_heartbeat 25 "Copying Stackarr state" "$STAGING/state" \
+    copy_tree_excluding "$STATE_ROOT/" "$STAGING/state/" "${STATE_EXCLUDES[@]}"
 if [[ -d "$ROOT_DIR/state/streamrip" && "$STATE_ROOT" != "$ROOT_DIR/state" ]]; then
     with_progress_heartbeat 28 "Copying Streamrip state" "$STAGING/state/streamrip" \
         copy_tree "$ROOT_DIR/state/streamrip/" "$STAGING/state/streamrip/"
@@ -695,6 +783,13 @@ if [[ -f "$PLEX_PREFS_PATH" ]]; then
     copy_file "$PLEX_PREFS_PATH" "$STAGING/plex-macos-preferences/com.plexapp.plexmediaserver.plist"
 fi
 
+if [[ "$(lowercase "${JELLYFIN_INSTALL_MODE:-disabled}")" == "native" && -d "$JELLYFIN_CONFIG_PATH" ]]; then
+    with_progress_heartbeat 83 "Copying native Jellyfin config" "$STAGING/jellyfin-native" \
+        copy_tree_excluding "$JELLYFIN_CONFIG_PATH/" "$STAGING/jellyfin-native/" "${JELLYFIN_EXCLUDES[@]}"
+    progress 84 "Snapshotting native Jellyfin SQLite databases"
+    snapshot_tree_dbs "$JELLYFIN_CONFIG_PATH" "$STAGING/jellyfin-native"
+fi
+
 progress 86 "Writing backup manifest"
 cat > "$STAGING/manifest.txt" <<EOF
 created_at=$(date '+%Y-%m-%d %H:%M:%S %z')
@@ -705,11 +800,18 @@ downloads_root=$DOWNLOADS_ROOT
 backup_root=$BACKUP_ROOT
 plex_config_path=$PLEX_CONFIG_PATH
 plex_prefs_path=$PLEX_PREFS_PATH
+jellyfin_config_path=$JELLYFIN_CONFIG_PATH
+jellyfin_native_backup_path=jellyfin-native
 plex_backup_mode=$PLEX_BACKUP_MODE_NORMALIZED
 streamrip_runtime_config=stackarr/stackarr.db:stackarr.streamripConfig
 streamrip_state_path=state/streamrip
 postgres_dump_path=database
 postgres_dump_format=globals.sql plus per-database custom-format dumps
+portable_runtime_config=stackarr/runtime-config.json
+credential_audit=stackarr/credential-audit.json
+compose_env_restore=regenerated from portable runtime config; generated state/compose/.env is intentionally excluded
+archive_encryption=$BACKUP_ENCRYPTION
+archive_key_id=$BACKUP_KEY_ID
 EOF
 
 if [[ "$PLEX_BACKUP_MODE_NORMALIZED" == "lite" ]]; then
@@ -725,13 +827,17 @@ config_excluded_rebuildable_paths=MediaCover,Backups,backups,backup,addons,Cache
 EOF
 fi
 
-ARCHIVE_PATH="$BACKUP_ROOT/$BACKUP_NAME.tar.gz"
+if [[ "$BACKUP_ENCRYPTION" == "keyfile" ]]; then
+    ARCHIVE_PATH="$BACKUP_ROOT/$BACKUP_NAME.tar.gz.enc"
+else
+    ARCHIVE_PATH="$BACKUP_ROOT/$BACKUP_NAME.tar.gz"
+fi
 with_progress_heartbeat 92 "Compressing backup archive" "$ARCHIVE_PATH" create_archive
 progress 97 "Recording backup archive"
 record_backup_archive "$ARCHIVE_PATH"
 progress 98 "Pruning old backup archives"
 prune_old_backups
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') backup completed: $BACKUP_NAME.tar.gz" >> "$LOG_FILE"
+echo "$(date '+%Y-%m-%d %H:%M:%S') backup completed: $(basename "$ARCHIVE_PATH")" >> "$LOG_FILE"
 progress 100 "Backup archive created: $ARCHIVE_PATH ($(path_size "$ARCHIVE_PATH"))"
 ok "Created $ARCHIVE_PATH"

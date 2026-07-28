@@ -13,6 +13,7 @@ Usage:
   stackarr romm open
   stackarr romm enable
   stackarr romm disable
+  stackarr romm metadata apply
 EOF
 }
 
@@ -81,6 +82,10 @@ set_romm_enabled() {
     set_env_value ROMM_ADMIN_EMAIL ""
     set_env_value ROMM_ADMIN_PASSWORD ""
     set_env_value ROMM_HASHEOUS_API_ENABLED "${ROMM_HASHEOUS_API_ENABLED:-true}"
+    set_env_value ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS "${ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS:-30}"
+    set_env_value ROMM_TGDB_API_ENABLED "${ROMM_TGDB_API_ENABLED:-false}"
+    set_env_value ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA "${ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA:-false}"
+    set_env_value ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON "${ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON:-0 4 * * *}"
     set_env_value ROMM_IMAGE "${ROMM_IMAGE:-rommapp/romm:latest}"
     set_env_value ROMM_DB_IMAGE "${ROMM_DB_IMAGE:-}"
 
@@ -91,6 +96,10 @@ set_romm_enabled() {
 
     ok "RomM ENABLE_ROMM=$enabled saved"
     warn "Run 'stackarr up' to apply the romm profile. RomM remains local/private unless you explicitly publish it later."
+}
+
+apply_romm_metadata_environment() {
+    exec "$ROOT_DIR/scripts/service-apply.sh" apply romm
 }
 
 load_env
@@ -110,6 +119,17 @@ case "$subcommand" in
         ;;
     disable)
         set_romm_enabled false
+        ;;
+    metadata)
+        case "${2:-help}" in
+            apply)
+                apply_romm_metadata_environment
+                ;;
+            *)
+                usage
+                exit 1
+                ;;
+        esac
         ;;
     help|--help|-h)
         usage

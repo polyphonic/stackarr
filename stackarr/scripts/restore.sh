@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+umask 077
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/common.sh
@@ -11,8 +12,12 @@ ASSUME_YES=false
 RESTORE_POSTGRES="ask"
 RESTORE_NATIVE_PLEX="ask"
 RESTORE_PLEX_PREFS="ask"
+RESTORE_NATIVE_JELLYFIN="ask"
 MARK_ONBOARDING_COMPLETE=false
 DELETE_ARCHIVE_AFTER_RESTORE=false
+BACKUP_KEY_FILE=""
+ADOPT_BACKUP_KEY=false
+DELETE_BACKUP_KEY_AFTER_RESTORE=false
 CONSTRAIN_RUNTIME_ROOTS=false
 RESTORE_APP_ROOT=""
 
@@ -42,6 +47,23 @@ while [[ $# -gt 0 ]]; do
         --skip-plex-preferences)
             RESTORE_PLEX_PREFS="no"
             ;;
+        --restore-native-jellyfin)
+            RESTORE_NATIVE_JELLYFIN="yes"
+            ;;
+        --skip-native-jellyfin)
+            RESTORE_NATIVE_JELLYFIN="no"
+            ;;
+        --backup-key-file)
+            shift
+            [[ $# -gt 0 && -n "$1" ]] || fail "--backup-key-file requires a path"
+            BACKUP_KEY_FILE="$1"
+            ;;
+        --adopt-backup-key)
+            ADOPT_BACKUP_KEY=true
+            ;;
+        --delete-backup-key-after-restore)
+            DELETE_BACKUP_KEY_AFTER_RESTORE=true
+            ;;
         --mark-onboarding-complete)
             MARK_ONBOARDING_COMPLETE=true
             ;;
@@ -58,7 +80,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help|-h)
             cat <<'EOF'
-Usage: stackarr backup restore <archive.tar.gz|archive.tgz|archive.zip> [options]
+Usage: stackarr backup restore <archive.tar.gz|archive.tar.gz.enc|archive.tgz|archive.zip> [options]
 
 Options:
   --force-config              Replace the Stackarr runtime config database even if one exists.
@@ -69,6 +91,12 @@ Options:
   --skip-native-plex          Do not restore native Plex config.
   --restore-plex-preferences  Restore native macOS Plex preferences without prompting.
   --skip-plex-preferences     Do not restore native macOS Plex preferences.
+  --restore-native-jellyfin   Restore a native Jellyfin config without prompting.
+  --skip-native-jellyfin      Do not restore a native Jellyfin config.
+  --backup-key-file <path>    Key file for an encrypted .tar.gz.enc backup.
+  --adopt-backup-key          Install the supplied key for future encrypted backups.
+  --delete-backup-key-after-restore
+                              Delete the supplied key file after the restore attempt.
   --mark-onboarding-complete  Mark the Stackarr setup wizard complete after restore.
   --delete-archive-after-restore
                               Delete the input archive after the restore attempt.
@@ -91,7 +119,7 @@ EOF
 done
 
 if [[ -z "$ARCHIVE" ]]; then
-    fail "Usage: stackarr backup restore <archive.tar.gz|archive.tgz|archive.zip> [options]"
+    fail "Usage: stackarr backup restore <archive.tar.gz|archive.tar.gz.enc|archive.tgz|archive.zip> [options]"
 fi
 
 [[ -f "$ARCHIVE" ]] || fail "Archive not found: $ARCHIVE"
@@ -101,6 +129,9 @@ cleanup() {
     rm -rf "$TMP_DIR"
     if [[ "$DELETE_ARCHIVE_AFTER_RESTORE" == true ]]; then
         rm -f "$ARCHIVE"
+    fi
+    if [[ "$DELETE_BACKUP_KEY_AFTER_RESTORE" == true && -n "$BACKUP_KEY_FILE" ]]; then
+        rm -f "$BACKUP_KEY_FILE"
     fi
 }
 trap cleanup EXIT
@@ -131,9 +162,22 @@ confirm_restore() {
 confirm_restore "Continue with restore" no || exit 1
 
 extract_archive() {
+    local tar_archive=""
+
     case "$ARCHIVE" in
+        *.tar.gz.enc|*.tgz.enc)
+            local crypto="$ROOT_DIR/scripts/backup-crypto.cjs"
+            local default_state_root
+            load_compose_runtime_env
+            default_state_root="${STATE_ROOT:-$(default_app_root)/state}"
+            BACKUP_KEY_FILE="${BACKUP_KEY_FILE:-$default_state_root/backup-encryption.key}"
+            [[ -f "$BACKUP_KEY_FILE" ]] || fail "Encrypted backup key not found. Pass --backup-key-file with the separately stored recovery key."
+            [[ -f "$crypto" ]] || fail "Missing $crypto"
+            tar_archive="$TMP_DIR/encrypted-backup.tar.gz"
+            node "$crypto" decrypt --key-file "$BACKUP_KEY_FILE" --input "$ARCHIVE" > "$tar_archive"
+            ;;
         *.tar.gz|*.tgz)
-            tar -xzf "$ARCHIVE" -C "$TMP_DIR"
+            tar_archive="$ARCHIVE"
             ;;
         *.zip)
             command -v python3 >/dev/null 2>&1 || fail "python3 is required to restore zip backup archives"
@@ -155,9 +199,45 @@ with zipfile.ZipFile(archive) as backup:
 PY
             ;;
         *)
-            fail "Unsupported backup archive format. Use .tar.gz, .tgz, or .zip."
+            fail "Unsupported backup archive format. Use .tar.gz.enc, .tar.gz, .tgz, or .zip."
             ;;
     esac
+
+    if [[ -n "$tar_archive" ]]; then
+        command -v python3 >/dev/null 2>&1 || fail "python3 is required to safely restore tar backup archives"
+        python3 - "$tar_archive" "$TMP_DIR" <<'PY'
+import pathlib
+import sys
+import tarfile
+
+archive = pathlib.Path(sys.argv[1])
+target = pathlib.Path(sys.argv[2]).resolve()
+
+with tarfile.open(archive, "r:*") as backup:
+    for member in backup.getmembers():
+        path = pathlib.PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts:
+            raise SystemExit(f"Unsafe tar entry: {member.name}")
+        if member.ischr() or member.isblk() or member.isfifo():
+            raise SystemExit(f"Unsupported special tar entry: {member.name}")
+        if member.issym() or member.islnk():
+            link = pathlib.PurePosixPath(member.linkname)
+            if link.is_absolute():
+                raise SystemExit(f"Unsafe tar link: {member.name}")
+            resolved = pathlib.PurePosixPath(path.parent, link)
+            depth = 0
+            for part in resolved.parts:
+                if part in ("", "."):
+                    continue
+                if part == "..":
+                    depth -= 1
+                else:
+                    depth += 1
+                if depth < 0:
+                    raise SystemExit(f"Unsafe tar link: {member.name}")
+    backup.extractall(target, filter="data")
+PY
+    fi
 }
 
 find_restore_root() {
@@ -180,17 +260,34 @@ RESTORE_MANIFEST="$RESTORE_ROOT/manifest.txt"
 RESTORE_PLEX_BACKUP_MODE="full"
 DB_FILE="${STACKARR_DATABASE_FILE:-$(default_stackarr_database_file)}"
 TRUSTED_RESTORE_APP_ROOT="${RESTORE_APP_ROOT:-${APP_ROOT:-$(default_app_root)}}"
+RESTORE_RUNTIME_CONFIG=false
 
 if [[ -f "$RESTORE_MANIFEST" ]]; then
     RESTORE_PLEX_BACKUP_MODE="$(sed -n 's/^plex_backup_mode=//p' "$RESTORE_MANIFEST" | head -1)"
     [[ -n "$RESTORE_PLEX_BACKUP_MODE" ]] || RESTORE_PLEX_BACKUP_MODE="full"
 fi
 
-if [[ -f "$RESTORE_ROOT/stackarr/stackarr.db" && ( ! -f "$DB_FILE" || "$FORCE_RUNTIME_CONFIG" == true ) ]]; then
-    mkdir -p "$(dirname "$DB_FILE")"
-    cp "$RESTORE_ROOT/stackarr/stackarr.db" "$DB_FILE"
-    chmod 600 "$DB_FILE"
-    ok "Restored Stackarr runtime config database"
+if [[ ! -f "$DB_FILE" || "$FORCE_RUNTIME_CONFIG" == true ]]; then
+    RESTORE_RUNTIME_CONFIG=true
+fi
+
+if [[ "$RESTORE_RUNTIME_CONFIG" == true ]]; then
+    if [[ -f "$RESTORE_ROOT/stackarr/stackarr.db" ]]; then
+        mkdir -p "$(dirname "$DB_FILE")"
+        cp "$RESTORE_ROOT/stackarr/stackarr.db" "$DB_FILE"
+        chmod 600 "$DB_FILE"
+        ok "Restored Stackarr runtime config database"
+    fi
+
+    if [[ -f "$RESTORE_ROOT/stackarr/runtime-config.json" ]]; then
+        mkdir -p "$(dirname "$DB_FILE")"
+        env -u STACKARR_DATABASE_URL -u STACKARR_LOG_DATABASE_URL \
+            STACKARR_DATABASE_FILE="$DB_FILE" \
+            node "$ROOT_DIR/scripts/runtime-config-snapshot.cjs" restore \
+            --input "$RESTORE_ROOT/stackarr/runtime-config.json"
+        chmod 600 "$DB_FILE"
+        ok "Restored portable Stackarr runtime config"
+    fi
 fi
 
 load_env
@@ -447,6 +544,24 @@ restore_postgres_databases
 restore_tree "$RESTORE_ROOT/config" "$CONFIG_ROOT"
 restore_tree "$RESTORE_ROOT/state" "$STATE_ROOT"
 ok "Restored Stackarr config and state"
+
+if [[ "$ADOPT_BACKUP_KEY" == true && -n "$BACKUP_KEY_FILE" && -f "$BACKUP_KEY_FILE" ]]; then
+    adopted_key="$STATE_ROOT/backup-encryption.key"
+    mkdir -p "$(dirname "$adopted_key")"
+    if [[ "$BACKUP_KEY_FILE" != "$adopted_key" ]]; then
+        cp "$BACKUP_KEY_FILE" "$adopted_key"
+    fi
+    chmod 600 "$adopted_key"
+    if [[ "$BACKUP_KEY_FILE" == "$adopted_key" ]]; then
+        DELETE_BACKUP_KEY_AFTER_RESTORE=false
+    fi
+    ok "Installed the backup recovery key for future encrypted backups"
+fi
+
+# Generated Compose state is deliberately not authoritative or backed up by
+# new archives. Rebuild it only after runtime config and databases are restored.
+load_env
+write_compose_env_file
 if [[ "$RESTORE_PLEX_BACKUP_MODE" == "lite" ]]; then
     warn "This archive used lite backup mode. Service logs, caches, internal backups, runtime files, Arr cover art, and other excluded assets may regenerate after restore. Plex collection artwork is retained when present."
 fi
@@ -475,6 +590,15 @@ if [[ -f "$RESTORE_ROOT/plex-macos-preferences/com.plexapp.plexmediaserver.plist
         ok "Restored native Plex preferences plist"
     else
         warn "Skipped native Plex preferences plist restore"
+    fi
+fi
+
+if [[ -d "$RESTORE_ROOT/jellyfin-native" ]]; then
+    if confirm_restore "Restore the native Jellyfin config into $JELLYFIN_CONFIG_PATH" no "$RESTORE_NATIVE_JELLYFIN"; then
+        restore_tree "$RESTORE_ROOT/jellyfin-native" "$JELLYFIN_CONFIG_PATH"
+        ok "Restored native Jellyfin config"
+    else
+        warn "Skipped native Jellyfin config"
     fi
 fi
 

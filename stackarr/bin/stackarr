@@ -57,6 +57,18 @@ case "$cmd" in
         ensure_docker_runtime
         exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js telemetry "$@"
         ;;
+    agregarr)
+        shift || true
+        load_env
+        export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}"
+        export STACKARR_REPO_ROOT="$REPO_ROOT"
+        export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+        if [[ -f "/.dockerenv" || -f "/run/.containerenv" ]]; then
+            exec node "$mcp_entrypoint" agregarr "$@"
+        fi
+        ensure_docker_runtime
+        exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js agregarr "$@"
+        ;;
     naming)
         shift || true
         exec "$ROOT_DIR/scripts/naming.sh" "$@"
@@ -84,6 +96,10 @@ case "$cmd" in
     romm)
         shift || true
         exec "$ROOT_DIR/scripts/romm.sh" "$@"
+        ;;
+    service)
+        shift || true
+        exec "$ROOT_DIR/scripts/service-apply.sh" "$@"
         ;;
     requests)
         shift || true
@@ -233,12 +249,14 @@ Stackarr commands:
   stackarr configure
   stackarr migrate plan|run
   stackarr telemetry status|preview|enable|disable|send
+  stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job
   stackarr naming apply|prestart
   stackarr downloads apply
   stackarr security apply
   stackarr database ensure|status
   stackarr immich status|url|open|enable|disable
-  stackarr romm status|url|open|enable|disable
+  stackarr romm status|url|open|enable|disable|metadata apply
+  stackarr service apply <compose-service> [compose-service...]
   stackarr requests apply|clear
   stackarr doctor
   stackarr plex-check

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readJsonSetting, writeJsonSetting } from '../database';
-import { readEnv } from '../env';
+import { readEnv, redactSecretValue } from '../env';
 import { decryptSecret, encryptSecret } from '../vault';
 import {
   findStreamripField,
@@ -11,8 +11,6 @@ import {
 } from './schema';
 
 const settingKey = 'stackarr.streamripConfig';
-export const redactedSecretValue = '********';
-
 export type StreamripConfig = Record<string, Record<string, unknown>>;
 
 export function readStreamripConfig(options: { redactSecrets?: boolean } = {}) {
@@ -29,7 +27,7 @@ export function updateStreamripConfig(values: Record<string, unknown>) {
   for (const [id, rawValue] of Object.entries(values)) {
     const field = findStreamripField(id);
     if (!field) continue;
-    if (field.secret && isRedactedSecret(rawValue)) continue;
+    if (field.secret && isRedactedSecret(rawValue, current[field.section]?.[field.name])) continue;
     next[field.section][field.name] = normalizeStreamripValue(field, rawValue);
   }
 
@@ -129,7 +127,7 @@ function redactStreamripConfig(config: StreamripConfig) {
   const safe = structuredClone(config) as StreamripConfig;
   for (const field of streamripConfigFields) {
     if (field.secret && hasSecretValue(safe[field.section]?.[field.name])) {
-      safe[field.section][field.name] = redactedSecretValue;
+      safe[field.section][field.name] = redactSecretValue(secretPreviewText(safe[field.section]?.[field.name]));
     }
   }
   return safe;
@@ -177,8 +175,14 @@ function normalizeStreamripValue(field: { id?: string; type: string; defaultValu
   return String(value ?? '');
 }
 
-function isRedactedSecret(value: unknown) {
-  return typeof value === 'string' && /^\*+$/.test(value);
+function isRedactedSecret(value: unknown, currentValue: unknown) {
+  return (
+    typeof value === 'string' && (/^\*+$/.test(value) || value === redactSecretValue(secretPreviewText(currentValue)))
+  );
+}
+
+function secretPreviewText(value: unknown) {
+  return typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value ?? ''));
 }
 
 function hasSecretValue(value: unknown) {

@@ -1,0 +1,55 @@
+.statusLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusLine code,
+.statusLine span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.note,
+.warning {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-subtle);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.warning {
+  border-color: color-mix(in srgb, var(--warning) 38%, var(--glass-border));
+  background: color-mix(in srgb, var(--warning) 9%, var(--glass-subtle));
+  color: var(--text);
+}
+
+.exportControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.exportControls label {
+  display: grid;
+  min-width: min(100%, 280px);
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.exportControls input {
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--glass-subtle);
+  color: var(--text);
+}

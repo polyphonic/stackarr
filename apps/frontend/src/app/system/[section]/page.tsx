@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   commandRegistry,
+  getBackupRecoveryKeyStatusAction,
   getStackMetrics,
   getSystemStatus,
   readEnv,
@@ -12,7 +13,9 @@ import {
 import { notFound } from 'next/navigation';
 import { ActivityNav } from '../../../components/ActivityNav';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
+import { BackupRecoveryKey } from '../../../components/BackupRecoveryKey';
 import { CommandButton } from '../../../components/CommandButton';
+import { PortlessHostCommands } from '../../../components/PortlessHostCommands';
 import { ServerLogViewer } from '../../../components/ServerLogViewer';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
@@ -53,6 +56,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
   ]);
   const tasks = readTasks();
   const backupStatus = getBackupStatus(env, tasks);
+  const backupRecoveryKeyStatus = getBackupRecoveryKeyStatusAction();
 
   return (
     <>
@@ -178,6 +182,11 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                 value={backupStatus.latestArchiveLabel}
                 tone={backupStatus.latestArchiveTone}
               />
+              <Stat
+                label="Recovery Key"
+                value={recoveryKeyStatusLabel(backupRecoveryKeyStatus)}
+                tone={recoveryKeyStatusTone(backupRecoveryKeyStatus)}
+              />
             </Grid>
             <Panel title="Backup Actions">
               <ActionGrid>
@@ -187,6 +196,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                 <CommandButton name="BackupUninstall" label={commandRegistry.BackupUninstall.label} />
               </ActionGrid>
             </Panel>
+            <BackupRecoveryKey initialStatus={backupRecoveryKeyStatus} />
             <Panel title="Automation">
               <Table>
                 <tbody>
@@ -291,13 +301,8 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                 />
               </ActionGrid>
             </Panel>
-            <Panel title="Portless">
-              <ActionGrid>
-                <CommandButton name="PortlessStatus" label={commandRegistry.PortlessStatus.label} />
-                <CommandButton name="PortlessApply" label={commandRegistry.PortlessApply.label} />
-                <CommandButton name="PortlessInstall" label={commandRegistry.PortlessInstall.label} />
-                <CommandButton name="PortlessUninstall" label={commandRegistry.PortlessUninstall.label} />
-              </ActionGrid>
+            <Panel title="Portless" description="Host-managed local app aliases">
+              <PortlessHostCommands />
             </Panel>
           </>
         )}
@@ -420,6 +425,19 @@ function taskTone(task: StackarrTask): Tone {
   return 'purple';
 }
 
+function recoveryKeyStatusLabel(status: ReturnType<typeof getBackupRecoveryKeyStatusAction>) {
+  if (!status.encryptionEnabled) return 'Not Used';
+  if (!status.keyAvailable) return 'Not Generated';
+  if (!status.keyValid) return 'Invalid';
+  return status.exported ? 'Exported' : 'Export Required';
+}
+
+function recoveryKeyStatusTone(status: ReturnType<typeof getBackupRecoveryKeyStatusAction>): Tone {
+  if (!status.encryptionEnabled) return 'neutral';
+  if (status.keyAvailable && !status.keyValid) return 'bad';
+  return status.exported ? 'good' : 'warn';
+}
+
 function latestBackupArchive(root: string | undefined) {
   if (!root || !fs.existsSync(root)) {
     return undefined;
@@ -428,7 +446,7 @@ function latestBackupArchive(root: string | undefined) {
   try {
     return fs
       .readdirSync(root)
-      .filter((name) => /^stackarr-backup-.+\.tar\.gz$/.test(name))
+      .filter((name) => /^stackarr-backup-.+\.tar\.gz(?:\.enc)?$/.test(name))
       .map((name) => {
         const archivePath = path.join(root, name);
         const stat = fs.statSync(archivePath);

@@ -1,0 +1,64 @@
+.toolbar,
+.pagination,
+.pagination > div,
+.reviewCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar {
+  margin-bottom: 12px;
+}
+
+.toolbar > :first-child {
+  min-width: min(100%, 320px);
+}
+
+.toolbar select {
+  min-height: 38px;
+  padding: 6px 34px 6px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.toolbar > button {
+  margin-left: auto;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.reviewCell {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.reviewCell small,
+.complete,
+.pagination {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pagination {
+  justify-content: space-between;
+  min-height: 54px;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+}
+
+@media (max-width: 720px) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar > button {
+    margin-left: 0;
+  }
+}

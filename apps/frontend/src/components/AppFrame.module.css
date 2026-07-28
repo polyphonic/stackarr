@@ -1,6 +1,7 @@
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar-width, 252px) minmax(0, 1fr);
+  min-height: 100vh;
   height: 100dvh;
   overflow: hidden;
   background: var(--bg);
@@ -32,7 +33,7 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   padding: 14px 12px;
@@ -332,7 +333,8 @@
 
 .main {
   min-width: 0;
-  height: 100dvh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -423,6 +425,9 @@
 @media (max-width: 800px) {
   .shell {
     display: block;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
     padding-bottom: 70px;
   }
 
