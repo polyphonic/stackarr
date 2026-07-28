@@ -12,17 +12,21 @@ The first setup screen offers three paths:
 
 ## Restore From Backup
 
-Stackarr scheduled backups are written as `.tar.gz` archives. The restore workflow also accepts `.tgz` and `.zip` archives so users can restore backups that were repackaged by other tools.
+Stackarr scheduled backups are encrypted by default and written as `.tar.gz.enc` archives. Export the recovery key from **System → Backup** after the first backup and store it separately. Upload that key file with an encrypted archive. Without it, the archive cannot be decrypted and settings and credentials must be entered again. Legacy `.tar.gz`, `.tgz`, and `.zip` archives remain supported.
 
 Onboarding restore queues:
 
 ```bash
-stackarr backup restore /path/to/archive.tar.gz --yes --force-config --mark-onboarding-complete
+stackarr backup restore /path/to/archive.tar.gz.enc \
+  --backup-key-file /secure/path/backup-encryption.key \
+  --yes --force-config --mark-onboarding-complete
 ```
 
-The app adds explicit restore or skip choices for shared Postgres and existing Plex host data based on the selected checkboxes.
+The app adds explicit restore or skip choices for shared Postgres, existing Plex host data, and native Jellyfin data based on the selected checkboxes.
 
 Use shared Postgres restore when the archive contains `database/*.dump` and the new install should replace matching Stackarr-managed databases. Leave existing Plex host options off unless restoring onto the same host or a carefully prepared replacement host.
+
+The portable runtime snapshot is restored before shared Postgres. This supplies the credentials needed to start PostgreSQL and restore the database that contains the authoritative Stackarr settings. Generated Compose environment state is rebuilt afterward.
 
 ## Migrate Current Stack
 

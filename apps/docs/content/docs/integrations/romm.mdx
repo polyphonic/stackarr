@@ -34,7 +34,11 @@ RomM expects the game library to follow its platform-oriented folder structure. 
 
 ## Metadata providers
 
-Onboarding can save RomM metadata provider credentials into local runtime config:
+Onboarding and **Apps → RomM → Settings** save RomM metadata provider credentials into Stackarr's private runtime
+config. The main settings panel exposes every provider environment variable documented by RomM, including the IGDB
+client ID and secret, ScreenScraper credentials, provider keys and toggles, the RetroAchievements cache interval, and
+LaunchBox scheduling. Stackarr writes secrets to its generated, mode-`0600` Compose environment file rather than the
+tracked Compose file.
 
 - Chef's Choice: Hasheous + IGDB + SteamGridDB + RetroAchievements
 - French Connection: ScreenScraper + RetroAchievements
@@ -42,4 +46,22 @@ Onboarding can save RomM metadata provider credentials into local runtime config
 - Quick Starter: Hasheous only
 - Custom: choose individual providers
 
-Provider setup details live in the RomM docs: [IGDB](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#igdb), [ScreenScraper](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#screenscraper), [SteamGridDB](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#steamgriddb), [RetroAchievements](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#retroachievements), [Hasheous](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#hasheous), and [Playmatch](https://docs.romm.app/4.9.2/getting-started/metadata-providers/#playmatch).
+RomM reads these settings from its container environment. When a provider credential or provider toggle changes in the
+dashboard, Stackarr automatically regenerates the Compose environment and queues a RomM-only container recreation.
+Expect a brief RomM interruption; no full Stackarr restart is needed. A plain `docker restart` cannot apply changed
+container environment variables.
+
+The same targeted behavior applies to other app settings: Stackarr detects which generated Compose services reference
+the changed variables and recreates only those enabled containers. Enable/disable and torrent-client selection changes
+also remove or start the appropriate managed containers.
+
+For a provider change made through host-side runtime tooling, apply it with:
+
+```bash
+bin/stackarr romm metadata apply
+```
+
+`bin/stackarr up` also applies the values. Do not edit the generated Compose `.env` directly because Stackarr replaces
+it from the authoritative runtime config.
+
+Provider setup details live in the RomM docs: [IGDB](https://docs.romm.app/latest/getting-started/metadata-providers/#igdb), [ScreenScraper](https://docs.romm.app/latest/getting-started/metadata-providers/#screenscraper), [SteamGridDB](https://docs.romm.app/latest/getting-started/metadata-providers/#steamgriddb), [RetroAchievements](https://docs.romm.app/latest/getting-started/metadata-providers/#retroachievements), [Hasheous](https://docs.romm.app/latest/getting-started/metadata-providers/#hasheous), and [Playmatch](https://docs.romm.app/latest/getting-started/metadata-providers/#playmatch).

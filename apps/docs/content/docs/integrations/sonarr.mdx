@@ -4,3 +4,5 @@ description: Sonarr integration overview for Stackarr.
 ---
 
 <ServiceIntegration slug="sonarr" />
+
+Plex supports show-level editions when the main show folder ends in `{edition-Edition Name}`. Sonarr does not currently expose a show-edition naming token, so use an explicit edition-tagged series path in Sonarr. Stackarr configures tinyMediaManager not to rename TV show root folders, which preserves that marker while still allowing season and episode naming patterns to be used.

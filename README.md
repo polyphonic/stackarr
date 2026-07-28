@@ -56,13 +56,15 @@ Use `admin` during setup and `manage` for everyday operation. `observe` is read-
 | Area | Examples |
 | --- | --- |
 | Movies and TV | Radarr, Sonarr, Seerr, Plex, Jellyfin |
-| Downloads and indexers | Transmission, qBittorrent, Prowlarr |
+| Downloads and indexers | Transmission, qBittorrent, Prowlarr, Cleanuparr |
 | Music, books, photos, and games | Lidarr, BookOrbit, Immich, RomM |
 | Supporting services | Bazarr, Recyclarr, Maintainerr, Tracearr, FlareSolverr |
 | Operations | Setup, health, backups, restores, updates, and migrations |
 | Access | Local-only defaults and optional Cloudflare routes |
 
 Stackarr advertises only the agent actions relevant to the apps selected during setup.
+
+When Cleanuparr is enabled, Stackarr keeps its UI on loopback, connects the active torrent client plus Radarr/Sonarr/Lidarr, and applies a local media-context blocklist every five seconds. A download is deleted if any file matches executable, script, shortcut, macro-document, package, or disk-image patterns such as `*.exe`, `*.lnk`, `*.ps1`, or `*.dmg`; normal video and subtitle files remain allowed.
 
 The dashboard uses Portless app URLs by default, keeps pinned apps in the main navigation, and lets you manage each app's local link, Stackarr configuration, and optional Cloudflare route from one Settings panel. Home and Infrastructure adapt their live performance and storage views to the apps and mounted drives that are actually present.
 
