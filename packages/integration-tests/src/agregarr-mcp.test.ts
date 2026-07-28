@@ -171,6 +171,10 @@ try {
     collections.every((item) => (item.visibilityConfig as { usersHome?: boolean }).usersHome === false),
     true
   );
+  await assert.rejects(
+    updateAgregarrCollectionGroupAction({ collectionIds: comingSoon?.ids ?? [] }),
+    /at least one Agregarr collection group setting/
+  );
 
   await syncAgregarrCollectionGroupAction({ collectionIds: comingSoon?.ids ?? [] });
 
@@ -210,6 +214,14 @@ try {
   );
   assert.equal(
     catalog.some((tool: { name: string }) => tool.name === 'stackarr_ensure_agregarr_collection_preset'),
+    true
+  );
+  assert.equal(
+    catalog.some((tool: { name: string }) => tool.name === 'stackarr_sync_agregarr_collection_group'),
+    true
+  );
+  assert.equal(
+    catalog.some((tool: { name: string }) => tool.name === 'stackarr_update_agregarr_collection_group'),
     true
   );
   const overviewTool = catalog.find((tool: { name: string }) => tool.name === 'stackarr_get_agregarr_overview');

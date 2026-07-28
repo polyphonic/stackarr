@@ -233,7 +233,7 @@ export const serviceIntegrations = [
       'Keeps linked movie and TV collection rows synchronized on a schedule.'
     ],
     stackarr:
-      'Stackarr initializes Agregarr through its native API with the signed-in Plex owner token, connects Radarr and Sonarr, saves the generated API key, and creates linked Coming Soon rows as the default source ordered by release availability. The dashboard Collection Studio exposes common presets, Home and Discover visibility, shuffle, and targeted sync.'
+      "Stackarr initializes Agregarr through its native API with the signed-in Plex owner token, connects Radarr and Sonarr, saves the generated API key, and creates linked Coming Soon rows as the default source ordered by release availability. Trusted CLI and MCP commands expose common presets, Home and Discover visibility, shuffle, and targeted sync without duplicating Agregarr's editor in the Stackarr dashboard."
   },
   {
     slug: 'tracearr',
