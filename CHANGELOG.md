@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0-alpha.10](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.9...v0.3.0-alpha.10) (2026-07-28)
+
+
+### Added
+
+* **agregarr:** move collection controls to CLI and MCP ([fff2fb9](https://github.com/polyphonic/stackarr/commit/fff2fb9c686482c0ec5a6107db502c7dd628b01a))
+* **stack:** secure backups and managed app settings ([7d88fcb](https://github.com/polyphonic/stackarr/commit/7d88fcb0b66bf78121232f90939ce033e09cc690))
+* **stack:** secure recovery and managed app operations ([01165a8](https://github.com/polyphonic/stackarr/commit/01165a8f523324e04b6d6d6967c91613cff80fcf))
+
+
+### Fixed
+
+* **portless:** hand host operations off explicitly ([82e2cad](https://github.com/polyphonic/stackarr/commit/82e2cada3ac00e8217142354df152bb0cbc6dc65))
+* **portless:** present host commands as neutral guidance ([4c353f4](https://github.com/polyphonic/stackarr/commit/4c353f4b833fbd8720176cd7b83abd34e4f3e349))
+
+
+### Documentation
+
+* **stack:** document recovery and managed integrations ([0f04b49](https://github.com/polyphonic/stackarr/commit/0f04b49b9e90371af10cbdceeaf6f58268289d4b))
+
 ## [0.3.0-alpha.9](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.8...v0.3.0-alpha.9) (2026-07-23)
 
 
