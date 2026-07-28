@@ -415,13 +415,13 @@ export function SettingsEditor({ section, env, settings }: Props) {
           ? 'Saved. Storage mounts apply queued.'
           : 'Saved. Storage mounts need apply from System.';
 
-        const combinedMessage = `${nextMessage}${telemetryMessage}`;
+        const combinedMessage = `${nextMessage}${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
         setMessage(combinedMessage);
         toast[applyResponse.ok ? 'success' : 'error'](combinedMessage, { id: toastId });
         return;
       }
 
-      const nextMessage = `${portlessSaveMessage(body.portlessTask)}${telemetryMessage}`;
+      const nextMessage = `Saved${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
       setMessage(nextMessage);
       toast.success(nextMessage, { id: toastId });
     } else {
@@ -1594,18 +1594,18 @@ export function SettingsEditor({ section, env, settings }: Props) {
   );
 }
 
-function portlessSaveMessage(task: unknown) {
-  if (!task || typeof task !== 'object') {
-    return 'Saved';
+function portlessHostActionMessage(action: unknown) {
+  if (!action || typeof action !== 'object') {
+    return '';
   }
 
-  const status = (task as { status?: unknown }).status;
+  const { command, status } = action as { command?: unknown; status?: unknown };
 
-  if (status === 'blocked') {
-    return 'Saved. Open Terminal and run: stackarr portless install.';
+  if (status === 'host-required' && typeof command === 'string') {
+    return ` Open Terminal and run: ${command}.`;
   }
 
-  return 'Saved. Portless setup queued.';
+  return '';
 }
 
 function cloudflareExposureWarning(routes: CloudflareRoute[], accessEnabled: boolean) {
