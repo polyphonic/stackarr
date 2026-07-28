@@ -3,13 +3,13 @@
   gap: 12px;
 }
 
-.notice {
+.guidance {
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid var(--badge-warn-border);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--badge-warn-bg);
-  color: var(--badge-warn-text);
+  background: var(--panel-bg);
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
 }

@@ -21,9 +21,8 @@ export function PortlessHostCommands() {
 
   return (
     <div className={styles.wrapper}>
-      <p className={styles.notice}>
-        Portless changes certificate trust, privileged ports, and host aliases. Run these commands in a trusted terminal
-        on the Docker host; the dashboard container cannot request macOS approval.
+      <p className={styles.guidance}>
+        Portless is managed by the Docker host. Copy the command you need and run it in a trusted host terminal.
       </p>
       <div className={styles.commands}>
         {commands.map((item) => (
