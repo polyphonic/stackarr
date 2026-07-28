@@ -1,7 +1,18 @@
-import { createQueuedTask, getCommand, type StackarrSettings } from '@stackarr/core';
-import { runQueuedTask } from './runner';
+import type { StackarrSettings } from '@stackarr/core';
 
-export function queuePortlessSetupIfNeeded(
+export type PortlessHostAction = {
+  command: 'stackarr portless apply' | 'stackarr portless install';
+  status: 'host-required';
+};
+
+/**
+ * Describe the host command needed after a settings change.
+ *
+ * Portless changes host certificate trust, privileged ports, and /etc/hosts. The
+ * dashboard runs inside Docker, so queuing this as a container task can never
+ * succeed and incorrectly records an expected host handoff as a blocked task.
+ */
+export function portlessHostActionIfNeeded(
   before: StackarrSettings,
   after: StackarrSettings,
   options?: {
@@ -19,12 +30,8 @@ export function queuePortlessSetupIfNeeded(
     return null;
   }
 
-  const command = getCommand('PortlessInstall');
-
-  if (!command) {
-    return null;
-  }
-
-  const task = createQueuedTask(command.name, command.label);
-  return runQueuedTask(task, command);
+  return {
+    command: portlessWasEnabled ? 'stackarr portless apply' : 'stackarr portless install',
+    status: 'host-required'
+  } satisfies PortlessHostAction;
 }

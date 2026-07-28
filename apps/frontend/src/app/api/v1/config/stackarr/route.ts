@@ -14,7 +14,7 @@ import {
 } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { hasValidStackarrSession, json, requireApiKey, setStackarrSessionCookie } from '../../../../../lib/api';
-import { queuePortlessSetupIfNeeded } from '../../../../../lib/portlessSetup';
+import { portlessHostActionIfNeeded } from '../../../../../lib/portlessSetup';
 
 const accessPasswordKeys = [
   'TRANSMISSION_PASSWORD',
@@ -123,12 +123,12 @@ export async function PUT(request: NextRequest) {
     writeJsonPreset('requests', body.presets.requests);
   }
 
-  const task = queuePortlessSetupIfNeeded(beforeSettings, afterSettings);
+  const portlessHostAction = portlessHostActionIfNeeded(beforeSettings, afterSettings);
 
   const response = json({
     accepted: true,
     apiKey: !existingApiKey && nextEnv?.STACKARR_API_KEY ? nextEnv.STACKARR_API_KEY : undefined,
-    portlessTask: task ?? undefined
+    portlessHostAction: portlessHostAction ?? undefined
   });
 
   return renewBrowserSession ? setStackarrSessionCookie(response, request, nextEnv ?? readEnv()) : response;

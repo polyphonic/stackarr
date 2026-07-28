@@ -12,7 +12,7 @@ import {
 } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../../../lib/api';
-import { queuePortlessSetupIfNeeded } from '../../../../../../lib/portlessSetup';
+import { portlessHostActionIfNeeded } from '../../../../../../lib/portlessSetup';
 import { runQueuedTask } from '../../../../../../lib/runner';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ service: string }> }) {
@@ -48,10 +48,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     service !== 'stackarr' ||
     beforeSettings.ui.serviceUrlMode === 'portless' ||
     afterSettings.ui.serviceUrlMode === 'portless';
-  const task =
+  const portlessHostAction =
     service === 'stackarr'
-      ? queuePortlessSetupIfNeeded(beforeSettings, afterSettings)
-      : queuePortlessSetupIfNeeded(beforeSettings, afterSettings, {
+      ? portlessHostActionIfNeeded(beforeSettings, afterSettings)
+      : portlessHostActionIfNeeded(beforeSettings, afterSettings, {
           force: forcePortlessSync
         });
 
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   return json({
     ...result,
-    portlessTask: task ?? undefined,
+    portlessHostAction: portlessHostAction ?? undefined,
     runtimeApplyTask: runtimeApplyTask ?? undefined,
     runtimeApplyTargets
   });

@@ -15,6 +15,7 @@ import { ActivityNav } from '../../../components/ActivityNav';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { BackupRecoveryKey } from '../../../components/BackupRecoveryKey';
 import { CommandButton } from '../../../components/CommandButton';
+import { PortlessHostCommands } from '../../../components/PortlessHostCommands';
 import { ServerLogViewer } from '../../../components/ServerLogViewer';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
@@ -300,13 +301,8 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                 />
               </ActionGrid>
             </Panel>
-            <Panel title="Portless">
-              <ActionGrid>
-                <CommandButton name="PortlessStatus" label={commandRegistry.PortlessStatus.label} />
-                <CommandButton name="PortlessApply" label={commandRegistry.PortlessApply.label} />
-                <CommandButton name="PortlessInstall" label={commandRegistry.PortlessInstall.label} />
-                <CommandButton name="PortlessUninstall" label={commandRegistry.PortlessUninstall.label} />
-              </ActionGrid>
+            <Panel title="Portless" description="Host-managed local app aliases">
+              <PortlessHostCommands />
             </Panel>
           </>
         )}

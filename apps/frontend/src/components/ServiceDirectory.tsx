@@ -340,11 +340,14 @@ function ServiceSettingsModal({
     const runtimeApplyTargets = Array.isArray(body.runtimeApplyTargets)
       ? body.runtimeApplyTargets.filter((target: unknown): target is string => typeof target === 'string')
       : [];
-    toast.success(
-      body.runtimeApplyTask
-        ? `${config.service.displayName} settings saved. Container update queued for ${runtimeApplyTargets.join(', ')}.`
-        : `${config.service.displayName} settings saved.`
-    );
+    const portlessCommand =
+      body.portlessHostAction?.status === 'host-required' && typeof body.portlessHostAction.command === 'string'
+        ? ` Open Terminal and run: ${body.portlessHostAction.command}.`
+        : '';
+    const saveMessage = body.runtimeApplyTask
+      ? `${config.service.displayName} settings saved. Container update queued for ${runtimeApplyTargets.join(', ')}.`
+      : `${config.service.displayName} settings saved.`;
+    toast.success(`${saveMessage}${portlessCommand}`);
     close();
   }
 

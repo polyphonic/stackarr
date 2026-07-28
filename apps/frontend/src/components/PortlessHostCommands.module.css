@@ -1,0 +1,73 @@
+.wrapper {
+  display: grid;
+  gap: 12px;
+}
+
+.notice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--badge-warn-border);
+  border-radius: 8px;
+  background: var(--badge-warn-bg);
+  color: var(--badge-warn-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.commands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+}
+
+.command > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.command strong {
+  font-size: 12px;
+}
+
+.command code {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command button {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.command button:hover {
+  border-color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .commands {
+    grid-template-columns: 1fr;
+  }
+}
