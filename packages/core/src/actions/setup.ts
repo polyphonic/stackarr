@@ -43,6 +43,7 @@ export type MediaServerSetupInput = {
     | 'bookorbit'
     | 'immich'
     | 'romm'
+    | 'questarr'
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
@@ -59,6 +60,7 @@ export type MediaServerSetupInput = {
   enableBookOrbit?: boolean;
   enableImmich?: boolean;
   enableRomm?: boolean;
+  enableQuestarr?: boolean;
   enableTinyMediaManager?: boolean;
   enableRecyclarr?: boolean;
   enableFlaresolverr?: boolean;
@@ -122,6 +124,7 @@ type ResolvedMediaServerSetupInput = Required<
     | 'bookorbit'
     | 'immich'
     | 'romm'
+    | 'questarr'
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
@@ -155,6 +158,7 @@ export const opinionatedSetupDefaults = {
   enableBookOrbit: false,
   enableImmich: false,
   enableRomm: false,
+  enableQuestarr: false,
   enableTinyMediaManager: true,
   enableRecyclarr: true,
   enableFlaresolverr: true,
@@ -334,7 +338,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'enabledServices',
         prompt:
-          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Cleanuparr blocks malware-like downloads and cleans queues, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Questarr handles game discovery/downloads, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Cleanuparr blocks malware-like downloads and cleans queues, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
         type: 'multi-choice',
         choices: [
           'bazarr',
@@ -346,6 +350,7 @@ export function getMediaServerSetupProfileAction() {
           'bookorbit',
           'immich',
           'romm',
+          'questarr',
           'maintainerr',
           'cleanuparr',
           'agregarr',
@@ -482,6 +487,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableBookOrbit: input.enabledServices.includes('bookorbit'),
         enableImmich: input.enabledServices.includes('immich'),
         enableRomm: input.enabledServices.includes('romm'),
+        enableQuestarr: input.enabledServices.includes('questarr'),
         enableRecyclarr: input.enabledServices.includes('recyclarr'),
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
         enableTidarr: input.enabledServices.includes('tidarr'),
@@ -625,6 +631,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       enableBookOrbit: merged.enableBookOrbit,
       enableImmich: merged.enableImmich,
       enableRomm: merged.enableRomm,
+      enableQuestarr: merged.enableQuestarr,
       enableTinyMediaManager: merged.enableTinyMediaManager,
       enableRecyclarr: merged.enableRecyclarr,
       enableFlaresolverr: merged.enableFlaresolverr,
@@ -719,6 +726,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_BOOKORBIT: String(input.enableBookOrbit),
     ENABLE_IMMICH: String(input.enableImmich),
     ENABLE_ROMM: String(input.enableRomm),
+    ENABLE_QUESTARR: String(input.enableQuestarr),
     ENABLE_TINYMEDIAMANAGER: String(input.enableTinyMediaManager),
     ENABLE_RECYCLARR: String(input.enableRecyclarr),
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
@@ -848,6 +856,19 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
     ROMM_IMAGE: 'rommapp/romm:latest',
     ROMM_DB_IMAGE: '',
+    QUESTARR_URL: 'http://127.0.0.1:7584',
+    QUESTARR_APP_URL: 'http://127.0.0.1:7584',
+    QUESTARR_ALLOWED_ORIGINS: 'http://127.0.0.1:7584,http://localhost:7584',
+    QUESTARR_BIND_IP: '127.0.0.1',
+    QUESTARR_WEB_PORT: '7584',
+    QUESTARR_CONTAINER_PORT: '5000',
+    QUESTARR_DATA_ROOT: `${setupDefaultAppRoot}/config/questarr`,
+    QUESTARR_LIBRARY_ROOT: rommLibraryRoot,
+    QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
+    QUESTARR_JWT_SECRET: input.enableQuestarr ? nodeCrypto.randomBytes(32).toString('hex') : '',
+    QUESTARR_IGDB_CLIENT_ID: input.enableQuestarr ? input.rommIgdbClientId : '',
+    QUESTARR_IGDB_CLIENT_SECRET: input.enableQuestarr ? input.rommIgdbClientSecret : '',
+    QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
     DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
     DATABASE_PGDATA: '/var/lib/postgresql/data',
     DATABASE_BIND_IP: '127.0.0.1',

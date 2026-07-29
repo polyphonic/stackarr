@@ -47,6 +47,7 @@ import {
   getPlexSessionsAction,
   getPlexWatchSummaryAction,
   getPulsarrUserDiagnosticsAction,
+  getQuestarrDownloadsAction,
   getRecentlyAddedAction,
   getRecentlyWatchedAction,
   getRequestStatusAction,
@@ -100,6 +101,8 @@ import {
   saveRoutineAction,
   scanPlexLibraryAction,
   searchMovieAction,
+  searchQuestarrGamesAction,
+  searchQuestarrReleasesAction,
   searchReleasesAction,
   searchSeriesAction,
   sendTelemetryAction,
@@ -107,6 +110,7 @@ import {
   setPulsarrUserQuotasAction,
   setPulsarrUserSyncAction,
   setupMediaServerAction,
+  startQuestarrDownloadAction,
   startStackAction,
   startStreamripDownloadAction,
   startStreamripSearchDownloadAction,
@@ -280,6 +284,7 @@ const tools: ToolDef[] = [
             'bookorbit',
             'immich',
             'romm',
+            'questarr',
             'recyclarr',
             'flaresolverr',
             'tidarr',
@@ -487,6 +492,42 @@ const tools: ToolDef[] = [
     description: 'Run an allowlisted Agregarr full sync, quick sync, or home-order randomization job.',
     shape: { job: z.enum(['full-sync', 'quick-sync', 'randomize-home-order']) },
     handler: runAgregarrJobAction
+  },
+  {
+    name: 'stackarr_search_questarr_games',
+    description: 'Search IGDB through Questarr and return a compact list of games.',
+    shape: {
+      query: z.string().trim().min(1).max(200),
+      limit: z.number().int().min(1).max(20).optional()
+    },
+    handler: searchQuestarrGamesAction
+  },
+  {
+    name: 'stackarr_search_questarr_releases',
+    description: 'Search Questarr indexers without exposing credential-bearing download links.',
+    shape: {
+      query: z.string().trim().min(1).max(200),
+      limit: z.number().int().min(1).max(25).optional()
+    },
+    handler: searchQuestarrReleasesAction
+  },
+  {
+    name: 'stackarr_get_questarr_downloads',
+    description: 'List a compact summary of downloads visible to Questarr.',
+    shape: { limit: z.number().int().min(1).max(50).optional() },
+    handler: getQuestarrDownloadsAction
+  },
+  {
+    name: 'stackarr_start_questarr_download',
+    description: 'Start one exact Questarr search result through its configured downloader.',
+    shape: {
+      query: z.string().trim().min(1).max(200),
+      releaseTitle: z.string().trim().min(1).max(500),
+      indexerName: z.string().trim().min(1).max(200).optional(),
+      gameId: z.string().uuid().optional(),
+      downloadType: z.enum(['main', 'update', 'dlc', 'extra']).optional()
+    },
+    handler: startQuestarrDownloadAction
   },
   {
     name: 'stackarr_get_routines',
@@ -714,6 +755,7 @@ const tools: ToolDef[] = [
             'bookorbit',
             'immich',
             'romm',
+            'questarr',
             'seerr',
             'transmission',
             'qbittorrent',

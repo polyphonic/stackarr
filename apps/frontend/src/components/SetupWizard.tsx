@@ -64,6 +64,7 @@ type SetupState = {
   enableBookOrbit: boolean;
   enableImmich: boolean;
   enableRomm: boolean;
+  enableQuestarr: boolean;
   enableTinyMediaManager: boolean;
   enableRecyclarr: boolean;
   enableFlaresolverr: boolean;
@@ -121,6 +122,7 @@ const defaults: SetupState = {
   enableBookOrbit: false,
   enableImmich: false,
   enableRomm: false,
+  enableQuestarr: false,
   enableTinyMediaManager: true,
   enableRecyclarr: true,
   enableFlaresolverr: true,
@@ -236,6 +238,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_BOOKORBIT: String(state.enableBookOrbit),
       ENABLE_IMMICH: String(state.enableImmich),
       ENABLE_ROMM: String(state.enableRomm),
+      ENABLE_QUESTARR: String(state.enableQuestarr),
       ENABLE_TINYMEDIAMANAGER: String(videoAutomationEnabled && state.enableTinyMediaManager),
       ENABLE_RECYCLARR: String(videoAutomationEnabled && state.enableRecyclarr),
       ENABLE_FLARESOLVERR: String(arrEnabled && state.enableFlaresolverr),
@@ -355,6 +358,19 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ROMM_TGDB_API_ENABLED: 'false',
       ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
       ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
+      QUESTARR_URL: 'http://127.0.0.1:7584',
+      QUESTARR_APP_URL: 'http://127.0.0.1:7584',
+      QUESTARR_ALLOWED_ORIGINS: 'http://127.0.0.1:7584,http://localhost:7584',
+      QUESTARR_BIND_IP: '127.0.0.1',
+      QUESTARR_WEB_PORT: '7584',
+      QUESTARR_CONTAINER_PORT: '5000',
+      QUESTARR_DATA_ROOT: '',
+      QUESTARR_LIBRARY_ROOT: rommLibraryRoot,
+      QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
+      QUESTARR_JWT_SECRET: '',
+      QUESTARR_IGDB_CLIENT_ID: state.enableQuestarr ? state.rommIgdbClientId : '',
+      QUESTARR_IGDB_CLIENT_SECRET: state.enableQuestarr ? state.rommIgdbClientSecret : '',
+      QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
       STACKARR_MOVIE_4K_PROFILE_PRESET: '',
       STACKARR_TV_4K_PROFILE_PRESET: '',
       STACKARR_MOVIE_4K_DEFAULT_PROFILE: '',
@@ -422,6 +438,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ['RomM library', state.enableRomm ? state.rommLibraryRoot || `${state.mediaRoot}/Games` : 'Disabled'],
       ['RomM setup', state.enableRomm ? 'Manual in RomM' : 'Disabled'],
       ['RomM metadata', state.enableRomm ? rommMetadataLabel(state.rommMetadataPreset) : 'Disabled'],
+      [
+        'Questarr',
+        state.enableQuestarr
+          ? 'Enabled privately; shares IGDB and game paths; run the Questarr configure command after startup'
+          : 'Disabled'
+      ],
       ['Cleanup presets', state.maintainerrCleanupPresets.length ? state.maintainerrCleanupPresets.join(', ') : 'None'],
       [
         'Movie profile',
@@ -964,6 +986,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               description="Optional private ROM manager and browser-play game library. Stackarr keeps it local unless you explicitly expose it later."
               onChange={(value) => update('enableRomm', value)}
             />
+            <ServiceChoice
+              checked={state.enableQuestarr}
+              label="Game downloads (Questarr)"
+              description="Optional game discovery and downloads. Shares RomM’s IGDB credentials and paths but does not take over its library inventory. Questarr currently stores its own state in SQLite."
+              onChange={(value) => update('enableQuestarr', value)}
+            />
             {state.enableRomm && (
               <div className={styles.form}>
                 <label>
@@ -1008,7 +1036,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                     Playmatch
                   </a>
                 </p>
-                {(state.rommMetadataPreset === 'chef' ||
+                {(state.enableQuestarr ||
+                  state.rommMetadataPreset === 'chef' ||
                   state.rommMetadataPreset === 'twitch' ||
                   state.rommMetadataPreset === 'custom') && (
                   <>
@@ -1090,6 +1119,31 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                     />
                   </div>
                 )}
+              </div>
+            )}
+            {state.enableQuestarr && !state.enableRomm && (
+              <div className={styles.form}>
+                <label>
+                  Optional Game Destination
+                  <PathInput value={state.rommLibraryRoot} onChange={(value) => update('rommLibraryRoot', value)} />
+                </label>
+                <label>
+                  IGDB Client ID
+                  <input
+                    autoComplete="off"
+                    value={state.rommIgdbClientId}
+                    onChange={(event) => update('rommIgdbClientId', event.target.value)}
+                  />
+                </label>
+                <label>
+                  IGDB Client Secret
+                  <input
+                    autoComplete="off"
+                    type="password"
+                    value={state.rommIgdbClientSecret}
+                    onChange={(event) => update('rommIgdbClientSecret', event.target.value)}
+                  />
+                </label>
               </div>
             )}
             <ServiceChoice

@@ -57,6 +57,7 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_BOOKORBIT: 'false',
   ENABLE_IMMICH: 'false',
   ENABLE_ROMM: 'false',
+  ENABLE_QUESTARR: 'false',
   ENABLE_TINYMEDIAMANAGER: 'true',
   ENABLE_RECYCLARR: 'true',
   ENABLE_FLARESOLVERR: 'true',
@@ -232,6 +233,18 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_TGDB_API_ENABLED: 'false',
   ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
   ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
+  QUESTARR_URL: 'http://127.0.0.1:7584',
+  QUESTARR_APP_URL: 'http://127.0.0.1:7584',
+  QUESTARR_ALLOWED_ORIGINS: 'http://127.0.0.1:7584,http://localhost:7584',
+  QUESTARR_BIND_IP: '127.0.0.1',
+  QUESTARR_WEB_PORT: '7584',
+  QUESTARR_CONTAINER_PORT: '5000',
+  QUESTARR_DATA_ROOT: `${defaultConfigRoot}/questarr`,
+  QUESTARR_LIBRARY_ROOT: defaultGamesRoot,
+  QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
+  QUESTARR_JWT_SECRET: '',
+  QUESTARR_IGDB_CLIENT_ID: '',
+  QUESTARR_IGDB_CLIENT_SECRET: '',
   BAZARR_URL: 'http://127.0.0.1:6767',
   SEERR_URL: 'http://127.0.0.1:5055',
   PULSARR_URL: 'http://127.0.0.1:3003',
@@ -309,6 +322,7 @@ export const managedEnvDefaults: StackarrEnv = {
   IMMICH_SERVER_IMAGE: 'ghcr.io/immich-app/immich-server',
   IMMICH_MACHINE_LEARNING_IMAGE: 'ghcr.io/immich-app/immich-machine-learning',
   ROMM_IMAGE: 'rommapp/romm:latest',
+  QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
   DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
@@ -558,6 +572,10 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (!env.ROMM_RESOURCES_ROOT) merged.ROMM_RESOURCES_ROOT = `${appRoot}/config/romm/resources`;
   if (!env.ROMM_REDIS_DATA_ROOT) merged.ROMM_REDIS_DATA_ROOT = `${appRoot}/config/romm/redis`;
   if (!env.ROMM_DB_DATA_LOCATION) merged.ROMM_DB_DATA_LOCATION = `${appRoot}/config/romm/mysql`;
+  if (!env.QUESTARR_DATA_ROOT) merged.QUESTARR_DATA_ROOT = `${appRoot}/config/questarr`;
+  if (!env.QUESTARR_LIBRARY_ROOT) merged.QUESTARR_LIBRARY_ROOT = merged.ROMM_LIBRARY_ROOT || merged.GAMES_ROOT;
+  if (!env.QUESTARR_IGDB_CLIENT_ID) merged.QUESTARR_IGDB_CLIENT_ID = merged.ROMM_IGDB_CLIENT_ID || '';
+  if (!env.QUESTARR_IGDB_CLIENT_SECRET) merged.QUESTARR_IGDB_CLIENT_SECRET = merged.ROMM_IGDB_CLIENT_SECRET || '';
   normalizeRommDatabaseDefaults(merged);
   if (!env.IMMICH_UPLOAD_LOCATION) merged.IMMICH_UPLOAD_LOCATION = `${merged.MEDIA_ROOT}/Pictures`;
   if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
@@ -613,6 +631,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyTracearrSecretDefaults(merged, databasePassword);
   applyImmichSecretDefaults(merged);
   applyRommSecretDefaults(merged);
+  applyQuestarrSecretDefaults(merged);
 
   return merged;
 }
@@ -810,6 +829,14 @@ function applyRommSecretDefaults(env: StackarrEnv) {
   env.ROMM_ADMIN_PASSWORD = '';
 }
 
+function applyQuestarrSecretDefaults(env: StackarrEnv) {
+  if (!flagValue(env.ENABLE_QUESTARR)) {
+    return;
+  }
+
+  env.QUESTARR_JWT_SECRET = env.QUESTARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
+}
+
 function flagValue(value: string | undefined) {
   return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
 }
@@ -908,6 +935,8 @@ function isHostPathKey(key: string) {
     'ROMM_RESOURCES_ROOT',
     'ROMM_REDIS_DATA_ROOT',
     'ROMM_DB_DATA_LOCATION',
+    'QUESTARR_DATA_ROOT',
+    'QUESTARR_LIBRARY_ROOT',
     'IMMICH_UPLOAD_LOCATION',
     'PLEX_CONFIG_PATH',
     'PLEX_PREFS_PATH',

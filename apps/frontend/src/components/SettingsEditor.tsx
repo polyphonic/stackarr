@@ -218,6 +218,7 @@ const cloudflareServiceOptions = [
   'bookorbit',
   'immich',
   'romm',
+  'questarr',
   'stackarr',
   'seerr',
   'transmission',
@@ -905,6 +906,14 @@ export function SettingsEditor({ section, env, settings }: Props) {
             onChange={(value) => {
               updateEnvBool('ENABLE_ROMM', value);
               updateSettings('services', 'enableRomm', value);
+            }}
+          />
+          <Check
+            label="Questarr Game Downloads"
+            checked={envBool('ENABLE_QUESTARR', draftSettings.services.enableQuestarr)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_QUESTARR', value);
+              updateSettings('services', 'enableQuestarr', value);
             }}
           />
           <Check

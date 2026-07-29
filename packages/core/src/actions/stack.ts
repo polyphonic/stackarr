@@ -254,6 +254,7 @@ function normalizeCloudflareService(value: string) {
     'bookorbit',
     'immich',
     'romm',
+    'questarr',
     'seerr',
     'plex',
     'jellyfin',

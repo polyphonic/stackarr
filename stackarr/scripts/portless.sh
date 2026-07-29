@@ -181,6 +181,10 @@ register_aliases() {
         register romm "${ROMM_WEB_PORT:-7583}"
     fi
 
+    if truthy "${ENABLE_QUESTARR:-false}"; then
+        register questarr "${QUESTARR_WEB_PORT:-7584}"
+    fi
+
     if truthy "${ENABLE_BAZARR:-true}"; then
         register bazarr 6767
     fi
@@ -268,6 +272,7 @@ const stackarrAliases = new Set([
   'bookorbit',
   'immich',
   'romm',
+  'questarr',
   'bazarr',
   'tinymm',
   'flaresolverr',

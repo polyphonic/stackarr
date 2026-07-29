@@ -94,6 +94,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'RomM',
     description: 'Self-hosted ROM manager and browser-playable game library for emulator collections.'
   },
+  questarr: {
+    displayName: 'Questarr',
+    description: 'Game discovery and download automation that can hand completed files to a RomM-managed library.'
+  },
   bazarr: {
     displayName: 'Bazarr',
     description: 'Subtitle management for Radarr and Sonarr libraries.'
@@ -297,6 +301,21 @@ export function getServices(): ServiceSummary[] {
         'Private game-library browsing and browser play through RomM using the shared Postgres and Redis services. Public exposure is opt-in only; Stackarr binds it to loopback by default.'
       ]
     }),
+    service(
+      'questarr',
+      'download',
+      optionalMode(env.ENABLE_QUESTARR),
+      Number(env.QUESTARR_WEB_PORT ?? 7584),
+      settings,
+      {
+        configPath: env.QUESTARR_DATA_ROOT,
+        notes: [
+          'Shares RomM IGDB credentials by default and mounts the same Games folder as an optional post-processing destination.',
+          'Questarr does not currently synchronize RomM inventory. Keep RomM as the game-library source of truth and configure Prowlarr plus the selected downloader during Questarr first run.',
+          'The maintained Questarr release uses its own SQLite database even when Stackarr and supported services use PostgreSQL.'
+        ]
+      }
+    ),
     service('bazarr', 'support', dependentMode(env.ENABLE_BAZARR, videoAutomationEnabled), 6767, settings, {
       requirement: requirement(videoAutomationEnabled, 'Bazarr needs Radarr or Sonarr first.')
     }),
