@@ -411,6 +411,49 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envCheckbox('rommTgdbApiEnabled', 'Use TheGamesDB Metadata', 'ROMM_TGDB_API_ENABLED')
     ])
   ],
+  questarr: [
+    group(
+      'Game Downloads (Questarr)',
+      [
+        envCheckbox('enableQuestarr', 'Enable Questarr', 'ENABLE_QUESTARR'),
+        envText('questarrUrl', 'Local URL', 'QUESTARR_URL'),
+        envText('questarrAppUrl', 'App URL', 'QUESTARR_APP_URL'),
+        envText('questarrAllowedOrigins', 'Allowed Origins', 'QUESTARR_ALLOWED_ORIGINS'),
+        envText('questarrBindIp', 'Bind IP', 'QUESTARR_BIND_IP'),
+        envNumber('questarrWebPort', 'Web Port', 'QUESTARR_WEB_PORT'),
+        envNumber('questarrContainerPort', 'Container Port', 'QUESTARR_CONTAINER_PORT'),
+        envPath('questarrDataRoot', 'App Data Root', 'QUESTARR_DATA_ROOT'),
+        envPath(
+          'questarrLibraryRoot',
+          'Optional Game Destination',
+          'QUESTARR_LIBRARY_ROOT',
+          'Mounted at /games for opt-in post-processing. Questarr does not synchronize RomM inventory.'
+        ),
+        envText('questarrImage', 'Docker Image', 'QUESTARR_IMAGE')
+      ],
+      'Questarr shares the stack download path and can hand files to the Games folder, while RomM remains the library source of truth.'
+    ),
+    group('Questarr Credentials', [
+      envText(
+        'questarrIgdbClientId',
+        'IGDB Client ID',
+        'QUESTARR_IGDB_CLIENT_ID',
+        'Defaults to RomM’s IGDB client ID when left blank.'
+      ),
+      envPassword(
+        'questarrIgdbClientSecret',
+        'IGDB Client Secret',
+        'QUESTARR_IGDB_CLIENT_SECRET',
+        'Defaults to RomM’s IGDB client secret when left blank.'
+      ),
+      envPassword('questarrJwtSecret', 'JWT Secret', 'QUESTARR_JWT_SECRET')
+    ]),
+    group(
+      'Questarr Database',
+      [envText('questarrSqliteDbPath', 'SQLite Path', 'QUESTARR_SQLITE_DB_PATH')],
+      'Current maintained Questarr releases support SQLite only; Stackarr’s PostgreSQL install route still applies to Stackarr and supported services.'
+    )
+  ],
   bazarr: [
     group('Subtitles', [
       envCheckbox('enableBazarr', 'Enable Bazarr', 'ENABLE_BAZARR'),
@@ -1217,6 +1260,7 @@ function settingsPatchFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     ['enableBookOrbit', 'ENABLE_BOOKORBIT'],
     ['enableImmich', 'ENABLE_IMMICH'],
     ['enableRomm', 'ENABLE_ROMM'],
+    ['enableQuestarr', 'ENABLE_QUESTARR'],
     ['enableTinyMediaManager', 'ENABLE_TINYMEDIAMANAGER'],
     ['enableRecyclarr', 'ENABLE_RECYCLARR'],
     ['enableFlaresolverr', 'ENABLE_FLARESOLVERR'],

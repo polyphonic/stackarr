@@ -55,6 +55,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal((enabledServicesQuestion.choices as string[]).includes('tracearr'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('immich'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('romm'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('questarr'), true);
   assert.equal(profile.defaults.globalUsername, 'admin');
   assert.equal(profile.defaults.globalEmail, '');
   assert.equal(profile.defaults.databaseMode, 'app-default');
@@ -72,6 +73,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.enableTracearr, false);
   assert.equal(profile.defaults.enableImmich, false);
   assert.equal(profile.defaults.enableRomm, false);
+  assert.equal(profile.defaults.enableQuestarr, false);
   assert.deepEqual(profile.defaults.maintainerrCleanupPresets, []);
   assert.equal(profile.defaults.backupRetentionCount, 52);
   assert.equal('pulsarrHdLiteUsers' in profile.defaults, false);
@@ -188,6 +190,46 @@ test('dry-run setup records RomM config for optional private game libraries', as
   assert.equal(result.plan.config.ROMM_ADMIN_USERNAME, '');
   assert.equal(result.plan.config.ROMM_ADMIN_PASSWORD, '********');
   assert.equal(result.plan.config.ROMM_HASHEOUS_API_ENABLED, 'true');
+});
+
+test('dry-run setup shares RomM IGDB config with SQLite-backed Questarr', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    databaseMode: 'postgres',
+    mediaRoot: '/srv/media',
+    enabledMediaTypes: ['games'],
+    enabledServices: ['romm', 'questarr'],
+    rommIgdbClientId: 'igdb-client',
+    rommIgdbClientSecret: 'igdb-secret'
+  });
+
+  assert.equal(result.plan.config.STACKARR_DATABASE_MODE, 'postgres');
+  assert.equal(result.plan.config.ENABLE_QUESTARR, 'true');
+  assert.equal(result.plan.config.QUESTARR_URL, 'http://127.0.0.1:7584');
+  assert.equal(result.plan.config.QUESTARR_LIBRARY_ROOT, '/srv/media/Games');
+  assert.equal(result.plan.config.QUESTARR_SQLITE_DB_PATH, '/app/data/sqlite.db');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_ID, 'igdb-client');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_SECRET, '********');
+  assert.equal(result.plan.config.QUESTARR_JWT_SECRET, '********');
+  assert.equal(result.plan.config.QUESTARR_IMAGE, 'ghcr.io/doezer/questarr:latest');
+  assert.equal(Object.hasOwn(result.plan.config, 'QUESTARR_POSTGRES_DATABASE'), false);
+});
+
+test('dry-run setup keeps IGDB available when Questarr is enabled without RomM', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['questarr'],
+    rommMetadataPreset: 'quick',
+    rommIgdbClientId: 'questarr-client',
+    rommIgdbClientSecret: 'questarr-secret'
+  });
+
+  assert.equal(result.plan.config.ENABLE_ROMM, 'false');
+  assert.equal(result.plan.config.ENABLE_QUESTARR, 'true');
+  assert.equal(result.plan.config.ROMM_IGDB_CLIENT_ID, '');
+  assert.equal(result.plan.config.ROMM_IGDB_CLIENT_SECRET, '********');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_ID, 'questarr-client');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_SECRET, '********');
 });
 
 test('dry-run setup records Maintainerr cleanup preset ideas for the wired service', async () => {

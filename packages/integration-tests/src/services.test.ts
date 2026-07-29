@@ -612,11 +612,13 @@ test('dashboard settings recreate only Compose services affected by changed envi
     assert.match(compose, new RegExp(`${key}`));
   }
 
-  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ROMM_IGDB_CLIENT_SECRET']), ['romm']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ROMM_IGDB_CLIENT_SECRET']), ['questarr', 'romm']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['QUESTARR_IGDB_CLIENT_SECRET']), ['questarr']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['TRANSMISSION_PASSWORD']), ['transmission']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['RADARR_POSTGRES_PASSWORD']), ['radarr']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['IMMICH_VERSION']), ['immich', 'immich-ml']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_ROMM']), ['romm']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_QUESTARR']), ['questarr']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['PREFERRED_TORRENT_CLIENT']), [
     'qbittorrent',
     'transmission'

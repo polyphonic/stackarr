@@ -281,6 +281,21 @@ export const serviceIntegrations = [
       'Stackarr can enable RomM as optional private game-library functionality, mount the configured Games folder, persist assets/resources under local app storage, expose localhost/Portless service links, and keep public routing opt-in only.'
   },
   {
+    slug: 'questarr',
+    name: 'Questarr',
+    logo: 'questarr',
+    category: 'Game downloads',
+    role: 'Game discovery and acquisition app',
+    hero: 'Questarr searches for games and coordinates downloads without replacing the game library managed by RomM.',
+    whatItDoes: [
+      'Uses IGDB metadata to support game discovery and requests.',
+      'Connects to Prowlarr-compatible indexers and supported download clients from its own first-run UI.',
+      'Can post-process completed downloads into an explicitly configured game destination.'
+    ],
+    stackarr:
+      'Stackarr shares RomM’s IGDB credentials by default, mounts the common downloads and Games paths, and keeps Questarr private and optional. Questarr currently uses SQLite and does not synchronize RomM inventory, so RomM remains the source of truth.'
+  },
+  {
     slug: 'bookorbit',
     name: 'BookOrbit',
     logo: 'bookorbit',

@@ -24,6 +24,7 @@ const runtimeComposeServices = new Set([
   'tidarr',
   'bookorbit',
   'romm',
+  'questarr',
   'immich',
   'immich-ml'
 ]);
@@ -37,6 +38,7 @@ const lifecycleTargets: Record<string, string[]> = {
   ENABLE_BOOKORBIT: ['bookorbit'],
   ENABLE_IMMICH: ['immich', 'immich-ml'],
   ENABLE_ROMM: ['romm'],
+  ENABLE_QUESTARR: ['questarr'],
   ENABLE_TINYMEDIAMANAGER: ['tinymediamanager'],
   ENABLE_RECYCLARR: ['recyclarr'],
   ENABLE_FLARESOLVERR: ['flaresolverr'],

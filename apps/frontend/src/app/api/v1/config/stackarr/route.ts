@@ -152,6 +152,7 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   const tracearrEnabled = String(config.ENABLE_TRACEARR ?? current.ENABLE_TRACEARR ?? '').toLowerCase() === 'true';
   const immichEnabled = String(config.ENABLE_IMMICH ?? current.ENABLE_IMMICH ?? '').toLowerCase() === 'true';
   const rommEnabled = String(config.ENABLE_ROMM ?? current.ENABLE_ROMM ?? '').toLowerCase() === 'true';
+  const questarrEnabled = String(config.ENABLE_QUESTARR ?? current.ENABLE_QUESTARR ?? '').toLowerCase() === 'true';
   const requestedDatabaseImage =
     config.DATABASE_IMAGE || current.DATABASE_IMAGE || 'timescale/timescaledb-ha:pg18.1-ts2.25.0';
   const databaseImage =
@@ -301,6 +302,45 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       config.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON ||
       current.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON ||
       '0 4 * * *',
+    QUESTARR_URL: config.QUESTARR_URL || current.QUESTARR_URL || 'http://127.0.0.1:7584',
+    QUESTARR_APP_URL: config.QUESTARR_APP_URL || current.QUESTARR_APP_URL || 'http://127.0.0.1:7584',
+    QUESTARR_ALLOWED_ORIGINS:
+      config.QUESTARR_ALLOWED_ORIGINS ||
+      current.QUESTARR_ALLOWED_ORIGINS ||
+      'http://127.0.0.1:7584,http://localhost:7584',
+    QUESTARR_BIND_IP: config.QUESTARR_BIND_IP || current.QUESTARR_BIND_IP || '127.0.0.1',
+    QUESTARR_WEB_PORT: config.QUESTARR_WEB_PORT || current.QUESTARR_WEB_PORT || '7584',
+    QUESTARR_CONTAINER_PORT: config.QUESTARR_CONTAINER_PORT || current.QUESTARR_CONTAINER_PORT || '5000',
+    QUESTARR_DATA_ROOT:
+      config.QUESTARR_DATA_ROOT ||
+      current.QUESTARR_DATA_ROOT ||
+      `${config.CONFIG_ROOT || current.CONFIG_ROOT || ''}/questarr`,
+    QUESTARR_LIBRARY_ROOT:
+      config.QUESTARR_LIBRARY_ROOT ||
+      current.QUESTARR_LIBRARY_ROOT ||
+      config.ROMM_LIBRARY_ROOT ||
+      current.ROMM_LIBRARY_ROOT ||
+      config.GAMES_ROOT ||
+      current.GAMES_ROOT ||
+      '',
+    QUESTARR_SQLITE_DB_PATH: config.QUESTARR_SQLITE_DB_PATH || current.QUESTARR_SQLITE_DB_PATH || '/app/data/sqlite.db',
+    QUESTARR_JWT_SECRET:
+      unredactedConfigValue('QUESTARR_JWT_SECRET') ||
+      current.QUESTARR_JWT_SECRET ||
+      (questarrEnabled ? nodeCrypto.randomBytes(32).toString('hex') : ''),
+    QUESTARR_IGDB_CLIENT_ID:
+      config.QUESTARR_IGDB_CLIENT_ID ||
+      current.QUESTARR_IGDB_CLIENT_ID ||
+      config.ROMM_IGDB_CLIENT_ID ||
+      current.ROMM_IGDB_CLIENT_ID ||
+      '',
+    QUESTARR_IGDB_CLIENT_SECRET:
+      unredactedConfigValue('QUESTARR_IGDB_CLIENT_SECRET') ||
+      current.QUESTARR_IGDB_CLIENT_SECRET ||
+      unredactedConfigValue('ROMM_IGDB_CLIENT_SECRET') ||
+      current.ROMM_IGDB_CLIENT_SECRET ||
+      '',
+    QUESTARR_IMAGE: config.QUESTARR_IMAGE || current.QUESTARR_IMAGE || 'ghcr.io/doezer/questarr:latest',
     SEERR_DB_TYPE: config.SEERR_DB_TYPE || current.SEERR_DB_TYPE || 'postgres',
     SEERR_POSTGRES_DATABASE: config.SEERR_POSTGRES_DATABASE || current.SEERR_POSTGRES_DATABASE || 'seerr',
     SEERR_POSTGRES_USER: config.SEERR_POSTGRES_USER || current.SEERR_POSTGRES_USER || 'seerr',

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Questarr">
+  <defs><linearGradient id="q" x1="8" y1="8" x2="56" y2="56"><stop stop-color="#8b5cf6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+  <circle cx="32" cy="32" r="28" fill="#111827"/>
+  <path d="M32 14a18 18 0 1 0 10.7 32.5L50 54l4-4-7.3-7.3A18 18 0 0 0 32 14Zm0 7a11 11 0 1 1 0 22 11 11 0 0 1 0-22Z" fill="url(#q)"/>
+  <path d="m32 24 2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.3-4.5 2.3.9-5-3.6-3.5 5-.7L32 24Z" fill="#fff"/>
+</svg>

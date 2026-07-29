@@ -13,6 +13,7 @@ export * from './actions/migration';
 export * from './actions/performance';
 export * from './actions/plex';
 export * from './actions/pulsarr';
+export * from './actions/questarr';
 export * from './actions/releases';
 export * from './actions/routines';
 export * from './actions/seerr';

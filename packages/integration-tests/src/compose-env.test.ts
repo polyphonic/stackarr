@@ -114,6 +114,44 @@ test('compose env generation preserves passwords with shell and URL punctuation'
   }
 });
 
+test('Questarr inherits RomM IGDB credentials and portable game paths at runtime', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-questarr-env-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const appRoot = path.join(root, 'app');
+
+  try {
+    await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        APP_ROOT: appRoot,
+        CONFIG_ROOT: path.join(appRoot, 'config'),
+        STATE_ROOT: path.join(appRoot, 'state'),
+        LOG_ROOT: path.join(appRoot, 'logs'),
+        MEDIA_ROOT: path.join(appRoot, 'media'),
+        GAMES_ROOT: path.join(appRoot, 'media/Games'),
+        ROMM_LIBRARY_ROOT: path.join(appRoot, 'media/Games'),
+        ROMM_IGDB_CLIENT_ID: 'shared-client',
+        ROMM_IGDB_CLIENT_SECRET: 'shared-secret',
+        ENABLE_QUESTARR: 'true',
+        STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+        STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
+      }
+    });
+
+    const content = await readFile(composeEnvFile, 'utf8');
+    assert.match(content, /^ENABLE_QUESTARR="true"$/m);
+    assert.match(content, new RegExp(`^QUESTARR_DATA_ROOT="${path.join(appRoot, 'config/questarr')}"$`, 'm'));
+    assert.match(content, new RegExp(`^QUESTARR_LIBRARY_ROOT="${path.join(appRoot, 'media/Games')}"$`, 'm'));
+    assert.match(content, /^QUESTARR_SQLITE_DB_PATH="\/app\/data\/sqlite.db"$/m);
+    assert.match(content, /^QUESTARR_IGDB_CLIENT_ID="shared-client"$/m);
+    assert.match(content, /^QUESTARR_IGDB_CLIENT_SECRET="shared-secret"$/m);
+    assert.match(content, /^QUESTARR_JWT_SECRET="[A-Za-z0-9]{32}"$/m);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('compose env generation keeps legacy Postgres data directory when present', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');

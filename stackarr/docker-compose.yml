@@ -791,6 +791,49 @@ services:
       homepage.description: Private game library
       homepage.href: ${ROMM_URL:-http://127.0.0.1:7583}
 
+  questarr:
+    profiles:
+      - questarr
+    container_name: questarr
+    image: ${QUESTARR_IMAGE:-ghcr.io/doezer/questarr:latest}
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TIMEZONE:-Etc/UTC}
+      HOST: 0.0.0.0
+      PORT: ${QUESTARR_CONTAINER_PORT:-5000}
+      SQLITE_DB_PATH: ${QUESTARR_SQLITE_DB_PATH:-/app/data/sqlite.db}
+      JWT_SECRET: ${QUESTARR_JWT_SECRET:-}
+      IGDB_CLIENT_ID: ${QUESTARR_IGDB_CLIENT_ID:-${ROMM_IGDB_CLIENT_ID:-}}
+      IGDB_CLIENT_SECRET: ${QUESTARR_IGDB_CLIENT_SECRET:-${ROMM_IGDB_CLIENT_SECRET:-}}
+      APP_URL: ${QUESTARR_APP_URL:-http://127.0.0.1:7584}
+      ALLOWED_ORIGINS: ${QUESTARR_ALLOWED_ORIGINS:-http://127.0.0.1:7584,http://localhost:7584}
+    volumes:
+      - "${QUESTARR_DATA_ROOT:-./.stackarr/config/questarr}:/app/data"
+      - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
+      - "${QUESTARR_LIBRARY_ROOT:-./.stackarr/media/Games}:/games"
+    ports:
+      - "${QUESTARR_BIND_IP:-127.0.0.1}:${QUESTARR_WEB_PORT:-7584}:${QUESTARR_CONTAINER_PORT:-5000}"
+    labels:
+      org.opencontainers.image.title: Questarr
+      org.opencontainers.image.description: Game discovery and download automation for a RomM-managed library.
+      org.opencontainers.image.source: https://github.com/Doezer/Questarr
+      org.opencontainers.image.documentation: https://github.com/Doezer/Questarr/wiki/Configuration
+      homepage.name: Questarr
+      homepage.description: Game discovery and downloads
+      homepage.href: ${QUESTARR_URL:-http://127.0.0.1:7584}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:''+(process.env.PORT||5000)+''/api/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   immich:
     profiles:
       - immich

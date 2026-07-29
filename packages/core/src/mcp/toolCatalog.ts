@@ -228,6 +228,42 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Run an allowlisted Agregarr sync or home-order randomization job.'
   },
   {
+    name: 'stackarr_search_questarr_games',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search IGDB through Questarr and return a bounded game summary.'
+  },
+  {
+    name: 'stackarr_search_questarr_releases',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search Questarr indexers and return bounded release metadata without exposing download URLs.'
+  },
+  {
+    name: 'stackarr_get_questarr_downloads',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List a bounded summary of downloads visible to Questarr.'
+  },
+  {
+    name: 'stackarr_start_questarr_download',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start one exact Questarr search result through its configured downloader.'
+  },
+  {
     name: 'stackarr_get_routines',
     category: 'automations',
     scopes: ['automations:read'],

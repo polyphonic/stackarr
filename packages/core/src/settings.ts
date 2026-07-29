@@ -60,6 +60,7 @@ export type StackarrSettings = {
     enableBookOrbit: boolean;
     enableImmich: boolean;
     enableRomm: boolean;
+    enableQuestarr: boolean;
     enableTinyMediaManager: boolean;
     enableRecyclarr: boolean;
     enableFlaresolverr: boolean;
@@ -149,6 +150,7 @@ export const defaultSettings: StackarrSettings = {
     enableBookOrbit: false,
     enableImmich: false,
     enableRomm: false,
+    enableQuestarr: false,
     enableTinyMediaManager: true,
     enableRecyclarr: true,
     enableFlaresolverr: true,
@@ -248,6 +250,7 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableBookOrbit: envFlag(env.ENABLE_BOOKORBIT, defaultSettings.services.enableBookOrbit),
       enableImmich: envFlag(env.ENABLE_IMMICH, defaultSettings.services.enableImmich),
       enableRomm: envFlag(env.ENABLE_ROMM, defaultSettings.services.enableRomm),
+      enableQuestarr: envFlag(env.ENABLE_QUESTARR, defaultSettings.services.enableQuestarr),
       enableTinyMediaManager: envFlag(env.ENABLE_TINYMEDIAMANAGER, defaultSettings.services.enableTinyMediaManager),
       enableRecyclarr: envFlag(env.ENABLE_RECYCLARR, defaultSettings.services.enableRecyclarr),
       enableFlaresolverr: envFlag(env.ENABLE_FLARESOLVERR, defaultSettings.services.enableFlaresolverr),
