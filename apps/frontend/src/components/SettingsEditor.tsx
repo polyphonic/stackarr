@@ -45,7 +45,10 @@ const storageEnvKeys = [
   'DOWNLOADS_ROOT',
   'BACKUP_ROOT',
   'GAMES_ROOT',
-  'ROMM_LIBRARY_ROOT'
+  'ROMM_LIBRARY_ROOT',
+  'ROMM_STEAM_MAC_LIBRARY_ROOT',
+  'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
+  'ROMM_STEAM_LINUX_LIBRARY_ROOT'
 ] as const;
 const mediaProfilePresetOptions = ['lite', 'balanced'];
 const musicProfilePresetOptions = ['lossless', 'lossy'];

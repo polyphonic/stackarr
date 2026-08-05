@@ -753,6 +753,8 @@ services:
       DB_QUERY_JSON: ${ROMM_DB_QUERY_JSON:-}
       REDIS_HOST: ${ROMM_REDIS_HOST:-redis}
       REDIS_PORT: ${ROMM_REDIS_PORT:-6379}
+      ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: ${ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false}
+      RESCAN_ON_FILESYSTEM_CHANGE_DELAY: ${ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY:-5}
       ROMM_AUTH_SECRET_KEY: ${ROMM_AUTH_SECRET_KEY:-romm-local-secret-change-me}
       IGDB_CLIENT_ID: ${ROMM_IGDB_CLIENT_ID:-}
       IGDB_CLIENT_SECRET: ${ROMM_IGDB_CLIENT_SECRET:-}
@@ -773,6 +775,9 @@ services:
     volumes:
       - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"
+      - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/Steam"
+      - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamWindows"
+      - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamLinux"
       - "${ROMM_ASSETS_ROOT:-./.stackarr/config/romm/assets}:/romm/assets"
       - "${ROMM_CONFIG_ROOT:-./.stackarr/config/romm/config}:/romm/config"
     ports:
@@ -786,6 +791,7 @@ services:
       org.opencontainers.image.title: RomM
       org.opencontainers.image.description: Private ROM manager and browser-play game library for Stackarr.
       org.opencontainers.image.source: https://github.com/rommapp/romm
+      com.stackarr.romm.steam-library-enabled: ${ROMM_STEAM_LIBRARY_ENABLED:-false}
       org.opencontainers.image.documentation: https://docs.romm.app/latest/Getting-Started/Quick-Start-Guide/
       homepage.name: RomM
       homepage.description: Private game library

@@ -576,9 +576,83 @@ test('RomM library path changes queue storage mount reconciliation', async () =>
 
   assert.match(
     settingsEditor,
-    /const storageEnvKeys = \[[\s\S]*'GAMES_ROOT',[\s\S]*'ROMM_LIBRARY_ROOT'[\s\S]*\] as const;/
+    /const storageEnvKeys = \[[\s\S]*'GAMES_ROOT',[\s\S]*'ROMM_LIBRARY_ROOT',[\s\S]*'ROMM_STEAM_MAC_LIBRARY_ROOT',[\s\S]*'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',[\s\S]*'ROMM_STEAM_LINUX_LIBRARY_ROOT'[\s\S]*\] as const;/
   );
   assert.match(settingsEditor, /body: JSON\.stringify\(\{ name: 'StackStart', confirmed: true \}\)/);
+});
+
+test('RomM Steam libraries are opt-in, independently mapped by desktop OS, and cleared when disabled', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-romm-steam-test-'));
+  const directory = await readFile(path.join(repoRoot, 'apps/frontend/src/components/ServiceDirectory.tsx'), 'utf8');
+  const pathPicker = await readFile(path.join(repoRoot, 'apps/frontend/src/components/PathPicker.tsx'), 'utf8');
+
+  assert.match(directory, /field\.enabledWhen \? conditionMatches\(field\.enabledWhen, draft\) : true/);
+  assert.match(directory, /title=\{field\.description\}/);
+  assert.match(pathPicker, /<input[\s\S]*disabled=\{disabled\}/);
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { readEnv, writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { getServiceConfigAction, updateServiceConfigAction } = await import('./packages/core/src/serviceCatalog.ts');
+
+          writeEnvConfig({
+            ROMM_STEAM_LIBRARY_ENABLED: 'true',
+            ROMM_STEAM_MAC_LIBRARY_ROOT: '/games/steam-mac',
+            ROMM_STEAM_WINDOWS_LIBRARY_ROOT: '/games/steam-windows',
+            ROMM_STEAM_LINUX_LIBRARY_ROOT: '/games/steam-linux'
+          });
+          const config = getServiceConfigAction({ service: 'romm' });
+          const fields = config.groups.flatMap((group) => group.fields);
+          const toggle = fields.find((field) => field.id === 'rommSteamLibraryEnabled');
+          const roots = ['rommSteamMacLibraryRoot', 'rommSteamWindowsLibraryRoot', 'rommSteamLinuxLibraryRoot']
+            .map((id) => fields.find((field) => field.id === id));
+          const result = updateServiceConfigAction({
+            service: 'romm',
+            values: { rommSteamLibraryEnabled: false }
+          });
+          const saved = readEnv();
+          console.log(JSON.stringify({
+            accepted: result.accepted,
+            toggle: { value: toggle?.value, infoHover: toggle?.infoHover },
+            roots: roots.map((field) => ({ id: field?.id, enabledWhen: field?.enabledWhen })),
+            saved: {
+              enabled: saved.ROMM_STEAM_LIBRARY_ENABLED,
+              mac: saved.ROMM_STEAM_MAC_LIBRARY_ROOT,
+              windows: saved.ROMM_STEAM_WINDOWS_LIBRARY_ROOT,
+              linux: saved.ROMM_STEAM_LINUX_LIBRARY_ROOT
+            }
+          }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    assert.deepEqual(JSON.parse(stdout), {
+      accepted: true,
+      toggle: { value: 'true', infoHover: true },
+      roots: [
+        { id: 'rommSteamMacLibraryRoot', enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } },
+        { id: 'rommSteamWindowsLibraryRoot', enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } },
+        { id: 'rommSteamLinuxLibraryRoot', enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ],
+      saved: { enabled: 'false', mac: '', windows: '', linux: '' }
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('dashboard settings recreate only Compose services affected by changed environment values', async () => {
@@ -606,6 +680,12 @@ test('dashboard settings recreate only Compose services affected by changed envi
     'ROMM_FLASHPOINT_API_ENABLED',
     'ROMM_HLTB_API_ENABLED',
     'ROMM_TGDB_API_ENABLED',
+    'ROMM_STEAM_LIBRARY_ENABLED',
+    'ROMM_STEAM_MAC_LIBRARY_ROOT',
+    'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
+    'ROMM_STEAM_LINUX_LIBRARY_ROOT',
+    'ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE',
+    'ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY',
     'ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA',
     'ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON'
   ]) {
@@ -617,6 +697,7 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['TRANSMISSION_PASSWORD']), ['transmission']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['RADARR_POSTGRES_PASSWORD']), ['radarr']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['IMMICH_VERSION']), ['immich', 'immich-ml']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ROMM_STEAM_LIBRARY_ENABLED']), ['romm']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_ROMM']), ['romm']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_QUESTARR']), ['questarr']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['PREFERRED_TORRENT_CLIENT']), [

@@ -423,6 +423,31 @@
   font-weight: 550;
 }
 
+.fieldLabelContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.infoHint {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--mutedTextColor);
+  cursor: help;
+  font-family: ui-serif, Georgia, serif;
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1;
+}
+
+.textField[data-disabled='true'] {
+  opacity: 0.55;
+}
+
 .switchField {
   display: grid;
   align-content: start;
