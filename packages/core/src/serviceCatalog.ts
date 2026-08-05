@@ -40,6 +40,8 @@ export type ServiceConfigField = {
   value: unknown;
   options?: string[];
   description?: string;
+  enabledWhen?: { fieldId: string; value: unknown };
+  infoHover?: boolean;
   secret?: boolean;
   protected?: boolean;
 };
@@ -312,11 +314,41 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envNumber('rommContainerPort', 'Container Port', 'ROMM_CONTAINER_PORT'),
       envPath('gamesRoot', 'Games Root', 'GAMES_ROOT'),
       envPath('rommLibraryRoot', 'RomM Library Root', 'ROMM_LIBRARY_ROOT'),
+      envCheckbox(
+        'rommSteamLibraryEnabled',
+        'Enable Steam desktop libraries',
+        'ROMM_STEAM_LIBRARY_ENABLED',
+        'Off by default. Enable only when this Stackarr host can access Steam library folders, either from a local Steam installation or a mounted share. A NAS with no accessible Steam library should leave this disabled.',
+        { infoHover: true }
+      ),
+      envPath(
+        'rommSteamMacLibraryRoot',
+        'Steam Mac Library Root',
+        'ROMM_STEAM_MAC_LIBRARY_ROOT',
+        'Steam library folder containing steamapps for macOS games. Mounted at /romm/Steam for the canonical mac platform.',
+        { enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ),
+      envPath(
+        'rommSteamWindowsLibraryRoot',
+        'Steam Windows Library Root',
+        'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
+        'Steam library folder containing steamapps for Windows games. Mounted at /romm/SteamWindows for the canonical win platform.',
+        { enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ),
+      envPath(
+        'rommSteamLinuxLibraryRoot',
+        'Steam Linux Library Root',
+        'ROMM_STEAM_LINUX_LIBRARY_ROOT',
+        'Steam library folder containing steamapps for Linux games. Mounted at /romm/SteamLinux for the canonical linux platform.',
+        { enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ),
       envPath('rommAssetsRoot', 'Assets Root', 'ROMM_ASSETS_ROOT'),
       envPath('rommConfigRoot', 'Config Root', 'ROMM_CONFIG_ROOT'),
       envPath('rommResourcesRoot', 'Resources Root', 'ROMM_RESOURCES_ROOT'),
       envText('rommRedisHost', 'Redis Host', 'ROMM_REDIS_HOST'),
       envNumber('rommRedisPort', 'Redis Port', 'ROMM_REDIS_PORT'),
+      envCheckbox('rommFilesystemWatcher', 'Filesystem Watcher', 'ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE'),
+      envNumber('rommFilesystemWatcherDelay', 'Watcher Delay (minutes)', 'ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY'),
       envText('rommImage', 'RomM Image', 'ROMM_IMAGE')
     ]),
     group('Agent Access', [
@@ -826,8 +858,17 @@ export function updateServiceConfigAction(input: {
     }
   }
 
+  const currentEnv = readEnv();
+  if (
+    summary.name === 'romm' &&
+    !envFlag(envPatch.ROMM_STEAM_LIBRARY_ENABLED ?? currentEnv.ROMM_STEAM_LIBRARY_ENABLED, false)
+  ) {
+    envPatch.ROMM_STEAM_MAC_LIBRARY_ROOT = '';
+    envPatch.ROMM_STEAM_WINDOWS_LIBRARY_ROOT = '';
+    envPatch.ROMM_STEAM_LINUX_LIBRARY_ROOT = '';
+  }
+
   if (Object.keys(envPatch).length > 0) {
-    const currentEnv = readEnv();
     const credentialValidationError = validateCredentialPatch(envPatch, currentEnv);
     if (credentialValidationError) {
       return {
@@ -1303,8 +1344,14 @@ function envText(id: string, label: string, key: string, description?: string): 
   return { id, label, type: 'text', source: { source: 'env', key }, description };
 }
 
-function envPath(id: string, label: string, key: string, description?: string): FieldDefinition {
-  return { id, label, type: 'path', source: { source: 'env', key }, description };
+function envPath(
+  id: string,
+  label: string,
+  key: string,
+  description?: string,
+  behavior?: Pick<FieldDefinition, 'enabledWhen' | 'infoHover'>
+): FieldDefinition {
+  return { id, label, type: 'path', source: { source: 'env', key }, description, ...behavior };
 }
 
 function envPassword(id: string, label: string, key: string, description?: string): FieldDefinition {
@@ -1315,8 +1362,14 @@ function envNumber(id: string, label: string, key: string, description?: string)
   return { id, label, type: 'number', source: { source: 'env', key }, description };
 }
 
-function envCheckbox(id: string, label: string, key: string, description?: string): FieldDefinition {
-  return { id, label, type: 'checkbox', source: { source: 'env', key }, description };
+function envCheckbox(
+  id: string,
+  label: string,
+  key: string,
+  description?: string,
+  behavior?: Pick<FieldDefinition, 'enabledWhen' | 'infoHover'>
+): FieldDefinition {
+  return { id, label, type: 'checkbox', source: { source: 'env', key }, description, ...behavior };
 }
 
 function envSelect(id: string, label: string, key: string, options: string[], description?: string): FieldDefinition {

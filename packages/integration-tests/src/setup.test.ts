@@ -177,6 +177,10 @@ test('dry-run setup records RomM config for optional private game libraries', as
   assert.equal(result.plan.config.ROMM_BIND_IP, '127.0.0.1');
   assert.equal(result.plan.config.GAMES_ROOT, '/srv/media/Games');
   assert.equal(result.plan.config.ROMM_LIBRARY_ROOT, '/srv/media/Games');
+  assert.equal(result.plan.config.ROMM_STEAM_LIBRARY_ENABLED, 'false');
+  assert.equal(result.plan.config.ROMM_STEAM_MAC_LIBRARY_ROOT, '');
+  assert.equal(result.plan.config.ROMM_STEAM_WINDOWS_LIBRARY_ROOT, '');
+  assert.equal(result.plan.config.ROMM_STEAM_LINUX_LIBRARY_ROOT, '');
   assert.equal(result.plan.config.ROMM_DB_DRIVER, 'postgresql');
   assert.equal(result.plan.config.ROMM_DB_HOST, 'database');
   assert.equal(result.plan.config.ROMM_DB_PORT, '5432');
@@ -186,6 +190,8 @@ test('dry-run setup records RomM config for optional private game libraries', as
   assert.equal(result.plan.config.ROMM_AUTH_SECRET_KEY, '********');
   assert.equal(result.plan.config.ROMM_REDIS_HOST, 'redis');
   assert.equal(result.plan.config.ROMM_REDIS_PORT, '6379');
+  assert.equal(result.plan.config.ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE, 'false');
+  assert.equal(result.plan.config.ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY, '5');
   assert.equal(result.plan.config.ROMM_AUTO_CONFIGURE, 'false');
   assert.equal(result.plan.config.ROMM_ADMIN_USERNAME, '');
   assert.equal(result.plan.config.ROMM_ADMIN_PASSWORD, '********');
