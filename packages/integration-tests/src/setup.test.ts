@@ -588,11 +588,14 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(agregarrConfigure, /_Trailers/);
   assert.match(agregarrConfigure, /FILTERED_HUB_SUBTYPES/);
   assert.match(agregarrConfigure, /NEW_RELEASES_HUB_IDENTIFIERS/);
+  assert.match(agregarrConfigure, /"movie": "New Movies"/);
+  assert.match(agregarrConfigure, /"show": "New Episodes"/);
   assert.match(agregarrConfigure, /configure_new_releases/);
   assert.match(agregarrConfigure, /place_new_releases_first/);
   assert.match(agregarrConfigure, /update_plex_collection_title/);
   assert.match(agregarrConfigure, /title\.value/);
   assert.match(agregarrConfigure, /"subtype": "recently_released"/);
+  assert.match(agregarrConfigure, /episode\.originallyAvailableAt:desc/);
   assert.match(agregarrConfigure, /"\/reorder"/);
   assert.match(agregarrConfigure, /\/discovery\/hubs\/scan/);
   assert.match(agregarrConfigure, /\/defaulthubs\/\{hub\['id'\]\}\/settings/);

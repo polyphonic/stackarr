@@ -68,16 +68,20 @@ def request(path: str, *, method: str = "GET", body: Any = None, authenticated: 
         raise RuntimeError(f"Agregarr {method} {path} failed with HTTP {error.code}: {detail}") from error
 
 
-def plex_collection_title(rating_key: str) -> str:
+def plex_collection_metadata(rating_key: str) -> dict[str, str]:
     metadata_query = urllib.parse.urlencode({"X-Plex-Token": plex_token})
     metadata_request = urllib.request.Request(f"{plex_url}/library/metadata/{rating_key}?{metadata_query}")
     try:
         with urllib.request.urlopen(metadata_request, timeout=30) as response:
             metadata_root = ET.fromstring(response.read())
     except (urllib.error.URLError, ET.ParseError) as error:
-        raise RuntimeError("Plex collection title could not be read") from error
+        raise RuntimeError("Plex collection metadata could not be read") from error
     metadata = next(iter(metadata_root), None)
-    return metadata.attrib.get("title", "") if metadata is not None else ""
+    return dict(metadata.attrib) if metadata is not None else {}
+
+
+def plex_collection_title(rating_key: str) -> str:
+    return plex_collection_metadata(rating_key).get("title", "")
 
 
 def plex_mutation(path: str, method: str, description: str, *, allow_not_found: bool = False) -> None:
@@ -137,9 +141,13 @@ def move_plex_collection_hub_first(library_id: str, rating_key: str) -> None:
     )
 
 
-def update_plex_collection_title(library_id: str, rating_key: str, title: str) -> None:
+def update_plex_collection_title(
+    library_id: str, rating_key: str, title: str, *, refresh_hub: bool = False
+) -> None:
     """Normalize a Plex collection title, including Plex's legacy 409 fallback."""
     if plex_collection_title(rating_key) == title:
+        if refresh_hub:
+            refresh_plex_collection_hub(library_id, rating_key)
         return
 
     query = urllib.parse.urlencode(
@@ -187,7 +195,7 @@ def update_plex_collection_title(library_id: str, rating_key: str, title: str) -
 
     if plex_collection_title(rating_key) != title:
         raise RuntimeError("Plex collection title update did not persist")
-    if used_fallback:
+    if used_fallback or refresh_hub:
         refresh_plex_collection_hub(library_id, rating_key)
 
 
@@ -340,14 +348,22 @@ FILTERED_HUB_SUBTYPES = {
     "tv.recentlyaired": "recently_released_episodes",
 }
 
-NEW_RELEASES_NAME = "New Releases"
+NEW_RELEASES_NAMES = {
+    "movie": "New Movies",
+    "show": "New Episodes",
+}
 NEW_RELEASES_HUB_IDENTIFIERS = {
     "movie": "movie.recentlyreleased",
     "show": "tv.recentlyaired",
 }
 LEGACY_RELEASE_COLLECTION_NAMES = {
-    "Recently Released Movies",
-    "Recently Released Episodes",
+    "movie": "Recently Released Movies",
+    "show": "Recently Released Episodes",
+}
+MIGRATED_RELEASE_COLLECTION_NAMES = {
+    "New Releases",
+    *NEW_RELEASES_NAMES.values(),
+    *LEGACY_RELEASE_COLLECTION_NAMES.values(),
 }
 
 
@@ -375,8 +391,8 @@ def configure_filtered_hubs(libraries: list[dict[str, Any]]) -> list[str]:
         is_visible = any(
             visibility.get(key) is True for key in ("usersHome", "serverOwnerHome", "libraryRecommended")
         )
-        # New Releases is created separately as one linked movie/TV group. This
-        # general pass keeps Recently Added intact and handles only other hubs.
+        # New Movies and New Episodes are created separately with release-date
+        # semantics. This pass keeps Recently Added intact and handles other hubs.
         if hub_identifier in NEW_RELEASES_HUB_IDENTIFIERS.values():
             continue
         if library_id not in enabled_library_ids or not subtype or not is_visible:
@@ -442,16 +458,17 @@ def configure_filtered_hubs(libraries: list[dict[str, Any]]) -> list[str]:
     return filtered_ids
 
 
-def new_releases_create_payload(libraries: list[dict[str, Any]]) -> dict[str, Any]:
+def new_releases_create_payload(library: dict[str, Any]) -> dict[str, Any]:
+    name = NEW_RELEASES_NAMES[str(library.get("type"))]
     return {
         "id": "",
-        "name": NEW_RELEASES_NAME,
+        "name": name,
         "type": "filtered_hub",
         "subtype": "recently_released",
-        "template": NEW_RELEASES_NAME,
+        "template": name,
         "visibilityConfig": {"usersHome": True, "serverOwnerHome": True, "libraryRecommended": True},
         "maxItems": 30,
-        "libraryIds": [library_key(library) for library in libraries],
+        "libraryIds": [library_key(library)],
         "randomizeHomeOrder": False,
         "autoPoster": False,
         "timeRestriction": {"alwaysActive": True},
@@ -459,7 +476,7 @@ def new_releases_create_payload(libraries: list[dict[str, Any]]) -> dict[str, An
 
 
 def configure_new_releases(libraries: list[dict[str, Any]]) -> list[str]:
-    """Promote filtered equivalents of Plex's native release hubs without changing Recently Added."""
+    """Promote media-specific release rows without changing Recently Added."""
     response = request("/collections")
     collection_configs = response.get("collectionConfigs", []) if isinstance(response, dict) else []
     default_hubs = request("/defaulthubs")
@@ -470,19 +487,21 @@ def configure_new_releases(libraries: list[dict[str, Any]]) -> list[str]:
         for item in collection_configs
         if item.get("type") == "filtered_hub"
         and (
-            str(item.get("name") or "") == NEW_RELEASES_NAME
-            or str(item.get("name") or "") in LEGACY_RELEASE_COLLECTION_NAMES
+            str(item.get("name") or "") in MIGRATED_RELEASE_COLLECTION_NAMES
         )
     }
     missing_libraries = [library for library in libraries if library_key(library) not in existing_library_ids]
+    for missing_library in missing_libraries:
+        request("/collections/create", method="POST", body=new_releases_create_payload(missing_library))
     if missing_libraries:
-        request("/collections/create", method="POST", body=new_releases_create_payload(missing_libraries))
         refreshed = request("/collections")
         collection_configs = refreshed.get("collectionConfigs", []) if isinstance(refreshed, dict) else []
 
     for library in libraries:
         library_id = library_key(library)
-        hub_identifier = NEW_RELEASES_HUB_IDENTIFIERS[str(library.get("type"))]
+        library_type = str(library.get("type"))
+        name = NEW_RELEASES_NAMES[library_type]
+        hub_identifier = NEW_RELEASES_HUB_IDENTIFIERS[library_type]
         native_hub = next(
             (
                 hub
@@ -499,22 +518,24 @@ def configure_new_releases(libraries: list[dict[str, Any]]) -> list[str]:
                 if item.get("type") == "filtered_hub"
                 and str(item.get("libraryId") or "") == library_id
                 and (
-                    str(item.get("name") or "") == NEW_RELEASES_NAME
-                    or str(item.get("name") or "") in LEGACY_RELEASE_COLLECTION_NAMES
+                    str(item.get("name") or "") == name
+                    or str(item.get("name") or "") == "New Releases"
+                    or str(item.get("name") or "") == LEGACY_RELEASE_COLLECTION_NAMES[library_type]
                 )
             ),
             None,
         )
 
         if existing is None or existing.get("id") is None:
-            raise RuntimeError(f"Agregarr could not create New Releases for {library['name']}")
+            raise RuntimeError(f"Agregarr could not create {name} for {library['name']}")
 
+        title_changed = str(existing.get("name") or "") != name
         updated = {
             **existing,
-            "name": NEW_RELEASES_NAME,
+            "name": name,
             "type": "filtered_hub",
             "subtype": "recently_released",
-            "template": NEW_RELEASES_NAME,
+            "template": name,
             "visibilityConfig": {"usersHome": True, "serverOwnerHome": True, "libraryRecommended": True},
             "maxItems": 30,
             "isLibraryPromoted": True,
@@ -525,7 +546,12 @@ def configure_new_releases(libraries: list[dict[str, Any]]) -> list[str]:
         request(f"/collections/{existing['id']}/settings", method="PUT", body=updated)
         collection_rating_key = str(updated.get("collectionRatingKey") or "")
         if collection_rating_key:
-            update_plex_collection_title(library_id, collection_rating_key, NEW_RELEASES_NAME)
+            update_plex_collection_title(
+                library_id,
+                collection_rating_key,
+                name,
+                refresh_hub=title_changed,
+            )
         existing.clear()
         existing.update(updated)
         release_ids.append(str(existing["id"]))
@@ -575,7 +601,7 @@ def current_plex_rows() -> list[dict[str, Any]]:
 
 
 def place_new_releases_first(libraries: list[dict[str, Any]], release_ids: list[str]) -> None:
-    """Keep every existing visible row in relative order while moving New Releases to the front."""
+    """Keep existing rows in relative order while moving each release row first."""
     release_id_set = set(release_ids)
 
     for library in libraries:
@@ -619,12 +645,15 @@ def place_new_releases_first(libraries: list[dict[str, Any]], release_ids: list[
         )
 
 
-def reconcile_new_releases_plex_order(libraries: list[dict[str, Any]], release_ids: list[str]) -> None:
-    """Move each synced Plex hub first even when Agregarr already stores sort order 1."""
+def synced_new_release_rating_keys(
+    libraries: list[dict[str, Any]], release_ids: list[str]
+) -> list[tuple[dict[str, Any], str]]:
     release_id_set = set(release_ids)
     rows = current_plex_rows()
+    synced: list[tuple[dict[str, Any], str]] = []
     for library in libraries:
         library_id = library_key(library)
+        name = NEW_RELEASES_NAMES[str(library.get("type"))]
         release = next(
             (
                 item
@@ -637,8 +666,31 @@ def reconcile_new_releases_plex_order(libraries: list[dict[str, Any]], release_i
         )
         rating_key = str((release or {}).get("collectionRatingKey") or "")
         if not rating_key:
-            raise RuntimeError(f"Agregarr did not sync the New Releases Plex collection for {library['name']}")
-        move_plex_collection_hub_first(library_id, rating_key)
+            raise RuntimeError(f"Agregarr did not sync the {name} Plex collection for {library['name']}")
+        synced.append((library, rating_key))
+    return synced
+
+
+def reconcile_new_releases_plex_order(libraries: list[dict[str, Any]], release_ids: list[str]) -> None:
+    """Move each synced Plex hub first even when Agregarr already stores sort order 1."""
+    for library, rating_key in synced_new_release_rating_keys(libraries, release_ids):
+        move_plex_collection_hub_first(library_key(library), rating_key)
+
+
+def verify_new_releases_plex_sort(libraries: list[dict[str, Any]], release_ids: list[str]) -> None:
+    """Fail closed if Plex materializes a release row with the wrong date field."""
+    expected_sorts = {
+        "movie": "originallyAvailableAt:desc",
+        "show": "episode.originallyAvailableAt:desc",
+    }
+    for library, rating_key in synced_new_release_rating_keys(libraries, release_ids):
+        library_type = str(library.get("type"))
+        name = NEW_RELEASES_NAMES[library_type]
+        content = plex_collection_metadata(rating_key).get("content", "")
+        actual_sort = urllib.parse.parse_qs(urllib.parse.urlsplit(content).query).get("sort", [""])[0]
+        expected_sort = expected_sorts[library_type]
+        if actual_sort != expected_sort:
+            raise RuntimeError(f"{name} must use Plex sort {expected_sort}; received {actual_sort or 'none'}")
 
 
 # Create or refresh the owner through Agregarr's supported Plex-token endpoint.
@@ -711,12 +763,13 @@ place_new_releases_first(libraries, new_releases_ids)
 # visibility together. Starting individual syncs immediately before this job
 # can make two placeholder workers download the same trailer concurrently.
 request("/settings/jobs/plex-collections-sync/run", method="POST")
+verify_new_releases_plex_sort(libraries, new_releases_ids)
 reconcile_new_releases_plex_order(libraries, new_releases_ids)
 
 key_output.write_text(api_key, encoding="utf-8")
 key_output.chmod(0o600)
 print(
     f"Agregarr initialized with {len(libraries)} Plex libraries, "
-    f"{len(collection_ids)} Coming Soon collections, {len(new_releases_ids)} New Releases collections, "
+    f"{len(collection_ids)} Coming Soon collections, {len(new_releases_ids)} newest-release collections, "
     f"and {len(filtered_hub_ids)} other filtered hubs"
 )

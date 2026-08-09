@@ -18,7 +18,7 @@ Stackarr also creates or normalizes a **Coming Soon** source for the enabled mov
 - sorts soonest-first using Agregarr's availability-aware release date logic; and
 - appears on Plex Home and each library's Recommended screen by default.
 
-Stackarr promotes a **New Releases** row with up to 30 items to the first position for each enabled movie and TV library. It keeps Plex's release-hub behavior—movies are sorted by release date and TV shows by their most recently aired episode, newest first from left to right—but uses Agregarr's filtered smart-collection equivalent so Coming Soon trailer placeholders never leak into the row. Existing **Recently Added** rows remain enabled and retain their relative position behind New Releases.
+Stackarr promotes **New Movies** and **New Episodes** rows with up to 30 items to the first position in their respective libraries. New Movies sorts by movie release date. New Episodes sorts TV shows by each show's latest episode air date (`episode.originallyAvailableAt:desc`), not by the show's debut date, with the newest result first from left to right. Both use Agregarr's filtered smart-collection equivalent so Coming Soon trailer placeholders never leak into the rows. Existing **Recently Added** rows remain enabled directly behind them.
 
 Stackarr applies a fail-closed startup guard for an Agregarr 2.4.2 cleanup bug that otherwise removes still-desired placeholders after seven days. The guard keeps the official image, limits age-based cleanup to items that have actually left the current source, and avoids duplicating a year already present in a TV title's placeholder folder. If a future image changes the affected code in an unrecognized way, Agregarr stops before scheduling work instead of risking a destructive collection sync.
 
@@ -26,11 +26,11 @@ Agregarr reads Radarr and Sonarr directly, so it does not distinguish between th
 
 For placeholder-backed collections, Stackarr configures Agregarr's supported per-library roots as `_Trailers` subfolders inside the Plex movie and TV libraries. The leading underscore keeps the folder near the top of a file browser. Change **Apps → Agregarr → Placeholder Folder** when another single folder name is preferred. Stackarr keeps the trailers visible to Plex, outside the Arr-managed title folders, and adds the same folder name to tinyMediaManager's native `skipFolder` lists.
 
-Because Plex's built-in Recently Added and Recently Released hubs do not understand Agregarr's placeholder label, they can show trailer entries as ordinary media. During onboarding, Stackarr uses Agregarr's native filtered-hub source to replace any affected visible default hubs, copies their Home and Recommended visibility to the replacements, and hides the originals. The Recently Released replacements are named **New Releases**, fixed at the top, and never randomized. This resolves Agregarr's **Filtered Hubs Recommended** warning without modifying its image.
+Because Plex's built-in Recently Added and Recently Released hubs do not understand Agregarr's placeholder label, they can show trailer entries as ordinary media. During onboarding, Stackarr uses Agregarr's native filtered-hub source to replace any affected visible default hubs, copies their Home and Recommended visibility to the replacements, and hides the originals. The release-date replacements are named **New Movies** and **New Episodes**, fixed at the top, and never randomized. This resolves Agregarr's **Filtered Hubs Recommended** warning without modifying its image.
 
 Movie ordering prefers the earliest known digital or physical date. When neither is available, Agregarr estimates availability from the theatrical date. Plex may still display the theatrical date on the item card, so the visible date can differ from the availability date used for ordering.
 
-Plex collections belong to a single library, so a movie and TV collection cannot be one physical Plex object. Stackarr creates linked rows for both libraries. Manage their presentation in Agregarr itself, or use Stackarr's bounded CLI and MCP commands for agent workflows.
+Plex collections belong to a single library, so a movie and TV collection cannot be one physical Plex object. Stackarr creates and coordinates one row for each library. Manage their presentation in Agregarr itself, or use Stackarr's bounded CLI and MCP commands for agent workflows.
 
 ## Everyday controls
 
