@@ -10,7 +10,7 @@ import { ServiceIntegration } from '../../../src/components/ServiceIntegration';
 ## Stackarr layout
 
 - Optional Docker Compose profile: `youtarr`
-- App image: `dialmaster/youtarr:latest`
+- App image: `dialmaster/youtarr:latest` by default, with a runtime override available
 - Database image: `mariadb:10.11`
 - Private URL: `http://127.0.0.1:3087`
 - Default Portless URL: `https://youtarr.stack`
@@ -40,12 +40,12 @@ When Youtarr is enabled, Stackarr exposes three focused MCP actions:
 
 - Read Youtarr and database health.
 - List downloaded videos with pagination and safe summary fields.
-- Queue one validated YouTube URL or video ID for download.
+- Queue one validated YouTube video URL for download.
 
 Stackarr uses Youtarr’s API key for download requests when configured. It uses an authenticated session for protected read operations. Broader Youtarr administration remains in its own UI.
 
 ## Backup and restore
 
-Stackarr backups include the persistent Youtarr files and a consistent MariaDB dump. If Youtarr is enabled but its database cannot be dumped, the backup fails rather than creating an incomplete archive. Restore presents Youtarr database recovery as a separate option.
+Stackarr backups include Youtarr config, job metadata, images, and a consistent MariaDB dump. Downloaded videos live under the installation's media root and remain part of the separate media backup policy. If Youtarr is enabled but its database cannot be dumped, the backup fails rather than creating an incomplete archive. Restore presents Youtarr database recovery as a separate option.
 
 Youtarr remains loopback-only by default. Portless provides the local friendly URL after `portless apply`. Cloudflare exposure remains explicit and optional.

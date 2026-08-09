@@ -444,7 +444,7 @@
   line-height: 1;
 }
 
-.textField[data-disabled='true'] {
+.textField[data-disabled="true"] {
   opacity: 0.55;
 }
 
