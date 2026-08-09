@@ -72,6 +72,9 @@ cloudflare_service_url() {
         questarr|game-downloads)
             printf 'http://127.0.0.1:%s\n' "${QUESTARR_WEB_PORT:-7584}"
             ;;
+        youtarr|youtube)
+            printf 'http://127.0.0.1:%s\n' "${YOUTARR_WEB_PORT:-3087}"
+            ;;
         seerr)
             printf 'http://127.0.0.1:5055\n'
             ;;
@@ -267,6 +270,7 @@ ports = {
     str(os.environ.get("IMMICH_WEB_PORT") or "2283"): "immich",
     str(os.environ.get("ROMM_WEB_PORT") or "7583"): "romm",
     str(os.environ.get("QUESTARR_WEB_PORT") or "7584"): "questarr",
+    str(os.environ.get("YOUTARR_WEB_PORT") or "3087"): "youtarr",
     "5055": "seerr",
     "9091": "transmission",
     str(os.environ.get("QBITTORRENT_WEBUI_PORT") or "8081"): "qbittorrent",

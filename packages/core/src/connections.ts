@@ -164,6 +164,14 @@ export function getConnections(): StackarrConnection[] {
       managedFields: ['Base URL', 'Downloads', 'Optional game destination', 'IGDB credentials', 'SQLite app data']
     },
     {
+      name: 'Youtarr',
+      target: 'youtarr',
+      kind: 'api',
+      status: flag(env.ENABLE_YOUTARR, false) ? 'configured' : 'optional',
+      description: 'Tracks YouTube channels, downloads videos into a private library, and can refresh Plex.',
+      managedFields: ['Base URL', 'YouTube library', 'MariaDB', 'Authentication', 'Optional Plex URL']
+    },
+    {
       name: 'Cloudflare Tunnel',
       target: 'cloudflare',
       kind: 'public-url',
@@ -433,6 +441,18 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       ]
     },
     {
+      implementation: 'Youtarr',
+      name: 'Youtarr',
+      target: 'youtarr',
+      kind: 'api',
+      description: 'Connect Stackarr to Youtarr for YouTube library reads and single-video downloads.',
+      fields: [
+        urlField('Base URL', 'http://youtarr:3011'),
+        { name: 'libraryPath', label: 'YouTube Library', type: 'text', placeholder: '/usr/src/app/data' },
+        { name: 'plexUrl', label: 'Optional Plex URL', type: 'url', placeholder: 'http://plex:32400' }
+      ]
+    },
+    {
       implementation: 'Plex',
       name: 'Plex',
       target: 'plex',
@@ -491,7 +511,17 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
           name: 'service',
           label: 'Stackarr service',
           type: 'select',
-          options: ['pulsarr', 'seerr', 'bookorbit', 'immich', 'romm', 'questarr', 'maintainerr', 'tracearr'],
+          options: [
+            'pulsarr',
+            'seerr',
+            'bookorbit',
+            'immich',
+            'romm',
+            'questarr',
+            'youtarr',
+            'maintainerr',
+            'tracearr'
+          ],
           required: true
         },
         { name: 'apiToken', label: 'API Token', type: 'password' }

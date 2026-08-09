@@ -11,7 +11,12 @@ import {
   type StackarrEnv,
   writeEnvConfig
 } from './env';
-import { accountUsernameValidationError, portablePasswordValidationError } from './passwordPolicy';
+import {
+  accountUsernameValidationError,
+  portablePasswordValidationError,
+  youtarrPasswordMaximumLength,
+  youtarrUsernameMaximumLength
+} from './passwordPolicy';
 import { presetFiles, readJsonPreset, writeJsonPreset } from './presets';
 import {
   mediaProfileNameFromPreset,
@@ -486,6 +491,54 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       'Current maintained Questarr releases support SQLite only; Stackarr’s PostgreSQL install route still applies to Stackarr and supported services.'
     )
   ],
+  youtarr: [
+    group(
+      'YouTube Library (Youtarr)',
+      [
+        envCheckbox('enableYoutarr', 'Enable Youtarr', 'ENABLE_YOUTARR'),
+        envText('youtarrUrl', 'Local URL', 'YOUTARR_URL'),
+        envText('youtarrBindIp', 'Bind IP', 'YOUTARR_BIND_IP'),
+        envNumber('youtarrWebPort', 'Web Port', 'YOUTARR_WEB_PORT'),
+        envNumber('youtarrContainerPort', 'Container Port', 'YOUTARR_CONTAINER_PORT'),
+        envPath('youtarrOutputRoot', 'YouTube Library Root', 'YOUTARR_OUTPUT_ROOT'),
+        envPath('youtarrConfigRoot', 'Config Root', 'YOUTARR_CONFIG_ROOT'),
+        envPath('youtarrJobsRoot', 'Jobs Root', 'YOUTARR_JOBS_ROOT'),
+        envPath('youtarrImagesRoot', 'Images Root', 'YOUTARR_IMAGES_ROOT'),
+        envText('youtarrImage', 'Docker Image', 'YOUTARR_IMAGE')
+      ],
+      'Youtarr stays loopback-only by default and stores downloaded videos in the Stackarr YouTube folder.'
+    ),
+    group('Youtarr Authentication', [
+      envCheckbox('youtarrLoginEnabled', 'Require Authentication', 'YOUTARR_LOGIN_ENABLED'),
+      envText('youtarrAdminUsername', 'Admin Username', 'YOUTARR_ADMIN_USERNAME'),
+      envPassword('youtarrAdminPassword', 'Admin Password', 'YOUTARR_ADMIN_PASSWORD'),
+      envPassword(
+        'youtarrApiKey',
+        'Optional API Key',
+        'YOUTARR_API_KEY',
+        'Optional. Stackarr signs in with the shared credentials when no Youtarr API key is configured.'
+      ),
+      envCheckbox('youtarrTrustProxy', 'Trust Proxy Headers', 'YOUTARR_TRUST_PROXY')
+    ]),
+    group('Youtarr Database', [
+      envText('youtarrDbHost', 'Database Host', 'YOUTARR_DB_HOST'),
+      envNumber('youtarrDbPort', 'Database Port', 'YOUTARR_DB_PORT'),
+      envText('youtarrDbName', 'Database Name', 'YOUTARR_DB_NAME'),
+      envText('youtarrDbUser', 'Database User', 'YOUTARR_DB_USER'),
+      envPassword('youtarrDbPassword', 'Database Password', 'YOUTARR_DB_PASSWORD'),
+      envPassword('youtarrDbRootPassword', 'Database Root Password', 'YOUTARR_DB_ROOT_PASSWORD'),
+      envText('youtarrDbImage', 'Database Image', 'YOUTARR_DB_IMAGE')
+    ]),
+    group('Youtarr Integration', [
+      envText(
+        'youtarrPlexUrl',
+        'Optional Plex URL',
+        'YOUTARR_PLEX_URL',
+        'Defaults to the Stackarr-managed Plex address. Leave blank when Plex is disabled.'
+      ),
+      envSelect('youtarrLogLevel', 'Log Level', 'YOUTARR_LOG_LEVEL', ['debug', 'info', 'warn', 'error'])
+    ])
+  ],
   bazarr: [
     group('Subtitles', [
       envCheckbox('enableBazarr', 'Enable Bazarr', 'ENABLE_BAZARR'),
@@ -932,11 +985,17 @@ function validateCredentialPatch(patch: StackarrEnv, current: StackarrEnv) {
       if (key !== 'USERNAME' && !String(value ?? '')) continue;
       const error = accountUsernameValidationError(String(value ?? ''), key === 'USERNAME' ? 'Global username' : key);
       if (error) return error;
+      if (key === 'YOUTARR_ADMIN_USERNAME' && String(value).length > youtarrUsernameMaximumLength) {
+        return `YOUTARR_ADMIN_USERNAME must be ${youtarrUsernameMaximumLength} characters or fewer.`;
+      }
     }
 
     if ((key === 'PASSWORD' || key.endsWith('_PASSWORD')) && value) {
       const error = portablePasswordValidationError(String(value), key === 'PASSWORD' ? 'Global password' : key);
       if (error) return error;
+      if (key === 'YOUTARR_ADMIN_PASSWORD' && String(value).length > youtarrPasswordMaximumLength) {
+        return `YOUTARR_ADMIN_PASSWORD must be ${youtarrPasswordMaximumLength} characters or fewer.`;
+      }
     }
   }
 
@@ -1302,6 +1361,7 @@ function settingsPatchFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     ['enableImmich', 'ENABLE_IMMICH'],
     ['enableRomm', 'ENABLE_ROMM'],
     ['enableQuestarr', 'ENABLE_QUESTARR'],
+    ['enableYoutarr', 'ENABLE_YOUTARR'],
     ['enableTinyMediaManager', 'ENABLE_TINYMEDIAMANAGER'],
     ['enableRecyclarr', 'ENABLE_RECYCLARR'],
     ['enableFlaresolverr', 'ENABLE_FLARESOLVERR'],

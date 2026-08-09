@@ -539,6 +539,66 @@ test('Cloudflare route normalization accepts download clients', async () => {
   }
 });
 
+test('Cloudflare email allowlist action appends one address and queues publishing', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-cloudflare-access-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { writeEnvConfig } = await import('./packages/core/src/env.ts');
+          const { addCloudflareAccessEmailAction } = await import('./packages/core/src/actions/stack.ts');
+
+          writeEnvConfig({
+            CLOUDFLARE_ACCESS_ENABLED: 'true',
+            CLOUDFLARE_ACCESS_ALLOWED_EMAILS: 'member@example.com',
+            CLOUDFLARE_TUNNEL_ROUTES: JSON.stringify([
+              { hostname: 'books.example.com', service: 'bookorbit', access: true }
+            ])
+          });
+
+          const queued = [];
+          const queueApply = (input) => {
+            queued.push(input);
+            return {
+              command: input.command,
+              label: 'Apply Cloudflare routes',
+              taskId: 'cloudflare-task',
+              status: 'running'
+            };
+          };
+          const result = addCloudflareAccessEmailAction({ email: 'New.Member@Example.com' }, queueApply);
+          const duplicate = addCloudflareAccessEmailAction({ email: 'new.member@example.com' }, queueApply);
+
+          console.log(JSON.stringify({ result, duplicate, queued }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+    const payload = JSON.parse(stdout);
+
+    assert.equal(payload.result.accepted, true);
+    assert.equal(payload.result.added, true);
+    assert.deepEqual(payload.result.access.allowedEmails, ['member@example.com', 'new.member@example.com']);
+    assert.equal(payload.result.publish.taskId, 'cloudflare-task');
+    assert.equal(payload.duplicate.added, false);
+    assert.deepEqual(payload.queued, [{ command: 'CloudflareApplyRoutes' }, { command: 'CloudflareApplyRoutes' }]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Cloudflare route installer protects Access routes before publishing hostnames', async () => {
   const script = await readFile(path.join(repoRoot, 'stackarr/scripts/cloudflare.sh'), 'utf8');
   const accessIndex = script.indexOf('ensure_cloudflare_access_application "$effective_api_token"');
@@ -569,6 +629,23 @@ test('Cloudflare route apply uses route-only command outside host-only runner ga
   assert.match(settingsEditor, /name: 'CloudflareApplyRoutes'/);
   assert.match(script, /apply_cloudflare_routes\(\)/);
   assert.doesNotMatch(runner, /'CloudflareApplyRoutes'/);
+});
+
+test('Cloudflare settings distinguish saved config from published routes', async () => {
+  const settingsEditor = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.tsx'), 'utf8');
+  const settingsStyles = await readFile(
+    path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.module.css'),
+    'utf8'
+  );
+  const connectSection = settingsEditor.slice(
+    settingsEditor.indexOf("{section === 'connect'"),
+    settingsEditor.indexOf("{section === 'metadata'")
+  );
+
+  assert.match(connectSection, /styles\.connectSection/g);
+  assert.match(connectSection, /Save stores changes in Stackarr/);
+  assert.match(connectSection, /Save & apply routes/);
+  assert.match(settingsStyles, /\.connectSection \+ \.connectSection[\s\S]*border-top/);
 });
 
 test('RomM library path changes queue storage mount reconciliation', async () => {
@@ -700,6 +777,8 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ROMM_STEAM_LIBRARY_ENABLED']), ['romm']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_ROMM']), ['romm']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_QUESTARR']), ['questarr']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['ENABLE_YOUTARR']), ['youtarr', 'youtarr-db']);
+  assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['YOUTARR_DB_PASSWORD']), ['youtarr', 'youtarr-db']);
   assert.deepEqual(composeServicesAffectedByEnvironment(compose, ['PREFERRED_TORRENT_CLIENT']), [
     'qbittorrent',
     'transmission'
@@ -785,6 +864,55 @@ test('saving an unchanged secret preview preserves the original credential', asy
       preview: 'abcdef...mnop',
       preserved: true
     });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Youtarr service settings enforce upstream credential limits', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-youtarr-credentials-test-'));
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { updateServiceConfigAction } = await import('./packages/core/src/serviceCatalog.ts');
+
+          const username = updateServiceConfigAction({
+            service: 'youtarr',
+            values: { youtarrAdminUsername: 'a'.repeat(33) }
+          });
+          const password = updateServiceConfigAction({
+            service: 'youtarr',
+            values: { youtarrAdminPassword: 'a'.repeat(65) }
+          });
+          console.log(JSON.stringify({
+            usernameAccepted: username.accepted,
+            usernameError: username.error,
+            passwordAccepted: password.accepted,
+            passwordError: password.error
+          }));
+        `
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
+        }
+      }
+    );
+
+    const result = JSON.parse(stdout) as Record<string, unknown>;
+    assert.equal(result.usernameAccepted, false);
+    assert.match(String(result.usernameError), /32 characters or fewer/);
+    assert.equal(result.passwordAccepted, false);
+    assert.match(String(result.passwordError), /64 characters or fewer/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

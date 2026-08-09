@@ -57,7 +57,7 @@ Use `admin` during setup and `manage` for everyday operation. `observe` is read-
 | --- | --- |
 | Movies and TV | Radarr, Sonarr, Seerr, Plex, Jellyfin |
 | Downloads and indexers | Transmission, qBittorrent, Prowlarr, Cleanuparr |
-| Music, books, photos, and games | Lidarr, BookOrbit, Immich, RomM |
+| Music, books, photos, games, and YouTube | Lidarr, BookOrbit, Immich, RomM, Youtarr |
 | Supporting services | Bazarr, Recyclarr, Maintainerr, Tracearr, FlareSolverr |
 | Operations | Setup, health, backups, restores, updates, and migrations |
 | Access | Local-only defaults and optional Cloudflare routes |

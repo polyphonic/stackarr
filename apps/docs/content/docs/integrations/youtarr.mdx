@@ -1,0 +1,51 @@
+---
+title: Youtarr
+description: Download and manage a private YouTube library with Youtarr.
+---
+
+import { ServiceIntegration } from '../../../src/components/ServiceIntegration';
+
+<ServiceIntegration slug="youtarr" />
+
+## Stackarr layout
+
+- Optional Docker Compose profile: `youtarr`
+- App image: `dialmaster/youtarr:latest`
+- Database image: `mariadb:10.11`
+- Private URL: `http://127.0.0.1:3087`
+- Default Portless URL: `https://youtarr.stack`
+- YouTube library: `${YOUTARR_OUTPUT_ROOT}` → `/usr/src/app/data`
+- App config: `${YOUTARR_CONFIG_ROOT}` → `/app/config`
+- Job state: `${YOUTARR_JOBS_ROOT}` → `/app/jobs`
+- Images: `${YOUTARR_IMAGES_ROOT}` → `/app/server/images`
+- Database: Compose-managed `youtarr-db-data` volume
+
+Enable and apply it with:
+
+```bash
+bin/stackarr youtarr enable
+bin/stackarr youtarr apply
+bin/stackarr portless apply
+```
+
+## First run and authentication
+
+Stackarr enables Youtarr authentication by default. Setup generates the dedicated MariaDB credentials and uses the Stackarr account as Youtarr’s preset first account. Youtarr accepts usernames up to 32 characters and passwords up to 64 characters. Stackarr enforces those limits when Youtarr is enabled.
+
+Open Youtarr after the containers become healthy. If you want Plex library refreshes, finish the Plex token and library selection in Youtarr. Stackarr manages the container-facing Plex URL but does not copy the Plex token into tracked configuration.
+
+## Agent actions
+
+When Youtarr is enabled, Stackarr exposes three focused MCP actions:
+
+- Read Youtarr and database health.
+- List downloaded videos with pagination and safe summary fields.
+- Queue one validated YouTube URL or video ID for download.
+
+Stackarr uses Youtarr’s API key for download requests when configured. It uses an authenticated session for protected read operations. Broader Youtarr administration remains in its own UI.
+
+## Backup and restore
+
+Stackarr backups include the persistent Youtarr files and a consistent MariaDB dump. If Youtarr is enabled but its database cannot be dumped, the backup fails rather than creating an incomplete archive. Restore presents Youtarr database recovery as a separate option.
+
+Youtarr remains loopback-only by default. Portless provides the local friendly URL after `portless apply`. Cloudflare exposure remains explicit and optional.

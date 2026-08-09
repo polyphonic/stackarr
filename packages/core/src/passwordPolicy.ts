@@ -3,6 +3,8 @@ export const portablePasswordMaximumLength = 256;
 export const accountUsernamePattern = /^[A-Za-z0-9._-]+$/;
 export const accountUsernameDescription = 'letters, numbers, dot, underscore, and hyphen';
 export const accountUsernameMaximumLength = 64;
+export const youtarrUsernameMaximumLength = 32;
+export const youtarrPasswordMaximumLength = 64;
 
 export function accountUsernameValidationError(username: string | undefined, label = 'Username') {
   if (!username) {

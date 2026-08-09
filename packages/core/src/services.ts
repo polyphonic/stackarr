@@ -98,6 +98,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'Questarr',
     description: 'Game discovery and download automation that can hand completed files to a RomM-managed library.'
   },
+  youtarr: {
+    displayName: 'Youtarr',
+    description: 'Private YouTube channel tracking, downloads, and Plex library integration.'
+  },
   bazarr: {
     displayName: 'Bazarr',
     description: 'Subtitle management for Radarr and Sonarr libraries.'
@@ -316,6 +320,13 @@ export function getServices(): ServiceSummary[] {
         ]
       }
     ),
+    service('youtarr', 'download', optionalMode(env.ENABLE_YOUTARR), Number(env.YOUTARR_WEB_PORT ?? 3087), settings, {
+      configPath: env.YOUTARR_OUTPUT_ROOT,
+      notes: [
+        'Downloads videos into the Stackarr YouTube folder and keeps its MariaDB data in a Compose-managed named volume.',
+        'Authentication stays enabled and reuses the Stackarr login by default. Plex integration is optional and remains private.'
+      ]
+    }),
     service('bazarr', 'support', dependentMode(env.ENABLE_BAZARR, videoAutomationEnabled), 6767, settings, {
       requirement: requirement(videoAutomationEnabled, 'Bazarr needs Radarr or Sonarr first.')
     }),

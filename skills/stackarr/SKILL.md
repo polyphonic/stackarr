@@ -48,6 +48,7 @@ I can use Stackarr defaults: app-default databases, native Plex when found, Tran
 | `stackarr_start_stack` / `stackarr_stop_stack` | Start or stop the stack. Stop actions require explicit user approval. |
 | `stackarr_run_backup` / `stackarr_get_backup_status` | Run and inspect backups. |
 | `stackarr_restore_backup` | Restore a backup with dangerous-action confirmation. |
+| `stackarr_add_cloudflare_access_email` | Add one email without replacing the allowlist, then publish the Access policy. |
 | `stackarr_update_cloudflare_routes` | Map public hostnames to Stackarr-managed services. |
 
 If a requested adapter is not implemented, return that honestly and fall back to Stackarr CLI commands.

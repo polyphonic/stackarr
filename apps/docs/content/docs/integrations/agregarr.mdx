@@ -18,6 +18,8 @@ Stackarr also creates or normalizes a **Coming Soon** source for the enabled mov
 - sorts soonest-first using Agregarr's availability-aware release date logic; and
 - appears on Plex Home and Discover by default.
 
+Stackarr applies a fail-closed startup guard for an Agregarr 2.4.2 cleanup bug that otherwise removes still-desired placeholders after seven days. The guard keeps the official image, limits age-based cleanup to items that have actually left the current source, and avoids duplicating a year already present in a TV title's placeholder folder. If a future image changes the affected code in an unrecognized way, Agregarr stops before scheduling work instead of risking a destructive collection sync.
+
 Agregarr reads Radarr and Sonarr directly, so it does not distinguish between the Plex owner and quota-approved Pulsarr users. Pulsarr must route the title as monitored: an unmonitored Arr entry is intentionally excluded. For TV, future non-premiere episodes do not currently qualify in the official Agregarr image. Stackarr does not patch or replace that image to broaden the filter.
 
 For placeholder-backed collections, Stackarr configures Agregarr's supported per-library roots as `_Trailers` subfolders inside the Plex movie and TV libraries. The leading underscore keeps the folder near the top of a file browser. Change **Apps → Agregarr → Placeholder Folder** when another single folder name is preferred. Stackarr keeps the trailers visible to Plex, outside the Arr-managed title folders, and adds the same folder name to tinyMediaManager's native `skipFolder` lists.

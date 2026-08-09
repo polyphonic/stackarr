@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const restorePostgres = formFlag(form, 'restorePostgres', true);
+    const restoreYoutarr = formFlag(form, 'restoreYoutarr', true);
     const restoreNativePlex = formFlag(form, 'restoreNativePlex', false);
     const restorePlexPreferences = formFlag(form, 'restorePlexPreferences', false);
     const restoreNativeJellyfin = formFlag(form, 'restoreNativeJellyfin', false);
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
         currentAppRoot || '',
         forceConfig ? '--force-config' : '',
         restorePostgres ? '--restore-postgres' : '--skip-postgres',
+        restoreYoutarr ? '--restore-youtarr' : '--skip-youtarr',
         restoreNativePlex ? '--restore-native-plex' : '--skip-native-plex',
         restorePlexPreferences ? '--restore-plex-preferences' : '--skip-plex-preferences',
         restoreNativeJellyfin ? '--restore-native-jellyfin' : '--skip-native-jellyfin'

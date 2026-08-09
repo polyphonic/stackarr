@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  addCloudflareAccessEmailAction,
   addMagnetAction,
   addMovieAction,
   addReleaseToDownloaderAction,
@@ -62,6 +63,8 @@ import {
   getSystemStatusAction,
   getTelemetryStatusAction,
   getWantedMoviesAction,
+  getYoutarrHealthAction,
+  getYoutarrVideosAction,
   listAgentActivityRecords,
   listBackupsAction,
   listLidarrStreamripAlbumsAction,
@@ -79,6 +82,7 @@ import {
   pauseDownloadAction,
   prepareLidarrStreamripAlbumAction,
   previewTelemetryPayloadAction,
+  queueYoutarrDownloadAction,
   readNativeAppAction,
   readTasks,
   redactSecrets,
@@ -285,6 +289,7 @@ const tools: ToolDef[] = [
             'immich',
             'romm',
             'questarr',
+            'youtarr',
             'recyclarr',
             'flaresolverr',
             'tidarr',
@@ -301,6 +306,7 @@ const tools: ToolDef[] = [
       enableBookOrbit: z.boolean().optional(),
       enableImmich: z.boolean().optional(),
       enableRomm: z.boolean().optional(),
+      enableYoutarr: z.boolean().optional(),
       enableTinyMediaManager: z.boolean().optional(),
       enableRecyclarr: z.boolean().optional(),
       enableFlaresolverr: z.boolean().optional(),
@@ -530,6 +536,32 @@ const tools: ToolDef[] = [
     handler: startQuestarrDownloadAction
   },
   {
+    name: 'stackarr_get_youtarr_health',
+    description: 'Read Youtarr application and database health.',
+    shape: empty,
+    handler: getYoutarrHealthAction
+  },
+  {
+    name: 'stackarr_get_youtarr_videos',
+    description: 'List a bounded summary of videos in the Youtarr library.',
+    shape: {
+      page: z.number().int().min(1).max(100_000).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      search: z.string().trim().min(1).max(200).optional()
+    },
+    handler: getYoutarrVideosAction
+  },
+  {
+    name: 'stackarr_queue_youtarr_download',
+    description: 'Queue one exact YouTube video URL in Youtarr.',
+    shape: {
+      url: z.string().url().max(2048),
+      resolution: z.enum(['360', '480', '720', '1080', '1440', '2160']).optional(),
+      subfolder: z.string().trim().min(1).max(128).optional()
+    },
+    handler: queueYoutarrDownloadAction
+  },
+  {
     name: 'stackarr_get_routines',
     description: 'List typed agent routines and their daily or weekly schedules.',
     shape: empty,
@@ -723,6 +755,15 @@ const tools: ToolDef[] = [
     handler: getCloudflareAccessAction
   },
   {
+    name: 'stackarr_add_cloudflare_access_email',
+    description:
+      'Add one email to the existing Cloudflare Access allowlist, preserve current members, and queue route publishing.',
+    shape: {
+      email: z.string().trim().email().max(254)
+    },
+    handler: addCloudflareAccessEmailAction
+  },
+  {
     name: 'stackarr_update_cloudflare_access',
     description:
       'Update Cloudflare Access protection defaults. Route-level access is controlled by stackarr_update_cloudflare_routes.',
@@ -756,6 +797,7 @@ const tools: ToolDef[] = [
             'immich',
             'romm',
             'questarr',
+            'youtarr',
             'seerr',
             'transmission',
             'qbittorrent',
@@ -1192,6 +1234,7 @@ const tools: ToolDef[] = [
       dryRun: z.boolean().optional(),
       forceConfig: z.boolean().optional(),
       restorePostgres: z.boolean().optional(),
+      restoreYoutarr: z.boolean().optional(),
       restoreNativePlex: z.boolean().optional(),
       restorePlexPreferences: z.boolean().optional(),
       restoreNativeJellyfin: z.boolean().optional(),
