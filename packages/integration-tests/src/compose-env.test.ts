@@ -192,6 +192,29 @@ test('Youtarr runtime env stays private and generates dedicated credentials and 
   }
 });
 
+test('Youtarr uses the upstream standard data layout so every persistent mount is active', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  const service = compose.match(/\n  youtarr:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+
+  assert.ok(service, 'Youtarr Compose service is present');
+  assert.match(service, /dialmaster\/youtarr:latest/);
+  assert.doesNotMatch(service, /^      DATA_PATH:/m);
+  assert.match(service, /:\/usr\/src\/app\/data"/);
+  assert.match(service, /:\/app\/server\/images"/);
+  assert.match(service, /:\/app\/config"/);
+  assert.match(service, /:\/app\/jobs"/);
+  assert.match(service, /\/api\/health/);
+});
+
+test('Application images stay current while stateful database engines remain version-pinned', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+
+  assert.match(compose, /TINYMEDIAMANAGER_IMAGE:-tinymediamanager\/tinymediamanager:latest/);
+  assert.match(compose, /YOUTARR_IMAGE:-dialmaster\/youtarr:latest/);
+  assert.match(compose, /YOUTARR_DB_IMAGE:-mariadb:\d+\.\d+/);
+  assert.doesNotMatch(compose, /YOUTARR_DB_IMAGE:-mariadb:latest/);
+});
+
 test('compose env generation keeps legacy Postgres data directory when present', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');

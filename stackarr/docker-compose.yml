@@ -904,7 +904,6 @@ services:
       TRUST_PROXY: ${YOUTARR_TRUST_PROXY:-false}
       LOG_LEVEL: ${YOUTARR_LOG_LEVEL:-info}
       PORT: ${YOUTARR_CONTAINER_PORT:-3011}
-      DATA_PATH: /usr/src/app/data
       YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}
       PLEX_URL: ${YOUTARR_PLEX_URL:-}
     volumes:
@@ -936,7 +935,7 @@ services:
           "--silent",
           "--output",
           "/dev/null",
-          "http://127.0.0.1:${YOUTARR_CONTAINER_PORT:-3011}/api/db-status",
+          "http://127.0.0.1:${YOUTARR_CONTAINER_PORT:-3011}/api/health",
         ]
       interval: 30s
       timeout: 10s
