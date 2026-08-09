@@ -10,7 +10,7 @@ export function ServiceIntegration({ slug }: { slug: string }) {
   return (
     <article className="integrationPage">
       <header className="integrationHero">
-        <img alt="" src={`/logos/${service.logo}.svg`} />
+        <img alt="" src={`/logos/${service.logo}.${service.logoExtension ?? 'svg'}`} />
         <div>
           <p>{service.category}</p>
           <h1>{service.name}</h1>

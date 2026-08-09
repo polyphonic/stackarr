@@ -58,6 +58,7 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_IMMICH: 'false',
   ENABLE_ROMM: 'false',
   ENABLE_QUESTARR: 'false',
+  ENABLE_YOUTARR: 'false',
   ENABLE_TINYMEDIAMANAGER: 'true',
   ENABLE_RECYCLARR: 'true',
   ENABLE_FLARESOLVERR: 'true',
@@ -251,6 +252,27 @@ export const managedEnvDefaults: StackarrEnv = {
   QUESTARR_JWT_SECRET: '',
   QUESTARR_IGDB_CLIENT_ID: '',
   QUESTARR_IGDB_CLIENT_SECRET: '',
+  YOUTARR_URL: 'http://127.0.0.1:3087',
+  YOUTARR_BIND_IP: '127.0.0.1',
+  YOUTARR_WEB_PORT: '3087',
+  YOUTARR_CONTAINER_PORT: '3011',
+  YOUTARR_OUTPUT_ROOT: `${defaultMediaRoot}/YouTube`,
+  YOUTARR_CONFIG_ROOT: `${defaultConfigRoot}/youtarr/config`,
+  YOUTARR_JOBS_ROOT: `${defaultConfigRoot}/youtarr/jobs`,
+  YOUTARR_IMAGES_ROOT: `${defaultConfigRoot}/youtarr/images`,
+  YOUTARR_DB_HOST: 'youtarr-db',
+  YOUTARR_DB_PORT: '3306',
+  YOUTARR_DB_NAME: 'youtarr',
+  YOUTARR_DB_USER: 'youtarr',
+  YOUTARR_DB_PASSWORD: '',
+  YOUTARR_DB_ROOT_PASSWORD: '',
+  YOUTARR_LOGIN_ENABLED: 'true',
+  YOUTARR_ADMIN_USERNAME: '',
+  YOUTARR_ADMIN_PASSWORD: '',
+  YOUTARR_TRUST_PROXY: 'false',
+  YOUTARR_LOG_LEVEL: 'info',
+  YOUTARR_PLEX_URL: 'http://host.docker.internal:32400',
+  YOUTARR_API_KEY: '',
   BAZARR_URL: 'http://127.0.0.1:6767',
   SEERR_URL: 'http://127.0.0.1:5055',
   PULSARR_URL: 'http://127.0.0.1:3003',
@@ -329,6 +351,8 @@ export const managedEnvDefaults: StackarrEnv = {
   IMMICH_MACHINE_LEARNING_IMAGE: 'ghcr.io/immich-app/immich-machine-learning',
   ROMM_IMAGE: 'rommapp/romm:latest',
   QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
+  YOUTARR_IMAGE: 'dialmaster/youtarr:latest',
+  YOUTARR_DB_IMAGE: 'mariadb:10.11',
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
   DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
@@ -557,6 +581,7 @@ export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): Stack
 
   dropDeprecatedCloudflareHostnameKeys(merged);
   normalizeRommDatabaseDefaults(merged);
+  applyYoutarrSecretDefaults(merged);
   applyAppDependencyRules(merged);
   return merged;
 }
@@ -582,6 +607,10 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (!env.QUESTARR_LIBRARY_ROOT) merged.QUESTARR_LIBRARY_ROOT = merged.ROMM_LIBRARY_ROOT || merged.GAMES_ROOT;
   if (!env.QUESTARR_IGDB_CLIENT_ID) merged.QUESTARR_IGDB_CLIENT_ID = merged.ROMM_IGDB_CLIENT_ID || '';
   if (!env.QUESTARR_IGDB_CLIENT_SECRET) merged.QUESTARR_IGDB_CLIENT_SECRET = merged.ROMM_IGDB_CLIENT_SECRET || '';
+  if (!env.YOUTARR_OUTPUT_ROOT) merged.YOUTARR_OUTPUT_ROOT = `${merged.MEDIA_ROOT}/YouTube`;
+  if (!env.YOUTARR_CONFIG_ROOT) merged.YOUTARR_CONFIG_ROOT = `${appRoot}/config/youtarr/config`;
+  if (!env.YOUTARR_JOBS_ROOT) merged.YOUTARR_JOBS_ROOT = `${appRoot}/config/youtarr/jobs`;
+  if (!env.YOUTARR_IMAGES_ROOT) merged.YOUTARR_IMAGES_ROOT = `${appRoot}/config/youtarr/images`;
   normalizeRommDatabaseDefaults(merged);
   if (!env.IMMICH_UPLOAD_LOCATION) merged.IMMICH_UPLOAD_LOCATION = `${merged.MEDIA_ROOT}/Pictures`;
   if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
@@ -638,6 +667,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyImmichSecretDefaults(merged);
   applyRommSecretDefaults(merged);
   applyQuestarrSecretDefaults(merged);
+  applyYoutarrSecretDefaults(merged);
 
   return merged;
 }
@@ -843,6 +873,17 @@ function applyQuestarrSecretDefaults(env: StackarrEnv) {
   env.QUESTARR_JWT_SECRET = env.QUESTARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
 }
 
+function applyYoutarrSecretDefaults(env: StackarrEnv) {
+  if (!flagValue(env.ENABLE_YOUTARR)) {
+    return;
+  }
+
+  env.YOUTARR_DB_PASSWORD = env.YOUTARR_DB_PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+  env.YOUTARR_DB_ROOT_PASSWORD = env.YOUTARR_DB_ROOT_PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+  env.YOUTARR_ADMIN_USERNAME = env.YOUTARR_ADMIN_USERNAME || env.USERNAME || 'admin';
+  env.YOUTARR_ADMIN_PASSWORD = env.YOUTARR_ADMIN_PASSWORD || env.PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+}
+
 function flagValue(value: string | undefined) {
   return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
 }
@@ -946,6 +987,10 @@ function isHostPathKey(key: string) {
     'ROMM_DB_DATA_LOCATION',
     'QUESTARR_DATA_ROOT',
     'QUESTARR_LIBRARY_ROOT',
+    'YOUTARR_OUTPUT_ROOT',
+    'YOUTARR_CONFIG_ROOT',
+    'YOUTARR_JOBS_ROOT',
+    'YOUTARR_IMAGES_ROOT',
     'IMMICH_UPLOAD_LOCATION',
     'PLEX_CONFIG_PATH',
     'PLEX_PREFS_PATH',

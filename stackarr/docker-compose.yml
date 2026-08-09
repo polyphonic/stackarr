@@ -470,15 +470,29 @@ services:
       - agregarr
     container_name: agregarr
     image: ${AGREGARR_IMAGE:-agregarr/agregarr:latest}
-    user: "${PUID:-1000}:${PGID:-1000}"
+    # The startup guard needs root only long enough to patch an upstream cleanup bug,
+    # then Node drops permanently to the installation's configured runtime user.
+    user: "0:0"
     environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       TZ: ${TIMEZONE:-Etc/UTC}
       CONFIG_DIRECTORY: /app/config
       # Playwright-backed IMDb/Letterboxd sources need writable Chromium runtime paths.
       HOME: /tmp
       XDG_CONFIG_HOME: /tmp/.config
       XDG_CACHE_HOME: /tmp/.cache
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        exec /sbin/tini -- node /stackarr-runtime/agregarr-placeholder-guard.cjs /app/dist/lib/placeholders/services/PlaceholderCleanup.js /app/dist/lib/placeholders/placeholderManager.js "$${PUID}" "$${PGID}" "$$@"
+      - stackarr-agregarr
+    command:
+      - yarn
+      - start
     volumes:
+      - "./agregarr-placeholder-guard.cjs:/stackarr-runtime/agregarr-placeholder-guard.cjs:ro"
       - "${APP_ROOT:-./.stackarr}/config/agregarr:/app/config"
       # Required only when placeholder-backed sources (e.g. Coming Soon) are enabled.
       # Agregarr writes to a configurable subfolder (default: _Trailers) inside these Plex library roots
@@ -840,6 +854,96 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  youtarr-db:
+    profiles:
+      - youtarr
+    container_name: youtarr-db
+    image: ${YOUTARR_DB_IMAGE:-mariadb:10.11}
+    environment:
+      MYSQL_ROOT_PASSWORD: ${YOUTARR_DB_ROOT_PASSWORD:-}
+      MYSQL_DATABASE: ${YOUTARR_DB_NAME:-youtarr}
+      MYSQL_USER: ${YOUTARR_DB_USER:-youtarr}
+      MYSQL_PASSWORD: ${YOUTARR_DB_PASSWORD:-}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-file-per-table=1
+    volumes:
+      - youtarr-db-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mariadb-admin ping -h 127.0.0.1 --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  youtarr:
+    profiles:
+      - youtarr
+    container_name: youtarr
+    image: ${YOUTARR_IMAGE:-dialmaster/youtarr:latest}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      IN_DOCKER_CONTAINER: 1
+      TZ: ${TIMEZONE:-Etc/UTC}
+      DB_HOST: ${YOUTARR_DB_HOST:-youtarr-db}
+      DB_PORT: ${YOUTARR_DB_PORT:-3306}
+      DB_USER: ${YOUTARR_DB_USER:-youtarr}
+      DB_PASSWORD: ${YOUTARR_DB_PASSWORD:-}
+      DB_NAME: ${YOUTARR_DB_NAME:-youtarr}
+      AUTH_ENABLED: ${YOUTARR_LOGIN_ENABLED:-true}
+      AUTH_PRESET_USERNAME: ${YOUTARR_ADMIN_USERNAME:-admin}
+      AUTH_PRESET_PASSWORD: ${YOUTARR_ADMIN_PASSWORD:-}
+      TRUST_PROXY: ${YOUTARR_TRUST_PROXY:-false}
+      LOG_LEVEL: ${YOUTARR_LOG_LEVEL:-info}
+      PORT: ${YOUTARR_CONTAINER_PORT:-3011}
+      DATA_PATH: /usr/src/app/data
+      YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}
+      PLEX_URL: ${YOUTARR_PLEX_URL:-}
+    volumes:
+      - "${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}:/usr/src/app/data"
+      - "${YOUTARR_IMAGES_ROOT:-./.stackarr/config/youtarr/images}:/app/server/images"
+      - "${YOUTARR_CONFIG_ROOT:-./.stackarr/config/youtarr/config}:/app/config"
+      - "${YOUTARR_JOBS_ROOT:-./.stackarr/config/youtarr/jobs}:/app/jobs"
+    ports:
+      - "${YOUTARR_BIND_IP:-127.0.0.1}:${YOUTARR_WEB_PORT:-3087}:${YOUTARR_CONTAINER_PORT:-3011}"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      youtarr-db:
+        condition: service_healthy
+    labels:
+      org.opencontainers.image.title: Youtarr
+      org.opencontainers.image.description: Private YouTube channel tracking, downloads, and Plex library integration.
+      org.opencontainers.image.source: https://github.com/DialmasterOrg/Youtarr
+      org.opencontainers.image.documentation: https://github.com/DialmasterOrg/Youtarr/wiki
+      homepage.name: Youtarr
+      homepage.description: YouTube downloads and library management
+      homepage.href: ${YOUTARR_URL:-http://127.0.0.1:3087}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "--output",
+          "/dev/null",
+          "http://127.0.0.1:${YOUTARR_CONTAINER_PORT:-3011}/api/db-status",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
   immich:
     profiles:
       - immich
@@ -895,3 +999,4 @@ volumes:
   stackarr-state:
   redis-data:
   immich-model-cache:
+  youtarr-db-data:

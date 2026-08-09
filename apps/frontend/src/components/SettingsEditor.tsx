@@ -920,6 +920,14 @@ export function SettingsEditor({ section, env, settings }: Props) {
             }}
           />
           <Check
+            label="Youtarr YouTube Library"
+            checked={envBool('ENABLE_YOUTARR', draftSettings.services.enableYoutarr)}
+            onChange={(value) => {
+              updateEnvBool('ENABLE_YOUTARR', value);
+              updateSettings('services', 'enableYoutarr', value);
+            }}
+          />
+          <Check
             label="TinyMediaManager Metadata"
             checked={envBool('ENABLE_TINYMEDIAMANAGER', draftSettings.services.enableTinyMediaManager)}
             onChange={(value) => {
@@ -1142,136 +1150,174 @@ export function SettingsEditor({ section, env, settings }: Props) {
       )}
 
       {section === 'connect' && (
-        <FormGrid>
-          <div className={styles.note}>
-            Use a Cloudflare account API token with Tunnel Edit, Access Policies Edit, Zero Trust Edit, Zone Read, and
-            DNS Edit. Stackarr creates the tunnel, connector credential, DNS records, and Access apps automatically.
-          </div>
-          <Password
-            label="Cloudflare API Token"
-            value={envValue('CLOUDFLARE_API_TOKEN')}
-            onChange={(value) => updateEnv('CLOUDFLARE_API_TOKEN', value)}
-          />
-          <Text
-            label="Cloudflare Account ID"
-            value={envValue('CLOUDFLARE_ACCOUNT_ID')}
-            onChange={(value) => updateEnv('CLOUDFLARE_ACCOUNT_ID', value)}
-          />
-          <Text
-            label="Cloudflare Zone ID"
-            value={envValue('CLOUDFLARE_ZONE_ID')}
-            onChange={(value) => updateEnv('CLOUDFLARE_ZONE_ID', value)}
-          />
-          <Text
-            label="Cloudflare Tunnel Name"
-            value={envValue('CLOUDFLARED_TUNNEL_NAME')}
-            onChange={(value) => updateEnv('CLOUDFLARED_TUNNEL_NAME', value)}
-          />
-          <Text
-            label="Cloudflare Tunnel ID"
-            value={envValue('CLOUDFLARED_TUNNEL_ID')}
-            onChange={(value) => updateEnv('CLOUDFLARED_TUNNEL_ID', value)}
-          />
-          <Check
-            label="Protect Routes with Access"
-            checked={envBool('CLOUDFLARE_ACCESS_ENABLED', false)}
-            onChange={(value) => updateEnvBool('CLOUDFLARE_ACCESS_ENABLED', value)}
-          />
-          <Text
-            label="Access Allowed Emails"
-            value={envValue('CLOUDFLARE_ACCESS_ALLOWED_EMAILS')}
-            onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_ALLOWED_EMAILS', value)}
-          />
-          <Text
-            label="Access Session Duration"
-            value={envValue('CLOUDFLARE_ACCESS_SESSION_DURATION') || '720h'}
-            onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_SESSION_DURATION', value)}
-          />
-          <div className={styles.routeEditor}>
-            <div className={styles.routeHeader}>
-              <span>Cloudflare Routes</span>
-              <button onClick={addCloudflareRoute} type="button">
-                Add route
-              </button>
+        <div className={styles.connectLayout}>
+          <section className={styles.connectSection}>
+            <div className={styles.connectHeading}>
+              <h3>Cloudflare connector</h3>
+              <p>
+                Connect the account Stackarr uses to manage the tunnel. The API token needs Tunnel Edit, Access Policies
+                Edit, Zero Trust Edit, Zone Read, and DNS Edit.
+              </p>
             </div>
-            {cloudflareRoutes.length === 0 && <p>No public routes configured.</p>}
-            {cloudflareRoutes.map((route, index) => (
-              <div className={styles.routeRow} key={`cloudflare-route-${index}`}>
-                <input
-                  aria-label="Public hostname"
-                  placeholder="books.example.com"
-                  value={route.hostname}
-                  onChange={(event) => updateCloudflareRoute(index, { hostname: event.target.value })}
-                />
-                <select
-                  aria-label="Stackarr service"
-                  value={route.service}
-                  onChange={(event) =>
-                    updateCloudflareRoute(index, {
-                      service: event.target.value,
-                      access: defaultCloudflareRouteAccess(event.target.value)
-                    })
-                  }
-                >
-                  {cloudflareServiceOptions.map((service) => (
-                    <option key={service} value={service}>
-                      {service}
-                    </option>
-                  ))}
-                </select>
-                <Switch
-                  aria-label={`Protect ${route.hostname || route.service || 'route'} with Access`}
-                  className={styles.routeAccess}
-                  isSelected={route.access ?? defaultCloudflareRouteAccess(route.service)}
-                  onChange={(access) => updateCloudflareRoute(index, { access })}
-                >
-                  <Switch.Content>
-                    <Label>Access</Label>
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch.Content>
-                </Switch>
-                <button onClick={() => removeCloudflareRoute(index)} type="button">
-                  Remove
+            <FormGrid>
+              <Password
+                label="Cloudflare API Token"
+                value={envValue('CLOUDFLARE_API_TOKEN')}
+                onChange={(value) => updateEnv('CLOUDFLARE_API_TOKEN', value)}
+              />
+              <Text
+                label="Cloudflare Account ID"
+                value={envValue('CLOUDFLARE_ACCOUNT_ID')}
+                onChange={(value) => updateEnv('CLOUDFLARE_ACCOUNT_ID', value)}
+              />
+              <Text
+                label="Cloudflare Zone ID"
+                value={envValue('CLOUDFLARE_ZONE_ID')}
+                onChange={(value) => updateEnv('CLOUDFLARE_ZONE_ID', value)}
+              />
+              <Text
+                label="Cloudflare Tunnel Name"
+                value={envValue('CLOUDFLARED_TUNNEL_NAME')}
+                onChange={(value) => updateEnv('CLOUDFLARED_TUNNEL_NAME', value)}
+              />
+              <Text
+                label="Cloudflare Tunnel ID"
+                value={envValue('CLOUDFLARED_TUNNEL_ID')}
+                onChange={(value) => updateEnv('CLOUDFLARED_TUNNEL_ID', value)}
+              />
+              <div className={styles.actionRow}>
+                <span>Connector credential</span>
+                <button onClick={rotateTunnelToken} type="button">
+                  {rotateState === 'saving'
+                    ? 'Saving...'
+                    : rotateState === 'queued'
+                      ? 'Queued'
+                      : rotateState === 'error'
+                        ? 'Failed'
+                        : 'Save & rotate connector'}
                 </button>
               </div>
-            ))}
-          </div>
-          <div className={styles.actionRow}>
-            <span>Cloudflare Tunnel</span>
-            <span className={styles.inlineActions}>
-              <button onClick={applyCloudflareRoutes} type="button">
-                {cloudflareApplyState === 'saving'
-                  ? 'Saving...'
-                  : cloudflareApplyState === 'queued'
-                    ? 'Queued'
-                    : cloudflareApplyState === 'error'
-                      ? 'Failed'
-                      : 'Apply routes'}
-              </button>
-              <button onClick={rotateTunnelToken} type="button">
-                {rotateState === 'saving'
-                  ? 'Saving...'
-                  : rotateState === 'queued'
-                    ? 'Queued'
-                    : rotateState === 'error'
-                      ? 'Failed'
-                      : 'Rotate connector'}
-              </button>
-            </span>
-          </div>
-          <Check
-            label="Expose Listed Routes Only"
-            checked={draftSettings.connect.exposeSeerrOnly}
-            onChange={(value) => updateSettings('connect', 'exposeSeerrOnly', value)}
-          />
-          <Check
-            label="Warn Before Public Exposure"
-            checked={draftSettings.connect.warnBeforePublicExposure}
-            onChange={(value) => updateSettings('connect', 'warnBeforePublicExposure', value)}
-          />
-        </FormGrid>
+            </FormGrid>
+          </section>
+
+          <section className={styles.connectSection}>
+            <div className={styles.connectHeading}>
+              <h3>Access policy</h3>
+              <p>Choose who can sign in with a one-time PIN and how long their Access session lasts.</p>
+            </div>
+            <FormGrid>
+              <Check
+                label="Protect Routes with Access"
+                checked={envBool('CLOUDFLARE_ACCESS_ENABLED', false)}
+                onChange={(value) => updateEnvBool('CLOUDFLARE_ACCESS_ENABLED', value)}
+              />
+              <Text
+                label="Allowed Emails"
+                value={envValue('CLOUDFLARE_ACCESS_ALLOWED_EMAILS')}
+                onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_ALLOWED_EMAILS', value)}
+              />
+              <Text
+                label="Session Duration"
+                value={envValue('CLOUDFLARE_ACCESS_SESSION_DURATION') || '720h'}
+                onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_SESSION_DURATION', value)}
+              />
+            </FormGrid>
+          </section>
+
+          <section className={styles.connectSection}>
+            <div className={styles.connectHeading}>
+              <h3>Routes and publishing</h3>
+              <p>
+                Save stores changes in Stackarr. Save &amp; apply routes publishes the route list, DNS records, and
+                Access policy to Cloudflare.
+              </p>
+            </div>
+            <FormGrid>
+              <div className={styles.routeEditor}>
+                <div className={styles.routeHeader}>
+                  <span>Route list</span>
+                  <button onClick={addCloudflareRoute} type="button">
+                    Add route
+                  </button>
+                </div>
+                {cloudflareRoutes.length === 0 && <p>No public routes configured.</p>}
+                {cloudflareRoutes.map((route, index) => (
+                  <div className={styles.routeRow} key={`cloudflare-route-${index}`}>
+                    <input
+                      aria-label="Public hostname"
+                      placeholder="books.example.com"
+                      value={route.hostname}
+                      onChange={(event) => updateCloudflareRoute(index, { hostname: event.target.value })}
+                    />
+                    <select
+                      aria-label="Stackarr service"
+                      value={route.service}
+                      onChange={(event) =>
+                        updateCloudflareRoute(index, {
+                          service: event.target.value,
+                          access: defaultCloudflareRouteAccess(event.target.value)
+                        })
+                      }
+                    >
+                      {cloudflareServiceOptions.map((service) => (
+                        <option key={service} value={service}>
+                          {service}
+                        </option>
+                      ))}
+                    </select>
+                    <Switch
+                      aria-label={`Protect ${route.hostname || route.service || 'route'} with Access`}
+                      className={styles.routeAccess}
+                      isSelected={route.access ?? defaultCloudflareRouteAccess(route.service)}
+                      onChange={(access) => updateCloudflareRoute(index, { access })}
+                    >
+                      <Switch.Content>
+                        <Label>Access</Label>
+                        <Switch.Control>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                      </Switch.Content>
+                    </Switch>
+                    <button onClick={() => removeCloudflareRoute(index)} type="button">
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.actionRow}>
+                <span>Publish changes</span>
+                <button onClick={applyCloudflareRoutes} type="button">
+                  {cloudflareApplyState === 'saving'
+                    ? 'Saving...'
+                    : cloudflareApplyState === 'queued'
+                      ? 'Queued'
+                      : cloudflareApplyState === 'error'
+                        ? 'Failed'
+                        : 'Save & apply routes'}
+                </button>
+              </div>
+            </FormGrid>
+          </section>
+
+          <section className={styles.connectSection}>
+            <div className={styles.connectHeading}>
+              <h3>Publishing safeguards</h3>
+              <p>Keep route publishing intentional and warn before a service becomes publicly reachable.</p>
+            </div>
+            <FormGrid>
+              <Check
+                label="Expose Listed Routes Only"
+                checked={draftSettings.connect.exposeSeerrOnly}
+                onChange={(value) => updateSettings('connect', 'exposeSeerrOnly', value)}
+              />
+              <Check
+                label="Warn Before Public Exposure"
+                checked={draftSettings.connect.warnBeforePublicExposure}
+                onChange={(value) => updateSettings('connect', 'warnBeforePublicExposure', value)}
+              />
+            </FormGrid>
+          </section>
+        </div>
       )}
 
       {section === 'metadata' && (

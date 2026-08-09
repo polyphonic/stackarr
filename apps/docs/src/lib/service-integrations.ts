@@ -2,6 +2,7 @@ export type ServiceIntegration = {
   category: string;
   hero: string;
   logo: string;
+  logoExtension?: 'png' | 'svg';
   name: string;
   role: string;
   slug: string;
@@ -294,6 +295,22 @@ export const serviceIntegrations = [
     ],
     stackarr:
       'Stackarr shares RomM’s IGDB credentials by default, mounts the common downloads and Games paths, and keeps Questarr private and optional. Questarr currently uses SQLite and does not synchronize RomM inventory, so RomM remains the source of truth.'
+  },
+  {
+    slug: 'youtarr',
+    name: 'Youtarr',
+    logo: 'youtarr',
+    logoExtension: 'png',
+    category: 'YouTube downloads',
+    role: 'YouTube channel tracker and library downloader',
+    hero: 'Youtarr tracks YouTube channels, downloads selected videos, and can refresh a Plex library after completion.',
+    whatItDoes: [
+      'Tracks channels and queues individual YouTube videos for download.',
+      'Uses yt-dlp and FFmpeg to create media files with metadata and artwork.',
+      'Stores its application state in MariaDB and can trigger Plex library refreshes.'
+    ],
+    stackarr:
+      'Stackarr keeps Youtarr optional and loopback-only by default, provisions a dedicated MariaDB service, persists media and application data, includes a consistent MariaDB dump in backups, applies the shared Stackarr login, and exposes focused MCP actions for health, library reads, and one-video download requests.'
   },
   {
     slug: 'bookorbit',

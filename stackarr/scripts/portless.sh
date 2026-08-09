@@ -185,6 +185,10 @@ register_aliases() {
         register questarr "${QUESTARR_WEB_PORT:-7584}"
     fi
 
+    if truthy "${ENABLE_YOUTARR:-false}"; then
+        register youtarr "${YOUTARR_WEB_PORT:-3087}"
+    fi
+
     if truthy "${ENABLE_BAZARR:-true}"; then
         register bazarr 6767
     fi
@@ -273,6 +277,7 @@ const stackarrAliases = new Set([
   'immich',
   'romm',
   'questarr',
+  'youtarr',
   'bazarr',
   'tinymm',
   'flaresolverr',

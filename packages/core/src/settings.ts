@@ -61,6 +61,7 @@ export type StackarrSettings = {
     enableImmich: boolean;
     enableRomm: boolean;
     enableQuestarr: boolean;
+    enableYoutarr: boolean;
     enableTinyMediaManager: boolean;
     enableRecyclarr: boolean;
     enableFlaresolverr: boolean;
@@ -151,6 +152,7 @@ export const defaultSettings: StackarrSettings = {
     enableImmich: false,
     enableRomm: false,
     enableQuestarr: false,
+    enableYoutarr: false,
     enableTinyMediaManager: true,
     enableRecyclarr: true,
     enableFlaresolverr: true,
@@ -251,6 +253,7 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableImmich: envFlag(env.ENABLE_IMMICH, defaultSettings.services.enableImmich),
       enableRomm: envFlag(env.ENABLE_ROMM, defaultSettings.services.enableRomm),
       enableQuestarr: envFlag(env.ENABLE_QUESTARR, defaultSettings.services.enableQuestarr),
+      enableYoutarr: envFlag(env.ENABLE_YOUTARR, defaultSettings.services.enableYoutarr),
       enableTinyMediaManager: envFlag(env.ENABLE_TINYMEDIAMANAGER, defaultSettings.services.enableTinyMediaManager),
       enableRecyclarr: envFlag(env.ENABLE_RECYCLARR, defaultSettings.services.enableRecyclarr),
       enableFlaresolverr: envFlag(env.ENABLE_FLARESOLVERR, defaultSettings.services.enableFlaresolverr),

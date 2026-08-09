@@ -22,6 +22,7 @@ export * from './actions/setup';
 export * from './actions/stack';
 export * from './actions/streamrip';
 export * from './actions/telemetry';
+export * from './actions/youtarr';
 export * from './clients/serviceConfig';
 export * from './commands';
 export * from './composeRuntime';

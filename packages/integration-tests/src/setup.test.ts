@@ -56,6 +56,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal((enabledServicesQuestion.choices as string[]).includes('immich'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('romm'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('questarr'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('youtarr'), true);
   assert.equal(profile.defaults.globalUsername, 'admin');
   assert.equal(profile.defaults.globalEmail, '');
   assert.equal(profile.defaults.databaseMode, 'app-default');
@@ -74,6 +75,7 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.enableImmich, false);
   assert.equal(profile.defaults.enableRomm, false);
   assert.equal(profile.defaults.enableQuestarr, false);
+  assert.equal(profile.defaults.enableYoutarr, false);
   assert.deepEqual(profile.defaults.maintainerrCleanupPresets, []);
   assert.equal(profile.defaults.backupRetentionCount, 52);
   assert.equal('pulsarrHdLiteUsers' in profile.defaults, false);
@@ -236,6 +238,49 @@ test('dry-run setup keeps IGDB available when Questarr is enabled without RomM',
   assert.equal(result.plan.config.ROMM_IGDB_CLIENT_SECRET, '********');
   assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_ID, 'questarr-client');
   assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_SECRET, '********');
+});
+
+test('dry-run setup provisions private authenticated Youtarr with a dedicated MariaDB service', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    mediaRoot: '/srv/media',
+    plexInstallMode: 'docker',
+    globalUsername: 'stackarr-admin',
+    globalPassword: 'PortableYoutarrPassword',
+    enabledServices: ['youtarr']
+  });
+
+  assert.equal(result.plan.config.ENABLE_YOUTARR, 'true');
+  assert.equal(result.plan.config.YOUTARR_URL, 'http://127.0.0.1:3087');
+  assert.equal(result.plan.config.YOUTARR_OUTPUT_ROOT, '/srv/media/YouTube');
+  assert.equal(result.plan.config.YOUTARR_DB_HOST, 'youtarr-db');
+  assert.equal(result.plan.config.YOUTARR_DB_PORT, '3306');
+  assert.equal(result.plan.config.YOUTARR_DB_PASSWORD, '********');
+  assert.equal(result.plan.config.YOUTARR_DB_ROOT_PASSWORD, '********');
+  assert.equal(result.plan.config.YOUTARR_LOGIN_ENABLED, 'true');
+  assert.equal(result.plan.config.YOUTARR_ADMIN_USERNAME, 'stackarr-admin');
+  assert.equal(result.plan.config.YOUTARR_ADMIN_PASSWORD, '********');
+  assert.equal(result.plan.config.YOUTARR_PLEX_URL, 'http://plex:32400');
+  assert.equal(result.plan.config.YOUTARR_IMAGE, 'dialmaster/youtarr:latest');
+  assert.equal(result.plan.config.YOUTARR_DB_IMAGE, 'mariadb:10.11');
+});
+
+test('dry-run setup enforces Youtarr credential limits before first run', async () => {
+  const usernameResult = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['youtarr'],
+    globalUsername: 'a'.repeat(33),
+    globalPassword: 'PortablePassword'
+  });
+  const passwordResult = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['youtarr'],
+    globalUsername: 'stackarr-admin',
+    globalPassword: 'a'.repeat(65)
+  });
+
+  assert.match(usernameResult.error ?? '', /at most 32 characters when Youtarr is enabled/);
+  assert.match(passwordResult.error ?? '', /at most 64 characters when Youtarr is enabled/);
 });
 
 test('dry-run setup records Maintainerr cleanup preset ideas for the wired service', async () => {

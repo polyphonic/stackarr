@@ -11,9 +11,27 @@ import { promisify } from 'node:util';
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const backupScript = path.join(repoRoot, 'stackarr/scripts/backup-run.sh');
+const restoreScript = path.join(repoRoot, 'stackarr/scripts/restore.sh');
 const backupCrypto = path.join(repoRoot, 'stackarr/scripts/backup-crypto.cjs');
 const runtimeSnapshotScript = path.join(repoRoot, 'stackarr/scripts/runtime-config-snapshot.cjs');
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
+
+test('backup and restore scripts preserve the Youtarr MariaDB database explicitly', async () => {
+  const [backupSource, restoreSource] = await Promise.all([
+    readFile(backupScript, 'utf8'),
+    readFile(restoreScript, 'utf8')
+  ]);
+
+  assert.match(backupSource, /dump_youtarr_database/);
+  assert.match(backupSource, /Youtarr database dump is required, but Docker is unavailable/);
+  assert.match(backupSource, /Youtarr database dump is required, but youtarr-db is not running/);
+  assert.match(backupSource, /youtarr-db mariadb-dump/);
+  assert.match(backupSource, /database\/youtarr/);
+  assert.match(restoreSource, /--restore-youtarr/);
+  assert.match(restoreSource, /restore_youtarr_database/);
+  assert.match(restoreSource, /youtarr-db mariadb --user=root/);
+  assert.match(restoreSource, /restore_youtarr_database\nif \[\[ "\$RESTORE_PLEX_BACKUP_MODE"/);
+});
 
 function writeRuntimeConfigDatabase(filePath: string, config: Record<string, string>) {
   const db = new DatabaseSync(filePath);
@@ -526,6 +544,8 @@ test('portable runtime snapshot falls back to generated Compose state when Postg
       [
         'ENABLE_ROMM="true"',
         'ROMM_STEAMGRIDDB_API_KEY="compose-fallback-key"',
+        'ENABLE_YOUTARR="true"',
+        'YOUTARR_ADMIN_PASSWORD="youtarr-fallback-password"',
         'STACKARR_VERSION="transient-version"',
         ''
       ].join('\n')
@@ -559,6 +579,8 @@ test('portable runtime snapshot falls back to generated Compose state when Postg
     };
     const audit = JSON.parse(await readFile(auditFile, 'utf8')) as { source: string };
     assert.equal(snapshot.runtimeConfig.ROMM_STEAMGRIDDB_API_KEY, 'compose-fallback-key');
+    assert.equal(snapshot.runtimeConfig.ENABLE_YOUTARR, 'true');
+    assert.equal(snapshot.runtimeConfig.YOUTARR_ADMIN_PASSWORD, 'youtarr-fallback-password');
     assert.equal(snapshot.runtimeConfig.STACKARR_VERSION, undefined);
     assert.equal(audit.source, 'compose-fallback');
     assert.match(stdout, /from compose-fallback/);

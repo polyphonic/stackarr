@@ -10,6 +10,7 @@ ARCHIVE=""
 FORCE_RUNTIME_CONFIG=false
 ASSUME_YES=false
 RESTORE_POSTGRES="ask"
+RESTORE_YOUTARR="ask"
 RESTORE_NATIVE_PLEX="ask"
 RESTORE_PLEX_PREFS="ask"
 RESTORE_NATIVE_JELLYFIN="ask"
@@ -34,6 +35,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-postgres)
             RESTORE_POSTGRES="no"
+            ;;
+        --restore-youtarr)
+            RESTORE_YOUTARR="yes"
+            ;;
+        --skip-youtarr)
+            RESTORE_YOUTARR="no"
             ;;
         --restore-native-plex)
             RESTORE_NATIVE_PLEX="yes"
@@ -87,6 +94,8 @@ Options:
   --yes, -y                   Run without prompts using explicit restore/skip flags.
   --restore-postgres          Restore shared Postgres dumps without prompting.
   --skip-postgres             Do not restore shared Postgres dumps.
+  --restore-youtarr           Restore the Youtarr MariaDB dump without prompting.
+  --skip-youtarr              Do not restore the Youtarr MariaDB dump.
   --restore-native-plex       Restore native Plex config without prompting.
   --skip-native-plex          Do not restore native Plex config.
   --restore-plex-preferences  Restore native macOS Plex preferences without prompting.
@@ -540,6 +549,39 @@ restore_postgres_databases() {
     ok "Restored $restored shared Postgres database(s)"
 }
 
+restore_youtarr_database() {
+    local dump="$RESTORE_ROOT/database/youtarr/youtarr.sql"
+    local ready=false
+
+    [[ -s "$dump" ]] || return 0
+    command -v docker >/dev/null 2>&1 || {
+        warn "Skipped Youtarr database restore because Docker is unavailable"
+        return 0
+    }
+    if ! confirm_restore "Restore the Youtarr MariaDB database from archive and replace its current data" no "$RESTORE_YOUTARR"; then
+        warn "Skipped Youtarr database restore"
+        return 0
+    fi
+
+    ensure_docker_runtime
+    stackarr_compose --profile youtarr up -d youtarr-db
+    for _ in $(seq 1 60); do
+        if stackarr_compose --profile youtarr exec -T \
+            -e MYSQL_PWD="$YOUTARR_DB_ROOT_PASSWORD" \
+            youtarr-db mariadb-admin ping --user=root --silent >/dev/null 2>&1; then
+            ready=true
+            break
+        fi
+        sleep 2
+    done
+    [[ "$ready" == true ]] || die "Timed out waiting for the Youtarr MariaDB service"
+
+    stackarr_compose --profile youtarr exec -T \
+        -e MYSQL_PWD="$YOUTARR_DB_ROOT_PASSWORD" \
+        youtarr-db mariadb --user=root < "$dump"
+    ok "Restored the Youtarr MariaDB database"
+}
+
 restore_postgres_databases
 restore_tree "$RESTORE_ROOT/config" "$CONFIG_ROOT"
 restore_tree "$RESTORE_ROOT/state" "$STATE_ROOT"
@@ -562,6 +604,7 @@ fi
 # new archives. Rebuild it only after runtime config and databases are restored.
 load_env
 write_compose_env_file
+restore_youtarr_database
 if [[ "$RESTORE_PLEX_BACKUP_MODE" == "lite" ]]; then
     warn "This archive used lite backup mode. Service logs, caches, internal backups, runtime files, Arr cover art, and other excluded assets may regenerate after restore. Plex collection artwork is retained when present."
 fi

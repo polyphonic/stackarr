@@ -14,6 +14,7 @@ import {
 import { appDatabasePath, repoRoot } from '../paths';
 import { redactSecrets } from '../safety/redaction';
 import { getSystemStatus } from '../services';
+import { queueStackarrCommandAction } from './commands';
 
 const execFileAsync = promisify(execFile);
 
@@ -123,6 +124,57 @@ export function updateCloudflareAccessAction(input: {
     updatedKeys: Object.keys(patch),
     access: cloudflareAccessSummary(env),
     env: redactEnv(env)
+  };
+}
+
+type CloudflareApplyQueue = (input: { command: 'CloudflareApplyRoutes' }) => unknown;
+
+export function addCloudflareAccessEmailAction(
+  input: { email: string },
+  queueApply: CloudflareApplyQueue = queueStackarrCommandAction
+) {
+  const current = readEnv();
+  const email = normalizeCloudflareAccessEmails(input.email)[0];
+
+  if (!email) {
+    return {
+      accepted: false,
+      added: false,
+      error: 'Enter one valid email address.'
+    };
+  }
+
+  if (!cloudflareAccessSummary(current).enabled) {
+    return {
+      accepted: false,
+      added: false,
+      email,
+      error: 'Cloudflare Access must be enabled before an allowlist change can be published.'
+    };
+  }
+
+  if (!readCloudflareTunnelRoutes(current).some((route) => route.access)) {
+    return {
+      accepted: false,
+      added: false,
+      email,
+      error: 'At least one configured Cloudflare route must have Access enabled before publishing an allowlist.'
+    };
+  }
+
+  const currentEmails = normalizeCloudflareAccessEmails(current.CLOUDFLARE_ACCESS_ALLOWED_EMAILS);
+  const added = !currentEmails.includes(email);
+  const env = writeEnvConfig({
+    CLOUDFLARE_ACCESS_ALLOWED_EMAILS: normalizeCloudflareAccessEmails([...currentEmails, email]).join(',')
+  });
+  const publish = queueApply({ command: 'CloudflareApplyRoutes' });
+
+  return {
+    accepted: true,
+    added,
+    email,
+    access: cloudflareAccessSummary(env),
+    publish
   };
 }
 

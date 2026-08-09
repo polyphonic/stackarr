@@ -33,8 +33,13 @@ test('dangerous MCP calls use elicitation and decline without executing', async 
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     const listed = await client.listTools();
     const updateConfig = listed.tools.find((tool) => tool.name === 'stackarr_update_stack_config');
+    const addCloudflareEmail = listed.tools.find((tool) => tool.name === 'stackarr_add_cloudflare_access_email');
+    const cloudflareEmailSchema = addCloudflareEmail?.inputSchema.properties?.email as { format?: string } | undefined;
 
     assert.ok(updateConfig);
+    assert.ok(addCloudflareEmail);
+    assert.equal(addCloudflareEmail.annotations?.destructiveHint, true);
+    assert.equal(cloudflareEmailSchema?.format, 'email');
     assert.equal(updateConfig.annotations?.destructiveHint, true);
     assert.equal(updateConfig.annotations?.readOnlyHint, false);
     assert.equal(updateConfig.inputSchema.properties?.confirmDangerous, undefined);
