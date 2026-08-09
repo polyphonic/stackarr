@@ -12,7 +12,7 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const configureScript = path.join(repoRoot, 'stackarr/scripts/agregarr-configure.py');
 
-test('Agregarr configuration promotes release-date rows while preserving Recently Added', async () => {
+test('Agregarr configuration promotes New Movies and New Episodes while preserving Recently Added', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-agregarr-configure-'));
   const settingsPath = path.join(root, 'settings.json');
   const keyOutput = path.join(root, 'api-key');
@@ -41,6 +41,11 @@ test('Agregarr configuration promotes release-date rows while preserving Recentl
     ['plex-103', 'New Releases'],
     ['plex-203', 'Recently Released Episodes']
   ]);
+  const plexHubTitles = new Map([
+    ['plex-103', 'New Releases'],
+    ['plex-203', 'Recently Released Episodes']
+  ]);
+  let tvSort = 'originallyAvailableAt:desc';
 
   const server = createServer(async (request, response) => {
     let rawBody = '';
@@ -61,8 +66,12 @@ test('Agregarr configuration promotes release-date rows while preserving Recentl
     const plexHubPromote = requestPath.match(/^\/hubs\/sections\/(\d+)\/manage$/);
     if (plexMetadata && request.method === 'GET') {
       const title = plexTitles.get(`plex-${plexMetadata[1]}`) || '';
+      const sort = plexMetadata[1] === '203' ? tvSort : 'originallyAvailableAt:desc';
+      const content = `/library/sections/${plexMetadata[1] === '203' ? '3' : '2'}/all?type=${plexMetadata[1] === '203' ? '2' : '1'}&sort=${sort}&limit=30`;
       response.setHeader('content-type', 'application/xml');
-      response.end(`<MediaContainer><Directory title="${title}" /></MediaContainer>`);
+      response.end(
+        `<MediaContainer><Directory title="${title}" content="${content.replaceAll('&', '&amp;')}" /></MediaContainer>`
+      );
     } else if (plexMetadata && request.method === 'PUT') {
       const ratingKey = `plex-${plexMetadata[1]}`;
       const title = url.searchParams.get('title.value') || '';
@@ -70,18 +79,28 @@ test('Agregarr configuration promotes release-date rows while preserving Recentl
       plexTitles.set(ratingKey, title);
       response.end('{}');
     } else if (plexRename && request.method === 'PUT') {
+      const ratingKey = url.searchParams.get('id') || '';
+      const title = url.searchParams.get('title.value') || '';
       plexRenames.push({
         libraryId: plexRename[1] || '',
-        ratingKey: url.searchParams.get('id') || '',
-        title: url.searchParams.get('title.value') || ''
+        ratingKey,
+        title
       });
-      response.statusCode = plexRename[1] === '3' ? 409 : 200;
-      response.end(plexRename[1] === '3' ? '<h1>409 Conflict</h1>' : '{}');
+      if (plexRename[1] === '3') {
+        response.statusCode = 409;
+        response.end('<h1>409 Conflict</h1>');
+      } else {
+        plexTitles.set(ratingKey, title);
+        response.end('{}');
+      }
     } else if (plexHubItem && request.method === 'DELETE') {
       plexHubRefreshes.push(`delete:${plexHubItem[1]}:${plexHubItem[3]}`);
+      plexHubTitles.delete(plexHubItem[3] || '');
       response.end('{}');
     } else if (plexHubPromote && request.method === 'POST') {
-      plexHubRefreshes.push(`promote:${plexHubPromote[1]}:${url.searchParams.get('metadataItemId')}`);
+      const ratingKey = url.searchParams.get('metadataItemId') || '';
+      plexHubRefreshes.push(`promote:${plexHubPromote[1]}:${ratingKey}`);
+      plexHubTitles.set(ratingKey, plexTitles.get(ratingKey) || '');
       response.end('{}');
     } else if (plexHubMove && request.method === 'PUT') {
       plexHubMoves.push(`${plexHubMove[1]}:${plexHubMove[3]}`);
@@ -148,26 +167,36 @@ test('Agregarr configuration promotes release-date rows while preserving Recentl
   try {
     const address = server.address();
     assert.ok(address && typeof address === 'object');
-    const { stdout } = await execFile('python3', [configureScript], {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        AGREGARR_URL: `http://127.0.0.1:${address.port}`,
-        PLEX_URL: `http://127.0.0.1:${address.port}`,
-        AGREGARR_SETTINGS_PATH: settingsPath,
-        AGREGARR_KEY_OUTPUT: keyOutput,
-        AGREGARR_BROWSER_URL: 'https://agregarr.stack',
-        PLEX_TOKEN: 'plex-fixture-token',
-        ENABLE_MOVIES: 'true',
-        ENABLE_TV_SHOWS: 'true'
-      }
-    });
+    const runConfigure = () =>
+      execFile('python3', [configureScript], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          AGREGARR_URL: `http://127.0.0.1:${address.port}`,
+          PLEX_URL: `http://127.0.0.1:${address.port}`,
+          AGREGARR_SETTINGS_PATH: settingsPath,
+          AGREGARR_KEY_OUTPUT: keyOutput,
+          AGREGARR_BROWSER_URL: 'https://agregarr.stack',
+          PLEX_TOKEN: 'plex-fixture-token',
+          ENABLE_MOVIES: 'true',
+          ENABLE_TV_SHOWS: 'true'
+        }
+      });
 
-    assert.match(stdout, /2 New Releases collections/);
-    for (const id of [103, 203]) {
+    await assert.rejects(runConfigure(), /New Episodes.*episode\.originallyAvailableAt:desc/);
+    tvSort = 'episode.originallyAvailableAt:desc';
+    reorders.length = 0;
+    plexHubMoves.length = 0;
+    const { stdout } = await runConfigure();
+
+    assert.match(stdout, /2 newest-release collections/);
+    for (const [id, expectedName] of [
+      [103, 'New Movies'],
+      [203, 'New Episodes']
+    ] as const) {
       const release = collections.find((item) => item.id === id);
-      assert.equal(release?.name, 'New Releases');
-      assert.equal(release?.template, 'New Releases');
+      assert.equal(release?.name, expectedName);
+      assert.equal(release?.template, expectedName);
       assert.equal(release?.subtype, 'recently_released');
       assert.equal(release?.maxItems, 30);
       assert.equal(release?.sortOrderHome, 1);
@@ -183,10 +212,23 @@ test('Agregarr configuration promotes release-date rows while preserving Recentl
     assert.equal(collections.find((item) => item.id === 101)?.subtype, 'recently_added');
     assert.equal(collections.find((item) => item.id === 201)?.name, 'Recently Added TV');
     assert.equal(collections.find((item) => item.id === 201)?.subtype, 'recently_added');
-    assert.deepEqual(plexRenames, [{ libraryId: '3', ratingKey: 'plex-203', title: 'New Releases' }]);
-    assert.deepEqual(plexFallbackRenames, [{ ratingKey: 'plex-203', title: 'New Releases' }]);
-    assert.equal(plexTitles.get('plex-203'), 'New Releases');
-    assert.deepEqual(plexHubRefreshes, ['delete:3:plex-203', 'promote:3:plex-203', 'visible:3:plex-203']);
+    assert.deepEqual(plexRenames, [
+      { libraryId: '2', ratingKey: 'plex-103', title: 'New Movies' },
+      { libraryId: '3', ratingKey: 'plex-203', title: 'New Episodes' }
+    ]);
+    assert.deepEqual(plexFallbackRenames, [{ ratingKey: 'plex-203', title: 'New Episodes' }]);
+    assert.equal(plexTitles.get('plex-103'), 'New Movies');
+    assert.equal(plexTitles.get('plex-203'), 'New Episodes');
+    assert.equal(plexHubTitles.get('plex-103'), 'New Movies');
+    assert.equal(plexHubTitles.get('plex-203'), 'New Episodes');
+    assert.deepEqual(plexHubRefreshes, [
+      'delete:2:plex-103',
+      'promote:2:plex-103',
+      'visible:2:plex-103',
+      'delete:3:plex-203',
+      'promote:3:plex-203',
+      'visible:3:plex-203'
+    ]);
     assert.deepEqual(plexHubMoves, ['2:plex-103', '3:plex-203']);
 
     assert.equal(reorders.length, 4);
