@@ -3895,6 +3895,7 @@ configure_agregarr_stack() {
         AGREGARR_BROWSER_URL="$browser_url" \
         AGREGARR_PLEX_HOST="$plex_host" \
         AGREGARR_PLEX_PORT="${PLEX_DOCKER_PORT:-32400}" \
+        PLEX_URL="${PLEX_URL:-http://127.0.0.1:32400}" \
         AGREGARR_PLACEHOLDER_FOLDER="${AGREGARR_PLACEHOLDER_FOLDER:-_Trailers}" \
         PLEX_TOKEN="$plex_token" \
         RADARR_API_KEY="$RADARR_KEY" \

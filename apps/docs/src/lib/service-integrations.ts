@@ -230,7 +230,7 @@ export const serviceIntegrations = [
     hero: 'Agregarr builds and schedules Plex collections from your libraries, Arr monitoring state, and discovery sources.',
     whatItDoes: [
       'Creates managed Plex collections from sources such as Coming Soon, TMDb, and IMDb.',
-      'Promotes collections onto Plex Home and Discover while preserving handmade collections as pre-existing.',
+      "Promotes collections onto Plex Home and each library's Recommended screen while preserving handmade collections as pre-existing.",
       'Keeps linked movie and TV collection rows synchronized on a schedule.'
     ],
     stackarr:
