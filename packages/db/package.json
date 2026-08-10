@@ -4,10 +4,10 @@
   "sideEffects": false,
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
-    "@prisma/adapter-neon": "7.8.0",
-    "@prisma/adapter-pg": "7.8.0",
-    "@prisma/client": "7.8.0",
-    "@prisma/client-runtime-utils": "7.8.0",
+    "@prisma/adapter-neon": "7.9.1",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "@prisma/client-runtime-utils": "7.9.1",
     "@t3-oss/env-nextjs": "^0.13.11",
     "pg": "8.20.0",
     "ws": "8.20.1",
@@ -17,7 +17,7 @@
     "@types/node": "^26.0.0",
     "@types/pg": "8.15.6",
     "@types/ws": "8.18.1",
-    "prisma": "7.8.0",
+    "prisma": "7.9.1",
     "typescript": "^6.0.3"
   },
   "exports": {
