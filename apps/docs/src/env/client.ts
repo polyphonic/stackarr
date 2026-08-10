@@ -9,7 +9,7 @@ const booleanString = z
 export const clientEnv = createEnv({
   client: {
     NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED: booleanString,
-    NEXT_PUBLIC_STACKARR_VERSION: z.string().min(1).default('0.3.0-alpha.11') // x-release-please-version
+    NEXT_PUBLIC_STACKARR_VERSION: z.string().min(1).default('0.3.0-alpha.12') // x-release-please-version
   },
   runtimeEnv: {
     NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED:
