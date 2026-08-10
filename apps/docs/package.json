@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/docs",
-  "version": "0.3.0-alpha.12",
+  "version": "0.3.0-alpha.13",
   "dependencies": {
     "@next/third-parties": "~16.2.9",
     "@stackarr/db": "workspace:*",
