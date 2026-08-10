@@ -30,6 +30,13 @@ print_romm_status() {
 
     echo "URL: $(romm_url)"
     echo "Library location: ${ROMM_LIBRARY_ROOT:-${GAMES_ROOT:-$MEDIA_ROOT/Games}}"
+    if flag_enabled "${ROMM_STEAM_LIBRARY_ENABLED:-false}"; then
+        echo "Steam Mac library: ${ROMM_STEAM_MAC_LIBRARY_ROOT:-not configured}"
+        echo "Steam Windows library: ${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-not configured}"
+        echo "Steam Linux library: ${ROMM_STEAM_LINUX_LIBRARY_ROOT:-not configured}"
+    else
+        echo "Steam desktop libraries: disabled"
+    fi
     echo "Assets location: ${ROMM_ASSETS_ROOT:-$CONFIG_ROOT/romm/assets}"
     echo "Database: ${ROMM_DB_DRIVER:-postgresql}://${ROMM_DB_USER:-romm}@${ROMM_DB_HOST:-database}:${ROMM_DB_PORT:-5432}/${ROMM_DB_NAME:-romm}"
     echo "Redis: ${ROMM_REDIS_HOST:-redis}:${ROMM_REDIS_PORT:-6379}"
@@ -64,12 +71,18 @@ set_romm_enabled() {
     set_env_value ROMM_WEB_PORT "${ROMM_WEB_PORT:-7583}"
     set_env_value ROMM_CONTAINER_PORT "${ROMM_CONTAINER_PORT:-8080}"
     set_env_value ROMM_LIBRARY_ROOT "${ROMM_LIBRARY_ROOT:-${GAMES_ROOT:-$MEDIA_ROOT/Games}}"
+    set_env_value ROMM_STEAM_LIBRARY_ENABLED "${ROMM_STEAM_LIBRARY_ENABLED:-false}"
+    set_env_value ROMM_STEAM_MAC_LIBRARY_ROOT "${ROMM_STEAM_MAC_LIBRARY_ROOT:-}"
+    set_env_value ROMM_STEAM_WINDOWS_LIBRARY_ROOT "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-}"
+    set_env_value ROMM_STEAM_LINUX_LIBRARY_ROOT "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-}"
     set_env_value ROMM_ASSETS_ROOT "${ROMM_ASSETS_ROOT:-$CONFIG_ROOT/romm/assets}"
     set_env_value ROMM_CONFIG_ROOT "${ROMM_CONFIG_ROOT:-$CONFIG_ROOT/romm/config}"
     set_env_value ROMM_RESOURCES_ROOT "${ROMM_RESOURCES_ROOT:-$CONFIG_ROOT/romm/resources}"
     set_env_value ROMM_REDIS_DATA_ROOT "${ROMM_REDIS_DATA_ROOT:-$CONFIG_ROOT/romm/redis}"
     set_env_value ROMM_REDIS_HOST "${ROMM_REDIS_HOST:-redis}"
     set_env_value ROMM_REDIS_PORT "${ROMM_REDIS_PORT:-6379}"
+    set_env_value ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE "${ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false}"
+    set_env_value ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY "${ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY:-5}"
     set_env_value ROMM_DB_DATA_LOCATION "${ROMM_DB_DATA_LOCATION:-$CONFIG_ROOT/romm/mysql}"
     set_env_value ROMM_DB_DRIVER "${ROMM_DB_DRIVER:-postgresql}"
     set_env_value ROMM_DB_HOST "${ROMM_DB_HOST:-database}"

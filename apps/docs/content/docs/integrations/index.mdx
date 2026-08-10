@@ -28,6 +28,8 @@ Stackarr brings common media-stack services into one local control plane. These 
     { name: 'Tracearr', slug: 'tracearr', logo: 'tracearr' },
     { name: 'Immich', slug: 'immich', logo: 'immich' },
     { name: 'RomM', slug: 'romm', logo: 'romm' },
+    { name: 'Questarr', slug: 'questarr', logo: 'questarr' },
+    { name: 'Youtarr', slug: 'youtarr', logo: 'youtarr' },
     { name: 'BookOrbit', slug: 'bookorbit', logo: 'bookorbit' },
     { name: 'TinyMediaManager', slug: 'tinymediamanager', logo: 'tinymediamanager' },
     { name: 'Recyclarr', slug: 'recyclarr', logo: 'recyclarr' },
@@ -37,7 +39,7 @@ Stackarr brings common media-stack services into one local control plane. These 
     { name: 'Cloudflare', slug: 'cloudflare', logo: 'cloudflare' }
   ].map(service => (
     <a className="serviceTile" href={`/docs/integrations/${service.slug}`} key={service.slug}>
-      <img alt="" src={`/logos/${service.logo}.svg`} />
+      <img alt="" src={`/logos/${service.logo}.${service.slug === 'youtarr' ? 'png' : 'svg'}`} />
       <span>{service.name}</span>
     </a>
   ))}

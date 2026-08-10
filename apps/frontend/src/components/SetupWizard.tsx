@@ -7,7 +7,9 @@ import {
   accountUsernameValidationError,
   portablePasswordMaximumLength,
   portablePasswordMinimumLength,
-  portablePasswordValidationError
+  portablePasswordValidationError,
+  youtarrPasswordMaximumLength,
+  youtarrUsernameMaximumLength
 } from '@stackarr/core/passwordPolicy';
 import { Description, Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
@@ -64,6 +66,8 @@ type SetupState = {
   enableBookOrbit: boolean;
   enableImmich: boolean;
   enableRomm: boolean;
+  enableQuestarr: boolean;
+  enableYoutarr: boolean;
   enableTinyMediaManager: boolean;
   enableRecyclarr: boolean;
   enableFlaresolverr: boolean;
@@ -121,6 +125,8 @@ const defaults: SetupState = {
   enableBookOrbit: false,
   enableImmich: false,
   enableRomm: false,
+  enableQuestarr: false,
+  enableYoutarr: false,
   enableTinyMediaManager: true,
   enableRecyclarr: true,
   enableFlaresolverr: true,
@@ -171,6 +177,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreKeyFile, setRestoreKeyFile] = useState<File | null>(null);
   const [restorePostgres, setRestorePostgres] = useState(true);
+  const [restoreYoutarr, setRestoreYoutarr] = useState(true);
   const [restoreNativePlex, setRestoreNativePlex] = useState(false);
   const [restorePlexPreferences, setRestorePlexPreferences] = useState(false);
   const [restoreNativeJellyfin, setRestoreNativeJellyfin] = useState(false);
@@ -196,8 +203,17 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   const effectiveEnableCleanuparr = arrEnabled && state.enableCleanuparr;
   const effectiveEnableAgregarr = plexEnabled && state.enableAgregarr;
   const effectiveEnableTracearr = mediaServerEnabled && state.enableTracearr;
-  const passwordValidationMessage = validateRequiredPortablePassword(state.globalPassword);
-  const usernameValidationMessage = accountUsernameValidationError(state.globalUsername, 'Global username') ?? '';
+
+  const passwordValidationMessage =
+    validateRequiredPortablePassword(state.globalPassword) ||
+    (state.enableYoutarr && state.globalPassword.length > youtarrPasswordMaximumLength
+      ? `Global password must be at most ${youtarrPasswordMaximumLength} characters when Youtarr is enabled.`
+      : '');
+  const usernameValidationMessage =
+    accountUsernameValidationError(state.globalUsername, 'Global username') ??
+    (state.enableYoutarr && state.globalUsername.length > youtarrUsernameMaximumLength
+      ? `Global username must be at most ${youtarrUsernameMaximumLength} characters when Youtarr is enabled.`
+      : '');
   const liveTasks = useLiveTasks([], { limit: 10 });
   const setupTask = setupTaskId ? liveTasks.find((task) => task.id === setupTaskId) : undefined;
 
@@ -236,6 +252,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_BOOKORBIT: String(state.enableBookOrbit),
       ENABLE_IMMICH: String(state.enableImmich),
       ENABLE_ROMM: String(state.enableRomm),
+      ENABLE_QUESTARR: String(state.enableQuestarr),
+      ENABLE_YOUTARR: String(state.enableYoutarr),
       ENABLE_TINYMEDIAMANAGER: String(videoAutomationEnabled && state.enableTinyMediaManager),
       ENABLE_RECYCLARR: String(videoAutomationEnabled && state.enableRecyclarr),
       ENABLE_FLARESOLVERR: String(arrEnabled && state.enableFlaresolverr),
@@ -319,12 +337,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ROMM_WEB_PORT: '7583',
       ROMM_CONTAINER_PORT: '8080',
       ROMM_LIBRARY_ROOT: rommLibraryRoot,
+      ROMM_STEAM_LIBRARY_ENABLED: 'false',
+      ROMM_STEAM_MAC_LIBRARY_ROOT: '',
+      ROMM_STEAM_WINDOWS_LIBRARY_ROOT: '',
+      ROMM_STEAM_LINUX_LIBRARY_ROOT: '',
       ROMM_ASSETS_ROOT: '',
       ROMM_CONFIG_ROOT: '',
       ROMM_RESOURCES_ROOT: '',
       ROMM_REDIS_DATA_ROOT: '',
       ROMM_REDIS_HOST: 'redis',
       ROMM_REDIS_PORT: '6379',
+      ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: 'false',
+      ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY: '5',
       ROMM_DB_DATA_LOCATION: '',
       ROMM_DB_DRIVER: 'postgresql',
       ROMM_DB_HOST: 'database',
@@ -355,6 +379,47 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ROMM_TGDB_API_ENABLED: 'false',
       ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
       ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
+      QUESTARR_URL: 'http://127.0.0.1:7584',
+      QUESTARR_APP_URL: 'http://127.0.0.1:7584',
+      QUESTARR_ALLOWED_ORIGINS: 'http://127.0.0.1:7584,http://localhost:7584',
+      QUESTARR_BIND_IP: '127.0.0.1',
+      QUESTARR_WEB_PORT: '7584',
+      QUESTARR_CONTAINER_PORT: '5000',
+      QUESTARR_DATA_ROOT: '',
+      QUESTARR_LIBRARY_ROOT: rommLibraryRoot,
+      QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
+      QUESTARR_JWT_SECRET: '',
+      QUESTARR_IGDB_CLIENT_ID: state.enableQuestarr ? state.rommIgdbClientId : '',
+      QUESTARR_IGDB_CLIENT_SECRET: state.enableQuestarr ? state.rommIgdbClientSecret : '',
+      QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
+      YOUTARR_URL: 'http://127.0.0.1:3087',
+      YOUTARR_BIND_IP: '127.0.0.1',
+      YOUTARR_WEB_PORT: '3087',
+      YOUTARR_CONTAINER_PORT: '3011',
+      YOUTARR_OUTPUT_ROOT: `${state.mediaRoot}/YouTube`,
+      YOUTARR_CONFIG_ROOT: '',
+      YOUTARR_JOBS_ROOT: '',
+      YOUTARR_IMAGES_ROOT: '',
+      YOUTARR_DB_HOST: 'youtarr-db',
+      YOUTARR_DB_PORT: '3306',
+      YOUTARR_DB_NAME: 'youtarr',
+      YOUTARR_DB_USER: 'youtarr',
+      YOUTARR_DB_PASSWORD: '',
+      YOUTARR_DB_ROOT_PASSWORD: '',
+      YOUTARR_LOGIN_ENABLED: 'true',
+      YOUTARR_ADMIN_USERNAME: state.enableYoutarr ? state.globalUsername : '',
+      YOUTARR_ADMIN_PASSWORD: state.enableYoutarr ? state.globalPassword : '',
+      YOUTARR_TRUST_PROXY: 'false',
+      YOUTARR_LOG_LEVEL: 'info',
+      YOUTARR_PLEX_URL:
+        state.plexInstallMode === 'docker'
+          ? 'http://plex:32400'
+          : state.plexInstallMode === 'disabled'
+            ? ''
+            : 'http://host.docker.internal:32400',
+      YOUTARR_API_KEY: '',
+      YOUTARR_IMAGE: 'dialmaster/youtarr:latest',
+      YOUTARR_DB_IMAGE: 'mariadb:10.11',
       STACKARR_MOVIE_4K_PROFILE_PRESET: '',
       STACKARR_TV_4K_PROFILE_PRESET: '',
       STACKARR_MOVIE_4K_DEFAULT_PROFILE: '',
@@ -422,6 +487,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ['RomM library', state.enableRomm ? state.rommLibraryRoot || `${state.mediaRoot}/Games` : 'Disabled'],
       ['RomM setup', state.enableRomm ? 'Manual in RomM' : 'Disabled'],
       ['RomM metadata', state.enableRomm ? rommMetadataLabel(state.rommMetadataPreset) : 'Disabled'],
+      [
+        'Questarr',
+        state.enableQuestarr
+          ? 'Enabled privately; shares IGDB and game paths; run the Questarr configure command after startup'
+          : 'Disabled'
+      ],
+      [
+        'Youtarr',
+        state.enableYoutarr
+          ? 'Enabled privately with Stackarr authentication and a dedicated MariaDB service'
+          : 'Disabled'
+      ],
       ['Cleanup presets', state.maintainerrCleanupPresets.length ? state.maintainerrCleanupPresets.join(', ') : 'None'],
       [
         'Movie profile',
@@ -605,6 +682,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     form.set('archive', restoreFile);
     if (restoreKeyFile) form.set('backupKey', restoreKeyFile);
     form.set('restorePostgres', String(restorePostgres));
+    form.set('restoreYoutarr', String(restoreYoutarr));
     form.set('restoreNativePlex', String(restoreNativePlex));
     form.set('restorePlexPreferences', String(restorePlexPreferences));
     form.set('restoreNativeJellyfin', String(restoreNativeJellyfin));
@@ -765,6 +843,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                     checked={restorePostgres}
                     label="Restore shared database data"
                     onChange={setRestorePostgres}
+                  />
+                  <ToggleChoice
+                    checked={restoreYoutarr}
+                    label="Restore the Youtarr database when present"
+                    onChange={setRestoreYoutarr}
                   />
                   <ToggleChoice
                     checked={restoreNativePlex}
@@ -964,6 +1047,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               description="Optional private ROM manager and browser-play game library. Stackarr keeps it local unless you explicitly expose it later."
               onChange={(value) => update('enableRomm', value)}
             />
+            <ServiceChoice
+              checked={state.enableQuestarr}
+              label="Game downloads (Questarr)"
+              description="Optional game discovery and downloads. Shares RomM’s IGDB credentials and paths but does not take over its library inventory. Questarr currently stores its own state in SQLite."
+              onChange={(value) => update('enableQuestarr', value)}
+            />
+            <ServiceChoice
+              checked={state.enableYoutarr}
+              label="YouTube library (Youtarr)"
+              description="Optional private YouTube channel tracking and downloads. Uses the shared Stackarr login, a dedicated MariaDB service, and optional Plex refreshes."
+              onChange={(value) => update('enableYoutarr', value)}
+            />
             {state.enableRomm && (
               <div className={styles.form}>
                 <label>
@@ -1008,7 +1103,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                     Playmatch
                   </a>
                 </p>
-                {(state.rommMetadataPreset === 'chef' ||
+                {(state.enableQuestarr ||
+                  state.rommMetadataPreset === 'chef' ||
                   state.rommMetadataPreset === 'twitch' ||
                   state.rommMetadataPreset === 'custom') && (
                   <>
@@ -1090,6 +1186,31 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
                     />
                   </div>
                 )}
+              </div>
+            )}
+            {state.enableQuestarr && !state.enableRomm && (
+              <div className={styles.form}>
+                <label>
+                  Optional Game Destination
+                  <PathInput value={state.rommLibraryRoot} onChange={(value) => update('rommLibraryRoot', value)} />
+                </label>
+                <label>
+                  IGDB Client ID
+                  <input
+                    autoComplete="off"
+                    value={state.rommIgdbClientId}
+                    onChange={(event) => update('rommIgdbClientId', event.target.value)}
+                  />
+                </label>
+                <label>
+                  IGDB Client Secret
+                  <input
+                    autoComplete="off"
+                    type="password"
+                    value={state.rommIgdbClientSecret}
+                    onChange={(event) => update('rommIgdbClientSecret', event.target.value)}
+                  />
+                </label>
               </div>
             )}
             <ServiceChoice
@@ -1188,11 +1309,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               <input
                 autoComplete="username"
                 aria-invalid={Boolean(usernameValidationMessage)}
-                maxLength={accountUsernameMaximumLength}
+                maxLength={state.enableYoutarr ? youtarrUsernameMaximumLength : accountUsernameMaximumLength}
                 pattern={accountUsernamePattern.source}
                 value={state.globalUsername}
                 onChange={(event) => update('globalUsername', event.target.value)}
-                title={`Use up to ${accountUsernameMaximumLength} characters: ${accountUsernameDescription}.`}
+                title={`Use up to ${state.enableYoutarr ? youtarrUsernameMaximumLength : accountUsernameMaximumLength} characters: ${accountUsernameDescription}.`}
               />
               {usernameValidationMessage && <small>{usernameValidationMessage}</small>}
             </label>
@@ -1201,11 +1322,11 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               <input
                 autoComplete="new-password"
                 aria-invalid={Boolean(passwordValidationMessage)}
-                maxLength={portablePasswordMaximumLength}
+                maxLength={state.enableYoutarr ? youtarrPasswordMaximumLength : portablePasswordMaximumLength}
                 type="password"
                 value={state.globalPassword}
                 onChange={(event) => update('globalPassword', event.target.value)}
-                title={`Use ${portablePasswordMinimumLength}–${portablePasswordMaximumLength} characters. Spaces, punctuation, and Unicode are supported.`}
+                title={`Use ${portablePasswordMinimumLength}–${state.enableYoutarr ? youtarrPasswordMaximumLength : portablePasswordMaximumLength} characters. Spaces, punctuation, and Unicode are supported.`}
               />
               {passwordValidationMessage && <small>{passwordValidationMessage}</small>}
             </label>

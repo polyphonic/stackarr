@@ -149,6 +149,7 @@ export type RestoreBackupInput = {
   dryRun?: boolean;
   forceConfig?: boolean;
   restorePostgres?: boolean;
+  restoreYoutarr?: boolean;
   restoreNativePlex?: boolean;
   restorePlexPreferences?: boolean;
   restoreNativeJellyfin?: boolean;
@@ -209,6 +210,8 @@ function buildRestoreArgs(input: RestoreBackupInput) {
   if (input.forceConfig !== false) args.push('--force-config');
   if (input.restorePostgres) args.push('--restore-postgres');
   else args.push('--skip-postgres');
+  if (input.restoreYoutarr) args.push('--restore-youtarr');
+  else args.push('--skip-youtarr');
   if (input.restoreNativePlex) args.push('--restore-native-plex');
   else args.push('--skip-native-plex');
   if (input.restorePlexPreferences) args.push('--restore-plex-preferences');

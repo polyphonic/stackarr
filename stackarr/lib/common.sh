@@ -204,7 +204,7 @@ env_file = sys.argv[1]
 include = re.compile(
     r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
-    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
+    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
@@ -409,6 +409,8 @@ load_env() {
     : "${ENABLE_BOOKORBIT:=false}"
     : "${ENABLE_IMMICH:=false}"
     : "${ENABLE_ROMM:=false}"
+    : "${ENABLE_QUESTARR:=false}"
+    : "${ENABLE_YOUTARR:=false}"
     : "${ENABLE_TINYMEDIAMANAGER:=true}"
     : "${ENABLE_RECYCLARR:=true}"
     : "${ENABLE_FLARESOLVERR:=true}"
@@ -544,12 +546,18 @@ load_env() {
     : "${ROMM_CONTAINER_PORT:=8080}"
     : "${ROMM_URL:=http://127.0.0.1:${ROMM_WEB_PORT}}"
     : "${ROMM_LIBRARY_ROOT:=$GAMES_ROOT}"
+    : "${ROMM_STEAM_LIBRARY_ENABLED:=false}"
+    : "${ROMM_STEAM_MAC_LIBRARY_ROOT:=}"
+    : "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:=}"
+    : "${ROMM_STEAM_LINUX_LIBRARY_ROOT:=}"
     : "${ROMM_ASSETS_ROOT:=$CONFIG_ROOT/romm/assets}"
     : "${ROMM_CONFIG_ROOT:=$CONFIG_ROOT/romm/config}"
     : "${ROMM_RESOURCES_ROOT:=$CONFIG_ROOT/romm/resources}"
     : "${ROMM_REDIS_DATA_ROOT:=$CONFIG_ROOT/romm/redis}"
     : "${ROMM_REDIS_HOST:=redis}"
     : "${ROMM_REDIS_PORT:=6379}"
+    : "${ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:=false}"
+    : "${ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY:=5}"
     : "${ROMM_DB_DATA_LOCATION:=$CONFIG_ROOT/romm/mysql}"
     : "${ROMM_DB_DRIVER:=postgresql}"
     : "${ROMM_DB_HOST:=database}"
@@ -584,6 +592,54 @@ load_env() {
         : "${ROMM_DB_PASSWORD:=}"
         : "${ROMM_DB_ROOT_PASSWORD:=}"
         : "${ROMM_AUTH_SECRET_KEY:=}"
+    fi
+    : "${QUESTARR_BIND_IP:=127.0.0.1}"
+    : "${QUESTARR_WEB_PORT:=7584}"
+    : "${QUESTARR_CONTAINER_PORT:=5000}"
+    : "${QUESTARR_URL:=http://127.0.0.1:${QUESTARR_WEB_PORT}}"
+    : "${QUESTARR_APP_URL:=$QUESTARR_URL}"
+    : "${QUESTARR_ALLOWED_ORIGINS:=$QUESTARR_URL,http://localhost:${QUESTARR_WEB_PORT}}"
+    : "${QUESTARR_DATA_ROOT:=$CONFIG_ROOT/questarr}"
+    : "${QUESTARR_LIBRARY_ROOT:=$ROMM_LIBRARY_ROOT}"
+    : "${QUESTARR_SQLITE_DB_PATH:=/app/data/sqlite.db}"
+    : "${QUESTARR_IGDB_CLIENT_ID:=$ROMM_IGDB_CLIENT_ID}"
+    : "${QUESTARR_IGDB_CLIENT_SECRET:=$ROMM_IGDB_CLIENT_SECRET}"
+    if flag_enabled "${ENABLE_QUESTARR:-false}"; then
+        : "${QUESTARR_JWT_SECRET:=$(random_secret 32)}"
+    else
+        : "${QUESTARR_JWT_SECRET:=}"
+    fi
+    : "${YOUTARR_BIND_IP:=127.0.0.1}"
+    : "${YOUTARR_WEB_PORT:=3087}"
+    : "${YOUTARR_CONTAINER_PORT:=3011}"
+    : "${YOUTARR_URL:=http://127.0.0.1:${YOUTARR_WEB_PORT}}"
+    : "${YOUTARR_OUTPUT_ROOT:=$MEDIA_ROOT/YouTube}"
+    : "${YOUTARR_CONFIG_ROOT:=$CONFIG_ROOT/youtarr/config}"
+    : "${YOUTARR_JOBS_ROOT:=$CONFIG_ROOT/youtarr/jobs}"
+    : "${YOUTARR_IMAGES_ROOT:=$CONFIG_ROOT/youtarr/images}"
+    : "${YOUTARR_DB_HOST:=youtarr-db}"
+    : "${YOUTARR_DB_PORT:=3306}"
+    : "${YOUTARR_DB_NAME:=youtarr}"
+    : "${YOUTARR_DB_USER:=youtarr}"
+    : "${YOUTARR_LOGIN_ENABLED:=true}"
+    : "${YOUTARR_TRUST_PROXY:=false}"
+    : "${YOUTARR_LOG_LEVEL:=info}"
+    : "${YOUTARR_API_KEY:=}"
+    case "$(lowercase "${PLEX_INSTALL_MODE:-native}")" in
+        docker) : "${YOUTARR_PLEX_URL:=http://plex:32400}" ;;
+        disabled) : "${YOUTARR_PLEX_URL:=}" ;;
+        *) : "${YOUTARR_PLEX_URL:=http://host.docker.internal:32400}" ;;
+    esac
+    if flag_enabled "${ENABLE_YOUTARR:-false}"; then
+        : "${YOUTARR_DB_PASSWORD:=$(random_secret 24)}"
+        : "${YOUTARR_DB_ROOT_PASSWORD:=$(random_secret 24)}"
+        : "${YOUTARR_ADMIN_USERNAME:=${USERNAME:-admin}}"
+        : "${YOUTARR_ADMIN_PASSWORD:=${PASSWORD:-$(random_secret 24)}}"
+    else
+        : "${YOUTARR_DB_PASSWORD:=}"
+        : "${YOUTARR_DB_ROOT_PASSWORD:=}"
+        : "${YOUTARR_ADMIN_USERNAME:=}"
+        : "${YOUTARR_ADMIN_PASSWORD:=}"
     fi
     : "${BAZARR_URL:=http://127.0.0.1:6767}"
     : "${SEERR_URL:=http://127.0.0.1:5055}"
@@ -638,6 +694,9 @@ load_env() {
     : "${IMMICH_SERVER_IMAGE:=ghcr.io/immich-app/immich-server}"
     : "${IMMICH_MACHINE_LEARNING_IMAGE:=ghcr.io/immich-app/immich-machine-learning}"
     : "${ROMM_IMAGE:=rommapp/romm:latest}"
+    : "${QUESTARR_IMAGE:=ghcr.io/doezer/questarr:latest}"
+    : "${YOUTARR_IMAGE:=dialmaster/youtarr:latest}"
+    : "${YOUTARR_DB_IMAGE:=mariadb:10.11}"
     : "${ROMM_DB_IMAGE:=}"
     if [[ "${ROMM_DB_HOST:-}" == "romm-db" || "${ROMM_DB_HOST:-}" == "mysql" || "${ROMM_DB_HOST:-}" == "mariadb" || -z "${ROMM_DB_HOST:-}" ]]; then
         ROMM_DB_HOST="database"
@@ -876,7 +935,10 @@ load_env() {
     export ENABLE_CLEANUPARR CLEANUPARR_URL CLEANUPARR_IMAGE CLEANUPARR_BIND_IP CLEANUPARR_PORT CLEANUPARR_AUTO_CONFIGURE CLEANUPARR_MALWARE_CRON
     export ENABLE_AGREGARR AGREGARR_URL AGREGARR_API_KEY AGREGARR_IMAGE AGREGARR_BIND_IP AGREGARR_PORT AGREGARR_PLACEHOLDER_FOLDER
     export IMMICH_URL IMMICH_API_KEY IMMICH_SERVER_IMAGE IMMICH_MACHINE_LEARNING_IMAGE IMMICH_BIND_IP IMMICH_WEB_PORT IMMICH_CONTAINER_PORT IMMICH_UPLOAD_LOCATION IMMICH_VERSION IMMICH_DB_USERNAME IMMICH_DB_PASSWORD IMMICH_DB_DATABASE_NAME IMMICH_DB_VECTOR_EXTENSION
-    export GAMES_ROOT ROMM_URL ROMM_API_KEY ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED ROMM_TGDB_API_ENABLED ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON
+    export GAMES_ROOT ROMM_URL ROMM_API_KEY ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED ROMM_TGDB_API_ENABLED ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON
+    export ROMM_STEAM_LIBRARY_ENABLED ROMM_STEAM_MAC_LIBRARY_ROOT ROMM_STEAM_WINDOWS_LIBRARY_ROOT ROMM_STEAM_LINUX_LIBRARY_ROOT
+    export ENABLE_QUESTARR QUESTARR_URL QUESTARR_APP_URL QUESTARR_ALLOWED_ORIGINS QUESTARR_IMAGE QUESTARR_BIND_IP QUESTARR_WEB_PORT QUESTARR_CONTAINER_PORT QUESTARR_DATA_ROOT QUESTARR_LIBRARY_ROOT QUESTARR_SQLITE_DB_PATH QUESTARR_JWT_SECRET QUESTARR_IGDB_CLIENT_ID QUESTARR_IGDB_CLIENT_SECRET
+    export ENABLE_YOUTARR YOUTARR_URL YOUTARR_API_KEY YOUTARR_IMAGE YOUTARR_DB_IMAGE YOUTARR_BIND_IP YOUTARR_WEB_PORT YOUTARR_CONTAINER_PORT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT YOUTARR_IMAGES_ROOT YOUTARR_DB_HOST YOUTARR_DB_PORT YOUTARR_DB_NAME YOUTARR_DB_USER YOUTARR_DB_PASSWORD YOUTARR_DB_ROOT_PASSWORD YOUTARR_LOGIN_ENABLED YOUTARR_ADMIN_USERNAME YOUTARR_ADMIN_PASSWORD YOUTARR_TRUST_PROXY YOUTARR_LOG_LEVEL YOUTARR_PLEX_URL
     export TRACEARR_URL TRACEARR_API_KEY TRACEARR_IMAGE TRACEARR_BIND_IP TRACEARR_PORT TRACEARR_DB_PASSWORD TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_DATABASE_URL TRACEARR_JWT_SECRET TRACEARR_COOKIE_SECRET TRACEARR_LOG_LEVEL TRACEARR_CORS_ORIGIN
     export PULSARR_API_KEY BOOKORBIT_TOKEN BAZARR_API_KEY TINYMEDIAMANAGER_API_KEY TIDARR_URL TIDARR_API_KEY
     export TRANSMISSION_PASSWORD QBITTORRENT_PASSWORD PROWLARR_PASSWORD RADARR_PASSWORD RADARR4K_PASSWORD SONARR_PASSWORD SONARR4K_PASSWORD LIDARR_PASSWORD BAZARR_PASSWORD PULSARR_PASSWORD BOOKORBIT_PASSWORD TINYMEDIAMANAGER_PASSWORD
@@ -903,7 +965,7 @@ target = Path(sys.argv[1])
 include = re.compile(
     r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
-    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
+    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
@@ -1187,6 +1249,12 @@ service_default_port() {
         romm)
             printf '%s\n' "${ROMM_WEB_PORT:-7583}"
             ;;
+        questarr)
+            printf '%s\n' "${QUESTARR_WEB_PORT:-7584}"
+            ;;
+        youtarr)
+            printf '%s\n' "${YOUTARR_WEB_PORT:-3087}"
+            ;;
         *)
             return 1
             ;;
@@ -1209,6 +1277,12 @@ service_container_port() {
             ;;
         romm)
             printf '%s\n' "${ROMM_CONTAINER_PORT:-8080}"
+            ;;
+        questarr)
+            printf '%s\n' "${QUESTARR_CONTAINER_PORT:-5000}"
+            ;;
+        youtarr)
+            printf '%s\n' "${YOUTARR_CONTAINER_PORT:-3011}"
             ;;
         *)
             service_default_port "$1"
@@ -1502,6 +1576,12 @@ optional_service_enabled() {
         romm)
             flag_enabled "$ENABLE_ROMM"
             ;;
+        questarr)
+            flag_enabled "$ENABLE_QUESTARR"
+            ;;
+        youtarr|youtarr-db)
+            flag_enabled "$ENABLE_YOUTARR"
+            ;;
         tinymediamanager)
             flag_enabled "$ENABLE_TINYMEDIAMANAGER"
             ;;
@@ -1563,7 +1643,7 @@ compose_profile_args() {
         [[ -n "$profile" ]] || continue
         printf -- '--profile\n%s\n' "$profile"
     done < <(selected_media_server_profiles)
-    for profile in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr cleanuparr agregarr tracearr; do
+    for profile in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm questarr youtarr tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr cleanuparr agregarr tracearr; do
         if optional_service_enabled "$profile"; then
             printf -- '--profile\n%s\n' "$profile"
         fi
@@ -1580,7 +1660,7 @@ remove_inactive_torrent_client_container() {
 remove_disabled_optional_containers() {
     local service
 
-    for service in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr cleanuparr agregarr tracearr; do
+    for service in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm questarr youtarr tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr maintainerr cleanuparr agregarr tracearr; do
         if ! optional_service_enabled "$service"; then
             stackarr_compose --profile "$service" rm -f -s "$service" >/dev/null 2>&1 || true
         fi
@@ -1595,6 +1675,10 @@ remove_disabled_optional_containers() {
 
     if ! optional_service_enabled romm; then
         stackarr_compose --profile romm rm -f -s mariadb mysql romm-db >/dev/null 2>&1 || true
+    fi
+
+    if ! optional_service_enabled youtarr; then
+        stackarr_compose --profile youtarr rm -f -s youtarr-db >/dev/null 2>&1 || true
     fi
 }
 
@@ -1736,17 +1820,24 @@ stackarr_compose_file() {
 
 prepare_compose_runtime_file() {
     local source_file="$ROOT_DIR/docker-compose.yml"
-    local project_dir compose_file
+    local agregarr_guard_source="$ROOT_DIR/scripts/agregarr-placeholder-guard.cjs"
+    local project_dir compose_file agregarr_guard_target
 
     project_dir="$(stackarr_compose_project_dir)"
     compose_file="$(stackarr_compose_file)"
+    agregarr_guard_target="$project_dir/agregarr-placeholder-guard.cjs"
 
     [[ -f "$source_file" ]] || fail "Missing compose file: $source_file"
+    [[ -f "$agregarr_guard_source" ]] || fail "Missing Agregarr placeholder guard: $agregarr_guard_source"
     ensure_dir "$project_dir"
 
     if [[ "$compose_file" != "$source_file" ]]; then
         cp "$source_file" "$compose_file"
     fi
+    if [[ "$agregarr_guard_target" != "$agregarr_guard_source" ]]; then
+        cp "$agregarr_guard_source" "$agregarr_guard_target"
+    fi
+    chmod 0644 "$agregarr_guard_target"
 }
 
 stackarr_compose() {

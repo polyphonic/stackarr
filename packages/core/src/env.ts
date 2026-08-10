@@ -57,6 +57,8 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_BOOKORBIT: 'false',
   ENABLE_IMMICH: 'false',
   ENABLE_ROMM: 'false',
+  ENABLE_QUESTARR: 'false',
+  ENABLE_YOUTARR: 'false',
   ENABLE_TINYMEDIAMANAGER: 'true',
   ENABLE_RECYCLARR: 'true',
   ENABLE_FLARESOLVERR: 'true',
@@ -196,12 +198,18 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_WEB_PORT: '7583',
   ROMM_CONTAINER_PORT: '8080',
   ROMM_LIBRARY_ROOT: defaultGamesRoot,
+  ROMM_STEAM_LIBRARY_ENABLED: 'false',
+  ROMM_STEAM_MAC_LIBRARY_ROOT: '',
+  ROMM_STEAM_WINDOWS_LIBRARY_ROOT: '',
+  ROMM_STEAM_LINUX_LIBRARY_ROOT: '',
   ROMM_ASSETS_ROOT: `${defaultConfigRoot}/romm/assets`,
   ROMM_CONFIG_ROOT: `${defaultConfigRoot}/romm/config`,
   ROMM_RESOURCES_ROOT: `${defaultConfigRoot}/romm/resources`,
   ROMM_REDIS_DATA_ROOT: `${defaultConfigRoot}/romm/redis`,
   ROMM_REDIS_HOST: 'redis',
   ROMM_REDIS_PORT: '6379',
+  ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: 'false',
+  ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY: '5',
   ROMM_DB_DATA_LOCATION: `${defaultConfigRoot}/romm/mysql`,
   ROMM_DB_DRIVER: 'postgresql',
   ROMM_DB_HOST: 'database',
@@ -232,6 +240,39 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_TGDB_API_ENABLED: 'false',
   ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: 'false',
   ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
+  QUESTARR_URL: 'http://127.0.0.1:7584',
+  QUESTARR_APP_URL: 'http://127.0.0.1:7584',
+  QUESTARR_ALLOWED_ORIGINS: 'http://127.0.0.1:7584,http://localhost:7584',
+  QUESTARR_BIND_IP: '127.0.0.1',
+  QUESTARR_WEB_PORT: '7584',
+  QUESTARR_CONTAINER_PORT: '5000',
+  QUESTARR_DATA_ROOT: `${defaultConfigRoot}/questarr`,
+  QUESTARR_LIBRARY_ROOT: defaultGamesRoot,
+  QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
+  QUESTARR_JWT_SECRET: '',
+  QUESTARR_IGDB_CLIENT_ID: '',
+  QUESTARR_IGDB_CLIENT_SECRET: '',
+  YOUTARR_URL: 'http://127.0.0.1:3087',
+  YOUTARR_BIND_IP: '127.0.0.1',
+  YOUTARR_WEB_PORT: '3087',
+  YOUTARR_CONTAINER_PORT: '3011',
+  YOUTARR_OUTPUT_ROOT: `${defaultMediaRoot}/YouTube`,
+  YOUTARR_CONFIG_ROOT: `${defaultConfigRoot}/youtarr/config`,
+  YOUTARR_JOBS_ROOT: `${defaultConfigRoot}/youtarr/jobs`,
+  YOUTARR_IMAGES_ROOT: `${defaultConfigRoot}/youtarr/images`,
+  YOUTARR_DB_HOST: 'youtarr-db',
+  YOUTARR_DB_PORT: '3306',
+  YOUTARR_DB_NAME: 'youtarr',
+  YOUTARR_DB_USER: 'youtarr',
+  YOUTARR_DB_PASSWORD: '',
+  YOUTARR_DB_ROOT_PASSWORD: '',
+  YOUTARR_LOGIN_ENABLED: 'true',
+  YOUTARR_ADMIN_USERNAME: '',
+  YOUTARR_ADMIN_PASSWORD: '',
+  YOUTARR_TRUST_PROXY: 'false',
+  YOUTARR_LOG_LEVEL: 'info',
+  YOUTARR_PLEX_URL: 'http://host.docker.internal:32400',
+  YOUTARR_API_KEY: '',
   BAZARR_URL: 'http://127.0.0.1:6767',
   SEERR_URL: 'http://127.0.0.1:5055',
   PULSARR_URL: 'http://127.0.0.1:3003',
@@ -309,6 +350,9 @@ export const managedEnvDefaults: StackarrEnv = {
   IMMICH_SERVER_IMAGE: 'ghcr.io/immich-app/immich-server',
   IMMICH_MACHINE_LEARNING_IMAGE: 'ghcr.io/immich-app/immich-machine-learning',
   ROMM_IMAGE: 'rommapp/romm:latest',
+  QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
+  YOUTARR_IMAGE: 'dialmaster/youtarr:latest',
+  YOUTARR_DB_IMAGE: 'mariadb:10.11',
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
   DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
@@ -537,6 +581,7 @@ export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): Stack
 
   dropDeprecatedCloudflareHostnameKeys(merged);
   normalizeRommDatabaseDefaults(merged);
+  applyYoutarrSecretDefaults(merged);
   applyAppDependencyRules(merged);
   return merged;
 }
@@ -558,6 +603,14 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (!env.ROMM_RESOURCES_ROOT) merged.ROMM_RESOURCES_ROOT = `${appRoot}/config/romm/resources`;
   if (!env.ROMM_REDIS_DATA_ROOT) merged.ROMM_REDIS_DATA_ROOT = `${appRoot}/config/romm/redis`;
   if (!env.ROMM_DB_DATA_LOCATION) merged.ROMM_DB_DATA_LOCATION = `${appRoot}/config/romm/mysql`;
+  if (!env.QUESTARR_DATA_ROOT) merged.QUESTARR_DATA_ROOT = `${appRoot}/config/questarr`;
+  if (!env.QUESTARR_LIBRARY_ROOT) merged.QUESTARR_LIBRARY_ROOT = merged.ROMM_LIBRARY_ROOT || merged.GAMES_ROOT;
+  if (!env.QUESTARR_IGDB_CLIENT_ID) merged.QUESTARR_IGDB_CLIENT_ID = merged.ROMM_IGDB_CLIENT_ID || '';
+  if (!env.QUESTARR_IGDB_CLIENT_SECRET) merged.QUESTARR_IGDB_CLIENT_SECRET = merged.ROMM_IGDB_CLIENT_SECRET || '';
+  if (!env.YOUTARR_OUTPUT_ROOT) merged.YOUTARR_OUTPUT_ROOT = `${merged.MEDIA_ROOT}/YouTube`;
+  if (!env.YOUTARR_CONFIG_ROOT) merged.YOUTARR_CONFIG_ROOT = `${appRoot}/config/youtarr/config`;
+  if (!env.YOUTARR_JOBS_ROOT) merged.YOUTARR_JOBS_ROOT = `${appRoot}/config/youtarr/jobs`;
+  if (!env.YOUTARR_IMAGES_ROOT) merged.YOUTARR_IMAGES_ROOT = `${appRoot}/config/youtarr/images`;
   normalizeRommDatabaseDefaults(merged);
   if (!env.IMMICH_UPLOAD_LOCATION) merged.IMMICH_UPLOAD_LOCATION = `${merged.MEDIA_ROOT}/Pictures`;
   if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
@@ -613,6 +666,8 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyTracearrSecretDefaults(merged, databasePassword);
   applyImmichSecretDefaults(merged);
   applyRommSecretDefaults(merged);
+  applyQuestarrSecretDefaults(merged);
+  applyYoutarrSecretDefaults(merged);
 
   return merged;
 }
@@ -810,6 +865,25 @@ function applyRommSecretDefaults(env: StackarrEnv) {
   env.ROMM_ADMIN_PASSWORD = '';
 }
 
+function applyQuestarrSecretDefaults(env: StackarrEnv) {
+  if (!flagValue(env.ENABLE_QUESTARR)) {
+    return;
+  }
+
+  env.QUESTARR_JWT_SECRET = env.QUESTARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
+}
+
+function applyYoutarrSecretDefaults(env: StackarrEnv) {
+  if (!flagValue(env.ENABLE_YOUTARR)) {
+    return;
+  }
+
+  env.YOUTARR_DB_PASSWORD = env.YOUTARR_DB_PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+  env.YOUTARR_DB_ROOT_PASSWORD = env.YOUTARR_DB_ROOT_PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+  env.YOUTARR_ADMIN_USERNAME = env.YOUTARR_ADMIN_USERNAME || env.USERNAME || 'admin';
+  env.YOUTARR_ADMIN_PASSWORD = env.YOUTARR_ADMIN_PASSWORD || env.PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
+}
+
 function flagValue(value: string | undefined) {
   return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
 }
@@ -903,11 +977,20 @@ function isHostPathKey(key: string) {
     'BOOKS_ROOT',
     'GAMES_ROOT',
     'ROMM_LIBRARY_ROOT',
+    'ROMM_STEAM_MAC_LIBRARY_ROOT',
+    'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
+    'ROMM_STEAM_LINUX_LIBRARY_ROOT',
     'ROMM_ASSETS_ROOT',
     'ROMM_CONFIG_ROOT',
     'ROMM_RESOURCES_ROOT',
     'ROMM_REDIS_DATA_ROOT',
     'ROMM_DB_DATA_LOCATION',
+    'QUESTARR_DATA_ROOT',
+    'QUESTARR_LIBRARY_ROOT',
+    'YOUTARR_OUTPUT_ROOT',
+    'YOUTARR_CONFIG_ROOT',
+    'YOUTARR_JOBS_ROOT',
+    'YOUTARR_IMAGES_ROOT',
     'IMMICH_UPLOAD_LOCATION',
     'PLEX_CONFIG_PATH',
     'PLEX_PREFS_PATH',

@@ -18,6 +18,7 @@ runtime_service_profile() {
         radarr) printf 'movies\n' ;;
         sonarr) printf 'tv\n' ;;
         immich-ml) printf 'immich\n' ;;
+        youtarr-db) printf 'youtarr\n' ;;
         *) printf '%s\n' "$1" ;;
     esac
 }
@@ -32,6 +33,7 @@ runtime_service_enabled() {
         radarr) optional_service_enabled movies ;;
         sonarr) optional_service_enabled tv ;;
         immich-ml) optional_service_enabled immich ;;
+        youtarr-db) optional_service_enabled youtarr ;;
         redis)
             optional_service_enabled immich || optional_service_enabled romm || optional_service_enabled tracearr
             ;;
@@ -41,7 +43,7 @@ runtime_service_enabled() {
 
 validate_runtime_service() {
     case "$1" in
-        database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|maintainerr|cleanuparr|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|immich|immich-ml)
+        database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|maintainerr|cleanuparr|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
             return 0
             ;;
         *)
@@ -64,16 +66,39 @@ apply_service_runtime() {
 
     local profile_args=()
     local service profile
+    local youtarr_db_requested=false
     while IFS= read -r profile; do
         profile_args+=("$profile")
     done < <(compose_profile_args)
 
     for service in "$@"; do
+        if [[ "$service" == "youtarr-db" ]]; then
+            youtarr_db_requested=true
+            break
+        fi
+    done
+
+    if [[ "$youtarr_db_requested" == "true" ]]; then
+        validate_runtime_service youtarr-db
+        if runtime_service_enabled youtarr-db; then
+            stackarr_compose "${profile_args[@]}" up -d --wait --force-recreate youtarr-db
+            ok "youtarr-db container settings applied"
+        else
+            stackarr_compose --profile youtarr rm -f -s youtarr-db >/dev/null 2>&1 || true
+            ok "youtarr-db is disabled; its stale container was removed"
+        fi
+    fi
+
+    for service in "$@"; do
+        [[ "$service" == "youtarr-db" ]] && continue
         validate_runtime_service "$service"
         profile="$(runtime_service_profile "$service")"
 
         if ! runtime_service_enabled "$service"; then
             stackarr_compose --profile "$profile" rm -f -s "$service" >/dev/null 2>&1 || true
+            if [[ "$service" == "youtarr" ]]; then
+                stackarr_compose --profile youtarr rm -f -s youtarr-db >/dev/null 2>&1 || true
+            fi
             ok "$service is disabled; its stale container was removed"
             continue
         fi
@@ -81,6 +106,13 @@ apply_service_runtime() {
         case "$service" in
             romm|immich|immich-ml|tracearr)
                 stackarr_compose "${profile_args[@]}" up -d redis
+                ;;
+            youtarr)
+                ensure_dir "$YOUTARR_OUTPUT_ROOT"
+                ensure_dir "$YOUTARR_CONFIG_ROOT"
+                ensure_dir "$YOUTARR_JOBS_ROOT"
+                ensure_dir "$YOUTARR_IMAGES_ROOT"
+                stackarr_compose "${profile_args[@]}" up -d --wait youtarr-db
                 ;;
         esac
 

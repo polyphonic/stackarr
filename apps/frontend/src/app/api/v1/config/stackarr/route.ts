@@ -152,6 +152,8 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   const tracearrEnabled = String(config.ENABLE_TRACEARR ?? current.ENABLE_TRACEARR ?? '').toLowerCase() === 'true';
   const immichEnabled = String(config.ENABLE_IMMICH ?? current.ENABLE_IMMICH ?? '').toLowerCase() === 'true';
   const rommEnabled = String(config.ENABLE_ROMM ?? current.ENABLE_ROMM ?? '').toLowerCase() === 'true';
+  const questarrEnabled = String(config.ENABLE_QUESTARR ?? current.ENABLE_QUESTARR ?? '').toLowerCase() === 'true';
+  const youtarrEnabled = String(config.ENABLE_YOUTARR ?? current.ENABLE_YOUTARR ?? '').toLowerCase() === 'true';
   const requestedDatabaseImage =
     config.DATABASE_IMAGE || current.DATABASE_IMAGE || 'timescale/timescaledb-ha:pg18.1-ts2.25.0';
   const databaseImage =
@@ -301,6 +303,90 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       config.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON ||
       current.ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON ||
       '0 4 * * *',
+    QUESTARR_URL: config.QUESTARR_URL || current.QUESTARR_URL || 'http://127.0.0.1:7584',
+    QUESTARR_APP_URL: config.QUESTARR_APP_URL || current.QUESTARR_APP_URL || 'http://127.0.0.1:7584',
+    QUESTARR_ALLOWED_ORIGINS:
+      config.QUESTARR_ALLOWED_ORIGINS ||
+      current.QUESTARR_ALLOWED_ORIGINS ||
+      'http://127.0.0.1:7584,http://localhost:7584',
+    QUESTARR_BIND_IP: config.QUESTARR_BIND_IP || current.QUESTARR_BIND_IP || '127.0.0.1',
+    QUESTARR_WEB_PORT: config.QUESTARR_WEB_PORT || current.QUESTARR_WEB_PORT || '7584',
+    QUESTARR_CONTAINER_PORT: config.QUESTARR_CONTAINER_PORT || current.QUESTARR_CONTAINER_PORT || '5000',
+    QUESTARR_DATA_ROOT:
+      config.QUESTARR_DATA_ROOT ||
+      current.QUESTARR_DATA_ROOT ||
+      `${config.CONFIG_ROOT || current.CONFIG_ROOT || ''}/questarr`,
+    QUESTARR_LIBRARY_ROOT:
+      config.QUESTARR_LIBRARY_ROOT ||
+      current.QUESTARR_LIBRARY_ROOT ||
+      config.ROMM_LIBRARY_ROOT ||
+      current.ROMM_LIBRARY_ROOT ||
+      config.GAMES_ROOT ||
+      current.GAMES_ROOT ||
+      '',
+    QUESTARR_SQLITE_DB_PATH: config.QUESTARR_SQLITE_DB_PATH || current.QUESTARR_SQLITE_DB_PATH || '/app/data/sqlite.db',
+    QUESTARR_JWT_SECRET:
+      unredactedConfigValue('QUESTARR_JWT_SECRET') ||
+      current.QUESTARR_JWT_SECRET ||
+      (questarrEnabled ? nodeCrypto.randomBytes(32).toString('hex') : ''),
+    QUESTARR_IGDB_CLIENT_ID:
+      config.QUESTARR_IGDB_CLIENT_ID ||
+      current.QUESTARR_IGDB_CLIENT_ID ||
+      config.ROMM_IGDB_CLIENT_ID ||
+      current.ROMM_IGDB_CLIENT_ID ||
+      '',
+    QUESTARR_IGDB_CLIENT_SECRET:
+      unredactedConfigValue('QUESTARR_IGDB_CLIENT_SECRET') ||
+      current.QUESTARR_IGDB_CLIENT_SECRET ||
+      unredactedConfigValue('ROMM_IGDB_CLIENT_SECRET') ||
+      current.ROMM_IGDB_CLIENT_SECRET ||
+      '',
+    QUESTARR_IMAGE: config.QUESTARR_IMAGE || current.QUESTARR_IMAGE || 'ghcr.io/doezer/questarr:latest',
+    YOUTARR_URL: config.YOUTARR_URL || current.YOUTARR_URL || 'http://127.0.0.1:3087',
+    YOUTARR_BIND_IP: config.YOUTARR_BIND_IP || current.YOUTARR_BIND_IP || '127.0.0.1',
+    YOUTARR_WEB_PORT: config.YOUTARR_WEB_PORT || current.YOUTARR_WEB_PORT || '3087',
+    YOUTARR_CONTAINER_PORT: config.YOUTARR_CONTAINER_PORT || current.YOUTARR_CONTAINER_PORT || '3011',
+    YOUTARR_OUTPUT_ROOT:
+      config.YOUTARR_OUTPUT_ROOT ||
+      current.YOUTARR_OUTPUT_ROOT ||
+      `${config.MEDIA_ROOT || current.MEDIA_ROOT || ''}/YouTube`,
+    YOUTARR_CONFIG_ROOT:
+      config.YOUTARR_CONFIG_ROOT ||
+      current.YOUTARR_CONFIG_ROOT ||
+      `${config.CONFIG_ROOT || current.CONFIG_ROOT || ''}/youtarr/config`,
+    YOUTARR_JOBS_ROOT:
+      config.YOUTARR_JOBS_ROOT ||
+      current.YOUTARR_JOBS_ROOT ||
+      `${config.CONFIG_ROOT || current.CONFIG_ROOT || ''}/youtarr/jobs`,
+    YOUTARR_IMAGES_ROOT:
+      config.YOUTARR_IMAGES_ROOT ||
+      current.YOUTARR_IMAGES_ROOT ||
+      `${config.CONFIG_ROOT || current.CONFIG_ROOT || ''}/youtarr/images`,
+    YOUTARR_DB_HOST: config.YOUTARR_DB_HOST || current.YOUTARR_DB_HOST || 'youtarr-db',
+    YOUTARR_DB_PORT: config.YOUTARR_DB_PORT || current.YOUTARR_DB_PORT || '3306',
+    YOUTARR_DB_NAME: config.YOUTARR_DB_NAME || current.YOUTARR_DB_NAME || 'youtarr',
+    YOUTARR_DB_USER: config.YOUTARR_DB_USER || current.YOUTARR_DB_USER || 'youtarr',
+    YOUTARR_DB_PASSWORD:
+      unredactedConfigValue('YOUTARR_DB_PASSWORD') ||
+      current.YOUTARR_DB_PASSWORD ||
+      (youtarrEnabled ? nodeCrypto.randomBytes(24).toString('hex') : ''),
+    YOUTARR_DB_ROOT_PASSWORD:
+      unredactedConfigValue('YOUTARR_DB_ROOT_PASSWORD') ||
+      current.YOUTARR_DB_ROOT_PASSWORD ||
+      (youtarrEnabled ? nodeCrypto.randomBytes(24).toString('hex') : ''),
+    YOUTARR_LOGIN_ENABLED: config.YOUTARR_LOGIN_ENABLED || current.YOUTARR_LOGIN_ENABLED || 'true',
+    YOUTARR_ADMIN_USERNAME:
+      config.YOUTARR_ADMIN_USERNAME || current.YOUTARR_ADMIN_USERNAME || config.USERNAME || current.USERNAME || 'admin',
+    YOUTARR_ADMIN_PASSWORD:
+      unredactedConfigValue('YOUTARR_ADMIN_PASSWORD') ||
+      current.YOUTARR_ADMIN_PASSWORD ||
+      (youtarrEnabled ? stackPassword : ''),
+    YOUTARR_TRUST_PROXY: config.YOUTARR_TRUST_PROXY || current.YOUTARR_TRUST_PROXY || 'false',
+    YOUTARR_LOG_LEVEL: config.YOUTARR_LOG_LEVEL || current.YOUTARR_LOG_LEVEL || 'info',
+    YOUTARR_PLEX_URL: config.YOUTARR_PLEX_URL ?? current.YOUTARR_PLEX_URL ?? '',
+    YOUTARR_API_KEY: unredactedConfigValue('YOUTARR_API_KEY') || current.YOUTARR_API_KEY || '',
+    YOUTARR_IMAGE: config.YOUTARR_IMAGE || current.YOUTARR_IMAGE || 'dialmaster/youtarr:latest',
+    YOUTARR_DB_IMAGE: config.YOUTARR_DB_IMAGE || current.YOUTARR_DB_IMAGE || 'mariadb:10.11',
     SEERR_DB_TYPE: config.SEERR_DB_TYPE || current.SEERR_DB_TYPE || 'postgres',
     SEERR_POSTGRES_DATABASE: config.SEERR_POSTGRES_DATABASE || current.SEERR_POSTGRES_DATABASE || 'seerr',
     SEERR_POSTGRES_USER: config.SEERR_POSTGRES_USER || current.SEERR_POSTGRES_USER || 'seerr',

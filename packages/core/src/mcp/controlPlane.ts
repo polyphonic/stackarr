@@ -155,6 +155,8 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
   if (category === 'apps') {
     if (name.includes('_pulsarr_')) return { allOf: ['pulsarr'] };
     if (name.includes('_agregarr_')) return { allOf: ['agregarr'] };
+    if (name.includes('_questarr_')) return { allOf: ['questarr'] };
+    if (name.includes('_youtarr_')) return { allOf: ['youtarr'] };
     return { anyOf: nativeAppServices };
   }
   if (category === 'seerr') return { anyOf: ['seerr'] };
@@ -173,7 +175,6 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
     return { anyOf: downloaderServices };
   }
 
-  if (name.includes('cloudflare')) return { allOf: ['cloudflared'] };
   if (name === 'stackarr_check_service_databases') return { allOf: ['database'] };
   if (name === 'stackarr_test_indexers') return { allOf: ['prowlarr'] };
   if (name === 'stackarr_test_arr_to_downloader') return { anyOfEach: [arrServices, downloaderServices] };

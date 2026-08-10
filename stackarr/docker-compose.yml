@@ -470,15 +470,29 @@ services:
       - agregarr
     container_name: agregarr
     image: ${AGREGARR_IMAGE:-agregarr/agregarr:latest}
-    user: "${PUID:-1000}:${PGID:-1000}"
+    # The startup guard needs root only long enough to patch an upstream cleanup bug,
+    # then Node drops permanently to the installation's configured runtime user.
+    user: "0:0"
     environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       TZ: ${TIMEZONE:-Etc/UTC}
       CONFIG_DIRECTORY: /app/config
       # Playwright-backed IMDb/Letterboxd sources need writable Chromium runtime paths.
       HOME: /tmp
       XDG_CONFIG_HOME: /tmp/.config
       XDG_CACHE_HOME: /tmp/.cache
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        exec /sbin/tini -- node /stackarr-runtime/agregarr-placeholder-guard.cjs /app/dist/lib/placeholders/services/PlaceholderCleanup.js /app/dist/lib/placeholders/placeholderManager.js "$${PUID}" "$${PGID}" "$$@"
+      - stackarr-agregarr
+    command:
+      - yarn
+      - start
     volumes:
+      - "./agregarr-placeholder-guard.cjs:/stackarr-runtime/agregarr-placeholder-guard.cjs:ro"
       - "${APP_ROOT:-./.stackarr}/config/agregarr:/app/config"
       # Required only when placeholder-backed sources (e.g. Coming Soon) are enabled.
       # Agregarr writes to a configurable subfolder (default: _Trailers) inside these Plex library roots
@@ -753,6 +767,8 @@ services:
       DB_QUERY_JSON: ${ROMM_DB_QUERY_JSON:-}
       REDIS_HOST: ${ROMM_REDIS_HOST:-redis}
       REDIS_PORT: ${ROMM_REDIS_PORT:-6379}
+      ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: ${ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false}
+      RESCAN_ON_FILESYSTEM_CHANGE_DELAY: ${ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY:-5}
       ROMM_AUTH_SECRET_KEY: ${ROMM_AUTH_SECRET_KEY:-romm-local-secret-change-me}
       IGDB_CLIENT_ID: ${ROMM_IGDB_CLIENT_ID:-}
       IGDB_CLIENT_SECRET: ${ROMM_IGDB_CLIENT_SECRET:-}
@@ -773,6 +789,9 @@ services:
     volumes:
       - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"
+      - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/Steam"
+      - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamWindows"
+      - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamLinux"
       - "${ROMM_ASSETS_ROOT:-./.stackarr/config/romm/assets}:/romm/assets"
       - "${ROMM_CONFIG_ROOT:-./.stackarr/config/romm/config}:/romm/config"
     ports:
@@ -786,10 +805,143 @@ services:
       org.opencontainers.image.title: RomM
       org.opencontainers.image.description: Private ROM manager and browser-play game library for Stackarr.
       org.opencontainers.image.source: https://github.com/rommapp/romm
+      com.stackarr.romm.steam-library-enabled: ${ROMM_STEAM_LIBRARY_ENABLED:-false}
       org.opencontainers.image.documentation: https://docs.romm.app/latest/Getting-Started/Quick-Start-Guide/
       homepage.name: RomM
       homepage.description: Private game library
       homepage.href: ${ROMM_URL:-http://127.0.0.1:7583}
+
+  questarr:
+    profiles:
+      - questarr
+    container_name: questarr
+    image: ${QUESTARR_IMAGE:-ghcr.io/doezer/questarr:latest}
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TIMEZONE:-Etc/UTC}
+      HOST: 0.0.0.0
+      PORT: ${QUESTARR_CONTAINER_PORT:-5000}
+      SQLITE_DB_PATH: ${QUESTARR_SQLITE_DB_PATH:-/app/data/sqlite.db}
+      JWT_SECRET: ${QUESTARR_JWT_SECRET:-}
+      IGDB_CLIENT_ID: ${QUESTARR_IGDB_CLIENT_ID:-${ROMM_IGDB_CLIENT_ID:-}}
+      IGDB_CLIENT_SECRET: ${QUESTARR_IGDB_CLIENT_SECRET:-${ROMM_IGDB_CLIENT_SECRET:-}}
+      APP_URL: ${QUESTARR_APP_URL:-http://127.0.0.1:7584}
+      ALLOWED_ORIGINS: ${QUESTARR_ALLOWED_ORIGINS:-http://127.0.0.1:7584,http://localhost:7584}
+    volumes:
+      - "${QUESTARR_DATA_ROOT:-./.stackarr/config/questarr}:/app/data"
+      - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
+      - "${QUESTARR_LIBRARY_ROOT:-./.stackarr/media/Games}:/games"
+    ports:
+      - "${QUESTARR_BIND_IP:-127.0.0.1}:${QUESTARR_WEB_PORT:-7584}:${QUESTARR_CONTAINER_PORT:-5000}"
+    labels:
+      org.opencontainers.image.title: Questarr
+      org.opencontainers.image.description: Game discovery and download automation for a RomM-managed library.
+      org.opencontainers.image.source: https://github.com/Doezer/Questarr
+      org.opencontainers.image.documentation: https://github.com/Doezer/Questarr/wiki/Configuration
+      homepage.name: Questarr
+      homepage.description: Game discovery and downloads
+      homepage.href: ${QUESTARR_URL:-http://127.0.0.1:7584}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:''+(process.env.PORT||5000)+''/api/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  youtarr-db:
+    profiles:
+      - youtarr
+    container_name: youtarr-db
+    image: ${YOUTARR_DB_IMAGE:-mariadb:10.11}
+    environment:
+      MYSQL_ROOT_PASSWORD: ${YOUTARR_DB_ROOT_PASSWORD:-}
+      MYSQL_DATABASE: ${YOUTARR_DB_NAME:-youtarr}
+      MYSQL_USER: ${YOUTARR_DB_USER:-youtarr}
+      MYSQL_PASSWORD: ${YOUTARR_DB_PASSWORD:-}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-file-per-table=1
+    volumes:
+      - youtarr-db-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mariadb-admin ping -h 127.0.0.1 --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  youtarr:
+    profiles:
+      - youtarr
+    container_name: youtarr
+    image: ${YOUTARR_IMAGE:-dialmaster/youtarr:latest}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      IN_DOCKER_CONTAINER: 1
+      TZ: ${TIMEZONE:-Etc/UTC}
+      DB_HOST: ${YOUTARR_DB_HOST:-youtarr-db}
+      DB_PORT: ${YOUTARR_DB_PORT:-3306}
+      DB_USER: ${YOUTARR_DB_USER:-youtarr}
+      DB_PASSWORD: ${YOUTARR_DB_PASSWORD:-}
+      DB_NAME: ${YOUTARR_DB_NAME:-youtarr}
+      AUTH_ENABLED: ${YOUTARR_LOGIN_ENABLED:-true}
+      AUTH_PRESET_USERNAME: ${YOUTARR_ADMIN_USERNAME:-admin}
+      AUTH_PRESET_PASSWORD: ${YOUTARR_ADMIN_PASSWORD:-}
+      TRUST_PROXY: ${YOUTARR_TRUST_PROXY:-false}
+      LOG_LEVEL: ${YOUTARR_LOG_LEVEL:-info}
+      PORT: ${YOUTARR_CONTAINER_PORT:-3011}
+      YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}
+      PLEX_URL: ${YOUTARR_PLEX_URL:-}
+    volumes:
+      - "${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}:/usr/src/app/data"
+      - "${YOUTARR_IMAGES_ROOT:-./.stackarr/config/youtarr/images}:/app/server/images"
+      - "${YOUTARR_CONFIG_ROOT:-./.stackarr/config/youtarr/config}:/app/config"
+      - "${YOUTARR_JOBS_ROOT:-./.stackarr/config/youtarr/jobs}:/app/jobs"
+    ports:
+      - "${YOUTARR_BIND_IP:-127.0.0.1}:${YOUTARR_WEB_PORT:-3087}:${YOUTARR_CONTAINER_PORT:-3011}"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      youtarr-db:
+        condition: service_healthy
+    labels:
+      org.opencontainers.image.title: Youtarr
+      org.opencontainers.image.description: Private YouTube channel tracking, downloads, and Plex library integration.
+      org.opencontainers.image.source: https://github.com/DialmasterOrg/Youtarr
+      org.opencontainers.image.documentation: https://github.com/DialmasterOrg/Youtarr/wiki
+      homepage.name: Youtarr
+      homepage.description: YouTube downloads and library management
+      homepage.href: ${YOUTARR_URL:-http://127.0.0.1:3087}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "--output",
+          "/dev/null",
+          "http://127.0.0.1:${YOUTARR_CONTAINER_PORT:-3011}/api/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
 
   immich:
     profiles:
@@ -846,3 +998,4 @@ volumes:
   stackarr-state:
   redis-data:
   immich-model-cache:
+  youtarr-db-data:

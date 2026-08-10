@@ -230,6 +230,40 @@
   background: var(--panelBackground);
 }
 
+.connectLayout {
+  display: grid;
+  max-width: 900px;
+}
+
+.connectSection {
+  display: grid;
+  gap: 14px;
+  padding: 2px 0 22px;
+}
+
+.connectSection + .connectSection {
+  padding-top: 22px;
+  border-top: 1px solid var(--borderColor);
+}
+
+.connectHeading {
+  max-width: 70ch;
+}
+
+.connectHeading h3 {
+  margin: 0;
+  color: var(--textColor);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.connectHeading p {
+  margin: 4px 0 0;
+  color: var(--mutedTextColor);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .securityLayout {
   display: grid;
   max-width: 900px;

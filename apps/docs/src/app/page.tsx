@@ -175,7 +175,7 @@ export default function LandingPage() {
                   )
                   .map((service) => (
                     <a href={`/docs/integrations/${service.slug}`} key={service.name} title={service.name}>
-                      <img alt={service.name} src={`/logos/${service.logo}.svg`} />
+                      <img alt={service.name} src={`/logos/${service.logo}.${service.logoExtension ?? 'svg'}`} />
                     </a>
                   ))}
               </div>

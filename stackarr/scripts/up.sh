@@ -9,6 +9,12 @@ print_header "Stackarr Up"
 load_env
 write_compose_env_file
 wait_for_stackarr_storage
+if optional_service_enabled youtarr; then
+    ensure_dir "$YOUTARR_OUTPUT_ROOT"
+    ensure_dir "$YOUTARR_CONFIG_ROOT"
+    ensure_dir "$YOUTARR_JOBS_ROOT"
+    ensure_dir "$YOUTARR_IMAGES_ROOT"
+fi
 if [[ "${STACKARR_RUN_SOURCE:-}" == "startup" ]]; then
     wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
 else

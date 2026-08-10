@@ -15,6 +15,7 @@ description: Private ROM and game-library management in Stackarr.
 - Shared Postgres database: `${ROMM_DB_NAME:-romm}` on the `database` service
 - Shared Redis cache: `redis`
 - Library mount: `${ROMM_LIBRARY_ROOT}` → `/romm/library`
+- Optional Steam library mounts for macOS, Windows, and Linux desktop libraries
 - Durable app paths for assets, config, and fetched resources
 - Dashboard, CLI, MCP, and Portless service-link visibility
 
@@ -31,6 +32,41 @@ docker exec app /app/bin/stackarr romm status
 ## Folder structure
 
 RomM expects the game library to follow its platform-oriented folder structure. Keep the actual ROM library under your configured Games folder and let Stackarr keep RomM's database/assets/config under the app config root.
+
+Steam integration is off by default. Enable it only when the Stackarr host can access one or more Steam library folders, either from Steam installed on that machine or from a mounted share. Leave it disabled on a NAS that has no accessible desktop Steam libraries.
+
+Each desktop OS has an independent source path because Steam installations are commonly kept in separate folders:
+
+| Setting | Container mount | RomM platform folder |
+| --- | --- | --- |
+| `ROMM_STEAM_MAC_LIBRARY_ROOT` | `/romm/Steam` | `mac` |
+| `ROMM_STEAM_WINDOWS_LIBRARY_ROOT` | `/romm/SteamWindows` | `win` |
+| `ROMM_STEAM_LINUX_LIBRARY_ROOT` | `/romm/SteamLinux` | `linux` |
+
+Each source is the Steam library folder that contains `steamapps`. Configure only the operating systems you archive. A peer-folder layout keeps relative symlinks valid both on the host and in the container:
+
+```text
+Games/
+├── RomM/
+│   └── roms/
+│       ├── mac -> ../../Steam/steamapps/common
+│       ├── win -> ../../SteamWindows/steamapps/common
+│       └── linux -> ../../SteamLinux/steamapps/common
+├── Steam/
+│   └── steamapps/common/
+├── SteamWindows/
+│   └── steamapps/common/
+└── SteamLinux/
+    └── steamapps/common/
+```
+
+This is a filesystem symlink/bind-mount arrangement, not a RomM folder-alias or platform-variant mapping. The folders use RomM's official `mac`, `win`, and `linux` platform slugs. When Steam integration is disabled, Stackarr clears all three external roots and Compose falls back to the normal RomM library source rather than mounting an external desktop library.
+
+## Filesystem watcher
+
+Enable **Filesystem Watcher** under **Apps → RomM → Settings** to have RomM schedule a targeted Quick Scan when game files are created, moved, or deleted. **Watcher Delay (minutes)** controls the debounce interval and defaults to five minutes. The watcher is separate from scheduled rescans: it reacts only to filesystem changes and does not add a recurring full-library scan.
+
+Enabling the watcher does not retroactively enrich games that RomM already indexed without metadata providers. Run an **Unmatched Scan** once for those existing records; subsequent Steam filesystem changes will trigger the watcher normally.
 
 ## Metadata providers
 

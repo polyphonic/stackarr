@@ -55,6 +55,8 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal((enabledServicesQuestion.choices as string[]).includes('tracearr'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('immich'), true);
   assert.equal((enabledServicesQuestion.choices as string[]).includes('romm'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('questarr'), true);
+  assert.equal((enabledServicesQuestion.choices as string[]).includes('youtarr'), true);
   assert.equal(profile.defaults.globalUsername, 'admin');
   assert.equal(profile.defaults.globalEmail, '');
   assert.equal(profile.defaults.databaseMode, 'app-default');
@@ -72,6 +74,8 @@ test('setup profile keeps Pulsarr user routing out of vanilla setup', () => {
   assert.equal(profile.defaults.enableTracearr, false);
   assert.equal(profile.defaults.enableImmich, false);
   assert.equal(profile.defaults.enableRomm, false);
+  assert.equal(profile.defaults.enableQuestarr, false);
+  assert.equal(profile.defaults.enableYoutarr, false);
   assert.deepEqual(profile.defaults.maintainerrCleanupPresets, []);
   assert.equal(profile.defaults.backupRetentionCount, 52);
   assert.equal('pulsarrHdLiteUsers' in profile.defaults, false);
@@ -175,6 +179,10 @@ test('dry-run setup records RomM config for optional private game libraries', as
   assert.equal(result.plan.config.ROMM_BIND_IP, '127.0.0.1');
   assert.equal(result.plan.config.GAMES_ROOT, '/srv/media/Games');
   assert.equal(result.plan.config.ROMM_LIBRARY_ROOT, '/srv/media/Games');
+  assert.equal(result.plan.config.ROMM_STEAM_LIBRARY_ENABLED, 'false');
+  assert.equal(result.plan.config.ROMM_STEAM_MAC_LIBRARY_ROOT, '');
+  assert.equal(result.plan.config.ROMM_STEAM_WINDOWS_LIBRARY_ROOT, '');
+  assert.equal(result.plan.config.ROMM_STEAM_LINUX_LIBRARY_ROOT, '');
   assert.equal(result.plan.config.ROMM_DB_DRIVER, 'postgresql');
   assert.equal(result.plan.config.ROMM_DB_HOST, 'database');
   assert.equal(result.plan.config.ROMM_DB_PORT, '5432');
@@ -184,10 +192,95 @@ test('dry-run setup records RomM config for optional private game libraries', as
   assert.equal(result.plan.config.ROMM_AUTH_SECRET_KEY, '********');
   assert.equal(result.plan.config.ROMM_REDIS_HOST, 'redis');
   assert.equal(result.plan.config.ROMM_REDIS_PORT, '6379');
+  assert.equal(result.plan.config.ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE, 'false');
+  assert.equal(result.plan.config.ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY, '5');
   assert.equal(result.plan.config.ROMM_AUTO_CONFIGURE, 'false');
   assert.equal(result.plan.config.ROMM_ADMIN_USERNAME, '');
   assert.equal(result.plan.config.ROMM_ADMIN_PASSWORD, '********');
   assert.equal(result.plan.config.ROMM_HASHEOUS_API_ENABLED, 'true');
+});
+
+test('dry-run setup shares RomM IGDB config with SQLite-backed Questarr', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    databaseMode: 'postgres',
+    mediaRoot: '/srv/media',
+    enabledMediaTypes: ['games'],
+    enabledServices: ['romm', 'questarr'],
+    rommIgdbClientId: 'igdb-client',
+    rommIgdbClientSecret: 'igdb-secret'
+  });
+
+  assert.equal(result.plan.config.STACKARR_DATABASE_MODE, 'postgres');
+  assert.equal(result.plan.config.ENABLE_QUESTARR, 'true');
+  assert.equal(result.plan.config.QUESTARR_URL, 'http://127.0.0.1:7584');
+  assert.equal(result.plan.config.QUESTARR_LIBRARY_ROOT, '/srv/media/Games');
+  assert.equal(result.plan.config.QUESTARR_SQLITE_DB_PATH, '/app/data/sqlite.db');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_ID, 'igdb-client');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_SECRET, '********');
+  assert.equal(result.plan.config.QUESTARR_JWT_SECRET, '********');
+  assert.equal(result.plan.config.QUESTARR_IMAGE, 'ghcr.io/doezer/questarr:latest');
+  assert.equal(Object.hasOwn(result.plan.config, 'QUESTARR_POSTGRES_DATABASE'), false);
+});
+
+test('dry-run setup keeps IGDB available when Questarr is enabled without RomM', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['questarr'],
+    rommMetadataPreset: 'quick',
+    rommIgdbClientId: 'questarr-client',
+    rommIgdbClientSecret: 'questarr-secret'
+  });
+
+  assert.equal(result.plan.config.ENABLE_ROMM, 'false');
+  assert.equal(result.plan.config.ENABLE_QUESTARR, 'true');
+  assert.equal(result.plan.config.ROMM_IGDB_CLIENT_ID, '');
+  assert.equal(result.plan.config.ROMM_IGDB_CLIENT_SECRET, '********');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_ID, 'questarr-client');
+  assert.equal(result.plan.config.QUESTARR_IGDB_CLIENT_SECRET, '********');
+});
+
+test('dry-run setup provisions private authenticated Youtarr with a dedicated MariaDB service', async () => {
+  const result = await setupMediaServerAction({
+    dryRun: true,
+    mediaRoot: '/srv/media',
+    plexInstallMode: 'docker',
+    globalUsername: 'stackarr-admin',
+    globalPassword: 'PortableYoutarrPassword',
+    enabledServices: ['youtarr']
+  });
+
+  assert.equal(result.plan.config.ENABLE_YOUTARR, 'true');
+  assert.equal(result.plan.config.YOUTARR_URL, 'http://127.0.0.1:3087');
+  assert.equal(result.plan.config.YOUTARR_OUTPUT_ROOT, '/srv/media/YouTube');
+  assert.equal(result.plan.config.YOUTARR_DB_HOST, 'youtarr-db');
+  assert.equal(result.plan.config.YOUTARR_DB_PORT, '3306');
+  assert.equal(result.plan.config.YOUTARR_DB_PASSWORD, '********');
+  assert.equal(result.plan.config.YOUTARR_DB_ROOT_PASSWORD, '********');
+  assert.equal(result.plan.config.YOUTARR_LOGIN_ENABLED, 'true');
+  assert.equal(result.plan.config.YOUTARR_ADMIN_USERNAME, 'stackarr-admin');
+  assert.equal(result.plan.config.YOUTARR_ADMIN_PASSWORD, '********');
+  assert.equal(result.plan.config.YOUTARR_PLEX_URL, 'http://plex:32400');
+  assert.equal(result.plan.config.YOUTARR_IMAGE, 'dialmaster/youtarr:latest');
+  assert.equal(result.plan.config.YOUTARR_DB_IMAGE, 'mariadb:10.11');
+});
+
+test('dry-run setup enforces Youtarr credential limits before first run', async () => {
+  const usernameResult = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['youtarr'],
+    globalUsername: 'a'.repeat(33),
+    globalPassword: 'PortablePassword'
+  });
+  const passwordResult = await setupMediaServerAction({
+    dryRun: true,
+    enabledServices: ['youtarr'],
+    globalUsername: 'stackarr-admin',
+    globalPassword: 'a'.repeat(65)
+  });
+
+  assert.match(usernameResult.error ?? '', /at most 32 characters when Youtarr is enabled/);
+  assert.match(passwordResult.error ?? '', /at most 64 characters when Youtarr is enabled/);
 });
 
 test('dry-run setup records Maintainerr cleanup preset ideas for the wired service', async () => {
@@ -494,6 +587,16 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(agregarrConfigure, /AGREGARR_PLACEHOLDER_FOLDER/);
   assert.match(agregarrConfigure, /_Trailers/);
   assert.match(agregarrConfigure, /FILTERED_HUB_SUBTYPES/);
+  assert.match(agregarrConfigure, /NEW_RELEASES_HUB_IDENTIFIERS/);
+  assert.match(agregarrConfigure, /"movie": "New Movies"/);
+  assert.match(agregarrConfigure, /"show": "New Episodes"/);
+  assert.match(agregarrConfigure, /configure_new_releases/);
+  assert.match(agregarrConfigure, /place_new_releases_first/);
+  assert.match(agregarrConfigure, /update_plex_collection_title/);
+  assert.match(agregarrConfigure, /title\.value/);
+  assert.match(agregarrConfigure, /"subtype": "recently_released"/);
+  assert.match(agregarrConfigure, /episode\.originallyAvailableAt:desc/);
+  assert.match(agregarrConfigure, /"\/reorder"/);
   assert.match(agregarrConfigure, /\/discovery\/hubs\/scan/);
   assert.match(agregarrConfigure, /\/defaulthubs\/\{hub\['id'\]\}\/settings/);
   assert.match(agregarrConfigure, /\/settings\/jobs\/plex-collections-sync\/run/);
