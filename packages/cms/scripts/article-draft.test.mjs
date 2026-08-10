@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { markdownToPortableText, validateArticleDraft } from './lib/article-draft.mjs';
+import {
+  findCopiedSentences,
+  publisherMatchesSource,
+  validateSourceIdentity,
+  verifyArticleSources
+} from './lib/source-verification.mjs';
 
 const validDraft = {
   title: 'The Correct Way to Expose a Home Server to the Public Internet',
@@ -85,6 +91,19 @@ test('rejects first-person experiential framing', () => {
   assert.match(result.errors.join('\n'), /first-person/i);
 });
 
+test('rejects first-person framing outside a narrow verb list', () => {
+  const result = validateArticleDraft({
+    ...validDraft,
+    contentMarkdown: validDraft.contentMarkdown.replace(
+      'A public hostname should not create',
+      'I connected every service in my lab, but a public hostname should not create'
+    )
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join('\n'), /first-person/i);
+});
+
 test('rejects off-niche topics', () => {
   const result = validateArticleDraft({
     ...validDraft,
@@ -156,6 +175,33 @@ test('rejects repository evidence paths that escape into a sibling directory', a
   }
 });
 
+test('rejects repository evidence symlinks that resolve outside the repository', async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'stackarr-blog-repo-'));
+  const outsideDir = `${repoRoot}-outside`;
+  await mkdir(outsideDir);
+  const outsideFile = path.join(outsideDir, 'evidence.txt');
+  await writeFile(outsideFile, 'Cloudflare access email allowlist', 'utf8');
+  await symlink(outsideFile, path.join(repoRoot, 'evidence-link.txt'));
+
+  try {
+    const result = validateArticleDraft(
+      {
+        ...validDraft,
+        productConnection: { ...validDraft.productConnection, evidencePaths: ['evidence-link.txt'] }
+      },
+      { repoRoot }
+    );
+
+    assert.equal(result.valid, false);
+    assert.match(result.errors.join('\n'), /evidence does not exist/i);
+  } finally {
+    await Promise.all([
+      rm(repoRoot, { recursive: true, force: true }),
+      rm(outsideDir, { recursive: true, force: true })
+    ]);
+  }
+});
+
 test('rejects service slugs that are not in the local integration catalog', () => {
   const result = validateArticleDraft(
     { ...validDraft, referencedServices: ['plex', 'unreviewed-remote-service'] },
@@ -166,6 +212,19 @@ test('rejects service slugs that are not in the local integration catalog', () =
   assert.match(result.errors.join('\n'), /integration catalog/i);
 });
 
+test('rejects an unrelated real file as product evidence', () => {
+  const result = validateArticleDraft(
+    {
+      ...validDraft,
+      productConnection: { ...validDraft.productConnection, evidencePaths: ['package.json'] }
+    },
+    { repoRoot: new URL('../../..', import.meta.url).pathname }
+  );
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join('\n'), /does not substantiate/i);
+});
+
 test('rejects a canonical URL that gives article authority to another site', () => {
   const result = validateArticleDraft({
     ...validDraft,
@@ -174,6 +233,64 @@ test('rejects a canonical URL that gives article authority to another site', () 
 
   assert.equal(result.valid, false);
   assert.match(result.errors.join('\n'), /canonical URL/i);
+});
+
+test('requires a validated product connection for Stackarr mentions', () => {
+  const result = validateArticleDraft({
+    ...validDraft,
+    productConnection: { relevant: false },
+    contentMarkdown: `${validDraft.contentMarkdown}\n\nStackarr can simplify this route.`
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join('\n'), /without a validated product connection/i);
+});
+
+test('rejects reserved source hosts and mismatched primary-source publishers', () => {
+  assert.throws(
+    () =>
+      validateSourceIdentity({
+        kind: 'primary',
+        publisher: 'Example',
+        url: 'https://example.invalid/official-docs'
+      }),
+    /public HTTPS endpoint/i
+  );
+  assert.equal(publisherMatchesSource('Cloudflare', 'https://developers.cloudflare.com/cloudflare-one/'), true);
+  assert.throws(
+    () =>
+      validateSourceIdentity({
+        kind: 'primary',
+        publisher: 'Cloudflare',
+        url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP'
+      }),
+    /publisher does not match/i
+  );
+});
+
+test('rejects source addresses on blocked networks before fetching', async () => {
+  await assert.rejects(
+    verifyArticleSources({
+      contentMarkdown: validDraft.contentMarkdown,
+      sources: [
+        {
+          title: 'Local administration page',
+          publisher: 'Local service',
+          url: 'https://127.0.0.1/admin',
+          kind: 'reference'
+        }
+      ]
+    }),
+    /blocked network/i
+  );
+});
+
+test('detects long sentences copied verbatim from a source body', () => {
+  const sentence =
+    'A public hostname should never create a direct unauthenticated path to an administrative dashboard on the home network.';
+  assert.deepEqual(findCopiedSentences(sentence, `<p>${sentence}</p>`), [
+    'a public hostname should never create a direct unauthenticated path to an administrative dashboard on the home network'
+  ]);
 });
 
 test('converts useful markdown structures into Portable Text', () => {

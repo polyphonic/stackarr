@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { createClient } from '@sanity/client';
 import { markdownToPortableText, validateArticleDraft } from './lib/article-draft.mjs';
+import { verifyArticleSources } from './lib/source-verification.mjs';
 
 const inputPath = process.argv[2];
 if (!inputPath) {
@@ -56,25 +57,43 @@ const publicClient = createClient({
 });
 
 const publicId = `post-${draft.slug}`;
-const collisions = await client.fetch(
-  `*[_type == "post" && (_id == $id || _id == "drafts." + $id || slug.current == $slug || title == $title)]{_id}`,
-  { id: publicId, slug: draft.slug, title: draft.title }
-);
+const categoryId = `category-${draft.categorySlug}`;
+const [collisions, support, existingPosts, verifiedSources] = await Promise.all([
+  client.fetch(
+    `*[_type == "post" && (_id == $id || _id == "drafts." + $id || slug.current == $slug || title == $title)]{_id}`,
+    { id: publicId, slug: draft.slug, title: draft.title.trim() }
+  ),
+  client.fetch(
+    `{
+      "category": *[_id == $categoryId && _type == "category"][0]._id,
+      "author": *[_id == "author-stackarr-editorial" && _type == "author"][0]._id
+    }`,
+    { categoryId }
+  ),
+  client.fetch(`*[_type == "post" && !(_id in path("drafts.**"))] | order(publishedAt desc)[0...200]{title}`),
+  verifyArticleSources(draft)
+]);
 if (collisions.length) {
   throw new Error(`Publication collision detected for ${draft.slug}; no assets or documents were changed.`);
 }
-
-const categoryId = `category-${draft.categorySlug}`;
-const support = await client.fetch(
-  `{
-    "category": *[_id == $categoryId && _type == "category"][0]._id,
-    "author": *[_id == "author-stackarr-editorial" && _type == "author"][0]._id
-  }`,
-  { categoryId }
-);
 if (!(support.category && support.author)) {
   throw new Error('Run pnpm --filter @stackarr/cms taxonomy:seed before publishing.');
 }
+const originalityValidation = validateArticleDraft(
+  {
+    ...draft,
+    discoveryHeadlines: [
+      ...(Array.isArray(draft.discoveryHeadlines) ? draft.discoveryHeadlines : []),
+      ...existingPosts.map((post) => post.title),
+      ...verifiedSources.flatMap((source) => source.headlines)
+    ]
+  },
+  { repoRoot }
+);
+if (!originalityValidation.valid) {
+  throw new Error(`Article originality validation failed:\n- ${originalityValidation.errors.join('\n- ')}`);
+}
+const verifiedSourceUrls = new Map(verifiedSources.map((source) => [source.source.url, source.finalUrl]));
 
 if (!draft.coverImagePath) {
   throw new Error('coverImagePath is required. Generate and review a relevant 16:9 editorial image first.');
@@ -150,7 +169,7 @@ const document = {
     _key: `source-${index + 1}`,
     title: source.title.trim(),
     publisher: source.publisher.trim(),
-    url: source.url,
+    url: verifiedSourceUrls.get(source.url) || source.url,
     kind: source.kind
   })),
   productConnection,
@@ -179,9 +198,15 @@ try {
     throw new Error(`Published document ${publicId} was not publicly readable after the mutation.`);
   }
 } catch (error) {
-  if (!documentCreated) {
+  if (documentCreated) {
     try {
-      await client.delete(asset._id);
+      await client.transaction().delete(publicId).delete(asset._id).commit({ visibility: 'sync' });
+    } catch {
+      console.warn(`Warning: could not roll back document ${publicId} and image asset ${asset._id}.`);
+    }
+  } else {
+    try {
+      await client.delete(asset._id, { visibility: 'sync' });
     } catch {
       console.warn(`Warning: could not remove unreferenced image asset ${asset._id}.`);
     }

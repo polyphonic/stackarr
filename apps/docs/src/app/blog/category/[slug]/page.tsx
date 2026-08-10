@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { BlogCard } from '../../BlogCard';
 import { BlogPagination } from '../../BlogPagination';
 import { CategoryRail } from '../../CategoryRail';
+import { parseBlogPage } from '../../pagination';
 
 const PAGE_SIZE = 9;
 
@@ -12,16 +13,11 @@ type CategoryPageProps = {
   searchParams: Promise<{ page?: string | string[] }>;
 };
 
-function parsePage(value?: string | string[]) {
-  const parsed = Number.parseInt(Array.isArray(value) ? value[0] : value || '1', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
 export async function generateMetadata({ params, searchParams }: CategoryPageProps): Promise<Metadata> {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const category = (await getBlogCategories()).find((item) => item.slug === slug);
   if (!category) return {};
-  const page = parsePage(query.page);
+  const page = parseBlogPage(query.page);
   const canonical = page === 1 ? `/blog/category/${category.slug}` : `/blog/category/${category.slug}?page=${page}`;
   return {
     title: page === 1 ? `${category.title} Homelab Guides` : `${category.title} Homelab Guides, Page ${page}`,
@@ -44,7 +40,7 @@ export default async function BlogCategoryPage({ params, searchParams }: Categor
   const [{ slug }, query, categories] = await Promise.all([params, searchParams, getBlogCategories()]);
   const category = categories.find((item) => item.slug === slug);
   if (!category) notFound();
-  const page = parsePage(query.page);
+  const page = parseBlogPage(query.page);
   const { items, total } = await getBlogPosts({ page, pageSize: PAGE_SIZE, categorySlug: slug });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (page > totalPages && total > 0) notFound();
@@ -71,7 +67,7 @@ export default async function BlogCategoryPage({ params, searchParams }: Categor
         ) : (
           <div className="blogEmpty">
             <h2>No articles in this category yet.</h2>
-            <p>The publisher will use this category when a verified topic fits it.</p>
+            <p>Browse all field notes or return soon for a guide in this area.</p>
           </div>
         )}
         <BlogPagination basePath={`/blog/category/${slug}`} currentPage={page} totalPages={totalPages} />

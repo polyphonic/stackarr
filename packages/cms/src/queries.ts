@@ -129,7 +129,7 @@ export async function getRecentBlogPosts(limit = 50) {
 }
 
 export async function getBlogPostBySlug(slug: string) {
-  const query = `*[_type == "post" && slug.current == $slug && publishedAt <= now() && !coalesce(seo.noIndex, false)][0] {
+  const query = `*[_type == "post" && slug.current == $slug && publishedAt <= now()][0] {
     ${postSummaryProjection},
     "body": coalesce(body[]{..., _type == "image" => {..., "url": asset->url}}, []),
     "sources": coalesce(sources, []),
@@ -139,7 +139,8 @@ export async function getBlogPostBySlug(slug: string) {
 }
 
 export async function getBlogSitemapEntries() {
-  const query = `*[_type == "post" && defined(slug.current) && publishedAt <= now() && !coalesce(seo.noIndex, false)] {
+  const query = `*[_type == "post" && defined(slug.current) && publishedAt <= now() && !coalesce(seo.noIndex, false)]
+  | order(publishedAt desc) {
     "slug": slug.current, publishedAt, updatedAt, _updatedAt
   }`;
   return safeSanityFetch<Array<{ slug: string; publishedAt: string; updatedAt?: string; _updatedAt: string }>>(

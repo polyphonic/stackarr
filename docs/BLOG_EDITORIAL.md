@@ -38,6 +38,12 @@ Use a consistent 16:9 editorial system that differs from Hypo:
 
 The site generates Open Graph images dynamically. It adds the article title, category, Stackarr mark, and allowlisted local service logos. Do not fetch arbitrary remote SVG URLs at render time.
 
+## Automation boundary
+
+The daily scheduler is an operations concern, not a GitHub Actions workflow. A trusted external agent reads this policy and `packages/cms/editorial.config.json`, researches current topics, creates the draft and cover image in a temporary directory, and invokes the guarded publisher once. CI never receives the Sanity editor token.
+
+The publisher independently verifies public source URLs, official-source identity, originality against fetched source text and existing post titles, repository evidence, image signatures, and public Sanity visibility. It must reject the publication before any mutation when a check fails.
+
 ## Publication contract
 
 1. Research recent posts and reject duplicate topics.
