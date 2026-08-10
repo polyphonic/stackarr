@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.13](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.12...v0.3.0-alpha.13) (2026-08-10)
+
+
+### Fixed
+
+* **ui:** keep integrations grouped and alphabetical ([d0b897e](https://github.com/polyphonic/stackarr/commit/d0b897e02277870b9e44b364783eeec764f3256f))
+* **ui:** keep integrations grouped and alphabetical ([b855701](https://github.com/polyphonic/stackarr/commit/b855701648f47363b96ee93dc0b19d91a2027ab9))
+
 ## [0.3.0-alpha.12](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.11...v0.3.0-alpha.12) (2026-08-10)
 
 
