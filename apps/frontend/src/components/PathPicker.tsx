@@ -27,11 +27,13 @@ type DirectoryResponse = {
 export function PathInput({
   value,
   onChange,
-  placeholder
+  placeholder,
+  disabled = false
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [browsePath, setBrowsePath] = useState(value || '/');
@@ -82,6 +84,7 @@ export function PathInput({
   }, [browsePath, open]);
 
   function openPicker() {
+    if (disabled) return;
     setBrowsePath(value || '/');
     setOpen(true);
   }
@@ -98,8 +101,13 @@ export function PathInput({
   return (
     <>
       <div className={styles.inputGroup}>
-        <input placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
-        <button onClick={openPicker} type="button">
+        <input
+          disabled={disabled}
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button disabled={disabled} onClick={openPicker} type="button">
           <DriveIcon size={15} />
           <span>Browse</span>
         </button>

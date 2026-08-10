@@ -2,7 +2,12 @@ import { execFile } from 'node:child_process';
 import * as nodeCrypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { defaultStackarrAppRoot, type InstallMode, type StackarrEnv, type TorrentClient, writeEnvConfig } from '../env';
-import { accountUsernameValidationError, portablePasswordValidationError } from '../passwordPolicy';
+import {
+  accountUsernameValidationError,
+  portablePasswordValidationError,
+  youtarrPasswordMaximumLength,
+  youtarrUsernameMaximumLength
+} from '../passwordPolicy';
 import { repoRoot, stackarrBin } from '../paths';
 import {
   type MediaProfilePreset,
@@ -21,6 +26,7 @@ const execFileAsync = promisify(execFile);
 const maintainerrCleanupPresetOptions = ['watched-movies', 'abandoned-shows', 'stale-requests'] as const;
 type MaintainerrCleanupPreset = (typeof maintainerrCleanupPresetOptions)[number];
 const rommMetadataPresetOptions = ['chef', 'french', 'twitch', 'quick', 'custom'] as const;
+
 type RommMetadataPreset = (typeof rommMetadataPresetOptions)[number];
 
 export type MediaServerSetupInput = {
@@ -43,6 +49,8 @@ export type MediaServerSetupInput = {
     | 'bookorbit'
     | 'immich'
     | 'romm'
+    | 'questarr'
+    | 'youtarr'
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
@@ -59,6 +67,8 @@ export type MediaServerSetupInput = {
   enableBookOrbit?: boolean;
   enableImmich?: boolean;
   enableRomm?: boolean;
+  enableQuestarr?: boolean;
+  enableYoutarr?: boolean;
   enableTinyMediaManager?: boolean;
   enableRecyclarr?: boolean;
   enableFlaresolverr?: boolean;
@@ -122,6 +132,8 @@ type ResolvedMediaServerSetupInput = Required<
     | 'bookorbit'
     | 'immich'
     | 'romm'
+    | 'questarr'
+    | 'youtarr'
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
@@ -155,6 +167,8 @@ export const opinionatedSetupDefaults = {
   enableBookOrbit: false,
   enableImmich: false,
   enableRomm: false,
+  enableQuestarr: false,
+  enableYoutarr: false,
   enableTinyMediaManager: true,
   enableRecyclarr: true,
   enableFlaresolverr: true,
@@ -334,7 +348,7 @@ export function getMediaServerSetupProfileAction() {
       {
         id: 'enabledServices',
         prompt:
-          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Cleanuparr blocks malware-like downloads and cleans queues, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
+          'Which companion services should Stackarr manage? Bazarr handles subtitles, TinyMediaManager handles metadata/naming, Lidarr handles music, BookOrbit handles books, Immich handles photo-library backup and browsing, RomM handles game libraries, Questarr handles game discovery/downloads, Youtarr handles YouTube tracking/downloads, Recyclarr manages profiles, FlareSolverr helps indexers, Tidarr helps Tidal workflows, Maintainerr stages cleanup planning, Cleanuparr blocks malware-like downloads and cleans queues, Agregarr curates Plex collections, and Tracearr monitors media-server activity.',
         type: 'multi-choice',
         choices: [
           'bazarr',
@@ -346,6 +360,8 @@ export function getMediaServerSetupProfileAction() {
           'bookorbit',
           'immich',
           'romm',
+          'questarr',
+          'youtarr',
           'maintainerr',
           'cleanuparr',
           'agregarr',
@@ -482,6 +498,8 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableBookOrbit: input.enabledServices.includes('bookorbit'),
         enableImmich: input.enabledServices.includes('immich'),
         enableRomm: input.enabledServices.includes('romm'),
+        enableQuestarr: input.enabledServices.includes('questarr'),
+        enableYoutarr: input.enabledServices.includes('youtarr'),
         enableRecyclarr: input.enabledServices.includes('recyclarr'),
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
         enableTidarr: input.enabledServices.includes('tidarr'),
@@ -594,6 +612,20 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       error: passwordValidationError
     };
   }
+  if (merged.enableYoutarr && merged.globalUsername.length > youtarrUsernameMaximumLength) {
+    return {
+      accepted: false,
+      plan,
+      error: `Global username must be at most ${youtarrUsernameMaximumLength} characters when Youtarr is enabled.`
+    };
+  }
+  if (merged.enableYoutarr && merged.globalPassword.length > youtarrPasswordMaximumLength) {
+    return {
+      accepted: false,
+      plan,
+      error: `Global password must be at most ${youtarrPasswordMaximumLength} characters when Youtarr is enabled.`
+    };
+  }
 
   if (dryRun) {
     return {
@@ -625,6 +657,8 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       enableBookOrbit: merged.enableBookOrbit,
       enableImmich: merged.enableImmich,
       enableRomm: merged.enableRomm,
+      enableQuestarr: merged.enableQuestarr,
+      enableYoutarr: merged.enableYoutarr,
       enableTinyMediaManager: merged.enableTinyMediaManager,
       enableRecyclarr: merged.enableRecyclarr,
       enableFlaresolverr: merged.enableFlaresolverr,
@@ -719,6 +753,8 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_BOOKORBIT: String(input.enableBookOrbit),
     ENABLE_IMMICH: String(input.enableImmich),
     ENABLE_ROMM: String(input.enableRomm),
+    ENABLE_QUESTARR: String(input.enableQuestarr),
+    ENABLE_YOUTARR: String(input.enableYoutarr),
     ENABLE_TINYMEDIAMANAGER: String(input.enableTinyMediaManager),
     ENABLE_RECYCLARR: String(input.enableRecyclarr),
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
@@ -810,12 +846,18 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ROMM_WEB_PORT: '7583',
     ROMM_CONTAINER_PORT: '8080',
     ROMM_LIBRARY_ROOT: rommLibraryRoot,
+    ROMM_STEAM_LIBRARY_ENABLED: 'false',
+    ROMM_STEAM_MAC_LIBRARY_ROOT: '',
+    ROMM_STEAM_WINDOWS_LIBRARY_ROOT: '',
+    ROMM_STEAM_LINUX_LIBRARY_ROOT: '',
     ROMM_ASSETS_ROOT: `${setupDefaultAppRoot}/config/romm/assets`,
     ROMM_CONFIG_ROOT: `${setupDefaultAppRoot}/config/romm/config`,
     ROMM_RESOURCES_ROOT: `${setupDefaultAppRoot}/config/romm/resources`,
     ROMM_REDIS_DATA_ROOT: '',
     ROMM_REDIS_HOST: 'redis',
     ROMM_REDIS_PORT: '6379',
+    ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: 'false',
+    ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY: '5',
     ROMM_DB_DATA_LOCATION: '',
     ROMM_DB_DRIVER: 'postgresql',
     ROMM_DB_HOST: 'database',
@@ -848,6 +890,47 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: '0 4 * * *',
     ROMM_IMAGE: 'rommapp/romm:latest',
     ROMM_DB_IMAGE: '',
+    QUESTARR_URL: 'http://127.0.0.1:7584',
+    QUESTARR_APP_URL: 'http://127.0.0.1:7584',
+    QUESTARR_ALLOWED_ORIGINS: 'http://127.0.0.1:7584,http://localhost:7584',
+    QUESTARR_BIND_IP: '127.0.0.1',
+    QUESTARR_WEB_PORT: '7584',
+    QUESTARR_CONTAINER_PORT: '5000',
+    QUESTARR_DATA_ROOT: `${setupDefaultAppRoot}/config/questarr`,
+    QUESTARR_LIBRARY_ROOT: rommLibraryRoot,
+    QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
+    QUESTARR_JWT_SECRET: input.enableQuestarr ? nodeCrypto.randomBytes(32).toString('hex') : '',
+    QUESTARR_IGDB_CLIENT_ID: input.enableQuestarr ? input.rommIgdbClientId : '',
+    QUESTARR_IGDB_CLIENT_SECRET: input.enableQuestarr ? input.rommIgdbClientSecret : '',
+    QUESTARR_IMAGE: 'ghcr.io/doezer/questarr:latest',
+    YOUTARR_URL: 'http://127.0.0.1:3087',
+    YOUTARR_BIND_IP: '127.0.0.1',
+    YOUTARR_WEB_PORT: '3087',
+    YOUTARR_CONTAINER_PORT: '3011',
+    YOUTARR_OUTPUT_ROOT: `${input.mediaRoot}/YouTube`,
+    YOUTARR_CONFIG_ROOT: `${setupDefaultAppRoot}/config/youtarr/config`,
+    YOUTARR_JOBS_ROOT: `${setupDefaultAppRoot}/config/youtarr/jobs`,
+    YOUTARR_IMAGES_ROOT: `${setupDefaultAppRoot}/config/youtarr/images`,
+    YOUTARR_DB_HOST: 'youtarr-db',
+    YOUTARR_DB_PORT: '3306',
+    YOUTARR_DB_NAME: 'youtarr',
+    YOUTARR_DB_USER: 'youtarr',
+    YOUTARR_DB_PASSWORD: input.enableYoutarr ? nodeCrypto.randomBytes(24).toString('hex') : '',
+    YOUTARR_DB_ROOT_PASSWORD: input.enableYoutarr ? nodeCrypto.randomBytes(24).toString('hex') : '',
+    YOUTARR_LOGIN_ENABLED: 'true',
+    YOUTARR_ADMIN_USERNAME: input.enableYoutarr ? input.globalUsername : '',
+    YOUTARR_ADMIN_PASSWORD: input.enableYoutarr ? accountPassword : '',
+    YOUTARR_TRUST_PROXY: 'false',
+    YOUTARR_LOG_LEVEL: 'info',
+    YOUTARR_PLEX_URL:
+      input.plexInstallMode === 'docker'
+        ? 'http://plex:32400'
+        : input.plexInstallMode === 'disabled'
+          ? ''
+          : 'http://host.docker.internal:32400',
+    YOUTARR_API_KEY: '',
+    YOUTARR_IMAGE: 'dialmaster/youtarr:latest',
+    YOUTARR_DB_IMAGE: 'mariadb:10.11',
     DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
     DATABASE_PGDATA: '/var/lib/postgresql/data',
     DATABASE_BIND_IP: '127.0.0.1',

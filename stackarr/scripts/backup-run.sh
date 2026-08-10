@@ -501,6 +501,35 @@ dump_postgres_databases() {
     done <<< "$db_names"
 }
 
+dump_youtarr_database() {
+    local dump_root="$STAGING/database/youtarr"
+    local container_id
+
+    flag_enabled "${ENABLE_YOUTARR:-false}" || return 0
+    command -v docker >/dev/null 2>&1 || {
+        fail "Youtarr database dump is required, but Docker is unavailable"
+    }
+
+    container_id="$(stackarr_compose --profile youtarr ps -q youtarr-db 2>/dev/null || true)"
+    if [[ -z "$container_id" ]]; then
+        fail "Youtarr database dump is required, but youtarr-db is not running"
+    fi
+
+    [[ -n "${YOUTARR_DB_ROOT_PASSWORD:-}" ]] || fail "Youtarr database dump is required, but YOUTARR_DB_ROOT_PASSWORD is not configured"
+
+    mkdir -p "$dump_root"
+    stackarr_compose --profile youtarr exec -T \
+        -e MYSQL_PWD="$YOUTARR_DB_ROOT_PASSWORD" \
+        youtarr-db mariadb-dump \
+        --user=root \
+        --single-transaction \
+        --quick \
+        --routines \
+        --triggers \
+        --databases "${YOUTARR_DB_NAME:-youtarr}" \
+        --add-drop-database < /dev/null > "$dump_root/youtarr.sql"
+}
+
 create_archive() {
     case "$BACKUP_ENCRYPTION" in
         keyfile)
@@ -747,8 +776,9 @@ fi
 progress 35 "Snapshotting service SQLite databases"
 snapshot_tree_dbs "$CONFIG_ROOT" "$STAGING/config"
 snapshot_tree_dbs "$ROOT_DIR/state/streamrip" "$STAGING/state/streamrip"
-progress 45 "Dumping shared Postgres databases"
+progress 45 "Dumping service databases"
 dump_postgres_databases
+dump_youtarr_database
 
 if [[ -d "$PLEX_CONFIG_PATH" ]]; then
     case "$PLEX_BACKUP_MODE_NORMALIZED" in

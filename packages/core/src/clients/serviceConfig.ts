@@ -26,6 +26,8 @@ const defaults: Record<string, number> = {
   bookorbit: 7582,
   immich: 2283,
   romm: 7583,
+  questarr: 7584,
+  youtarr: 3087,
   bazarr: 6767,
   tinymediamanager: 7878,
   flaresolverr: 8191,
@@ -39,7 +41,9 @@ const containerDefaults: Record<string, number> = {
   jellyfin: 8096,
   bookorbit: 7582,
   immich: 2283,
-  romm: 8080
+  romm: 8080,
+  questarr: 5000,
+  youtarr: 3011
 };
 
 export function serviceBaseUrl(service: string) {
@@ -78,6 +82,8 @@ function containerPort(service: string, env: ReturnType<typeof readEnv>, summary
   if (service === 'bookorbit') return Number(env.BOOKORBIT_CONTAINER_PORT ?? containerDefaults.bookorbit);
   if (service === 'immich') return Number(env.IMMICH_CONTAINER_PORT ?? containerDefaults.immich);
   if (service === 'romm') return Number(env.ROMM_CONTAINER_PORT ?? containerDefaults.romm);
+  if (service === 'questarr') return Number(env.QUESTARR_CONTAINER_PORT ?? containerDefaults.questarr);
+  if (service === 'youtarr') return Number(env.YOUTARR_CONTAINER_PORT ?? containerDefaults.youtarr);
   if (service === 'jellyfin') return Number(env.JELLYFIN_DOCKER_PORT ?? containerDefaults.jellyfin);
   return containerDefaults[service] ?? summary?.port;
 }

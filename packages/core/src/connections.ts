@@ -155,6 +155,23 @@ export function getConnections(): StackarrConnection[] {
       managedFields: ['Base URL', 'Game library', 'MariaDB', 'Metadata providers']
     },
     {
+      name: 'Questarr',
+      target: 'questarr',
+      kind: 'config',
+      status: flag(env.ENABLE_QUESTARR, false) ? 'needs-setup' : 'optional',
+      description:
+        'Shares IGDB credentials and host paths with RomM, while leaving indexer, downloader, and post-processing choices explicit in Questarr.',
+      managedFields: ['Base URL', 'Downloads', 'Optional game destination', 'IGDB credentials', 'SQLite app data']
+    },
+    {
+      name: 'Youtarr',
+      target: 'youtarr',
+      kind: 'api',
+      status: flag(env.ENABLE_YOUTARR, false) ? 'configured' : 'optional',
+      description: 'Tracks YouTube channels, downloads videos into a private library, and can refresh Plex.',
+      managedFields: ['Base URL', 'YouTube library', 'MariaDB', 'Authentication', 'Optional Plex URL']
+    },
+    {
       name: 'Cloudflare Tunnel',
       target: 'cloudflare',
       kind: 'public-url',
@@ -409,6 +426,33 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
       ]
     },
     {
+      implementation: 'Questarr',
+      name: 'Questarr',
+      target: 'questarr',
+      kind: 'config',
+      description:
+        'Connect Questarr to shared IGDB credentials, downloads, and an optional RomM-managed game destination.',
+      fields: [
+        urlField('Base URL', 'http://questarr:5000'),
+        { name: 'downloadPath', label: 'Download Path', type: 'text', placeholder: '/downloads' },
+        { name: 'libraryPath', label: 'Optional Game Destination', type: 'text', placeholder: '/games' },
+        { name: 'igdbClientId', label: 'IGDB Client ID', type: 'password' },
+        { name: 'databasePath', label: 'SQLite Path', type: 'text', placeholder: '/app/data/sqlite.db' }
+      ]
+    },
+    {
+      implementation: 'Youtarr',
+      name: 'Youtarr',
+      target: 'youtarr',
+      kind: 'api',
+      description: 'Connect Stackarr to Youtarr for YouTube library reads and single-video downloads.',
+      fields: [
+        urlField('Base URL', 'http://youtarr:3011'),
+        { name: 'libraryPath', label: 'YouTube Library', type: 'text', placeholder: '/usr/src/app/data' },
+        { name: 'plexUrl', label: 'Optional Plex URL', type: 'url', placeholder: 'http://plex:32400' }
+      ]
+    },
+    {
       implementation: 'Plex',
       name: 'Plex',
       target: 'plex',
@@ -467,7 +511,17 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
           name: 'service',
           label: 'Stackarr service',
           type: 'select',
-          options: ['pulsarr', 'seerr', 'bookorbit', 'immich', 'romm', 'maintainerr', 'tracearr'],
+          options: [
+            'pulsarr',
+            'seerr',
+            'bookorbit',
+            'immich',
+            'romm',
+            'questarr',
+            'youtarr',
+            'maintainerr',
+            'tracearr'
+          ],
           required: true
         },
         { name: 'apiToken', label: 'API Token', type: 'password' }

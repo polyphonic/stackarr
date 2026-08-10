@@ -2,6 +2,7 @@ export type ServiceIntegration = {
   category: string;
   hero: string;
   logo: string;
+  logoExtension?: 'png' | 'svg';
   name: string;
   role: string;
   slug: string;
@@ -229,7 +230,7 @@ export const serviceIntegrations = [
     hero: 'Agregarr builds and schedules Plex collections from your libraries, Arr monitoring state, and discovery sources.',
     whatItDoes: [
       'Creates managed Plex collections from sources such as Coming Soon, TMDb, and IMDb.',
-      'Promotes collections onto Plex Home and Discover while preserving handmade collections as pre-existing.',
+      "Promotes collections onto Plex Home and each library's Recommended screen while preserving handmade collections as pre-existing.",
       'Keeps linked movie and TV collection rows synchronized on a schedule.'
     ],
     stackarr:
@@ -279,6 +280,37 @@ export const serviceIntegrations = [
     ],
     stackarr:
       'Stackarr can enable RomM as optional private game-library functionality, mount the configured Games folder, persist assets/resources under local app storage, expose localhost/Portless service links, and keep public routing opt-in only.'
+  },
+  {
+    slug: 'questarr',
+    name: 'Questarr',
+    logo: 'questarr',
+    category: 'Game downloads',
+    role: 'Game discovery and acquisition app',
+    hero: 'Questarr searches for games and coordinates downloads without replacing the game library managed by RomM.',
+    whatItDoes: [
+      'Uses IGDB metadata to support game discovery and requests.',
+      'Connects to Prowlarr-compatible indexers and supported download clients from its own first-run UI.',
+      'Can post-process completed downloads into an explicitly configured game destination.'
+    ],
+    stackarr:
+      'Stackarr shares RomM’s IGDB credentials by default, mounts the common downloads and Games paths, and keeps Questarr private and optional. Questarr currently uses SQLite and does not synchronize RomM inventory, so RomM remains the source of truth.'
+  },
+  {
+    slug: 'youtarr',
+    name: 'Youtarr',
+    logo: 'youtarr',
+    logoExtension: 'png',
+    category: 'YouTube downloads',
+    role: 'YouTube channel tracker and library downloader',
+    hero: 'Youtarr tracks YouTube channels, downloads selected videos, and can refresh a Plex library after completion.',
+    whatItDoes: [
+      'Tracks channels and queues individual YouTube videos for download.',
+      'Uses yt-dlp and FFmpeg to create media files with metadata and artwork.',
+      'Stores its application state in MariaDB and can trigger Plex library refreshes.'
+    ],
+    stackarr:
+      'Stackarr keeps Youtarr optional and loopback-only by default, provisions a dedicated MariaDB service, persists media and application data, includes a consistent MariaDB dump in backups, applies the shared Stackarr login, and exposes focused MCP actions for health, library reads, and one-video download requests.'
   },
   {
     slug: 'bookorbit',

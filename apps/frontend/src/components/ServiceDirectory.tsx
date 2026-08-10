@@ -442,15 +442,19 @@ function ConfigGroups({
       <h3>{group.title}</h3>
       {group.description && <p>{group.description}</p>}
       <div className={styles.fields}>
-        {group.fields.map((field) => (
-          <FieldEditor
-            key={field.id}
-            field={field}
-            savedPreview={field.secret && field.value ? String(field.value) : undefined}
-            value={draft[field.id]}
-            onChange={(value) => onChange(field, value)}
-          />
-        ))}
+        {group.fields.map((field) => {
+          const enabled = field.enabledWhen ? conditionMatches(field.enabledWhen, draft) : true;
+          return (
+            <FieldEditor
+              key={field.id}
+              disabled={!enabled}
+              field={field}
+              savedPreview={field.secret && field.value ? String(field.value) : undefined}
+              value={draft[field.id]}
+              onChange={(value) => onChange(field, value)}
+            />
+          );
+        })}
       </div>
     </section>
   ));
@@ -606,21 +610,25 @@ function FieldEditor({
   field,
   savedPreview,
   value,
-  onChange
+  onChange,
+  disabled = false
 }: {
   field: ServiceConfigField;
   savedPreview?: string;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled?: boolean;
 }) {
   if (field.type === 'checkbox') {
     return (
-      <Switch className={styles.switchField} isSelected={truthy(value)} onChange={onChange}>
+      <Switch className={styles.switchField} isDisabled={disabled} isSelected={truthy(value)} onChange={onChange}>
         <Switch.Content>
           <Switch.Control>
             <Switch.Thumb />
           </Switch.Control>
-          <Label>{field.label}</Label>
+          <Label>
+            <FieldLabel field={field} />
+          </Label>
         </Switch.Content>
         {field.description && <Description>{field.description}</Description>}
       </Switch>
@@ -629,8 +637,10 @@ function FieldEditor({
 
   if (field.type === 'json') {
     return (
-      <TextField className={styles.textField} fullWidth>
-        <Label>{field.label}</Label>
+      <TextField className={styles.textField} fullWidth isDisabled={disabled}>
+        <Label>
+          <FieldLabel field={field} />
+        </Label>
         <TextArea
           className={styles.jsonInput}
           placeholder={savedPreview}
@@ -645,19 +655,23 @@ function FieldEditor({
 
   if (field.type === 'path') {
     return (
-      <div className={styles.textField}>
-        <span className={styles.fieldLabel}>{field.label}</span>
-        <PathInput value={String(value ?? '')} onChange={onChange} />
+      <div className={styles.textField} data-disabled={disabled || undefined}>
+        <span className={styles.fieldLabel}>
+          <FieldLabel field={field} />
+        </span>
+        <PathInput disabled={disabled} value={String(value ?? '')} onChange={onChange} />
         {field.description && <small>{field.description}</small>}
       </div>
     );
   }
 
   return (
-    <TextField className={styles.textField} fullWidth>
-      <Label>{field.label}</Label>
+    <TextField className={styles.textField} fullWidth isDisabled={disabled}>
+      <Label>
+        <FieldLabel field={field} />
+      </Label>
       {field.type === 'select' ? (
-        <select value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+        <select disabled={disabled} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
           {(field.options ?? []).map((option) => (
             <option key={option} value={option}>
               {option}
@@ -677,6 +691,33 @@ function FieldEditor({
       {field.description && <Description>{field.description}</Description>}
     </TextField>
   );
+}
+
+function FieldLabel({ field }: { field: ServiceConfigField }) {
+  return (
+    <span className={styles.fieldLabelContent}>
+      <span>{field.label}</span>
+      {field.infoHover && field.description && (
+        <span
+          aria-label={`About ${field.label}`}
+          className={styles.infoHint}
+          role="img"
+          tabIndex={0}
+          title={field.description}
+        >
+          i
+        </span>
+      )}
+    </span>
+  );
+}
+
+function conditionMatches(condition: NonNullable<ServiceConfigField['enabledWhen']>, draft: DraftValues) {
+  const current = draft[condition.fieldId];
+  if (typeof condition.value === 'boolean') {
+    return truthy(current) === condition.value;
+  }
+  return current === condition.value;
 }
 
 function valuesFromConfig(config: ServiceConfigModel): DraftValues {

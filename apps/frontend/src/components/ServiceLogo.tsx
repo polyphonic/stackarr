@@ -30,6 +30,8 @@ const logoPaths: Record<string, string> = {
   'immich-machine-learning': '/logos/immich.svg',
   immich_machine_learning: '/logos/immich.svg',
   romm: '/logos/romm.svg',
+  questarr: '/logos/questarr.svg',
+  youtarr: '/logos/youtarr.png',
   overseerr: '/logos/overseerr.svg',
   recyclarr: '/logos/recyclarr.svg',
   flaresolverr: '/logos/flaresolverr.svg',

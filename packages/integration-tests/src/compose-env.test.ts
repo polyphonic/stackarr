@@ -114,6 +114,107 @@ test('compose env generation preserves passwords with shell and URL punctuation'
   }
 });
 
+test('Questarr inherits RomM IGDB credentials and portable game paths at runtime', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-questarr-env-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const appRoot = path.join(root, 'app');
+
+  try {
+    await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        APP_ROOT: appRoot,
+        CONFIG_ROOT: path.join(appRoot, 'config'),
+        STATE_ROOT: path.join(appRoot, 'state'),
+        LOG_ROOT: path.join(appRoot, 'logs'),
+        MEDIA_ROOT: path.join(appRoot, 'media'),
+        GAMES_ROOT: path.join(appRoot, 'media/Games'),
+        ROMM_LIBRARY_ROOT: path.join(appRoot, 'media/Games'),
+        ROMM_IGDB_CLIENT_ID: 'shared-client',
+        ROMM_IGDB_CLIENT_SECRET: 'shared-secret',
+        ENABLE_QUESTARR: 'true',
+        STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+        STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
+      }
+    });
+
+    const content = await readFile(composeEnvFile, 'utf8');
+    assert.match(content, /^ENABLE_QUESTARR="true"$/m);
+    assert.match(content, new RegExp(`^QUESTARR_DATA_ROOT="${path.join(appRoot, 'config/questarr')}"$`, 'm'));
+    assert.match(content, new RegExp(`^QUESTARR_LIBRARY_ROOT="${path.join(appRoot, 'media/Games')}"$`, 'm'));
+    assert.match(content, /^QUESTARR_SQLITE_DB_PATH="\/app\/data\/sqlite.db"$/m);
+    assert.match(content, /^QUESTARR_IGDB_CLIENT_ID="shared-client"$/m);
+    assert.match(content, /^QUESTARR_IGDB_CLIENT_SECRET="shared-secret"$/m);
+    assert.match(content, /^QUESTARR_JWT_SECRET="[A-Za-z0-9]{32}"$/m);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Youtarr runtime env stays private and generates dedicated credentials and paths', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-youtarr-env-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const appRoot = path.join(root, 'app');
+
+  try {
+    await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        APP_ROOT: appRoot,
+        CONFIG_ROOT: path.join(appRoot, 'config'),
+        STATE_ROOT: path.join(appRoot, 'state'),
+        LOG_ROOT: path.join(appRoot, 'logs'),
+        MEDIA_ROOT: path.join(appRoot, 'media'),
+        ENABLE_YOUTARR: 'true',
+        USERNAME: 'stackarr-user',
+        PASSWORD: 'PortableYoutarrPassword',
+        PLEX_INSTALL_MODE: 'docker',
+        STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+        STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
+      }
+    });
+
+    const content = await readFile(composeEnvFile, 'utf8');
+    assert.match(content, /^ENABLE_YOUTARR="true"$/m);
+    assert.match(content, /^YOUTARR_BIND_IP="127\.0\.0\.1"$/m);
+    assert.match(content, new RegExp(`^YOUTARR_OUTPUT_ROOT="${path.join(appRoot, 'media/YouTube')}"$`, 'm'));
+    assert.match(content, new RegExp(`^YOUTARR_CONFIG_ROOT="${path.join(appRoot, 'config/youtarr/config')}"$`, 'm'));
+    assert.match(content, /^YOUTARR_DB_PASSWORD="[A-Za-z0-9]{24}"$/m);
+    assert.match(content, /^YOUTARR_DB_ROOT_PASSWORD="[A-Za-z0-9]{24}"$/m);
+    assert.match(content, /^YOUTARR_LOGIN_ENABLED="true"$/m);
+    assert.match(content, /^YOUTARR_ADMIN_USERNAME="stackarr-user"$/m);
+    assert.match(content, /^YOUTARR_ADMIN_PASSWORD="PortableYoutarrPassword"$/m);
+    assert.match(content, /^YOUTARR_PLEX_URL="http:\/\/plex:32400"$/m);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Youtarr uses the upstream standard data layout so every persistent mount is active', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  const service = compose.match(/\n  youtarr:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+
+  assert.ok(service, 'Youtarr Compose service is present');
+  assert.match(service, /dialmaster\/youtarr:latest/);
+  assert.doesNotMatch(service, /^      DATA_PATH:/m);
+  assert.match(service, /:\/usr\/src\/app\/data"/);
+  assert.match(service, /:\/app\/server\/images"/);
+  assert.match(service, /:\/app\/config"/);
+  assert.match(service, /:\/app\/jobs"/);
+  assert.match(service, /\/api\/health/);
+});
+
+test('Application images stay current while stateful database engines remain version-pinned', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+
+  assert.match(compose, /TINYMEDIAMANAGER_IMAGE:-tinymediamanager\/tinymediamanager:latest/);
+  assert.match(compose, /YOUTARR_IMAGE:-dialmaster\/youtarr:latest/);
+  assert.match(compose, /YOUTARR_DB_IMAGE:-mariadb:\d+\.\d+/);
+  assert.doesNotMatch(compose, /YOUTARR_DB_IMAGE:-mariadb:latest/);
+});
+
 test('compose env generation keeps legacy Postgres data directory when present', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');

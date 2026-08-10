@@ -11,7 +11,12 @@ import {
   type StackarrEnv,
   writeEnvConfig
 } from './env';
-import { accountUsernameValidationError, portablePasswordValidationError } from './passwordPolicy';
+import {
+  accountUsernameValidationError,
+  portablePasswordValidationError,
+  youtarrPasswordMaximumLength,
+  youtarrUsernameMaximumLength
+} from './passwordPolicy';
 import { presetFiles, readJsonPreset, writeJsonPreset } from './presets';
 import {
   mediaProfileNameFromPreset,
@@ -40,6 +45,8 @@ export type ServiceConfigField = {
   value: unknown;
   options?: string[];
   description?: string;
+  enabledWhen?: { fieldId: string; value: unknown };
+  infoHover?: boolean;
   secret?: boolean;
   protected?: boolean;
 };
@@ -312,11 +319,41 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envNumber('rommContainerPort', 'Container Port', 'ROMM_CONTAINER_PORT'),
       envPath('gamesRoot', 'Games Root', 'GAMES_ROOT'),
       envPath('rommLibraryRoot', 'RomM Library Root', 'ROMM_LIBRARY_ROOT'),
+      envCheckbox(
+        'rommSteamLibraryEnabled',
+        'Enable Steam desktop libraries',
+        'ROMM_STEAM_LIBRARY_ENABLED',
+        'Off by default. Enable only when this Stackarr host can access Steam library folders, either from a local Steam installation or a mounted share. A NAS with no accessible Steam library should leave this disabled.',
+        { infoHover: true }
+      ),
+      envPath(
+        'rommSteamMacLibraryRoot',
+        'Steam Mac Library Root',
+        'ROMM_STEAM_MAC_LIBRARY_ROOT',
+        'Steam library folder containing steamapps for macOS games. Mounted at /romm/Steam for the canonical mac platform.',
+        { enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ),
+      envPath(
+        'rommSteamWindowsLibraryRoot',
+        'Steam Windows Library Root',
+        'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
+        'Steam library folder containing steamapps for Windows games. Mounted at /romm/SteamWindows for the canonical win platform.',
+        { enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ),
+      envPath(
+        'rommSteamLinuxLibraryRoot',
+        'Steam Linux Library Root',
+        'ROMM_STEAM_LINUX_LIBRARY_ROOT',
+        'Steam library folder containing steamapps for Linux games. Mounted at /romm/SteamLinux for the canonical linux platform.',
+        { enabledWhen: { fieldId: 'rommSteamLibraryEnabled', value: true } }
+      ),
       envPath('rommAssetsRoot', 'Assets Root', 'ROMM_ASSETS_ROOT'),
       envPath('rommConfigRoot', 'Config Root', 'ROMM_CONFIG_ROOT'),
       envPath('rommResourcesRoot', 'Resources Root', 'ROMM_RESOURCES_ROOT'),
       envText('rommRedisHost', 'Redis Host', 'ROMM_REDIS_HOST'),
       envNumber('rommRedisPort', 'Redis Port', 'ROMM_REDIS_PORT'),
+      envCheckbox('rommFilesystemWatcher', 'Filesystem Watcher', 'ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE'),
+      envNumber('rommFilesystemWatcherDelay', 'Watcher Delay (minutes)', 'ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY'),
       envText('rommImage', 'RomM Image', 'ROMM_IMAGE')
     ]),
     group('Agent Access', [
@@ -409,6 +446,97 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envCheckbox('rommFlashpointApiEnabled', 'Use Flashpoint Metadata', 'ROMM_FLASHPOINT_API_ENABLED'),
       envCheckbox('rommHltbApiEnabled', 'Use HowLongToBeat Metadata', 'ROMM_HLTB_API_ENABLED'),
       envCheckbox('rommTgdbApiEnabled', 'Use TheGamesDB Metadata', 'ROMM_TGDB_API_ENABLED')
+    ])
+  ],
+  questarr: [
+    group(
+      'Game Downloads (Questarr)',
+      [
+        envCheckbox('enableQuestarr', 'Enable Questarr', 'ENABLE_QUESTARR'),
+        envText('questarrUrl', 'Local URL', 'QUESTARR_URL'),
+        envText('questarrAppUrl', 'App URL', 'QUESTARR_APP_URL'),
+        envText('questarrAllowedOrigins', 'Allowed Origins', 'QUESTARR_ALLOWED_ORIGINS'),
+        envText('questarrBindIp', 'Bind IP', 'QUESTARR_BIND_IP'),
+        envNumber('questarrWebPort', 'Web Port', 'QUESTARR_WEB_PORT'),
+        envNumber('questarrContainerPort', 'Container Port', 'QUESTARR_CONTAINER_PORT'),
+        envPath('questarrDataRoot', 'App Data Root', 'QUESTARR_DATA_ROOT'),
+        envPath(
+          'questarrLibraryRoot',
+          'Optional Game Destination',
+          'QUESTARR_LIBRARY_ROOT',
+          'Mounted at /games for opt-in post-processing. Questarr does not synchronize RomM inventory.'
+        ),
+        envText('questarrImage', 'Docker Image', 'QUESTARR_IMAGE')
+      ],
+      'Questarr shares the stack download path and can hand files to the Games folder, while RomM remains the library source of truth.'
+    ),
+    group('Questarr Credentials', [
+      envText(
+        'questarrIgdbClientId',
+        'IGDB Client ID',
+        'QUESTARR_IGDB_CLIENT_ID',
+        'Defaults to RomM’s IGDB client ID when left blank.'
+      ),
+      envPassword(
+        'questarrIgdbClientSecret',
+        'IGDB Client Secret',
+        'QUESTARR_IGDB_CLIENT_SECRET',
+        'Defaults to RomM’s IGDB client secret when left blank.'
+      ),
+      envPassword('questarrJwtSecret', 'JWT Secret', 'QUESTARR_JWT_SECRET')
+    ]),
+    group(
+      'Questarr Database',
+      [envText('questarrSqliteDbPath', 'SQLite Path', 'QUESTARR_SQLITE_DB_PATH')],
+      'Current maintained Questarr releases support SQLite only; Stackarr’s PostgreSQL install route still applies to Stackarr and supported services.'
+    )
+  ],
+  youtarr: [
+    group(
+      'YouTube Library (Youtarr)',
+      [
+        envCheckbox('enableYoutarr', 'Enable Youtarr', 'ENABLE_YOUTARR'),
+        envText('youtarrUrl', 'Local URL', 'YOUTARR_URL'),
+        envText('youtarrBindIp', 'Bind IP', 'YOUTARR_BIND_IP'),
+        envNumber('youtarrWebPort', 'Web Port', 'YOUTARR_WEB_PORT'),
+        envNumber('youtarrContainerPort', 'Container Port', 'YOUTARR_CONTAINER_PORT'),
+        envPath('youtarrOutputRoot', 'YouTube Library Root', 'YOUTARR_OUTPUT_ROOT'),
+        envPath('youtarrConfigRoot', 'Config Root', 'YOUTARR_CONFIG_ROOT'),
+        envPath('youtarrJobsRoot', 'Jobs Root', 'YOUTARR_JOBS_ROOT'),
+        envPath('youtarrImagesRoot', 'Images Root', 'YOUTARR_IMAGES_ROOT'),
+        envText('youtarrImage', 'Docker Image', 'YOUTARR_IMAGE')
+      ],
+      'Youtarr stays loopback-only by default and stores downloaded videos in the Stackarr YouTube folder.'
+    ),
+    group('Youtarr Authentication', [
+      envCheckbox('youtarrLoginEnabled', 'Require Authentication', 'YOUTARR_LOGIN_ENABLED'),
+      envText('youtarrAdminUsername', 'Admin Username', 'YOUTARR_ADMIN_USERNAME'),
+      envPassword('youtarrAdminPassword', 'Admin Password', 'YOUTARR_ADMIN_PASSWORD'),
+      envPassword(
+        'youtarrApiKey',
+        'Optional API Key',
+        'YOUTARR_API_KEY',
+        'Optional. Stackarr signs in with the shared credentials when no Youtarr API key is configured.'
+      ),
+      envCheckbox('youtarrTrustProxy', 'Trust Proxy Headers', 'YOUTARR_TRUST_PROXY')
+    ]),
+    group('Youtarr Database', [
+      envText('youtarrDbHost', 'Database Host', 'YOUTARR_DB_HOST'),
+      envNumber('youtarrDbPort', 'Database Port', 'YOUTARR_DB_PORT'),
+      envText('youtarrDbName', 'Database Name', 'YOUTARR_DB_NAME'),
+      envText('youtarrDbUser', 'Database User', 'YOUTARR_DB_USER'),
+      envPassword('youtarrDbPassword', 'Database Password', 'YOUTARR_DB_PASSWORD'),
+      envPassword('youtarrDbRootPassword', 'Database Root Password', 'YOUTARR_DB_ROOT_PASSWORD'),
+      envText('youtarrDbImage', 'Database Image', 'YOUTARR_DB_IMAGE')
+    ]),
+    group('Youtarr Integration', [
+      envText(
+        'youtarrPlexUrl',
+        'Optional Plex URL',
+        'YOUTARR_PLEX_URL',
+        'Defaults to the Stackarr-managed Plex address. Leave blank when Plex is disabled.'
+      ),
+      envSelect('youtarrLogLevel', 'Log Level', 'YOUTARR_LOG_LEVEL', ['debug', 'info', 'warn', 'error'])
     ])
   ],
   bazarr: [
@@ -783,8 +911,17 @@ export function updateServiceConfigAction(input: {
     }
   }
 
+  const currentEnv = readEnv();
+  if (
+    summary.name === 'romm' &&
+    !envFlag(envPatch.ROMM_STEAM_LIBRARY_ENABLED ?? currentEnv.ROMM_STEAM_LIBRARY_ENABLED, false)
+  ) {
+    envPatch.ROMM_STEAM_MAC_LIBRARY_ROOT = '';
+    envPatch.ROMM_STEAM_WINDOWS_LIBRARY_ROOT = '';
+    envPatch.ROMM_STEAM_LINUX_LIBRARY_ROOT = '';
+  }
+
   if (Object.keys(envPatch).length > 0) {
-    const currentEnv = readEnv();
     const credentialValidationError = validateCredentialPatch(envPatch, currentEnv);
     if (credentialValidationError) {
       return {
@@ -848,11 +985,17 @@ function validateCredentialPatch(patch: StackarrEnv, current: StackarrEnv) {
       if (key !== 'USERNAME' && !String(value ?? '')) continue;
       const error = accountUsernameValidationError(String(value ?? ''), key === 'USERNAME' ? 'Global username' : key);
       if (error) return error;
+      if (key === 'YOUTARR_ADMIN_USERNAME' && String(value).length > youtarrUsernameMaximumLength) {
+        return `YOUTARR_ADMIN_USERNAME must be ${youtarrUsernameMaximumLength} characters or fewer.`;
+      }
     }
 
     if ((key === 'PASSWORD' || key.endsWith('_PASSWORD')) && value) {
       const error = portablePasswordValidationError(String(value), key === 'PASSWORD' ? 'Global password' : key);
       if (error) return error;
+      if (key === 'YOUTARR_ADMIN_PASSWORD' && String(value).length > youtarrPasswordMaximumLength) {
+        return `YOUTARR_ADMIN_PASSWORD must be ${youtarrPasswordMaximumLength} characters or fewer.`;
+      }
     }
   }
 
@@ -1217,6 +1360,8 @@ function settingsPatchFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     ['enableBookOrbit', 'ENABLE_BOOKORBIT'],
     ['enableImmich', 'ENABLE_IMMICH'],
     ['enableRomm', 'ENABLE_ROMM'],
+    ['enableQuestarr', 'ENABLE_QUESTARR'],
+    ['enableYoutarr', 'ENABLE_YOUTARR'],
     ['enableTinyMediaManager', 'ENABLE_TINYMEDIAMANAGER'],
     ['enableRecyclarr', 'ENABLE_RECYCLARR'],
     ['enableFlaresolverr', 'ENABLE_FLARESOLVERR'],
@@ -1259,8 +1404,14 @@ function envText(id: string, label: string, key: string, description?: string): 
   return { id, label, type: 'text', source: { source: 'env', key }, description };
 }
 
-function envPath(id: string, label: string, key: string, description?: string): FieldDefinition {
-  return { id, label, type: 'path', source: { source: 'env', key }, description };
+function envPath(
+  id: string,
+  label: string,
+  key: string,
+  description?: string,
+  behavior?: Pick<FieldDefinition, 'enabledWhen' | 'infoHover'>
+): FieldDefinition {
+  return { id, label, type: 'path', source: { source: 'env', key }, description, ...behavior };
 }
 
 function envPassword(id: string, label: string, key: string, description?: string): FieldDefinition {
@@ -1271,8 +1422,14 @@ function envNumber(id: string, label: string, key: string, description?: string)
   return { id, label, type: 'number', source: { source: 'env', key }, description };
 }
 
-function envCheckbox(id: string, label: string, key: string, description?: string): FieldDefinition {
-  return { id, label, type: 'checkbox', source: { source: 'env', key }, description };
+function envCheckbox(
+  id: string,
+  label: string,
+  key: string,
+  description?: string,
+  behavior?: Pick<FieldDefinition, 'enabledWhen' | 'infoHover'>
+): FieldDefinition {
+  return { id, label, type: 'checkbox', source: { source: 'env', key }, description, ...behavior };
 }
 
 function envSelect(id: string, label: string, key: string, options: string[], description?: string): FieldDefinition {

@@ -1,0 +1,53 @@
+---
+title: Questarr
+description: Add game discovery and downloads beside a RomM-managed library.
+---
+
+import { ServiceIntegration } from '../../../src/components/ServiceIntegration';
+
+<ServiceIntegration slug="questarr" />
+
+## Stackarr layout
+
+- Optional Docker Compose profile: `questarr`
+- Image: `ghcr.io/doezer/questarr:latest`
+- Private URL: `http://127.0.0.1:7584`
+- Default Portless URL: `https://questarr.stack`
+- App data: `${QUESTARR_DATA_ROOT}` → `/app/data`
+- Shared downloads: `${DOWNLOADS_ROOT}` → `/downloads`
+- Optional game destination: `${QUESTARR_LIBRARY_ROOT}` → `/games`
+
+Enable and apply it with:
+
+```bash
+bin/stackarr questarr enable
+bin/stackarr questarr apply
+bin/stackarr questarr configure
+bin/stackarr portless apply
+```
+
+## Database compatibility
+
+Stackarr’s PostgreSQL install route remains the preferred database mode for Stackarr and services that support it. Current maintained Questarr releases support SQLite only, so Questarr stores its isolated database at `/app/data/sqlite.db`. Stackarr does not pin the obsolete Questarr 1.0 PostgreSQL release or provision an unused Postgres database.
+
+## RomM and IGDB
+
+`QUESTARR_IGDB_CLIENT_ID` and `QUESTARR_IGDB_CLIENT_SECRET` inherit the RomM values when no Questarr-specific override is set. The credentials remain runtime configuration and are never written into tracked files.
+
+Questarr does not currently synchronize RomM inventory or treat an existing filesystem as its managed library. Keep RomM as the source of truth. The `/games` mount only makes optional post-processing possible after you explicitly configure it in Questarr; enabling the service does not move or manage existing games.
+
+## First run
+
+`stackarr questarr configure` creates or verifies the first account with Stackarr’s runtime credentials, syncs compatible Prowlarr indexers, tests the selected torrent client, and adds it as a downloader. It deliberately leaves library import and post-processing disabled. You can also perform those steps in the Questarr UI. Container-facing defaults are:
+
+- Prowlarr: `http://prowlarr:9696`
+- Transmission: `http://transmission:9091`
+- qBittorrent: `http://qbittorrent:8081`
+- Downloader save path: `/downloads/${DOWNLOAD_COMPLETE_NAME}` (normally `/downloads/complete`)
+- Optional post-processing destination: `/games`
+
+## Agent actions
+
+When Questarr is enabled, Stackarr exposes four focused MCP actions: search IGDB games, search indexer releases, inspect the current download queue, and start one exact search result. Release URLs stay inside Stackarr so credential-bearing indexer links are not returned to the agent. Broader Questarr administration remains in its own UI.
+
+Questarr remains loopback-only by default. Portless provides the local friendly URL after `portless apply`; Cloudflare exposure remains explicit and optional.

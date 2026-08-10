@@ -28,6 +28,12 @@ The app workflow targets managed services explicitly, leaves the Stackarr
 controller and its database running, reapplies integrations, and cleans up
 dangling images.
 
+Stackarr defaults application services such as Youtarr and tinyMediaManager to
+their upstream stable moving tags so this workflow keeps them current. Stateful
+infrastructure such as database engines stays version-pinned when an automatic
+major upgrade could break persisted data or configuration. Every image remains
+runtime-configurable when an installation needs a deliberate version pin.
+
 ## Update only the Stackarr app
 
 Use **System → Updates → Update Stackarr**, or run:

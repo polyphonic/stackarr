@@ -228,6 +228,69 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Run an allowlisted Agregarr sync or home-order randomization job.'
   },
   {
+    name: 'stackarr_search_questarr_games',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search IGDB through Questarr and return a bounded game summary.'
+  },
+  {
+    name: 'stackarr_search_questarr_releases',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Search Questarr indexers and return bounded release metadata without exposing download URLs.'
+  },
+  {
+    name: 'stackarr_get_questarr_downloads',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List a bounded summary of downloads visible to Questarr.'
+  },
+  {
+    name: 'stackarr_start_questarr_download',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Start one exact Questarr search result through its configured downloader.'
+  },
+  {
+    name: 'stackarr_get_youtarr_health',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read Youtarr application and MariaDB health without exposing credentials.'
+  },
+  {
+    name: 'stackarr_get_youtarr_videos',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List a bounded summary of videos in the Youtarr library.'
+  },
+  {
+    name: 'stackarr_queue_youtarr_download',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Queue one exact YouTube video URL in Youtarr.'
+  },
+  {
     name: 'stackarr_get_routines',
     category: 'automations',
     scopes: ['automations:read'],
@@ -397,6 +460,15 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     enabledForLocalMcp: true,
     remoteReadyDefault: true,
     description: 'Return Cloudflare Access allowlist settings and the required Cloudflare API token permissions.'
+  },
+  {
+    name: 'stackarr_add_cloudflare_access_email',
+    category: 'stack',
+    scopes: ['stack:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Append one Cloudflare Access allowlist email and queue publishing without replacing existing members.'
   },
   {
     name: 'stackarr_update_cloudflare_access',
