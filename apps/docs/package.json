@@ -11,7 +11,7 @@
     "@upstash/redis": "1.38.0",
     "@vercel/functions": "3.6.0",
     "fumadocs-core": "16.11.4",
-    "fumadocs-mdx": "15.2.0",
+    "fumadocs-mdx": "15.2.2",
     "fumadocs-ui": "16.11.4",
     "next": "^16.2.9",
     "react": "^19.2.7",
