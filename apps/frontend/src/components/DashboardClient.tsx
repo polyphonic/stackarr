@@ -3,6 +3,7 @@
 import type { getSystemStatus, HomelabPerformance, ServiceSummary, StackarrTask, StackMetrics } from '@stackarr/core';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { compareServicesByDisplayName } from '../lib/serviceOrdering';
 import styles from './DashboardClient.module.css';
 import { DashboardOverview, StorageOverview } from './DashboardOverview';
 import { icons } from './icons';
@@ -31,9 +32,9 @@ export function DashboardClient({
   const [searchTerm, setSearchTerm] = useState('');
   const liveTasks = useLiveTasks(tasks, { limit: 8 });
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const visibleServices = services.filter(
-    (service) => service.name !== 'stackarr' && service.mode !== 'disabled' && service.experience === 'app'
-  );
+  const visibleServices = services
+    .filter((service) => service.name !== 'stackarr' && service.mode !== 'disabled' && service.experience === 'app')
+    .sort(compareServicesByDisplayName);
   const favoriteRank = new Map(favoriteNames.map((name, index) => [name, index]));
   const needsAttention = useMemo(
     () => buildAttentionItems(status.configured, services, metrics, liveTasks),
@@ -43,7 +44,10 @@ export function DashboardClient({
   const recentTasks = liveTasks.filter((task) => task.status !== 'queued' && task.status !== 'running').slice(0, 4);
   const featuredServices = visibleServices
     .filter((service) => service.browserUrl || service.localUrl)
-    .sort((a, b) => (favoriteRank.get(a.name) ?? 999) - (favoriteRank.get(b.name) ?? 999))
+    .sort(
+      (a, b) =>
+        (favoriteRank.get(a.name) ?? 999) - (favoriteRank.get(b.name) ?? 999) || compareServicesByDisplayName(a, b)
+    )
     .slice(0, 10);
   const hasDownloads = visibleServices.some((service) => service.category === 'download');
   const emptyHomelab = status.configured && visibleServices.length === 0;
