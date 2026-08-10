@@ -4,18 +4,14 @@ import { notFound } from 'next/navigation';
 import { BlogCard } from './BlogCard';
 import { BlogPagination } from './BlogPagination';
 import { CategoryRail } from './CategoryRail';
+import { parseBlogPage } from './pagination';
 
 const PAGE_SIZE = 9;
 
 type BlogIndexPageProps = { searchParams: Promise<{ page?: string | string[] }> };
 
-function parsePage(value?: string | string[]) {
-  const parsed = Number.parseInt(Array.isArray(value) ? value[0] : value || '1', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
 export async function generateMetadata({ searchParams }: BlogIndexPageProps): Promise<Metadata> {
-  const page = parsePage((await searchParams).page);
+  const page = parseBlogPage((await searchParams).page);
   const canonical = page === 1 ? '/blog' : `/blog?page=${page}`;
 
   return {
@@ -46,7 +42,7 @@ export async function generateMetadata({ searchParams }: BlogIndexPageProps): Pr
 }
 
 export default async function BlogPage({ searchParams }: BlogIndexPageProps) {
-  const page = parsePage((await searchParams).page);
+  const page = parseBlogPage((await searchParams).page);
   const [{ items, total }, categories] = await Promise.all([
     getBlogPosts({ page, pageSize: PAGE_SIZE }),
     getBlogCategories()
@@ -90,8 +86,8 @@ export default async function BlogPage({ searchParams }: BlogIndexPageProps) {
         ) : (
           <div className="blogEmpty">
             <img alt="" src="/icon.svg" />
-            <h2>The first field note is being prepared.</h2>
-            <p>Subscribe to the RSS feed or return after the editorial publisher completes its first verified run.</p>
+            <h2>Practical homelab guides are on the way.</h2>
+            <p>Subscribe to the RSS feed or return soon for the first field note.</p>
           </div>
         )}
         <BlogPagination basePath="/blog" currentPage={page} totalPages={totalPages} />

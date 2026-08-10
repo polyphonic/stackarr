@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,8 +9,7 @@ const editorialConfig = JSON.parse(
 );
 
 const CATEGORY_SLUGS = new Set(editorialConfig.categories.map((category) => category.slug));
-const FIRST_PERSON_EXPERIENCE_RE =
-  /\b(?:i|we)\s+(?:built|configured|deployed|installed|migrated|ran|set\s*up|switched|tested|tried|used)\b|\bmy\s+(?:home\s+server|homelab|server|setup|stack)\b|\bwhat\s+happened\s+when\s+i\b/i;
+const FIRST_PERSON_EXPERIENCE_RE = /\b(?:i|i['’](?:d|m|ve)|me|mine|my|our|ours|us|we|we['’](?:d|re|ve))\b/i;
 const HOMELAB_SIGNAL_RE =
   /\b(?:arr\s+stack|backup|cloudflare|container|docker|home\s+server|homelab|immich|jellyfin|media\s+server|mcp|nas|network|plex|private\s+cloud|radarr|remote\s+access|romm|self-host(?:ed|ing)|smart\s+home|sonarr|storage|tunnel|virtuali[sz]ation)\b/gi;
 const OFF_NICHE_RE = /\b(?:celebrity|fashion|horoscope|makeup|political\s+campaign|stock\s+tip|weight\s+loss)\b/i;
@@ -19,6 +18,28 @@ const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g;
 const SOURCE_KINDS = new Set(['primary', 'reference', 'discovery']);
 const CONTENT_KINDS = new Set(['explainer', 'tutorial', 'checklist', 'comparison', 'troubleshooting', 'security']);
+const CLAIM_STOP_WORDS = new Set([
+  'about',
+  'after',
+  'also',
+  'before',
+  'between',
+  'could',
+  'creates',
+  'from',
+  'have',
+  'into',
+  'needs',
+  'setup',
+  'stackarr',
+  'their',
+  'there',
+  'these',
+  'this',
+  'through',
+  'with',
+  'would'
+]);
 
 function uniqueKey(prefix, value, index) {
   return `${prefix}-${createHash('sha1').update(`${index}:${value}`).digest('hex').slice(0, 10)}`;
@@ -54,6 +75,35 @@ function plainMarkdown(value) {
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/[#>*_`~-]/g, ' ');
+}
+
+function resolveContainedFile(root, candidate) {
+  try {
+    const realRoot = realpathSync(root);
+    const realFile = realpathSync(path.resolve(realRoot, candidate));
+    const relativePath = path.relative(realRoot, realFile);
+    if (
+      !relativePath ||
+      relativePath.startsWith('..') ||
+      path.isAbsolute(relativePath) ||
+      !statSync(realFile).isFile()
+    ) {
+      return null;
+    }
+    return realFile;
+  } catch {
+    return null;
+  }
+}
+
+function claimTokens(value) {
+  return [...normalizedTokens(value)].filter((token) => token.length >= 4 && !CLAIM_STOP_WORDS.has(token));
+}
+
+function textSupportsClaim(text, tokens) {
+  const evidenceTokens = normalizedTokens(text);
+  const matchingTokens = tokens.filter((token) => evidenceTokens.has(token));
+  return matchingTokens.length >= Math.min(2, tokens.length);
 }
 
 export function validateArticleDraft(draft, options = {}) {
@@ -145,6 +195,14 @@ export function validateArticleDraft(draft, options = {}) {
   if (discoveryHeadlines.some((headline) => headlineSimilarity(title, String(headline)) >= 0.72)) {
     errors.push('Draft title is too close to a discovery-source headline.');
   }
+  const sectionHeadings = [...markdown.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]);
+  if (
+    sectionHeadings.some((heading) =>
+      discoveryHeadlines.some((sourceHeading) => headlineSimilarity(heading, String(sourceHeading)) >= 0.82)
+    )
+  ) {
+    errors.push('Draft section structure is too close to a discovery source.');
+  }
 
   const services = Array.isArray(draft?.referencedServices) ? draft.referencedServices : [];
   if (
@@ -201,27 +259,34 @@ export function validateArticleDraft(draft, options = {}) {
     const evidencePaths = Array.isArray(connection.evidencePaths) ? connection.evidencePaths : [];
     if (!evidencePaths.length) errors.push('Stackarr feature claims require repository evidence paths.');
     if (options.repoRoot) {
-      const repoRoot = path.resolve(options.repoRoot);
+      const repoRoot = realpathSync(options.repoRoot);
+      const evidenceFiles = [];
       for (const evidencePath of evidencePaths) {
-        const absolutePath = path.resolve(repoRoot, evidencePath);
-        const relativePath = path.relative(repoRoot, absolutePath);
-        const isOutsideRepo = relativePath.startsWith('..') || path.isAbsolute(relativePath);
-        const isEvidenceFile = !isOutsideRepo && existsSync(absolutePath) && statSync(absolutePath).isFile();
-        if (!relativePath || !isEvidenceFile) {
+        const evidenceFile = resolveContainedFile(repoRoot, evidencePath);
+        if (!evidenceFile) {
           errors.push(`Stackarr feature evidence does not exist: ${evidencePath}`);
+        } else {
+          evidenceFiles.push(evidenceFile);
         }
       }
       const docsRelativePath = String(connection.docsPath ?? '').slice('/docs/'.length);
       const docsRoot = path.join(repoRoot, 'apps/docs/content/docs');
-      const docsFile = path.resolve(docsRoot, `${docsRelativePath}.mdx`);
-      const docsPathFromRoot = path.relative(docsRoot, docsFile);
-      const docsPathEscapesRoot = docsPathFromRoot.startsWith('..') || path.isAbsolute(docsPathFromRoot);
-      if (!docsRelativePath || docsPathEscapesRoot || !existsSync(docsFile) || !statSync(docsFile).isFile()) {
+      const docsFile = docsRelativePath ? resolveContainedFile(docsRoot, `${docsRelativePath}.mdx`) : null;
+      if (!docsFile) {
         errors.push(`Stackarr product connection needs a published docs page: ${connection.docsPath}`);
+      }
+      const featureClaim = `${connection.featureName ?? ''} ${connection.explanation ?? ''}`;
+      const featureTokens = claimTokens(featureClaim);
+      const evidenceText = evidenceFiles.map((file) => readFileSync(file, 'utf8').slice(0, 1_000_000)).join('\n');
+      if (!featureTokens.length || !textSupportsClaim(evidenceText, featureTokens)) {
+        errors.push('Repository evidence does not substantiate the stated Stackarr feature.');
+      }
+      if (docsFile && !textSupportsClaim(readFileSync(docsFile, 'utf8').slice(0, 1_000_000), featureTokens)) {
+        errors.push('The linked Stackarr documentation does not substantiate the stated feature.');
       }
     }
   } else if (stackarrMentions) {
-    warnings.push('Article mentions Stackarr without a validated product connection.');
+    errors.push('Article mentions Stackarr without a validated product connection.');
   }
 
   return { valid: errors.length === 0, errors, warnings };

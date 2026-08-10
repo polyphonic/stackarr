@@ -10,6 +10,9 @@ export function getPublicSanityConfig(): PublicSanityConfig | null {
   const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET?.trim() || 'production';
 
   if (!projectId) {
+    if (process.env.NODE_ENV === 'production' && process.env.SKIP_ENV_VALIDATION !== '1') {
+      throw new Error('NEXT_PUBLIC_SANITY_PROJECT_ID is required in production.');
+    }
     return null;
   }
 

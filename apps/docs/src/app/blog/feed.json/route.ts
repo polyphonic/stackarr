@@ -18,6 +18,7 @@ export async function GET() {
         url: absoluteUrl(`/blog/${post.slug}`),
         title: post.title,
         summary: post.excerpt,
+        content_text: post.excerpt,
         date_published: post.publishedAt,
         date_modified: post.updatedAt || post._updatedAt,
         tags: post.tags,

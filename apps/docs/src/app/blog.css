@@ -60,6 +60,7 @@
 
 .blogBrand {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
   gap: 11px;
   color: var(--blog-ink);
@@ -80,6 +81,13 @@
   color: var(--blog-muted);
   font-size: 14px;
   font-weight: 650;
+}
+
+.blogNavLinks > a,
+.blogCategoryMenu > summary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
 }
 
 .blogNavLinks > a:hover,
@@ -223,7 +231,7 @@
 
 .blogCategoryRail a {
   display: inline-flex;
-  min-height: 36px;
+  min-height: 44px;
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
@@ -466,8 +474,8 @@
 
 .blogPageNumbers a {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid var(--blog-line);
   border-radius: 50%;
@@ -633,7 +641,7 @@
 
 .blogArticleServices a {
   display: inline-flex;
-  min-height: 34px;
+  min-height: 44px;
   align-items: center;
   gap: 8px;
   border: 1px solid var(--blog-line);
@@ -968,6 +976,29 @@
   color: var(--blog-muted);
   font-size: 12px;
   font-weight: 650;
+}
+
+.blogPagination > a,
+.blogProductConnection > a,
+.blogArticleEnd a,
+.blogArticleCategoryIndex a,
+.blogFooter a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blogCard,
+  .blogCardImage > img,
+  .blogImageFallback {
+    transition: none;
+  }
+
+  .blogCard:hover,
+  .blogCard:hover .blogCardImage > img {
+    transform: none;
+  }
 }
 
 @media (max-width: 1000px) {
