@@ -12,6 +12,8 @@ const discoveryLinkHeader = [
   '</.well-known/oauth-protected-resource>; rel="service-meta"; type="application/json"',
   '</.well-known/mcp/server-card.json>; rel="service-meta"; type="application/json"',
   '</.well-known/agent-skills/index.json>; rel="service-meta"; type="application/json"',
+  '</llms.txt>; rel="describedby"; type="text/plain"',
+  '</blog/feed.xml>; rel="alternate"; type="application/rss+xml"',
   '</auth.md>; rel="authorization"; type="text/markdown"'
 ].join(', ');
 
@@ -20,7 +22,7 @@ const config = {
   output: 'standalone',
   outputFileTracingRoot: workspaceRoot,
   reactStrictMode: true,
-  transpilePackages: ['@stackarr/ui', '@stackarr/db'],
+  transpilePackages: ['@stackarr/ui', '@stackarr/db', '@stackarr/cms'],
   turbopack: {
     root: workspaceRoot
   },
@@ -40,6 +42,15 @@ const config = {
     return [
       {
         source: '/',
+        headers: [
+          {
+            key: 'Link',
+            value: discoveryLinkHeader
+          }
+        ]
+      },
+      {
+        source: '/blog/:path*',
         headers: [
           {
             key: 'Link',
