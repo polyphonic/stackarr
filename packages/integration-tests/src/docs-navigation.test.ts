@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { serviceIntegrationGroups, serviceIntegrations } from '../../../apps/docs/src/lib/service-integrations.ts';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -16,10 +17,35 @@ test('every integration document appears in the docs navigation', async () => {
     pages: string[];
   };
 
+  const navigationDocuments = metadata.pages.filter((page) => !page.startsWith('---'));
+
   assert.equal(
-    metadata.pages.length,
-    new Set(metadata.pages).size,
+    navigationDocuments.length,
+    new Set(navigationDocuments).size,
     'integration navigation must not contain duplicates'
   );
-  assert.deepEqual([...metadata.pages].sort(), documents);
+  assert.deepEqual([...navigationDocuments].sort(), documents);
+  assert.equal(metadata.pages[0], 'index');
+  assert.deepEqual(
+    metadata.pages,
+    [
+      'index',
+      ...serviceIntegrationGroups.flatMap((group) => [
+        `---${group.name}---`,
+        ...group.services.map((service) => service.slug)
+      ])
+    ],
+    'integration navigation and the integration grid must share grouped alphabetical order'
+  );
+  assert.equal(serviceIntegrations.length, navigationDocuments.length - 1);
+
+  for (const group of serviceIntegrationGroups) {
+    assert.deepEqual(
+      group.services.map((service) => service.name),
+      group.services
+        .map((service) => service.name)
+        .sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })),
+      `${group.name} integrations must be alphabetical by display name`
+    );
+  }
 });

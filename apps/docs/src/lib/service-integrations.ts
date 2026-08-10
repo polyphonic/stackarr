@@ -10,7 +10,7 @@ export type ServiceIntegration = {
   whatItDoes: string[];
 };
 
-export const serviceIntegrations = [
+const serviceIntegrationDefinitions = [
   {
     slug: 'sonarr',
     name: 'Sonarr',
@@ -222,6 +222,21 @@ export const serviceIntegrations = [
       'Stackarr can run Maintainerr, persist its data, link it through localhost or Portless, include it in backups, and wire Plex/Jellyfin, Radarr/Sonarr, Seerr, and qBittorrent when available while leaving destructive cleanup rules user-controlled.'
   },
   {
+    slug: 'cleanuparr',
+    name: 'Cleanuparr',
+    logo: 'cleanuparr',
+    category: 'Download security',
+    role: 'Download malware blocker',
+    hero: 'Cleanuparr monitors download clients and Arr applications for unwanted or unsafe files.',
+    whatItDoes: [
+      'Connects to supported download clients and Arr applications.',
+      'Blocks executable, script, shortcut, installer, and disk-image patterns before import.',
+      'Keeps malware checks separate from ordinary media-library automation.'
+    ],
+    stackarr:
+      'Stackarr can run Cleanuparr privately, connect the selected torrent client and enabled Arr apps, install a media-safe executable blocklist, surface its service link, and include its durable configuration in backups.'
+  },
+  {
     slug: 'agregarr',
     name: 'Agregarr',
     logo: 'agregarr',
@@ -418,6 +433,29 @@ export const serviceIntegrations = [
       'Stackarr keeps Cloudflare routing explicit: setup and settings map hostnames to services such as Pulsarr or BookOrbit, and agent tools can inspect or update routes with clear confirmation.'
   }
 ] satisfies ServiceIntegration[];
+
+const serviceSlugs = new Set(['cloudflare', 'docker', 'postgres', 'redis']);
+const compareIntegrationNames = (left: ServiceIntegration, right: ServiceIntegration) =>
+  left.name.localeCompare(right.name, 'en', { numeric: true, sensitivity: 'base' });
+
+export const serviceIntegrationGroups = [
+  {
+    id: 'apps',
+    name: 'Apps',
+    services: serviceIntegrationDefinitions
+      .filter((service) => !serviceSlugs.has(service.slug))
+      .sort(compareIntegrationNames)
+  },
+  {
+    id: 'services',
+    name: 'Services',
+    services: serviceIntegrationDefinitions
+      .filter((service) => serviceSlugs.has(service.slug))
+      .sort(compareIntegrationNames)
+  }
+] as const;
+
+export const serviceIntegrations = serviceIntegrationGroups.flatMap((group) => group.services);
 
 export const serviceIntegrationMap = new Map(serviceIntegrations.map((service) => [service.slug, service]));
 
