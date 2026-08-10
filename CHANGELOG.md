@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.12](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.11...v0.3.0-alpha.12) (2026-08-10)
+
+
+### Fixed
+
+* **docs:** expose Youtarr and consolidate updates ([d9e0e64](https://github.com/polyphonic/stackarr/commit/d9e0e646d86ec0dfdaeec066cb3c7a503c40fb80))
+* **docs:** expose Youtarr in navigation ([90a8679](https://github.com/polyphonic/stackarr/commit/90a867921019ed9dfb24370ca940ecf4a00d043a))
+
 ## [0.3.0-alpha.11](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.10...v0.3.0-alpha.11) (2026-08-10)
 
 
