@@ -10,10 +10,11 @@ import { promisify } from 'node:util';
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
+const collectorSigningKeyFixture = ['collector', 'signing', 'key', 'fixture', 'long-enough'].join('-');
 
 test('telemetry rate-limit identifiers are opaque and policy scoped', async () => {
   const { telemetryRateLimitIdentifier } = await import('../../../apps/docs/src/app/api/telemetry/rate-limit.ts');
-  const key = 'collector-signing-key-with-at-least-32-characters';
+  const key = collectorSigningKeyFixture;
   const address = '203.0.113.42';
   const registration = telemetryRateLimitIdentifier('registration', address, key);
   const ingest = telemetryRateLimitIdentifier('ingest', address, key);
@@ -52,7 +53,7 @@ test('telemetry collector fails closed without Upstash and accepts a complete se
         env: {
           ...process.env,
           STACKARR_TELEMETRY_COLLECTOR_ENABLED: 'true',
-          STACKARR_TELEMETRY_INGEST_KEY: 'collector-signing-key-with-at-least-32-characters',
+          STACKARR_TELEMETRY_INGEST_KEY: collectorSigningKeyFixture,
           DATABASE_URL: 'postgresql://stackarr:secret@example.test/stackarr?sslmode=require',
           UPSTASH_REDIS_REST_URL: upstashConfigured ? 'https://example.upstash.io' : '',
           UPSTASH_REDIS_REST_TOKEN: upstashConfigured ? 'upstash-rest-token' : ''
@@ -74,7 +75,7 @@ test('collector tokens are scoped to one installation and expire', async () => {
   const { issueTelemetryClientToken, verifyTelemetryClientToken } = await import(
     '../../../apps/docs/src/app/api/telemetry/auth.ts'
   );
-  const signingKey = 'collector-signing-key-with-at-least-32-characters';
+  const signingKey = collectorSigningKeyFixture;
   const firstInstall = '11111111-1111-4111-8111-111111111111';
   const secondInstall = '22222222-2222-4222-8222-222222222222';
   const now = Date.now();

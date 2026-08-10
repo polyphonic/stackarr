@@ -1,0 +1,13 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated Next.js build artifacts"
+paths = ['''(^|/)\.next/''']
+
+[[allowlists]]
+description = "Adjacent empty API key placeholders in generated configuration"
+condition = "AND"
+paths = ['''^stackarr/scripts/init\.sh$''']
+regexTarget = "match"
+regexes = ['''RADARR4K_API_KEY=""\s+SONARR_API_KEY=""''']
