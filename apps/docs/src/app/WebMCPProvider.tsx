@@ -47,6 +47,16 @@ const docsByTopic: Record<string, string> = {
   troubleshooting: '/docs/operations/troubleshooting'
 };
 
+const blogCategories: Record<string, string> = {
+  all: '/blog',
+  infrastructure: '/blog/category/infrastructure-networking',
+  entertainment: '/blog/category/media-entertainment',
+  ai: '/blog/category/ai-automation',
+  smartHome: '/blog/category/smart-home',
+  data: '/blog/category/data-photos',
+  gaming: '/blog/category/gaming-emulation'
+};
+
 function siteUrl(path: string) {
   return new URL(path, window.location.origin).toString();
 }
@@ -54,7 +64,7 @@ function siteUrl(path: string) {
 const tools: WebMCPTool[] = [
   {
     name: 'stackarr_get_agent_discovery',
-    description: 'Return public Stackarr agent discovery URLs for docs, Auth.md, OpenAPI, MCP, and skill metadata.',
+    description: 'Return public Stackarr discovery URLs for docs, blog feeds, Auth.md, OpenAPI, MCP, and skills.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -70,7 +80,11 @@ const tools: WebMCPTool[] = [
       mcpServerCard: siteUrl('/.well-known/mcp/server-card.json'),
       agentSkills: siteUrl('/.well-known/agent-skills/index.json'),
       llms: siteUrl('/llms.txt'),
-      llmsFull: siteUrl('/llms-full.txt')
+      llmsFull: siteUrl('/llms-full.txt'),
+      blog: siteUrl('/blog'),
+      blogRss: siteUrl('/blog/feed.xml'),
+      blogJsonFeed: siteUrl('/blog/feed.json'),
+      blogSkill: siteUrl('/.well-known/agent-skills/stackarr-blog/SKILL.md')
     })
   },
   {
@@ -98,6 +112,36 @@ const tools: WebMCPTool[] = [
       return {
         topic,
         url: siteUrl(path)
+      };
+    }
+  },
+  {
+    name: 'stackarr_get_blog_url',
+    description: 'Return a Stackarr homelab blog index or category URL without changing page state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          enum: Object.keys(blogCategories),
+          description: 'Blog category to locate. Use all for the complete index.'
+        }
+      },
+      required: ['category'],
+      additionalProperties: false
+    },
+    annotations: {
+      readOnlyHint: true
+    },
+    execute: (input) => {
+      const category = typeof input?.category === 'string' ? input.category : 'all';
+      const path = blogCategories[category] ?? blogCategories.all;
+
+      return {
+        category,
+        url: siteUrl(path),
+        rss: siteUrl('/blog/feed.xml'),
+        jsonFeed: siteUrl('/blog/feed.json')
       };
     }
   }

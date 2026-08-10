@@ -1,4 +1,5 @@
 import './globals.css';
+import './blog.css';
 
 import { GoogleTagManager } from '@next/third-parties/google';
 import type { Metadata, Viewport } from 'next';

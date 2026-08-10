@@ -8,6 +8,8 @@ export const linkHeaderValue = [
   '</.well-known/oauth-protected-resource>; rel="service-meta"; type="application/json"',
   '</.well-known/mcp/server-card.json>; rel="service-meta"; type="application/json"',
   '</.well-known/agent-skills/index.json>; rel="service-meta"; type="application/json"',
+  '</llms.txt>; rel="describedby"; type="text/plain"',
+  '</blog/feed.xml>; rel="alternate"; type="application/rss+xml"',
   '</auth.md>; rel="authorization"; type="text/markdown"'
 ].join(', ');
 
@@ -41,6 +43,7 @@ export function markdownResponse(markdown: string, init?: ResponseInit) {
     ...init,
     headers: {
       ...textHeaders('text/markdown; charset=utf-8', {
+        Vary: 'Accept',
         'x-markdown-tokens': String(tokens)
       }),
       ...init?.headers
@@ -158,6 +161,21 @@ Use this skill when a user asks an agent to maintain an existing Stackarr instal
 2. Confirm backups are scheduled and the latest archive completed.
 3. Review service status before running updates or repairs.
 4. Prefer Stackarr actions over direct service edits so configuration stays consistent.
+`
+  },
+  'stackarr-blog': {
+    name: 'stackarr-blog',
+    type: 'content',
+    description: 'Discover Stackarr homelab articles, category archives, feeds, sources, and markdown representations.',
+    content: `# Stackarr Blog Skill
+
+Use this skill when an agent needs public Stackarr homelab guidance.
+
+1. Browse the blog at /blog or the RSS feed at /blog/feed.xml.
+2. Treat articles as educational operations guidance, not proof of a specific installation.
+3. Follow each article's source ledger for current primary or official evidence.
+4. Request a canonical blog URL with Accept: text/markdown for a compact representation.
+5. Use product documentation, not blog copy, as the source of truth for current Stackarr behavior.
 `
   },
   'stackarr-api': {

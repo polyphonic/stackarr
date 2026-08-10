@@ -14,6 +14,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    name: Scan tracked content for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   verify:
     name: Verify application
     runs-on: ubuntu-latest
@@ -33,6 +45,10 @@ jobs:
       - run: pnpm check
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Build public docs and blog
+        run: pnpm --filter @stackarr/docs build
+        env:
+          SKIP_ENV_VALIDATION: '1'
 
   docker-smoke:
     name: Build linux/amd64 image
