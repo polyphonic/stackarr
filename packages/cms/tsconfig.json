@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "sanity.config.ts", "sanity.cli.ts"]
+}

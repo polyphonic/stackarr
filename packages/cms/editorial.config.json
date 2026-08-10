@@ -1,0 +1,43 @@
+{
+  "categories": [
+    {
+      "slug": "infrastructure-networking",
+      "title": "Infrastructure & Networking",
+      "description": "Secure access, storage, backups, containers, networks, and reliable home-server operations."
+    },
+    {
+      "slug": "media-entertainment",
+      "title": "Media & Entertainment",
+      "description": "Plex, Jellyfin, the Arr stack, requests, playback, quality, and media-library operations."
+    },
+    {
+      "slug": "ai-automation",
+      "title": "AI & Automation",
+      "description": "Practical agents, MCP tools, routines, monitoring, and safe automation for self-hosted systems."
+    },
+    {
+      "slug": "smart-home",
+      "title": "Smart Home",
+      "description": "Private automation, local control, observability, and secure links between home services."
+    },
+    {
+      "slug": "data-photos",
+      "title": "Data & Photos",
+      "description": "Immich, personal data, databases, recovery, private storage, and durable photo workflows."
+    },
+    {
+      "slug": "gaming-emulation",
+      "title": "Gaming & Emulation",
+      "description": "RomM, game libraries, metadata, saves, streaming, and self-hosted emulation workflows."
+    }
+  ],
+  "discoverySources": [
+    "https://www.xda-developers.com/home-lab/",
+    "https://www.xda-developers.com/self-hosting/",
+    "https://www.reddit.com/r/homelab/",
+    "https://www.howtogeek.com/tag/homelab/",
+    "https://selfh.st/",
+    "https://www.reddit.com/r/selfhosted/",
+    "https://www.reddit.com/r/PleX/"
+  ]
+}

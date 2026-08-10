@@ -3,6 +3,8 @@
   "version": "0.3.0-alpha.13",
   "dependencies": {
     "@next/third-parties": "~16.2.9",
+    "@portabletext/react": "7.0.1",
+    "@stackarr/cms": "workspace:*",
     "@stackarr/db": "workspace:*",
     "@stackarr/ui": "workspace:*",
     "@t3-oss/env-core": "^0.13.11",
