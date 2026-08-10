@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0-alpha.11](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.10...v0.3.0-alpha.11) (2026-08-10)
+
+
+### Added
+
+* **agregarr:** add top new releases rows ([93d163b](https://github.com/polyphonic/stackarr/commit/93d163bf44e063335cef05e55e1a9f73e577e228))
+* **questarr:** add end-to-end integration ([c9c9cf2](https://github.com/polyphonic/stackarr/commit/c9c9cf2e54d513b97ae998ec2d2f293f761fd20d))
+* **romm:** add opt-in desktop Steam libraries ([1c7d435](https://github.com/polyphonic/stackarr/commit/1c7d435f78c37b1ff8d91d713e653ac432da1f31))
+* **stack:** add Questarr, Youtarr, and release rows ([ea279a7](https://github.com/polyphonic/stackarr/commit/ea279a704552fd10034100a638d27005c9e2a632))
+
+
+### Fixed
+
+* **agregarr:** name release rows by media ([353b75e](https://github.com/polyphonic/stackarr/commit/353b75ed3412648dde5e96cbc8a032c60d51a94c))
+* **youtarr:** restore standard persistent paths ([b5a84bd](https://github.com/polyphonic/stackarr/commit/b5a84bd0a3357b639bc83e53e83816ef9f1af816))
+
 ## [0.3.0-alpha.10](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.9...v0.3.0-alpha.10) (2026-07-28)
 
 

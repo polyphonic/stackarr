@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/mcp",
-  "version": "0.3.0-alpha.10",
+  "version": "0.3.0-alpha.11",
   "bin": {
     "stackarr-mcp": "dist/index.js"
   },
