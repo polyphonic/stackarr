@@ -3,44 +3,22 @@ title: Integrations
 description: Service explainers for the apps and infrastructure Stackarr can manage or connect.
 ---
 
+import { serviceIntegrationGroups } from '../../../src/lib/service-integrations';
+
 # Integrations
 
 Stackarr brings common media-stack services into one local control plane. These pages explain what each service does and where Stackarr fits around setup, linking, backups, and trusted-agent operations.
 
-<div className="serviceGrid">
-  {[
-    { name: 'Sonarr', slug: 'sonarr', logo: 'sonarr' },
-    { name: 'Radarr', slug: 'radarr', logo: 'radarr' },
-    { name: 'Lidarr', slug: 'lidarr', logo: 'lidarr' },
-    { name: 'Tidarr', slug: 'tidarr', logo: 'tidal' },
-    { name: 'Prowlarr', slug: 'prowlarr', logo: 'prowlarr' },
-    { name: 'Bazarr', slug: 'bazarr', logo: 'bazarr' },
-    { name: 'Seerr', slug: 'seerr', logo: 'overseerr' },
-    { name: 'Jellyfin', slug: 'jellyfin', logo: 'jellyfin' },
-    { name: 'Docker', slug: 'docker', logo: 'docker' },
-    { name: 'qBittorrent', slug: 'qbittorrent', logo: 'qbittorrent' },
-    { name: 'Transmission', slug: 'transmission', logo: 'transmission' },
-    { name: 'Plex', slug: 'plex', logo: 'plex' },
-    { name: 'Pulsarr', slug: 'pulsarr', logo: 'pulsarr' },
-    { name: 'Cleanuparr', slug: 'cleanuparr', logo: 'cleanuparr' },
-    { name: 'Maintainerr', slug: 'maintainerr', logo: 'maintainerr' },
-    { name: 'Agregarr', slug: 'agregarr', logo: 'agregarr' },
-    { name: 'Tracearr', slug: 'tracearr', logo: 'tracearr' },
-    { name: 'Immich', slug: 'immich', logo: 'immich' },
-    { name: 'RomM', slug: 'romm', logo: 'romm' },
-    { name: 'Questarr', slug: 'questarr', logo: 'questarr' },
-    { name: 'Youtarr', slug: 'youtarr', logo: 'youtarr' },
-    { name: 'BookOrbit', slug: 'bookorbit', logo: 'bookorbit' },
-    { name: 'TinyMediaManager', slug: 'tinymediamanager', logo: 'tinymediamanager' },
-    { name: 'Recyclarr', slug: 'recyclarr', logo: 'recyclarr' },
-    { name: 'FlareSolverr', slug: 'flaresolverr', logo: 'flaresolverr' },
-    { name: 'Postgres', slug: 'postgres', logo: 'postgres' },
-    { name: 'Redis', slug: 'redis', logo: 'redis' },
-    { name: 'Cloudflare', slug: 'cloudflare', logo: 'cloudflare' }
-  ].map(service => (
-    <a className="serviceTile" href={`/docs/integrations/${service.slug}`} key={service.slug}>
-      <img alt="" src={`/logos/${service.logo}.${service.slug === 'youtarr' ? 'png' : 'svg'}`} />
-      <span>{service.name}</span>
-    </a>
-  ))}
-</div>
+{serviceIntegrationGroups.map(group => (
+  <section key={group.id}>
+    <h2>{group.name}</h2>
+    <div className="serviceGrid">
+      {group.services.map(service => (
+        <a className="serviceTile" href={`/docs/integrations/${service.slug}`} key={service.slug}>
+          <img alt="" src={`/logos/${service.logo}.${service.logoExtension ?? 'svg'}`} />
+          <span>{service.name}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+))}

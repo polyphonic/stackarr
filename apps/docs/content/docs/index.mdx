@@ -3,6 +3,8 @@ title: Quick Start
 description: Install Stackarr with Docker and connect the chat assistant you already use.
 ---
 
+import { serviceIntegrationGroups } from '../../src/lib/service-integrations';
+
 <div className="stackarrHero">
 
 # Install, connect, ask
@@ -63,35 +65,19 @@ Once setup is complete, try:
 
 ## What Stackarr brings together
 
-<div className="serviceGrid">
-  {[
-    { name: 'Sonarr', logo: 'sonarr' },
-    { name: 'Radarr', logo: 'radarr' },
-    { name: 'Lidarr', logo: 'lidarr' },
-    { name: 'Prowlarr', logo: 'prowlarr' },
-    { name: 'Bazarr', logo: 'bazarr' },
-    { name: 'Plex', logo: 'plex' },
-    { name: 'Jellyfin', logo: 'jellyfin' },
-    { name: 'Seerr', logo: 'overseerr' },
-    { name: 'Transmission', logo: 'transmission' },
-    { name: 'qBittorrent', logo: 'qbittorrent' },
-    { name: 'Pulsarr', logo: 'pulsarr' },
-    { name: 'Maintainerr', logo: 'maintainerr' },
-    { name: 'Tracearr', logo: 'tracearr' },
-    { name: 'Immich', logo: 'immich' },
-    { name: 'RomM', logo: 'romm' },
-    { name: 'BookOrbit', logo: 'bookorbit' },
-    { name: 'TinyMediaManager', logo: 'tinymediamanager' },
-    { name: 'Recyclarr', logo: 'recyclarr' },
-    { name: 'FlareSolverr', logo: 'flaresolverr' },
-    { name: 'Cloudflare', logo: 'cloudflare' }
-  ].map(service => (
-    <div className="serviceTile" key={service.name}>
-      <img alt="" src={`/logos/${service.logo}.svg`} />
-      <span>{service.name}</span>
+{serviceIntegrationGroups.map(group => (
+  <section key={group.id}>
+    <h3>{group.name}</h3>
+    <div className="serviceGrid">
+      {group.services.map(service => (
+        <a className="serviceTile" href={`/docs/integrations/${service.slug}`} key={service.slug}>
+          <img alt="" src={`/logos/${service.logo}.${service.logoExtension ?? 'svg'}`} />
+          <span>{service.name}</span>
+        </a>
+      ))}
     </div>
-  ))}
-</div>
+  </section>
+))}
 
 Stackarr only exposes agent actions for the services you select. Before setup, the catalog stays focused on installation and health. Reconnect your MCP client after changing enabled apps so it can load the updated actions.
 
