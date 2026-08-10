@@ -3,6 +3,10 @@
 .hermes/
 .deepsec/
 .stackarr/
+packages/cms/.env
+packages/cms/.env.*
+!packages/cms/.env.example
+packages/cms/.sanity/
 .turbo/
 .pnpm-store/
 __pycache__/
