@@ -4,6 +4,7 @@ import type { ServiceConfigField, ServiceConfigModel } from '@stackarr/core';
 import { Button, Description, Input, Label, Modal, Switch, TextArea, TextField } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { compareServicesByDisplayName } from '../lib/serviceOrdering';
 import { stackarrFetch } from './clientApi';
 import { icons } from './icons';
 import { PathInput } from './PathPicker';
@@ -841,82 +842,7 @@ function isAdvancedField(field: ServiceConfigField) {
 }
 
 function compareServiceConfigs(a: ServiceConfigModel, b: ServiceConfigModel) {
-  const disabledDifference = disabledRank(a) - disabledRank(b);
-
-  if (disabledDifference !== 0) {
-    return disabledDifference;
-  }
-
-  const rankDifference = serviceRank(a) - serviceRank(b);
-
-  if (rankDifference !== 0) {
-    return rankDifference;
-  }
-
-  const categoryDifference = a.service.category.localeCompare(b.service.category);
-
-  if (categoryDifference !== 0) {
-    return categoryDifference;
-  }
-
-  if (a.service.category === 'media') {
-    const mediaDifference = mediaRank(a.service.name) - mediaRank(b.service.name);
-
-    if (mediaDifference !== 0) {
-      return mediaDifference;
-    }
-  }
-
-  const kindDifference = kindRank(a.service.kind) - kindRank(b.service.kind);
-
-  if (kindDifference !== 0) {
-    return kindDifference;
-  }
-
-  return a.service.displayName.localeCompare(b.service.displayName, undefined, {
-    numeric: true,
-    sensitivity: 'base'
-  });
-}
-
-function serviceRank(config: ServiceConfigModel) {
-  if (config.service.name === 'stackarr') {
-    return 0;
-  }
-
-  if (config.service.category === 'media') {
-    return 1;
-  }
-
-  return 2;
-}
-
-function disabledRank(config: ServiceConfigModel) {
-  return config.service.mode === 'disabled' ? 1 : 0;
-}
-
-function kindRank(kind: ServiceConfigModel['service']['kind']) {
-  if (kind === 'container') {
-    return 0;
-  }
-
-  if (kind === 'app') {
-    return 1;
-  }
-
-  return 2;
-}
-
-function mediaRank(name: string) {
-  if (name === 'plex') {
-    return 0;
-  }
-
-  if (name === 'jellyfin') {
-    return 1;
-  }
-
-  return 2;
+  return compareServicesByDisplayName(a.service, b.service);
 }
 
 function favoriteRank(config: ServiceConfigModel, favorites: Set<string>) {

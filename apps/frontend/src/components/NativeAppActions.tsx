@@ -4,6 +4,7 @@ import { Button } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { compareAlphabeticalLabels } from '../lib/serviceOrdering';
 import { stackarrFetch } from './clientApi';
 import styles from './NativeAppActions.module.css';
 
@@ -25,7 +26,10 @@ type Kind = 'read' | 'manage' | 'dangerous';
 
 export function NativeAppActions({ capabilities }: { capabilities: NativeAppCapabilities }) {
   const apps = useMemo(
-    () => capabilities.apps.filter((app) => app.enabled && totalOperations(app) > 0),
+    () =>
+      capabilities.apps
+        .filter((app) => app.enabled && totalOperations(app) > 0)
+        .sort((left, right) => compareAlphabeticalLabels(displayName(left.app), displayName(right.app))),
     [capabilities]
   );
   const [selectedApp, setSelectedApp] = useState(apps[0]?.app ?? '');
