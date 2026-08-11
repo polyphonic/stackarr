@@ -55,12 +55,6 @@ export type BlogPostSummary = {
 export type BlogPost = BlogPostSummary & {
   body: Array<Record<string, unknown>>;
   sources: BlogSource[];
-  productConnection?: {
-    relevant?: boolean;
-    featureName?: string;
-    explanation?: string;
-    docsPath?: string;
-  };
 };
 
 const postSummaryProjection = `
@@ -132,8 +126,7 @@ export async function getBlogPostBySlug(slug: string) {
   const query = `*[_type == "post" && slug.current == $slug && publishedAt <= now()][0] {
     ${postSummaryProjection},
     "body": coalesce(body[]{..., _type == "image" => {..., "url": asset->url}}, []),
-    "sources": coalesce(sources, []),
-    productConnection
+    "sources": coalesce(sources, [])
   }`;
   return safeSanityFetch<BlogPost | null>(query, { slug }, null);
 }

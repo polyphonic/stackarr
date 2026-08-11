@@ -1,4 +1,5 @@
 @import "fumadocs-ui/css/style.css";
+@import "@heroui/styles";
 @import "@stackarr/ui/styles.css";
 
 :root {

@@ -1,5 +1,6 @@
 import type { BlogCategory } from '@stackarr/cms';
 import { githubUrl } from '~/lib/site';
+import { BlogMenu } from '../BlogMenu';
 import { ThemeToggle } from '../ThemeToggle';
 
 export function BlogShell({ categories, children }: { categories: BlogCategory[]; children: React.ReactNode }) {
@@ -12,26 +13,12 @@ export function BlogShell({ categories, children }: { categories: BlogCategory[]
             <span>Stackarr</span>
           </a>
           <div className="blogNavLinks">
-            <details className="blogCategoryMenu">
-              <summary>Blog</summary>
-              <div className="blogCategoryPanel">
-                <a className="blogCategoryAll" href="/blog">
-                  <strong>All articles</strong>
-                  <span>The latest Stackarr homelab field notes.</span>
-                </a>
-                {categories.map((category) => (
-                  <a href={`/blog/category/${category.slug}`} key={category._id}>
-                    <strong>{category.title}</strong>
-                    <span>{category.description}</span>
-                  </a>
-                ))}
-              </div>
-            </details>
             <a href="/docs">Docs</a>
             <a href="/docs/installation">Install</a>
             <a href={githubUrl} rel="noreferrer" target="_blank">
               GitHub
             </a>
+            <BlogMenu categories={categories} description="The latest Stackarr homelab field notes." />
             <ThemeToggle />
           </div>
         </nav>

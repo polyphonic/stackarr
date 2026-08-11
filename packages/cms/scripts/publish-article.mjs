@@ -95,122 +95,175 @@ if (!originalityValidation.valid) {
 }
 const verifiedSourceUrls = new Map(verifiedSources.map((source) => [source.source.url, source.finalUrl]));
 
+async function resolveArticleImage(imagePath, label) {
+  if (!imagePath) throw new Error(`${label} imagePath is required.`);
+  const resolvedPath = await realpath(path.resolve(imagePath));
+  if (!isInsideWorkDir(resolvedPath)) {
+    throw new Error(`${label} imagePath must resolve to a file inside STACKARR_BLOG_WORK_DIR.`);
+  }
+  const imageStats = await stat(resolvedPath);
+  if (!imageStats.isFile() || imageStats.size < 1024 || imageStats.size > 15 * 1024 * 1024) {
+    throw new Error(`${label} image must be a regular file between 1 KB and 15 MB.`);
+  }
+
+  const bytes = await readFile(resolvedPath);
+  const extension = path.extname(resolvedPath).toLowerCase();
+  const isPng = bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+  const isJpeg = bytes.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'));
+  const isWebp =
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (
+    !(
+      (extension === '.png' && isPng) ||
+      (['.jpg', '.jpeg'].includes(extension) && isJpeg) ||
+      (extension === '.webp' && isWebp)
+    )
+  ) {
+    throw new Error(`${label} image extension and file signature must match PNG, JPEG, or WebP.`);
+  }
+
+  return {
+    bytes,
+    extension,
+    contentType:
+      extension === '.webp' ? 'image/webp' : extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : 'image/png'
+  };
+}
+
 if (!draft.coverImagePath) {
   throw new Error('coverImagePath is required. Generate and review a relevant 16:9 editorial image first.');
 }
-const coverPath = path.resolve(draft.coverImagePath);
-const resolvedCoverPath = await realpath(coverPath);
-if (!isInsideWorkDir(resolvedCoverPath)) {
-  throw new Error('coverImagePath must resolve to a file inside STACKARR_BLOG_WORK_DIR.');
-}
-const coverStats = await stat(resolvedCoverPath);
-if (!coverStats.isFile() || coverStats.size < 1024 || coverStats.size > 15 * 1024 * 1024) {
-  throw new Error('The cover image must be a regular file between 1 KB and 15 MB.');
-}
-const coverBytes = await readFile(resolvedCoverPath);
-const extension = path.extname(resolvedCoverPath).toLowerCase();
-const isPng = coverBytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
-const isJpeg = coverBytes.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'));
-const isWebp =
-  coverBytes.subarray(0, 4).toString('ascii') === 'RIFF' && coverBytes.subarray(8, 12).toString('ascii') === 'WEBP';
-if (
-  !(
-    (extension === '.png' && isPng) ||
-    (['.jpg', '.jpeg'].includes(extension) && isJpeg) ||
-    (extension === '.webp' && isWebp)
-  )
-) {
-  throw new Error('The cover image extension and file signature must match PNG, JPEG, or WebP.');
-}
-const contentType =
-  extension === '.webp' ? 'image/webp' : extension === '.jpg' || extension === '.jpeg' ? 'image/jpeg' : 'image/png';
-const asset = await client.assets.upload('image', coverBytes, {
-  filename: `${draft.slug}${extension || '.png'}`,
-  contentType,
-  title: draft.coverImageAlt
-});
-if (!(asset._id && asset.url)) {
-  throw new Error('Sanity image upload did not return an asset ID and URL.');
-}
-
-const publishedAt = draft.publishedAt || new Date().toISOString();
-const body = markdownToPortableText(draft.contentMarkdown);
-const productConnection = draft.productConnection?.relevant
-  ? {
-      _type: 'productConnection',
-      relevant: true,
-      featureName: draft.productConnection.featureName,
-      explanation: draft.productConnection.explanation,
-      docsPath: draft.productConnection.docsPath
-    }
-  : { _type: 'productConnection', relevant: false };
-
-const document = {
-  _id: publicId,
-  _type: 'post',
-  title: draft.title.trim(),
-  slug: { _type: 'slug', current: draft.slug },
-  excerpt: draft.excerpt.trim(),
-  category: { _type: 'reference', _ref: categoryId },
-  coverImage: {
-    _type: 'image',
-    asset: { _type: 'reference', _ref: asset._id },
+const imageInputs = [
+  {
+    key: 'cover',
+    imagePath: draft.coverImagePath,
     alt: draft.coverImageAlt.trim(),
-    caption: draft.coverImageCaption?.trim()
+    caption: draft.coverImageCaption?.trim(),
+    filenameBase: draft.slug
   },
-  publishedAt,
-  author: { _type: 'reference', _ref: 'author-stackarr-editorial' },
-  contentKind: draft.contentKind || 'explainer',
-  tags: draft.tags.map((tag) => tag.trim()),
-  referencedServices: draft.referencedServices || [],
-  body,
-  sources: draft.sources.map((source, index) => ({
-    _type: 'sourceCitation',
-    _key: `source-${index + 1}`,
-    title: source.title.trim(),
-    publisher: source.publisher.trim(),
-    url: verifiedSourceUrls.get(source.url) || source.url,
-    kind: source.kind
-  })),
-  productConnection,
-  featured: Boolean(draft.featured),
-  seo: {
-    _type: 'seoMetadata',
-    title: draft.seo?.title || draft.title,
-    description: draft.seo?.description || draft.excerpt,
-    canonicalUrl: draft.seo?.canonicalUrl,
-    noIndex: false,
-    openGraphTitle: draft.seo?.openGraphTitle || draft.title,
-    openGraphDescription: draft.seo?.openGraphDescription || draft.excerpt
-  }
-};
+  ...(draft.inlineImages || []).map((image) => ({
+    key: image.key,
+    imagePath: image.imagePath,
+    alt: image.alt.trim(),
+    caption: image.caption?.trim(),
+    filenameBase: `${draft.slug}-${image.key}`
+  }))
+];
+const preparedImages = await Promise.all(
+  imageInputs.map(async (image) => ({ ...image, ...(await resolveArticleImage(image.imagePath, image.key)) }))
+);
 
+const uploadedAssets = [];
 let documentCreated = false;
+async function rollbackPublication() {
+  if (documentCreated) {
+    try {
+      await client.delete(publicId, { visibility: 'sync' });
+    } catch {
+      console.warn(`Warning: could not roll back document ${publicId}.`);
+    }
+  }
+  for (const uploaded of [...uploadedAssets].reverse()) {
+    try {
+      await client.delete(uploaded.assetId, { visibility: 'sync' });
+    } catch {
+      console.warn(`Warning: could not remove image asset ${uploaded.assetId}.`);
+    }
+  }
+}
+
 let verified;
 try {
+  for (const image of preparedImages) {
+    const asset = await client.assets.upload('image', image.bytes, {
+      filename: `${image.filenameBase}${image.extension}`,
+      contentType: image.contentType,
+      title: image.alt
+    });
+    if (!(asset._id && asset.url)) {
+      throw new Error(`Sanity image upload for ${image.key} did not return an asset ID and URL.`);
+    }
+    uploadedAssets.push({
+      key: image.key,
+      assetId: asset._id,
+      url: asset.url,
+      alt: image.alt,
+      caption: image.caption
+    });
+  }
+
+  const coverAsset = uploadedAssets.find((asset) => asset.key === 'cover');
+  if (!coverAsset) throw new Error('The cover image was not uploaded.');
+  const inlineAssets = uploadedAssets.filter((asset) => asset.key !== 'cover');
+  const publishedAt = draft.publishedAt || new Date().toISOString();
+  const body = markdownToPortableText(draft.contentMarkdown, inlineAssets);
+  const productConnection = draft.productConnection?.relevant
+    ? {
+        _type: 'productConnection',
+        relevant: true,
+        featureName: draft.productConnection.featureName,
+        explanation: draft.productConnection.explanation,
+        docsPath: draft.productConnection.docsPath
+      }
+    : { _type: 'productConnection', relevant: false };
+
+  const document = {
+    _id: publicId,
+    _type: 'post',
+    title: draft.title.trim(),
+    slug: { _type: 'slug', current: draft.slug },
+    excerpt: draft.excerpt.trim(),
+    category: { _type: 'reference', _ref: categoryId },
+    coverImage: {
+      _type: 'image',
+      asset: { _type: 'reference', _ref: coverAsset.assetId },
+      alt: draft.coverImageAlt.trim(),
+      caption: draft.coverImageCaption?.trim()
+    },
+    publishedAt,
+    author: { _type: 'reference', _ref: 'author-stackarr-editorial' },
+    contentKind: draft.contentKind || 'explainer',
+    tags: draft.tags.map((tag) => tag.trim()),
+    referencedServices: draft.referencedServices || [],
+    body,
+    sources: draft.sources.map((source, index) => ({
+      _type: 'sourceCitation',
+      _key: `source-${index + 1}`,
+      title: source.title.trim(),
+      publisher: source.publisher.trim(),
+      url: verifiedSourceUrls.get(source.url) || source.url,
+      kind: source.kind
+    })),
+    productConnection,
+    featured: Boolean(draft.featured),
+    seo: {
+      _type: 'seoMetadata',
+      title: draft.seo?.title || draft.title,
+      description: draft.seo?.description || draft.excerpt,
+      canonicalUrl: draft.seo?.canonicalUrl,
+      noIndex: false,
+      openGraphTitle: draft.seo?.openGraphTitle || draft.title,
+      openGraphDescription: draft.seo?.openGraphDescription || draft.excerpt
+    }
+  };
+
   await client.create(document, { visibility: 'sync' });
   documentCreated = true;
   verified = await publicClient.fetch(
-    `*[_id == $id && _type == "post" && slug.current == $slug][0]{_id, "slug": slug.current, title, "imageUrl": coverImage.asset->url}`,
+    `*[_id == $id && _type == "post" && slug.current == $slug][0]{
+      _id,
+      "slug": slug.current,
+      title,
+      "imageUrl": coverImage.asset->url,
+      "inlineImageCount": count(body[_type == "image" && defined(asset->url)])
+    }`,
     { id: publicId, slug: draft.slug }
   );
-  if (!(verified?._id === publicId && verified?.imageUrl)) {
-    throw new Error(`Published document ${publicId} was not publicly readable after the mutation.`);
+  if (!(verified?._id === publicId && verified?.imageUrl && verified.inlineImageCount === inlineAssets.length)) {
+    throw new Error(`Published document ${publicId} was not publicly readable with all images after the mutation.`);
   }
 } catch (error) {
-  if (documentCreated) {
-    try {
-      await client.transaction().delete(publicId).delete(asset._id).commit({ visibility: 'sync' });
-    } catch {
-      console.warn(`Warning: could not roll back document ${publicId} and image asset ${asset._id}.`);
-    }
-  } else {
-    try {
-      await client.delete(asset._id, { visibility: 'sync' });
-    } catch {
-      console.warn(`Warning: could not remove unreferenced image asset ${asset._id}.`);
-    }
-  }
+  await rollbackPublication();
   throw error;
 }
 
@@ -222,6 +275,7 @@ console.log(
       slug: verified.slug,
       title: verified.title,
       imageUrl: verified.imageUrl,
+      inlineImageCount: verified.inlineImageCount,
       expectedUrl: `https://stackarr.app/blog/${verified.slug}`
     },
     null,

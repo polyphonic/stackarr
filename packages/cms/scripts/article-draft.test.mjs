@@ -24,7 +24,9 @@ const validDraft = {
   coverImageAlt: 'A private tunnel connecting an authenticated user to a home server.',
   contentMarkdown: `## Start with the threat model
 
-A public hostname should not create a direct path to an admin dashboard. Use a private tunnel and keep the origin off the public network.
+A public hostname should not create a direct path to an admin dashboard. Use a private tunnel and keep the origin off the public network. Record which users need access, which application needs a route, and which local address the connector can reach. This keeps the design narrow before any DNS record becomes public.
+
+A tunnel removes the inbound port forward, but it does not replace authentication. The public hostname still needs an identity policy. The application should also keep its own login enabled because layered controls reduce the impact of one failed boundary.
 
 ## Build the access path
 
@@ -33,17 +35,28 @@ A public hostname should not create a direct path to an admin dashboard. Use a p
 3. Restrict access to an explicit email allowlist.
 4. Keep the application bound to the private network.
 
+Map one hostname to one private service instead of exposing a broad reverse proxy dashboard. Use a stable internal target such as an application container name and port. Add the Access application before sharing the hostname, then confirm that its policy allows only the intended identities.
+
+Remove the old router port forward after the tunnel works. Check that the service does not listen on a public interface. A DNS record should point to the tunnel provider, not to the home WAN address.
+
 ## Verify the result
 
 - Confirm the origin port is closed from the internet.
 - Confirm an unapproved account cannot pass the access policy.
 - Confirm the service still works from an approved account.
+- Confirm the application login still appears after the identity check.
+
+Test from a device that is not connected to the home Wi-Fi. Use an approved account, an unapproved account, and a signed-out browser session. Then stop the connector and confirm that the public hostname fails closed instead of reaching a different origin.
 
 > Remote access is not complete until both the public route and the blocked paths are tested.
 
 ## Keep the configuration recoverable
 
-Export the tunnel and access policy settings with the rest of the homelab configuration.`,
+Export the tunnel and access policy settings with the rest of the homelab configuration. Record the hostname, private target, tunnel identifier, policy name, and allowed identities. Do not store reusable tokens in the article, screenshots, or repository.
+
+Keep a rollback path. Remove the public hostname and DNS route first, then disable the connector. Restore a router port forward only as a temporary emergency measure and only after applying application authentication, transport encryption, and a narrow firewall rule.
+
+Review the route after application upgrades or network changes. Retest the denied path whenever the identity provider, email allowlist, connector, reverse proxy, or local service address changes.`,
   sources: [
     {
       title: 'Cloudflare Tunnel documentation',
@@ -73,12 +86,85 @@ Export the tunnel and access policy settings with the rest of the homelab config
   }
 };
 
+const actionableDraft = {
+  ...validDraft,
+  contentKind: 'tutorial',
+  inlineImages: [
+    {
+      key: 'route-map',
+      imagePath: '/tmp/route-map.png',
+      alt: 'Request path from a remote browser through identity checks and a tunnel to a private homelab service.',
+      caption: 'One public hostname maps to one private service through an authenticated tunnel.'
+    },
+    {
+      key: 'verification-checks',
+      imagePath: '/tmp/verification-checks.png',
+      alt: 'Approved, denied, origin, and connector failure checks for a remote access route.',
+      caption: 'A route is ready only after its allowed and blocked paths behave as expected.'
+    }
+  ],
+  contentMarkdown: `${validDraft.contentMarkdown}
+
+## Prerequisites before you start
+
+Use a domain managed by the tunnel provider, an account that can create tunnels and access policies, and a host that can reach the private service. Choose a browser-based application for the first route. Native clients can fail when they cannot complete an interactive identity challenge, so test those clients separately before promising compatibility.
+
+Record the private target before making changes. The target should include a stable host or container name and the exact internal port. Confirm that the connector host resolves that name and can reach the port without using the public hostname.
+
+{{image:route-map}}
+
+## Troubleshoot and rollback safely
+
+If the hostname returns a gateway error, check the connector state and private target before changing DNS. If approved users loop at sign-in, inspect the Access application domain and policy order. If unapproved users reach the application, remove the public hostname immediately and correct the policy before restoring the route.
+
+Rollback starts at the public edge. Remove or disable the hostname route, confirm that public DNS no longer reaches the application, and then stop the connector if it is no longer needed. Keep application authentication enabled throughout the change.
+
+{{image:verification-checks}}
+
+Document the successful route with its owner, hostname, private target, policy, and review date. Store secrets in a dedicated secret manager. Recheck the route after identity, DNS, connector, network, or application changes because each can alter the effective boundary.`
+};
+
 test('accepts a sourced homelab explainer with bounded product relevance', () => {
   const result = validateArticleDraft(validDraft, {
     repoRoot: new URL('../../..', import.meta.url).pathname
   });
 
   assert.equal(result.valid, true, result.errors.join('\n'));
+});
+
+test('accepts an actionable tutorial with matched inline images', () => {
+  const result = validateArticleDraft(actionableDraft, {
+    repoRoot: new URL('../../..', import.meta.url).pathname
+  });
+
+  assert.equal(result.valid, true, result.errors.join('\n'));
+});
+
+test('rejects actionable articles without enough inline images', () => {
+  const result = validateArticleDraft({ ...actionableDraft, inlineImages: [] });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join('\n'), /two and five inline images/i);
+});
+
+test('rejects image placeholders that do not match the image contract', () => {
+  const result = validateArticleDraft({
+    ...actionableDraft,
+    contentMarkdown: actionableDraft.contentMarkdown.replace('{{image:verification-checks}}', '{{image:missing-image}}')
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join('\n'), /matching \{\{image:key\}\} placeholder/i);
+});
+
+test('rejects promotional Stackarr headings', () => {
+  const result = validateArticleDraft({
+    ...validDraft,
+    contentMarkdown: validDraft.contentMarkdown.replace('## Build the access path', '## Where Stackarr fits')
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join('\n'), /Stackarr in article headings/i);
 });
 
 test('rejects first-person experiential framing', () => {
@@ -299,6 +385,50 @@ test('converts useful markdown structures into Portable Text', () => {
   assert.ok(blocks.some((block) => block._type === 'block' && block.listItem === 'number'));
   assert.ok(blocks.some((block) => block._type === 'block' && block.listItem === 'bullet'));
   assert.ok(blocks.some((block) => block._type === 'callout'));
+});
+
+test('converts strong, emphasis, and inline code without exposing Markdown markers', () => {
+  const blocks = markdownToPortableText(
+    'Use **Cloudflare Access**, keep *application login* enabled, and test `requests.example.com`.'
+  );
+  const spans = blocks[0].children;
+
+  assert.ok(spans.some((span) => span.text === 'Cloudflare Access' && span.marks.includes('strong')));
+  assert.ok(spans.some((span) => span.text === 'application login' && span.marks.includes('em')));
+  assert.ok(spans.some((span) => span.text === 'requests.example.com' && span.marks.includes('code')));
+  assert.equal(
+    spans.some((span) => /[*`]/.test(span.text)),
+    false
+  );
+});
+
+test('keeps reviewed local documentation links in the article body', () => {
+  const blocks = markdownToPortableText(
+    `${validDraft.contentMarkdown}\n\nRead the [Cloudflare integration guide](/docs/integrations/cloudflare).`
+  );
+  const localLink = blocks
+    .flatMap((block) => block.markDefs ?? [])
+    .find((mark) => mark.href === '/docs/integrations/cloudflare');
+
+  assert.ok(localLink);
+  assert.equal(localLink.blank, false);
+});
+
+test('converts inline image placeholders into referenced Portable Text images', () => {
+  const blocks = markdownToPortableText(actionableDraft.contentMarkdown, [
+    { key: 'route-map', assetId: 'image-route-map-100x100-png', alt: actionableDraft.inlineImages[0].alt },
+    {
+      key: 'verification-checks',
+      assetId: 'image-verification-checks-100x100-png',
+      alt: actionableDraft.inlineImages[1].alt,
+      caption: actionableDraft.inlineImages[1].caption
+    }
+  ]);
+  const images = blocks.filter((block) => block._type === 'image');
+
+  assert.equal(images.length, 2);
+  assert.equal(images[0].asset._ref, 'image-route-map-100x100-png');
+  assert.equal(images[1].caption, actionableDraft.inlineImages[1].caption);
 });
 
 test('publisher refuses to read a draft outside its temporary work directory', async () => {
