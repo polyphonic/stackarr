@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sanity/client": "7.22.0",
+    "@sanity/client": "7.26.2",
     "@sanity/icons": "3.7.4",
     "@sanity/vision": "5.26.0",
     "sanity": "5.26.0",
