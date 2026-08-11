@@ -158,7 +158,7 @@
   background: var(--blog-card-strong);
 }
 
-.blogCategoryItem[data-focused] {
+.blogCategoryItem[data-focus-visible] {
   box-shadow: 0 0 0 2px var(--blog-accent) inset;
 }
 
@@ -281,6 +281,8 @@
 
 .blogCardLink {
   display: block;
+  height: 100%;
+  border-radius: 8px;
   color: inherit;
   text-decoration: none;
 }
@@ -409,6 +411,12 @@
 
 .blogCardMeta > span {
   color: var(--blog-accent);
+}
+
+.blogCardFoot > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .blogCard h2 {
@@ -1005,7 +1013,8 @@
 @media (prefers-reduced-motion: reduce) {
   .blogCard,
   .blogCardImage > img,
-  .blogImageFallback {
+  .blogImageFallback,
+  .blogCategoryChevron {
     transition: none;
   }
 
@@ -1049,16 +1058,19 @@
   }
 
   .blogNavLinks > a:not(:first-of-type),
-  .blogNavLinks > button {
+  .blogNavLinks > button:not(.blogCategoryTrigger) {
     display: none;
   }
 
   .blogCategoryPopover {
-    width: min(520px, calc(100vw - 28px));
+    width: calc(100vw - 28px);
+    max-height: calc(100dvh - 88px);
+    overscroll-behavior: contain;
   }
 
   .blogCategoryPanel {
     grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 
   .blogCategoryPanel .blogCategoryAll {
