@@ -12,12 +12,13 @@ export function formatBlogDate(value?: string) {
 }
 
 export function BlogCard({ post, featured = false }: { post: BlogPostSummary; featured?: boolean }) {
+  const titleId = `blog-card-${post.slug}-title`;
   const services = (post.referencedServices ?? [])
     .map((slug) => getServiceIntegration(slug))
     .filter((service) => Boolean(service));
 
   return (
-    <a className="blogCardLink" href={`/blog/${post.slug}`} aria-label={`Read ${post.title}`}>
+    <a className="blogCardLink" href={`/blog/${post.slug}`} aria-labelledby={titleId}>
       <article className={featured ? 'blogCard blogCardFeatured' : 'blogCard'}>
         <div className="blogCardImage">
           {post.coverImage?.url ? (
@@ -31,10 +32,10 @@ export function BlogCard({ post, featured = false }: { post: BlogPostSummary; fe
         </div>
         <div className="blogCardBody">
           <div className="blogCardMeta">
-            {post.category ? <span>{post.category.title}</span> : null}
+            {post.category ? <span className="blogCardCategory">{post.category.title}</span> : null}
             <time dateTime={post.publishedAt}>{formatBlogDate(post.publishedAt)}</time>
           </div>
-          <h2>{post.title}</h2>
+          <h2 id={titleId}>{post.title}</h2>
           <p>{post.excerpt}</p>
           <div className="blogCardFoot">
             <span>
