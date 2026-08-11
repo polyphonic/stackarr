@@ -3,6 +3,7 @@ import {
   IconBell,
   IconBookOpen,
   IconBoxArchive,
+  IconBoxCaretDown,
   IconCircleArrowRight,
   IconCirclePowerOff,
   IconCircleWrench,
@@ -46,6 +47,7 @@ import { type ComponentType, type SVGProps, useId } from 'react';
 
 export { Button } from '@heroui/react/button';
 export { Description } from '@heroui/react/description';
+export { Dropdown } from '@heroui/react/dropdown';
 export { Input } from '@heroui/react/input';
 export { Label } from '@heroui/react/label';
 export { Link } from '@heroui/react/link';
@@ -89,6 +91,7 @@ export const icons = {
   backup: glassIcon(IconBoxArchive),
   bell: glassIcon(IconBell),
   book: glassIcon(IconBookOpen),
+  chevronDown: glassIcon(IconBoxCaretDown),
   cloud: glassIcon(IconCloudUpload),
   container: glassIcon(IconCube),
   containers: glassIcon(IconAppStack),
@@ -126,6 +129,7 @@ export {
   IconBell,
   IconBookOpen,
   IconBoxArchive,
+  IconBoxCaretDown,
   IconCircleArrowRight,
   IconCirclePowerOff,
   IconCircleWrench,

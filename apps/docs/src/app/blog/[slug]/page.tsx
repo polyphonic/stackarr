@@ -162,18 +162,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             ))}
           </ol>
         </section>
-        {post.productConnection?.relevant ? (
-          <aside className="blogProductConnection">
-            <div>
-              <p className="blogKicker">Where Stackarr fits</p>
-              <h2>{post.productConnection.featureName}</h2>
-              <p>{post.productConnection.explanation}</p>
-            </div>
-            {post.productConnection.docsPath ? (
-              <a href={post.productConnection.docsPath}>See the implementation →</a>
-            ) : null}
-          </aside>
-        ) : null}
         <footer className="blogArticleEnd">
           <span>END / {post.slug}</span>
           <a href="/blog">Return to all field notes →</a>

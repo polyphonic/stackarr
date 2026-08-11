@@ -1,12 +1,103 @@
 ---
 title: Cloudflare
-description: Cloudflare integration overview for Stackarr.
+description: Configure a Cloudflare Tunnel, Access allowlist, and per-app public routes in Stackarr.
 ---
 
 <ServiceIntegration slug="cloudflare" />
 
-## Publish one app
+Stackarr can publish selected app hostnames through Cloudflare Tunnel and place Cloudflare Access in front of each route. The origin stays on the private network. Stackarr does not need an inbound router port forward.
 
-Open **Apps**, choose **Settings** on the app, and enter its public hostname under **Open and connect**. Stackarr shows whether the tunnel is configured, lets you require Cloudflare Access for that route, warns before public exposure, and queues the route update only after confirmation.
+## Before you start
 
-Use **Settings → Remote access** for account credentials, the email allowlist, connector rotation, and the complete route list. Removing an app's hostname from its Settings panel removes only that route; it does not delete the tunnel or the app.
+Prepare these values in Cloudflare:
+
+- A domain in a Cloudflare zone.
+- The Cloudflare account ID and zone ID.
+- A scoped API token with **Tunnel Edit**, **Access Policies Edit**, **Zero Trust Edit**, **Zone Read**, and **DNS Edit**.
+- A hostname for each app, such as `photos.example.com`.
+- An email address for every person who should pass Cloudflare Access.
+
+Keep each app's own authentication enabled. Cloudflare Access adds an identity gate. It does not replace the application login.
+
+> [!WARNING] Native apps may not complete Cloudflare Access sign-in. Test mobile, television, and desktop clients before protecting a native-client route. Browser-based admin pages are the safest first route.
+
+## Connect the Cloudflare account
+
+1. Open **Settings → Remote access**.
+2. Enter the **Cloudflare API Token**.
+3. Enter the **Cloudflare Account ID** and **Cloudflare Zone ID**.
+4. Enter a stable **Cloudflare Tunnel Name**.
+5. If a tunnel already exists, enter its **Cloudflare Tunnel ID**.
+6. Save the settings.
+7. Select **Save & rotate connector** to create or refresh the connector credential.
+8. Wait for the operation to report **Queued**, then confirm that the connector becomes healthy in Cloudflare.
+
+Treat the API token and connector credential as secrets. Do not place them in Git, screenshots, blog drafts, support messages, or public environment files.
+
+## Configure the Access allowlist
+
+1. Stay in **Settings → Remote access**.
+2. Enable **Protect Routes with Access**.
+3. Enter the approved addresses in **Allowed Emails**.
+4. Set **Session Duration**. The default is `720h`.
+5. Save the settings before publishing routes.
+
+Cloudflare sends a one-time PIN to an approved email unless the account uses another configured identity provider. Keep the allowlist narrow. Remove old addresses when access is no longer required.
+
+## Publish one app from its settings
+
+1. Open **Apps**.
+2. Select **Settings** on the app.
+3. Find **Open and connect**.
+4. Enter the **Public hostname**, such as `photos.example.com`.
+5. Keep **Require Cloudflare Access** enabled for a browser-based private app.
+6. Select **Add route**.
+7. Confirm the warning that names the app and hostname.
+8. Wait for **Public route saved and queued**.
+
+Leave the hostname empty and save again to remove only that app's route. This does not delete the tunnel or another app's route.
+
+## Review and publish the complete route list
+
+Use **Settings → Remote access → Routes and publishing** when you need to review every route at once.
+
+1. Select **Add route**.
+2. Enter the public hostname.
+3. Select the matching Stackarr service.
+4. Enable **Access** when the client can complete the identity flow.
+5. Remove stale or duplicate rows.
+6. Keep **Expose Listed Routes Only** enabled.
+7. Keep **Warn Before Public Exposure** enabled.
+8. Select **Save & apply routes**.
+
+This operation publishes the route list, DNS records, and Access policy to Cloudflare. A normal **Save** stores the configuration without publishing it.
+
+## Verify the route
+
+Test from a device that is not connected to the home network.
+
+1. Open the hostname in a private browser window.
+2. Confirm that Cloudflare asks for identity before the app loads.
+3. Sign in with an approved address and confirm that the app login still appears.
+4. Repeat with an address outside the allowlist and confirm denial.
+5. Check the home router and confirm that the app has no inbound port forward.
+6. Stop the connector briefly and confirm that the hostname fails closed.
+7. Restore the connector and confirm that approved access returns.
+
+For a native application, test every supported client. If a client cannot complete Access sign-in, remove Access from that route or keep the app private and use a VPN instead.
+
+## Troubleshoot or roll back
+
+If Cloudflare returns a gateway error, verify the connector health and the app's private target before changing DNS.
+
+If approved users loop at sign-in, check the hostname on the Cloudflare Access application, the email allowlist, and policy order.
+
+If an unapproved user reaches the app, remove the hostname immediately:
+
+1. Open the app's **Settings → Open and connect**.
+2. Clear **Public hostname**.
+3. Select **Update route**.
+4. Confirm **Public route removal queued**.
+5. Verify from an external device that the hostname no longer reaches the app.
+
+Do not restore a router port forward as a permanent fix. Correct the tunnel, route, or policy while the origin remains private.
