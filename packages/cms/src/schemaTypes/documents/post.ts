@@ -101,7 +101,8 @@ export const post = defineType({
     }),
     defineField({
       name: 'productConnection',
-      title: 'Where Stackarr fits',
+      title: 'Verified product relevance',
+      description: 'Internal validation metadata. Put any useful Stackarr reference naturally inside an article step.',
       type: 'object',
       fields: [
         defineField({ name: 'relevant', type: 'boolean', initialValue: false }),

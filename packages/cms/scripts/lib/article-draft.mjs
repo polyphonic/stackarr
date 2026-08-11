@@ -15,9 +15,19 @@ const HOMELAB_SIGNAL_RE =
 const OFF_NICHE_RE = /\b(?:celebrity|fashion|horoscope|makeup|political\s+campaign|stock\s+tip|weight\s+loss)\b/i;
 const HTTPS_URL_RE = /^https:\/\/[^\s]+$/;
 const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g;
+const INLINE_IMAGE_PLACEHOLDER_RE = /^\{\{image:([a-z0-9]+(?:-[a-z0-9]+)*)\}\}$/;
+const INLINE_IMAGE_PLACEHOLDER_GLOBAL_RE = /^\{\{image:([a-z0-9]+(?:-[a-z0-9]+)*)\}\}$/gm;
+const INLINE_MARK_RE =
+  /\[([^\]]+)\]\((https:\/\/[^\s)]+|\/docs\/[a-z0-9/_-]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*/g;
 const SOURCE_KINDS = new Set(['primary', 'reference', 'discovery']);
 const CONTENT_KINDS = new Set(['explainer', 'tutorial', 'checklist', 'comparison', 'troubleshooting', 'security']);
+const ACTIONABLE_CONTENT_KINDS = new Set(['tutorial', 'troubleshooting', 'security']);
+const REQUIRED_ACTIONABLE_SECTIONS = [
+  { label: 'prerequisites', pattern: /\b(?:before you start|prerequisites?|requirements?)\b/i },
+  { label: 'setup', pattern: /\b(?:build|configure|create|install|set up|setup)\b/i },
+  { label: 'verification', pattern: /\b(?:check|test|verify|verification)\b/i },
+  { label: 'recovery', pattern: /\b(?:recover|rollback|troubleshoot|undo)\b/i }
+];
 const CLAIM_STOP_WORDS = new Set([
   'about',
   'after',
@@ -67,6 +77,10 @@ function headlineSimilarity(left, right) {
 
 function countWords(value) {
   return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function countPlaceholders(markdown) {
+  return [...markdown.matchAll(INLINE_IMAGE_PLACEHOLDER_GLOBAL_RE)].map((match) => match[1]);
 }
 
 function plainMarkdown(value) {
@@ -159,12 +173,76 @@ export function validateArticleDraft(draft, options = {}) {
   if (OFF_NICHE_RE.test(combinedCopy) || new Set(nicheSignals.map((signal) => signal.toLowerCase())).size < 3) {
     errors.push('Draft must remain inside the homelab niche, including self-hosting or home-server operations.');
   }
-  if (countWords(plainMarkdown(markdown)) < 110)
-    errors.push('Article body is too short to provide a useful technical explanation.');
-  if ((markdown.match(/^##\s+/gm) ?? []).length < 3)
-    errors.push('Article body must contain at least three H2 sections.');
-  if (!(markdown.match(/^(?:-|\d+\.)\s+/gm) ?? []).length)
+  const articleWordCount = countWords(plainMarkdown(markdown));
+  const sectionHeadings = [...markdown.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]);
+  const numberedStepCount = (markdown.match(/^\d+\.\s+/gm) ?? []).length;
+  if (articleWordCount < (ACTIONABLE_CONTENT_KINDS.has(contentKind) ? 650 : 300)) {
+    errors.push(
+      ACTIONABLE_CONTENT_KINDS.has(contentKind)
+        ? 'Tutorial, security, and troubleshooting articles must contain at least 650 useful words.'
+        : 'Article body must contain at least 300 useful words.'
+    );
+  }
+  if (sectionHeadings.length < (ACTIONABLE_CONTENT_KINDS.has(contentKind) ? 6 : 4)) {
+    errors.push(
+      ACTIONABLE_CONTENT_KINDS.has(contentKind)
+        ? 'Tutorial, security, and troubleshooting articles must contain at least six H2 sections.'
+        : 'Article body must contain at least four H2 sections.'
+    );
+  }
+  if (!(markdown.match(/^(?:-|\d+\.)\s+/gm) ?? []).length) {
     errors.push('Article body must include at least one useful list.');
+  }
+  if (ACTIONABLE_CONTENT_KINDS.has(contentKind)) {
+    if (numberedStepCount < 4) errors.push('Actionable articles must contain at least four numbered setup steps.');
+    for (const requiredSection of REQUIRED_ACTIONABLE_SECTIONS) {
+      if (!sectionHeadings.some((heading) => requiredSection.pattern.test(heading))) {
+        errors.push(`Actionable articles need a clear ${requiredSection.label} section.`);
+      }
+    }
+  }
+  if (sectionHeadings.some((heading) => /\bstackarr\b/i.test(heading))) {
+    errors.push('Do not use Stackarr in article headings. Keep any verified product reference inside a useful step.');
+  }
+
+  const inlineImages = Array.isArray(draft?.inlineImages) ? draft.inlineImages : [];
+  const placeholderKeys = countPlaceholders(markdown);
+  const imageKeys = inlineImages.map((image) => image?.key);
+  const requiredImageCount = ACTIONABLE_CONTENT_KINDS.has(contentKind) ? 2 : 0;
+  if (inlineImages.length < requiredImageCount || inlineImages.length > 5) {
+    errors.push(
+      ACTIONABLE_CONTENT_KINDS.has(contentKind)
+        ? 'Tutorial, security, and troubleshooting articles need between two and five inline images.'
+        : 'Articles may include no more than five inline images.'
+    );
+  }
+  if (new Set(imageKeys).size !== imageKeys.length) errors.push('Inline image keys must be unique.');
+  for (const image of inlineImages) {
+    if (
+      !(
+        typeof image?.key === 'string' &&
+        SAFE_SLUG_RE.test(image.key) &&
+        typeof image?.imagePath === 'string' &&
+        image.imagePath.trim() &&
+        typeof image?.alt === 'string' &&
+        image.alt.trim() &&
+        image.alt.length <= 160 &&
+        (image.caption === undefined || (typeof image.caption === 'string' && image.caption.length <= 240))
+      )
+    ) {
+      errors.push('Every inline image needs a safe key, imagePath, alt text, and an optional caption within limits.');
+      break;
+    }
+  }
+  if (new Set(placeholderKeys).size !== placeholderKeys.length) {
+    errors.push('Each inline image placeholder must appear exactly once.');
+  }
+  if (
+    placeholderKeys.some((key) => !imageKeys.includes(key)) ||
+    imageKeys.some((key) => placeholderKeys.filter((placeholderKey) => placeholderKey === key).length !== 1)
+  ) {
+    errors.push('Every inline image must have exactly one matching {{image:key}} placeholder in the article body.');
+  }
 
   const sources = Array.isArray(draft?.sources) ? draft.sources : [];
   const primarySources = sources.filter((source) => source?.kind === 'primary');
@@ -195,7 +273,6 @@ export function validateArticleDraft(draft, options = {}) {
   if (discoveryHeadlines.some((headline) => headlineSimilarity(title, String(headline)) >= 0.72)) {
     errors.push('Draft title is too close to a discovery-source headline.');
   }
-  const sectionHeadings = [...markdown.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]);
   if (
     sectionHeadings.some((heading) =>
       discoveryHeadlines.some((sourceHeading) => headlineSimilarity(heading, String(sourceHeading)) >= 0.82)
@@ -237,7 +314,7 @@ export function validateArticleDraft(draft, options = {}) {
   }
 
   const stackarrMentions = (combinedCopy.match(/\bstackarr\b/gi) ?? []).length;
-  if (stackarrMentions > 4) errors.push('Product promotion is too frequent. Limit Stackarr to four useful mentions.');
+  if (stackarrMentions > 2) errors.push('Product promotion is too frequent. Limit Stackarr to two useful mentions.');
 
   if (draft?.productConnection?.relevant) {
     const connection = draft.productConnection;
@@ -298,38 +375,38 @@ function inlineChildren(text, blockIndex) {
   let cursor = 0;
   let match;
   let linkIndex = 0;
-  MARKDOWN_LINK_RE.lastIndex = 0;
+  INLINE_MARK_RE.lastIndex = 0;
 
-  while ((match = MARKDOWN_LINK_RE.exec(text))) {
-    if (match.index > cursor) {
-      children.push({
-        _type: 'span',
-        _key: uniqueKey('span', text.slice(cursor, match.index), children.length + blockIndex),
-        marks: [],
-        text: text.slice(cursor, match.index)
-      });
+  const addSpan = (spanText, marks = []) => {
+    if (!spanText) return;
+    children.push({
+      _type: 'span',
+      _key: uniqueKey('span', spanText, children.length + blockIndex),
+      marks,
+      text: spanText
+    });
+  };
+
+  while ((match = INLINE_MARK_RE.exec(text))) {
+    if (match.index > cursor) addSpan(text.slice(cursor, match.index));
+
+    if (match[1] && match[2]) {
+      const markKey = uniqueKey('link', match[2], blockIndex + linkIndex);
+      markDefs.push({ _type: 'link', _key: markKey, href: match[2], blank: match[2].startsWith('https://') });
+      addSpan(match[1], [markKey]);
+      linkIndex += 1;
+    } else if (match[3]) {
+      addSpan(match[3], ['strong']);
+    } else if (match[4]) {
+      addSpan(match[4], ['code']);
+    } else if (match[5]) {
+      addSpan(match[5], ['em']);
     }
 
-    const markKey = uniqueKey('link', match[2], blockIndex + linkIndex);
-    markDefs.push({ _type: 'link', _key: markKey, href: match[2], blank: true });
-    children.push({
-      _type: 'span',
-      _key: uniqueKey('span', match[1], children.length + blockIndex),
-      marks: [markKey],
-      text: match[1]
-    });
     cursor = match.index + match[0].length;
-    linkIndex += 1;
   }
 
-  if (cursor < text.length || !children.length) {
-    children.push({
-      _type: 'span',
-      _key: uniqueKey('span', text.slice(cursor), children.length + blockIndex),
-      marks: [],
-      text: text.slice(cursor)
-    });
-  }
+  if (cursor < text.length || !children.length) addSpan(text.slice(cursor));
 
   return { children, markDefs };
 }
@@ -345,15 +422,33 @@ function textBlock(text, style, index, listItem) {
   };
 }
 
-export function markdownToPortableText(markdown) {
+export function markdownToPortableText(markdown, inlineAssets = []) {
   const lines = String(markdown).replace(/\r\n/g, '\n').split('\n');
   const blocks = [];
+  const assetByKey = new Map(inlineAssets.map((asset) => [asset.key, asset]));
   let index = 0;
 
   while (index < lines.length) {
     const raw = lines[index];
     const line = raw.trim();
     if (!line) {
+      index += 1;
+      continue;
+    }
+
+    const imagePlaceholder = line.match(INLINE_IMAGE_PLACEHOLDER_RE);
+    if (imagePlaceholder) {
+      const image = assetByKey.get(imagePlaceholder[1]);
+      if (!(image?.assetId && image?.alt)) {
+        throw new Error(`Inline image placeholder ${imagePlaceholder[1]} does not have an uploaded asset.`);
+      }
+      blocks.push({
+        _type: 'image',
+        _key: uniqueKey('image', image.key, blocks.length),
+        asset: { _type: 'reference', _ref: image.assetId },
+        alt: image.alt,
+        ...(image.caption ? { caption: image.caption } : {})
+      });
       index += 1;
       continue;
     }
@@ -419,7 +514,7 @@ export function markdownToPortableText(markdown) {
     index += 1;
     while (index < lines.length) {
       const next = lines[index].trim();
-      if (!next || /^(?:#{2,4}\s+|[-*]\s+|\d+\.\s+|>|```)/.test(next)) break;
+      if (!next || /^(?:#{2,4}\s+|[-*]\s+|\d+\.\s+|>|```|\{\{image:)/.test(next)) break;
       paragraph.push(next);
       index += 1;
     }

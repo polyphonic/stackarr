@@ -20,6 +20,9 @@ importers:
 
   apps/docs:
     dependencies:
+      '@heroui/styles':
+        specifier: ^3.2.1
+        version: 3.2.2(tailwind-merge@3.4.0)(tailwindcss@4.3.3)
       '@next/third-parties':
         specifier: ~16.2.9
         version: 16.2.9(next@16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
@@ -14300,7 +14303,7 @@ snapshots:
   normalize-package-data@8.0.0:
     dependencies:
       hosted-git-info: 9.0.3
-      semver: 7.8.0
+      semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
