@@ -10,7 +10,7 @@
     "@t3-oss/env-core": "^0.13.11",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@upstash/ratelimit": "2.0.8",
-    "@upstash/redis": "1.38.0",
+    "@upstash/redis": "1.38.2",
     "@vercel/functions": "3.6.0",
     "fumadocs-core": "16.11.4",
     "fumadocs-mdx": "15.2.2",
