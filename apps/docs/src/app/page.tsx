@@ -2,6 +2,7 @@ import { editorialCategories } from '@stackarr/cms';
 import { icons } from '@stackarr/ui';
 import { serviceIntegrations } from '~/lib/service-integrations';
 import { absoluteUrl, githubUrl, siteDescription, siteName } from '~/lib/site';
+import { BlogMenu } from './BlogMenu';
 import { LandingActions } from './LandingActions';
 import { LandingCodeBlock } from './LandingCodeBlock';
 
@@ -102,27 +103,13 @@ export default function LandingPage() {
             <img alt="" src="/icon.svg" /> Stackarr
           </a>
           <span className="navLinks">
-            <details className="blogCategoryMenu">
-              <summary>Blog</summary>
-              <div className="blogCategoryPanel">
-                <a className="blogCategoryAll" href="/blog">
-                  <strong>All articles</strong>
-                  <span>Practical field notes for self-hosted systems.</span>
-                </a>
-                {editorialCategories.map((category) => (
-                  <a href={`/blog/category/${category.slug}`} key={category.slug}>
-                    <strong>{category.title}</strong>
-                    <span>{category.description}</span>
-                  </a>
-                ))}
-              </div>
-            </details>
             <a href="/docs/agent/agent-setup">Agent setup</a>
             <a href="/docs">Docs</a>
             <a href="/docs/installation">Install</a>
             <a href={githubUrl} rel="noreferrer" target="_blank">
               GitHub
             </a>
+            <BlogMenu categories={editorialCategories} description="Practical field notes for self-hosted systems." />
           </span>
         </nav>
         <div className="heroGrid">
