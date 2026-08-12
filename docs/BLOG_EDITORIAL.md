@@ -91,12 +91,13 @@ The publisher independently verifies public source URLs, official-source identit
 ## Publication contract
 
 1. Research recent topics and reject duplicates.
-2. Read current Stackarr code and docs before choosing product relevance.
-3. Create a temporary work directory outside the repository.
-4. Save draft JSON, cover image, and inline images inside that directory.
-5. Review each image for relevance, legibility, trademarks, and invented UI.
-6. Set `STACKARR_BLOG_WORK_DIR` to the absolute temporary path.
-7. Run `node packages/cms/scripts/article-draft.test.mjs` during publisher maintenance.
-8. Run `node packages/cms/scripts/publish-article.mjs <draft.json>` with server-only Sanity credentials.
-9. Verify tokenless Sanity visibility and the live article route, including every inline image.
-10. Remove the complete temporary work directory.
+2. Reject categories used by either of the two most recent articles.
+3. Read current Stackarr code and docs before choosing product relevance.
+4. Create a temporary work directory outside the repository.
+5. Save draft JSON, cover image, and inline images inside that directory.
+6. Review each image for relevance, legibility, trademarks, and invented UI.
+7. Set `STACKARR_BLOG_WORK_DIR` to the absolute temporary path.
+8. Run `node packages/cms/scripts/article-draft.test.mjs` during publisher maintenance.
+9. Run `node packages/cms/scripts/publish-article.mjs <draft.json>` with server-only Sanity credentials.
+10. Verify tokenless Sanity visibility and the live article route, including every inline image.
+11. Remove the complete temporary work directory.
