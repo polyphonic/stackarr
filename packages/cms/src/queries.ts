@@ -99,7 +99,7 @@ export async function getBlogPosts(input: { page?: number; pageSize?: number; ca
   const categorySlug = input.categorySlug ?? '';
   const filter = `_type == "post" && defined(slug.current) && publishedAt <= now() && !coalesce(seo.noIndex, false) && ($categorySlug == "" || category->slug.current == $categorySlug)`;
   const query = `{
-    "items": *[${filter}] | order(featured desc, publishedAt desc) [$start...$end] {${postSummaryProjection}},
+    "items": *[${filter}] | order(publishedAt desc) [$start...$end] {${postSummaryProjection}},
     "total": count(*[${filter}])
   }`;
 

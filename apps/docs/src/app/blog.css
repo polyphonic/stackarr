@@ -288,7 +288,10 @@
 }
 
 .blogCard {
+  display: flex;
+  height: 100%;
   overflow: hidden;
+  flex-direction: column;
   border: 1px solid var(--blog-line);
   border-radius: 8px;
   background: var(--blog-card);
@@ -325,7 +328,7 @@
 }
 
 .blogCardFeatured .blogCardImage {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: auto;
 }
 
 .blogCardImage > img,
@@ -377,6 +380,7 @@
 .blogCardBody {
   display: flex;
   min-height: 270px;
+  flex: 1;
   flex-direction: column;
   padding: 26px;
 }
@@ -1033,6 +1037,10 @@
 
   .blogCardFeatured {
     grid-template-columns: 1fr;
+  }
+
+  .blogCardFeatured .blogCardImage {
+    aspect-ratio: 16 / 9;
   }
 
   .blogArticlePage {

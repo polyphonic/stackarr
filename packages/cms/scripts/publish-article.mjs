@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { createClient } from '@sanity/client';
 import { markdownToPortableText, validateArticleDraft } from './lib/article-draft.mjs';
+import { validateCategoryFreshness } from './lib/publisher-policy.mjs';
 import { verifyArticleSources } from './lib/source-verification.mjs';
 
 const inputPath = process.argv[2];
@@ -70,7 +71,12 @@ const [collisions, support, existingPosts, verifiedSources] = await Promise.all(
     }`,
     { categoryId }
   ),
-  client.fetch(`*[_type == "post" && !(_id in path("drafts.**"))] | order(publishedAt desc)[0...200]{title}`),
+  client.fetch(
+    `*[_type == "post" && !(_id in path("drafts.**"))] | order(publishedAt desc)[0...200]{
+      title,
+      "categorySlug": category->slug.current
+    }`
+  ),
   verifyArticleSources(draft)
 ]);
 if (collisions.length) {
@@ -78,6 +84,12 @@ if (collisions.length) {
 }
 if (!(support.category && support.author)) {
   throw new Error('Run pnpm --filter @stackarr/cms taxonomy:seed before publishing.');
+}
+const categoryFreshness = validateCategoryFreshness(draft.categorySlug, existingPosts);
+if (!categoryFreshness.valid) {
+  throw new Error(
+    `Category ${draft.categorySlug} was used by one of the two most recent articles. Choose a fresh category; no assets or documents were changed.`
+  );
 }
 const originalityValidation = validateArticleDraft(
   {
