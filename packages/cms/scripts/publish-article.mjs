@@ -59,7 +59,7 @@ const publicClient = createClient({
 
 const publicId = `post-${draft.slug}`;
 const categoryId = `category-${draft.categorySlug}`;
-const [collisions, support, existingPosts, verifiedSources] = await Promise.all([
+const [collisions, support, existingPosts, recentPublicPosts, verifiedSources] = await Promise.all([
   client.fetch(
     `*[_type == "post" && (_id == $id || _id == "drafts." + $id || slug.current == $slug || title == $title)]{_id}`,
     { id: publicId, slug: draft.slug, title: draft.title.trim() }
@@ -71,9 +71,13 @@ const [collisions, support, existingPosts, verifiedSources] = await Promise.all(
     }`,
     { categoryId }
   ),
-  client.fetch(
-    `*[_type == "post" && !(_id in path("drafts.**"))] | order(publishedAt desc)[0...200]{
-      title,
+  client.fetch(`*[_type == "post" && !(_id in path("drafts.**"))] | order(publishedAt desc)[0...200]{title}`),
+  publicClient.fetch(
+    `*[
+      _type == "post" &&
+      publishedAt <= now() &&
+      !coalesce(seo.noIndex, false)
+    ] | order(publishedAt desc)[0...2]{
       "categorySlug": category->slug.current
     }`
   ),
@@ -85,7 +89,7 @@ if (collisions.length) {
 if (!(support.category && support.author)) {
   throw new Error('Run pnpm --filter @stackarr/cms taxonomy:seed before publishing.');
 }
-const categoryFreshness = validateCategoryFreshness(draft.categorySlug, existingPosts);
+const categoryFreshness = validateCategoryFreshness(draft.categorySlug, recentPublicPosts);
 if (!categoryFreshness.valid) {
   throw new Error(
     `Category ${draft.categorySlug} was used by one of the two most recent articles. Choose a fresh category; no assets or documents were changed.`
