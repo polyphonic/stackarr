@@ -21,6 +21,8 @@ test('managed app updates cannot pull or recreate the Stackarr controller', asyn
 
   const compose = await source('stackarr/docker-compose.yml');
   assert.match(compose, /docker image prune -f --filter dangling=true >\/dev\/null/);
+  assert.match(compose, /RECYCLARR_IMAGE:-ghcr\.io\/recyclarr\/recyclarr:8/);
+  assert.doesNotMatch(compose, /RECYCLARR_IMAGE:-ghcr\.io\/recyclarr\/recyclarr:latest/);
 });
 
 test('local Stackarr images are preserved while published images use an independent worker', async () => {

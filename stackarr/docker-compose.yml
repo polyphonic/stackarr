@@ -624,7 +624,7 @@ services:
     profiles:
       - recyclarr
     container_name: recyclarr
-    image: ${RECYCLARR_IMAGE:-ghcr.io/recyclarr/recyclarr:latest}
+    image: ${RECYCLARR_IMAGE:-ghcr.io/recyclarr/recyclarr:8}
     environment:
       TZ: ${TIMEZONE:-Etc/UTC}
       CRON_SCHEDULE: 0 3 * * *
