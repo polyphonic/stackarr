@@ -27,3 +27,12 @@ test('accepts a category not used by the two most recent articles', () => {
     recentCategorySlugs: ['infrastructure-networking', 'data-photos']
   });
 });
+
+test('does not substitute an older category when a recent post has no category', () => {
+  const recentPosts = [{ categorySlug: 'infrastructure-networking' }, {}, { categorySlug: 'data-photos' }];
+
+  assert.deepEqual(validateCategoryFreshness('data-photos', recentPosts), {
+    valid: true,
+    recentCategorySlugs: ['infrastructure-networking']
+  });
+});
