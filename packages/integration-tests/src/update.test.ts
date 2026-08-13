@@ -31,9 +31,11 @@ test('managed app updates prune dangling and unused images after old containers 
 
   const recreation = update.indexOf('up -d --no-deps --remove-orphans');
   const cleanup = update.indexOf('run --rm image-cleanup');
+  const reconciliation = update.indexOf('"$ROOT_DIR/scripts/naming.sh" apply');
 
   assert.ok(recreation >= 0, 'managed services should be recreated with old containers removed');
   assert.ok(cleanup > recreation, 'image cleanup should run only after service recreation');
+  assert.ok(cleanup < reconciliation, 'image cleanup should run before post-update reconciliation');
   assert.match(compose, /docker image prune -a -f >\/dev\/null/);
 });
 
@@ -67,7 +69,7 @@ test('local Stackarr images are preserved while published images use an independ
   assert.match(reconciliation, /run_shared_database_init/);
   assert.doesNotMatch(reconciliation, /\bup\b/);
   assert.match(compose, /\n  app-updater:\n[\s\S]*?command:\n\s+- update\n\s+- app-worker/);
-  assert.match(runner, /command\.name === 'UpdateStackarr'/);
+  assert.match(runner, /commandStartedTaskHandoff\(command\.name, exitCode, output\)/);
   assert.match(runner, /persistTaskUpdate\(id, patch\)/);
   assert.doesNotMatch(runner, /writeTasks\(next\)/);
 });

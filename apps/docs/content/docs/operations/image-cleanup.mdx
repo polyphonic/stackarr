@@ -28,10 +28,23 @@ Images used by running or stopped containers are retained.
 Volumes can contain the only copy of persistent application data, so Stackarr
 does not prune them during scheduled updates. Use
 `stackarr_get_container_overview` to inspect the unused-volume list first. When
-you have confirmed those volumes are obsolete, call the dangerous
+you have confirmed one volume is obsolete, call the dangerous
 `stackarr_manage_container_resource` MCP action with `kind: "volume"`,
-`action: "pruneUnused"`, and the required confirmation and reason.
+`action: "remove"`, the exact volume name as `id`, and the required confirmation
+and reason. Repeat that explicit action for each reviewed volume.
 
-The confirmed action uses `docker volume prune -a -f`, which includes unused
-named and anonymous volumes. It cannot remove a volume still referenced by a
-container.
+Stackarr rejects bulk volume pruning. Binding confirmation to each exact name
+prevents newly-unused or unrelated named volumes from being removed between the
+inventory review and cleanup. Docker also refuses to remove a volume still
+referenced by a container.
+
+## Legacy Tracearr volumes
+
+Current Stackarr installs connect Tracearr to Stackarr's shared TimescaleDB and
+Redis services. Timescale data is persisted by the shared database mount and
+Redis data by Stackarr's shared named Redis volume, so Tracearr does not need
+separate database or Redis mounts. Volumes named like
+`stackarr_tracearr-timescale-data` and `stackarr_tracearr-redis-data` are legacy
+artifacts from the earlier dedicated Tracearr topology. Their being detached is
+expected, but keep them until their old data has been reviewed and explicitly
+confirmed obsolete.

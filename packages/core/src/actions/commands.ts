@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { type CommandName, commandRegistry } from '../commands';
 import { repoRoot, stackarrBin } from '../paths';
 import { type DangerousConfirmation, requireDangerousConfirmation } from '../safety/dangerous';
-import { createQueuedTask, type StackarrTask, updateTask } from '../tasks';
+import { commandStartedTaskHandoff, createQueuedTask, type StackarrTask, updateTask } from '../tasks';
 
 const execFileAsync = promisify(execFile);
 
@@ -72,7 +72,7 @@ export function queueStackarrCommandAction(input: { command: CommandName; args?:
   });
 
   child.on('close', (exitCode) => {
-    if (definition.name === 'SecurityApply' && exitCode === 0 && output.includes('STACKARR_TASK_HANDOFF_STARTED')) {
+    if (commandStartedTaskHandoff(definition.name, exitCode, output)) {
       return;
     }
     updateTask(task.id, {

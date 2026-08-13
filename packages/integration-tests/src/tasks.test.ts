@@ -73,6 +73,29 @@ test('controller restart fails only orphaned queued and running tasks', async ()
   assert.equal(result[4]?.status, 'completed');
 });
 
+test('task handoff detection is shared by every command runner', async () => {
+  const { commandStartedTaskHandoff } = await import('../../core/src/tasks.ts');
+
+  assert.equal(
+    commandStartedTaskHandoff(
+      'SecurityApply',
+      0,
+      'STACKARR_TASK_HANDOFF_STARTED Security apply handed to the maintenance worker'
+    ),
+    true
+  );
+  assert.equal(
+    commandStartedTaskHandoff(
+      'UpdateStackarr',
+      0,
+      'STACKARR_UPDATE_HANDOFF_STARTED Stackarr update handed to the maintenance worker'
+    ),
+    true
+  );
+  assert.equal(commandStartedTaskHandoff('UpdateStackarr', 1, 'STACKARR_UPDATE_HANDOFF_STARTED'), false);
+  assert.equal(commandStartedTaskHandoff('Backup', 0, 'STACKARR_TASK_HANDOFF_STARTED'), false);
+});
+
 test('task updates patch one row without dropping newer queued tasks', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-tasks-test-'));
 

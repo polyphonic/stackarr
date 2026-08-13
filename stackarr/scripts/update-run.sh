@@ -76,14 +76,14 @@ update_managed_services() {
     stackarr_compose "${profile_args[@]}" up -d --no-deps --remove-orphans "${services[@]}"
     remove_database_init_sidecar
     remove_inactive_torrent_client_container
-    "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
-    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
-    "$ROOT_DIR/scripts/requests.sh" apply --wait || true
     if stackarr_compose --profile maintenance run --rm image-cleanup; then
         ok "Unused Docker images cleaned"
     else
         warn "Unused Docker image cleanup failed; run 'docker image prune -a -f' manually if disk usage grows"
     fi
+    "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
+    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
+    "$ROOT_DIR/scripts/requests.sh" apply --wait || true
 
     ok "Managed services updated; the Stackarr controller was left running"
 }

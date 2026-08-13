@@ -839,14 +839,8 @@ test('security credential apply leaves the Stackarr controller running', async (
     /task_database_url="\$\{STACKARR_DATABASE_URL:-\}"[\s\S]*?start_security_apply_worker "\$task_database_url"/
   );
   assert.match(script, /STACKARR_DATABASE_URL="\$STACKARR_TASK_DATABASE_URL" node "\$TASK_LOGGER"/);
-  assert.match(
-    runner,
-    /command\.name === 'SecurityApply'[\s\S]*?exitCode === 0[\s\S]*?output\.includes\('STACKARR_TASK_HANDOFF_STARTED'\)/
-  );
-  assert.match(
-    commandActions,
-    /definition\.name === 'SecurityApply'[\s\S]*?exitCode === 0[\s\S]*?output\.includes\('STACKARR_TASK_HANDOFF_STARTED'\)/
-  );
+  assert.match(runner, /commandStartedTaskHandoff\(command\.name, exitCode, output\)/);
+  assert.match(commandActions, /commandStartedTaskHandoff\(definition\.name, exitCode, output\)/);
   const worker = script.match(/apply_security_worker\(\) \{([\s\S]*?)\n\}/)?.[1];
   assert.ok(worker);
   assert.doesNotMatch(worker, /update_security_task_note "Applying managed service credentials"/);

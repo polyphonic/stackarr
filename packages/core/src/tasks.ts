@@ -24,8 +24,16 @@ export type StackarrTask = {
 let migratedTaskFile = false;
 let reconciledInterruptedTasks = false;
 const controllerStartedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
-const taskHandoffMarker = 'STACKARR_TASK_HANDOFF_STARTED';
+const taskHandoffMarkers: Partial<Record<CommandName, string>> = {
+  SecurityApply: 'STACKARR_TASK_HANDOFF_STARTED',
+  UpdateStackarr: 'STACKARR_UPDATE_HANDOFF_STARTED'
+};
 const taskHandoffGraceMs = 30 * 60 * 1000;
+
+export function commandStartedTaskHandoff(commandName: CommandName, exitCode: number | null, output: string) {
+  const marker = taskHandoffMarkers[commandName];
+  return exitCode === 0 && Boolean(marker && output.includes(marker));
+}
 
 export function readTasks(): StackarrTask[] {
   migrateTaskFileToDatabase();
@@ -59,7 +67,7 @@ export function interruptedTasksAfterControllerRestart(
     }
 
     if (
-      task.output?.includes(taskHandoffMarker) &&
+      taskOutputShowsHandoff(task) &&
       Number.isFinite(reconciliationTime) &&
       reconciliationTime - taskTimestamp < taskHandoffGraceMs
     ) {
@@ -75,6 +83,11 @@ export function interruptedTasksAfterControllerRestart(
       reviewedAt: null
     };
   });
+}
+
+function taskOutputShowsHandoff(task: StackarrTask) {
+  const marker = taskHandoffMarkers[task.commandName];
+  return Boolean(marker && task.output?.includes(marker));
 }
 
 export function writeTasks(tasks: StackarrTask[]) {

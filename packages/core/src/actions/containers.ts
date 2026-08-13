@@ -357,6 +357,12 @@ export async function getDockerContainerOverviewAction(): Promise<DockerContaine
 }
 
 export async function manageDockerResourceAction(input: DockerResourceActionInput) {
+  if (input.kind === 'volume' && input.action === 'pruneUnused') {
+    throw new Error(
+      'Bulk volume pruning is disabled. Remove each reviewed volume by exact name so confirmation cannot affect unrelated data.'
+    );
+  }
+
   const needsConfirmation =
     input.action === 'remove' ||
     input.action === 'pruneExited' ||
@@ -787,7 +793,6 @@ function dockerActionArgs(input: DockerResourceActionInput) {
   }
 
   if (input.kind === 'volume') {
-    if (input.action === 'pruneUnused') return ['volume', 'prune', '-a', '-f'];
     requireId(input);
     if (input.action === 'remove') return ['volume', 'rm', ...(input.force ? ['-f'] : []), input.id as string];
   }
