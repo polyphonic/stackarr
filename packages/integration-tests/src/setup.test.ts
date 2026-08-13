@@ -572,8 +572,12 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(requests, /optional_service_enabled seerr/);
   assert.match(configure, /Radarr HD profile configured[\s\S]*WEB 720p/);
   assert.match(configure, /Sonarr HD profile configured[\s\S]*DVD/);
-  assert.match(configure, /Radarr HD Lite profile configured[\s\S]*WEB 1080p,Bluray-1080p/);
+  assert.match(configure, /Radarr HD Lite profile configured[\s\S]*HDTV-1080p,WEB 1080p,Bluray-1080p/);
   assert.match(configure, /Sonarr HD Lite profile configured[\s\S]*WEB 1080p,Bluray-1080p/);
+  assert.match(configure, /RADARR_DCP_REGEX=/);
+  assert.match(configure, /RADARR_NON_DCP_HDTV_SCORE="-100000"/);
+  assert.match(configure, /Radarr DCP custom format configured/);
+  assert.match(configure, /'minimumAvailability': 'inCinemas'/);
   assert.match(configure, /quality_definition_block/);
   assert.match(configure, /WEBDL-1080p", 8, 95, 72/);
   assert.match(configure, /configure_recyclarr_template "\$sonarr_hd_file"[\s\S]*"\$STACKARR_TV_PROFILE_PRESET"/);
