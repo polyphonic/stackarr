@@ -5,7 +5,14 @@ const MAX_REDIRECTS = 3;
 const MAX_SOURCE_BYTES = 1_500_000;
 const RESERVED_HOST_RE = /(?:^|\.)(?:example|home|internal|invalid|lan|local|localhost|test)$/i;
 const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
-const SOURCE_CONTENT_TYPES = ['text/html', 'text/plain', 'application/xhtml+xml', 'application/xml', 'application/pdf'];
+const SOURCE_CONTENT_TYPES = [
+  'text/html',
+  'text/markdown',
+  'text/plain',
+  'application/xhtml+xml',
+  'application/xml',
+  'application/pdf'
+];
 const GENERIC_PUBLISHER_WORDS = new Set([
   'and',
   'company',
@@ -102,6 +109,14 @@ export function validateSourceIdentity(source) {
     throw new Error(`Primary source publisher does not match its official URL: ${source.publisher}`);
   }
   return url;
+}
+
+export function isSupportedSourceContentType(value) {
+  const contentType = String(value ?? '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  return SOURCE_CONTENT_TYPES.includes(contentType);
 }
 
 async function assertPublicAddress(url) {
@@ -206,7 +221,7 @@ export async function verifyArticleSources(draft) {
     if (!response?.ok)
       throw new Error(`Source could not be verified (${response?.status ?? 'network error'}): ${source.url}`);
     const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() || '';
-    if (!SOURCE_CONTENT_TYPES.includes(contentType)) {
+    if (!isSupportedSourceContentType(contentType)) {
       throw new Error(`Source returned an unsupported content type (${contentType || 'missing'}): ${source.url}`);
     }
     const body = await readLimitedBody(response);
