@@ -670,6 +670,24 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Get a Radarr movie status.'
   },
   {
+    name: 'stackarr_get_movie_download_provenance',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get safe Radarr grab and import provenance.'
+  },
+  {
+    name: 'stackarr_get_episode_download_provenance',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get safe Sonarr grab and import provenance.'
+  },
+  {
     name: 'stackarr_get_missing_episodes',
     category: 'arr',
     scopes: ['arr:read'],

@@ -34,6 +34,7 @@ import {
   getDownloadHistoryAction,
   getDownloadQueueAction,
   getEnabledMcpServiceNames,
+  getEpisodeDownloadProvenanceAction,
   getIndexerStatusAction,
   getMcpConnectionKit,
   getMcpProfileDescription,
@@ -41,6 +42,7 @@ import {
   getMcpToolCatalog,
   getMediaServerSetupProfileAction,
   getMissingEpisodesAction,
+  getMovieDownloadProvenanceAction,
   getMovieStatusAction,
   getNativeAppCapabilitiesAction,
   getPlexLibrariesAction,
@@ -933,6 +935,26 @@ const tools: ToolDef[] = [
     description: 'Get movie status.',
     shape: { instance: movieInstance, movieId: z.number().optional() },
     handler: getMovieStatusAction
+  },
+  {
+    name: 'stackarr_get_movie_download_provenance',
+    description: 'Get safe Radarr grab and import provenance without returning download URLs or credentials.',
+    shape: {
+      instance: movieInstance,
+      movieId: z.number().int().min(1),
+      limit: z.number().int().min(1).max(100).optional()
+    },
+    handler: getMovieDownloadProvenanceAction
+  },
+  {
+    name: 'stackarr_get_episode_download_provenance',
+    description: 'Get safe Sonarr grab and import provenance without returning download URLs or credentials.',
+    shape: {
+      instance: seriesInstance,
+      episodeId: z.number().int().min(1),
+      limit: z.number().int().min(1).max(100).optional()
+    },
+    handler: getEpisodeDownloadProvenanceAction
   },
   {
     name: 'stackarr_get_missing_episodes',

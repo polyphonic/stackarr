@@ -17,3 +17,13 @@ qBittorrent is available as an alternative profile.
 ## Active Client
 
 Only the selected torrent-client profile should be active. This avoids port conflicts and duplicate torrent state.
+
+## Download Provenance
+
+Radarr and Sonarr remain the source of truth for grab and import history. Their history records the release title, indexer, download client, quality, and imported path.
+
+Stackarr also archives the exact `.torrent` file after a successful import. A matching `.provenance.json` sidecar records safe identifying metadata, including the Arr item ID, release title, indexer, download client, torrent hash, quality, source path, and imported path. Stackarr never stores magnet URLs or credentials in the provenance manifest.
+
+The torrent and provenance files live together under `STATE_ROOT/torrent-archive/Movies` or `STATE_ROOT/torrent-archive/TV Shows`. Stackarr backup and restore includes this archive.
+
+Use `stackarr_get_movie_download_provenance` with a Radarr movie ID. Use `stackarr_get_episode_download_provenance` with a Sonarr episode ID. Both tools join native grab and import history while excluding source URLs and credentials.
