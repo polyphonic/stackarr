@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { markdownToPortableText, validateArticleDraft } from './lib/article-draft.mjs';
 import {
   findCopiedSentences,
+  isSupportedSourceContentType,
   publisherMatchesSource,
   validateSourceIdentity,
   verifyArticleSources
@@ -352,6 +353,11 @@ test('rejects reserved source hosts and mismatched primary-source publishers', (
       }),
     /publisher does not match/i
   );
+});
+
+test('accepts Markdown source documents with optional content-type parameters', () => {
+  assert.equal(isSupportedSourceContentType('text/markdown'), true);
+  assert.equal(isSupportedSourceContentType('text/markdown; charset=utf-8'), true);
 });
 
 test('rejects source addresses on blocked networks before fetching', async () => {
