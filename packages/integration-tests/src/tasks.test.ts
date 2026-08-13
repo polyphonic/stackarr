@@ -11,6 +11,68 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
+function sqliteTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env = { ...process.env, ...overrides };
+  delete env.STACKARR_DATABASE_MODE;
+  delete env.STACKARR_DATABASE_URL;
+  delete env.STACKARR_LOG_DATABASE_URL;
+  return env;
+}
+
+test('controller restart fails only orphaned queued and running tasks', async () => {
+  const { interruptedTasksAfterControllerRestart } = await import('../../core/src/tasks.ts');
+  const tasks = [
+    {
+      id: 'old-running',
+      commandName: 'SecurityApply' as const,
+      commandLabel: 'Apply security credentials',
+      status: 'running' as const,
+      queuedAt: '2026-08-13T09:00:00.000Z',
+      startedAt: '2026-08-13T09:01:00.000Z'
+    },
+    {
+      id: 'old-queued',
+      commandName: 'ApplyDownloadsPreset' as const,
+      commandLabel: 'Apply downloads preset',
+      status: 'queued' as const,
+      queuedAt: '2026-08-13T09:02:00.000Z'
+    },
+    {
+      id: 'new-running',
+      commandName: 'ApplyNamingPreset' as const,
+      commandLabel: 'Apply naming preset',
+      status: 'running' as const,
+      queuedAt: '2026-08-13T09:06:00.000Z',
+      startedAt: '2026-08-13T09:07:00.000Z'
+    },
+    {
+      id: 'recent-handoff',
+      commandName: 'SecurityApply' as const,
+      commandLabel: 'Apply security credentials',
+      status: 'running' as const,
+      queuedAt: '2026-08-13T09:00:00.000Z',
+      startedAt: '2026-08-13T09:01:00.000Z',
+      output: 'STACKARR_TASK_HANDOFF_STARTED Security apply handed to the maintenance worker'
+    },
+    {
+      id: 'completed',
+      commandName: 'ApplyNamingPreset' as const,
+      commandLabel: 'Apply naming preset',
+      status: 'completed' as const,
+      queuedAt: '2026-08-13T09:00:00.000Z'
+    }
+  ];
+
+  const result = interruptedTasksAfterControllerRestart(tasks, '2026-08-13T09:05:00.000Z', '2026-08-13T09:10:00.000Z');
+
+  assert.equal(result[0]?.status, 'failed');
+  assert.equal(result[0]?.error, 'Task was interrupted by a Stackarr controller restart.');
+  assert.equal(result[1]?.status, 'failed');
+  assert.equal(result[2]?.status, 'running');
+  assert.equal(result[3]?.status, 'running');
+  assert.equal(result[4]?.status, 'completed');
+});
+
 test('task updates patch one row without dropping newer queued tasks', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-tasks-test-'));
 
@@ -42,10 +104,7 @@ test('task updates patch one row without dropping newer queued tasks', async () 
       ],
       {
         cwd: repoRoot,
-        env: {
-          ...process.env,
-          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
-        }
+        env: sqliteTestEnv({ STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db') })
       }
     );
 
@@ -87,10 +146,7 @@ test('failed task reviews persist without changing the failure result', async ()
       ],
       {
         cwd: repoRoot,
-        env: {
-          ...process.env,
-          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
-        }
+        env: sqliteTestEnv({ STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db') })
       }
     );
 
@@ -160,10 +216,7 @@ test('existing task databases gain review state without losing history', async (
       ],
       {
         cwd: repoRoot,
-        env: {
-          ...process.env,
-          STACKARR_DATABASE_FILE: databasePath
-        }
+        env: sqliteTestEnv({ STACKARR_DATABASE_FILE: databasePath })
       }
     );
 

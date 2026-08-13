@@ -22,15 +22,59 @@ export type StackarrTask = {
 };
 
 let migratedTaskFile = false;
+let reconciledInterruptedTasks = false;
+const controllerStartedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
+const taskHandoffMarker = 'STACKARR_TASK_HANDOFF_STARTED';
+const taskHandoffGraceMs = 30 * 60 * 1000;
 
 export function readTasks(): StackarrTask[] {
   migrateTaskFileToDatabase();
   const tasks = readTaskRows();
   if (tasks) {
+    return reconcileControllerRestart(tasks);
+  }
+
+  return reconcileControllerRestart(readTaskFile());
+}
+
+export function interruptedTasksAfterControllerRestart(
+  tasks: StackarrTask[],
+  startedAt: string,
+  endedAt = new Date().toISOString()
+): StackarrTask[] {
+  const cutoff = Date.parse(startedAt);
+  const reconciliationTime = Date.parse(endedAt);
+  if (!Number.isFinite(cutoff)) {
     return tasks;
   }
 
-  return readTaskFile();
+  return tasks.map((task) => {
+    if (task.status !== 'queued' && task.status !== 'running') {
+      return task;
+    }
+
+    const taskTimestamp = Date.parse(task.startedAt ?? task.queuedAt);
+    if (!Number.isFinite(taskTimestamp) || taskTimestamp >= cutoff) {
+      return task;
+    }
+
+    if (
+      task.output?.includes(taskHandoffMarker) &&
+      Number.isFinite(reconciliationTime) &&
+      reconciliationTime - taskTimestamp < taskHandoffGraceMs
+    ) {
+      return task;
+    }
+
+    return {
+      ...task,
+      status: 'failed',
+      endedAt,
+      exitCode: 1,
+      error: 'Task was interrupted by a Stackarr controller restart.',
+      reviewedAt: null
+    };
+  });
 }
 
 export function writeTasks(tasks: StackarrTask[]) {
@@ -105,6 +149,24 @@ function migrateTaskFileToDatabase() {
   if (tasks.length > 0) {
     writeTaskRows(tasks);
   }
+}
+
+function reconcileControllerRestart(tasks: StackarrTask[]): StackarrTask[] {
+  if (reconciledInterruptedTasks || process.env.STACKARR_RUNTIME !== 'docker') {
+    return tasks;
+  }
+  reconciledInterruptedTasks = true;
+
+  const reconciled = interruptedTasksAfterControllerRestart(tasks, controllerStartedAt);
+  for (let index = 0; index < tasks.length; index += 1) {
+    const before = tasks[index];
+    const after = reconciled[index];
+    if (before && after && before !== after) {
+      updateTask(before.id, after);
+    }
+  }
+
+  return reconciled;
 }
 
 function readTaskFile(): StackarrTask[] {

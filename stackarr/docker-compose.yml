@@ -33,6 +33,7 @@ services:
       STACKARR_COMPOSE_PROJECT_DIR: ${STATE_ROOT:-./.stackarr/state}/compose
       STACKARR_COMPOSE_FILE: ${STATE_ROOT:-./.stackarr/state}/compose/docker-compose.yml
       STACKARR_RUNTIME: docker-updater
+      STACKARR_SECURITY_HANDOFF: ${STACKARR_SECURITY_HANDOFF:-false}
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"

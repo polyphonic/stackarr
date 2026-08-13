@@ -79,7 +79,16 @@ case "$cmd" in
         ;;
     security)
         shift || true
-        exec "$ROOT_DIR/scripts/security.sh" "$@"
+        sub="${1:-help}"
+        case "$sub" in
+            apply|apply-worker)
+                shift || true
+                exec "$ROOT_DIR/scripts/security.sh" "$sub" "$@"
+                ;;
+            *)
+                exec "$ROOT_DIR/scripts/security.sh" "$sub" "$@"
+                ;;
+        esac
         ;;
     database)
         shift || true
@@ -186,6 +195,21 @@ case "$cmd" in
                 shift || true
                 export STACKARR_REPO_ROOT="$REPO_ROOT"
                 export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+                if [[ -f "/.dockerenv" || -f "/run/.containerenv" ]]; then
+                    exec node "$mcp_entrypoint" "$sub" "$@"
+                fi
+
+                load_env </dev/null
+                ensure_docker_runtime </dev/null >&2
+                app_is_running=false
+                while IFS= read -r service; do
+                    [[ "$service" == "app" ]] && app_is_running=true
+                done < <(stackarr_compose ps --services --status running </dev/null 2>/dev/null)
+                if [[ "$app_is_running" == "true" ]]; then
+                    stackarr_compose exec -T app node packages/mcp/dist/index.js "$sub" "$@"
+                    exit $?
+                fi
+
                 exec node "$mcp_entrypoint" "$sub" "$@"
                 ;;
             config)

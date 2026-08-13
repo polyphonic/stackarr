@@ -618,6 +618,28 @@ test('Cloudflare route installer protects Access routes before publishing hostna
   assert.ok(accessIndex < publishIndex, 'Access app should be created before the public hostname is published');
 });
 
+test('credential apply waits for its task and reports a terminal result', async () => {
+  const settingsEditor = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.tsx'), 'utf8');
+
+  assert.match(settingsEditor, /const applyTask = \(await applyResponse\.json\(\)/);
+  assert.match(settingsEditor, /await waitForTask\(applyTask\.id\)/);
+  assert.match(settingsEditor, /task\?\.status === 'completed'/);
+  assert.match(settingsEditor, /task\?\.status === 'failed' \|\| task\?\.status === 'blocked'/);
+  assert.doesNotMatch(settingsEditor, /setSecurityState\(applyResponse\.ok \? 'queued'/);
+});
+
+test('host MCP commands use the authoritative running Stackarr controller', async () => {
+  const bin = await readFile(path.join(repoRoot, 'stackarr/bin/stackarr'), 'utf8');
+
+  assert.match(bin, /load_env <\/dev\/null/);
+  assert.match(bin, /ensure_docker_runtime <\/dev\/null/);
+  assert.match(bin, /stackarr_compose ps --services --status running <\/dev\/null/);
+  assert.match(bin, /while IFS= read -r service/);
+  assert.match(bin, /\[\[ "\$service" == "app" \]\] && app_is_running=true/);
+  assert.doesNotMatch(bin, /grep -Fxq app/);
+  assert.match(bin, /stackarr_compose exec -T app node packages\/mcp\/dist\/index\.js/);
+});
+
 test('Cloudflare route apply uses route-only command outside host-only runner gate', async () => {
   const commands = await readFile(path.join(repoRoot, 'packages/core/src/commands.ts'), 'utf8');
   const settingsEditor = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.tsx'), 'utf8');
@@ -798,6 +820,92 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.match(directory, /Container update queued for/);
   assert.match(script, /write_compose_env_file/);
   assert.match(script, /up -d --force-recreate --no-deps "\$service"/);
+});
+
+test('security credential apply leaves the Stackarr controller running', async () => {
+  const script = await readFile(path.join(repoRoot, 'stackarr/scripts/security.sh'), 'utf8');
+  const runner = await readFile(path.join(repoRoot, 'apps/frontend/src/lib/runner.ts'), 'utf8');
+  const commandActions = await readFile(path.join(repoRoot, 'packages/core/src/actions/commands.ts'), 'utf8');
+  const serviceList = script.match(/security_service_list\(\) \{([\s\S]*?)\n\}/)?.[1];
+
+  assert.ok(serviceList);
+  assert.doesNotMatch(serviceList, /services\+=\("app"\)/);
+  assert.match(script, /Stackarr controller stays online because it reads account credentials from runtime storage/);
+  assert.match(script, /STACKARR_TASK_HANDOFF_STARTED/);
+  assert.match(script, /app-updater security apply-worker/);
+  assert.match(script, /up -d --force-recreate --no-deps app/);
+  assert.match(script, /task_database_url="\$\{STACKARR_DATABASE_URL:-\}"[\s\S]*?start_security_apply_worker "\$task_database_url"/);
+  assert.match(script, /STACKARR_DATABASE_URL="\$STACKARR_TASK_DATABASE_URL" node "\$TASK_LOGGER"/);
+  assert.match(
+    runner,
+    /command\.name === 'SecurityApply'[\s\S]*?exitCode === 0[\s\S]*?output\.includes\('STACKARR_TASK_HANDOFF_STARTED'\)/
+  );
+  assert.match(
+    commandActions,
+    /definition\.name === 'SecurityApply'[\s\S]*?exitCode === 0[\s\S]*?output\.includes\('STACKARR_TASK_HANDOFF_STARTED'\)/
+  );
+  const worker = script.match(/apply_security_worker\(\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(worker);
+  assert.doesNotMatch(worker, /update_security_task_note "Applying managed service credentials"/);
+  assert.match(
+    worker,
+    /apply_security[\s\S]*?update_security_task_note "Recreating the Stackarr controller with current database credentials"/
+  );
+});
+
+test('security credential apply includes services that persist shared credentials', async () => {
+  const script = await readFile(path.join(repoRoot, 'stackarr/scripts/security.sh'), 'utf8');
+  const serviceList = script.match(/security_service_list\(\) \{([\s\S]*?)\n\}/)?.[1];
+
+  assert.ok(serviceList);
+  assert.match(serviceList, /optional_service_enabled youtarr[\s\S]*services\+=\("youtarr"\)/);
+  assert.match(script, /optional_service_enabled cleanuparr[\s\S]*cleanuparr-configure\.py/);
+  assert.match(script, /cleanuparr-credentials\.py/);
+  assert.match(script, /sync_pulsarr_admin_identity/);
+  assert.match(script, /Pulsarr admin identity sync requires exactly one local admin/);
+  assert.match(script, /scryptHash/);
+  assert.match(script, /SET username = :'admin_username', password = :'admin_password_hash', updated_at = NOW\(\)/);
+  assert.match(script, /sync_pulsarr_admin_identity \|\| credential_sync_failed=true/);
+  assert.match(script, /cleanuparr-credentials\.py\" \|\| credential_sync_failed=true/);
+  assert.match(script, /One or more managed service credentials could not be applied/);
+});
+
+test('Cleanuparr credential sync updates its single local owner and revokes sessions', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-cleanuparr-credentials-test-'));
+  const database = path.join(root, 'users.db');
+  const binDir = path.join(root, 'bin');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(
+      path.join(binDir, 'htpasswd'),
+      "#!/bin/sh\nprintf '%s\\n' ':$2a$12$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO123456789'\n"
+    );
+    await chmod(path.join(binDir, 'htpasswd'), 0o755);
+    await execFile('sqlite3', [
+      database,
+      "CREATE TABLE users (username TEXT, password_hash TEXT, failed_login_attempts INTEGER, lockout_end TEXT, updated_at TEXT); INSERT INTO users VALUES ('admin', 'old', 3, 'later', 'before'); CREATE TABLE refresh_tokens (token TEXT); INSERT INTO refresh_tokens VALUES ('stale');"
+    ]);
+
+    const { stdout } = await execFile('python3', [path.join(repoRoot, 'stackarr/scripts/cleanuparr-credentials.py')], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH}`,
+        USERNAME: 'shared-user',
+        PASSWORD: 'shared-password',
+        CLEANUPARR_USERS_DB: database
+      }
+    });
+    const { stdout: state } = await execFile('sqlite3', [
+      database,
+      "SELECT username, password_hash LIKE '$2a$%', failed_login_attempts, lockout_end IS NULL, (SELECT COUNT(*) FROM refresh_tokens) FROM users;"
+    ]);
+
+    assert.match(stdout, /Cleanuparr shared credentials synced/);
+    assert.equal(state.trim(), 'shared-user|1|0|1|0');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('saved secret fields expose only a middle-truncated preview', async () => {
