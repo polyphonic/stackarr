@@ -26,7 +26,16 @@ docker exec app /app/bin/stackarr update services
 
 The app workflow targets managed services explicitly, leaves the Stackarr
 controller and its database running, reapplies integrations, and cleans up
-dangling images.
+dangling and unused images. Cleanup runs after Compose has recreated the
+services and removed old containers, so images from the previous containers are
+no longer referenced. The scheduled update job uses this same workflow.
+
+Persistent Docker volumes are not pruned automatically. First use
+`stackarr_get_container_overview` to review every unused volume. After confirming
+that the listed data is no longer needed, call
+`stackarr_manage_container_resource` with `kind: "volume"`,
+`action: "pruneUnused"`, `confirmDangerous: true`, and a reason. That confirmed
+action removes both named and anonymous volumes that no container uses.
 
 Stackarr defaults application services such as Youtarr and tinyMediaManager to
 their upstream stable moving tags so this workflow keeps them current. Stateful

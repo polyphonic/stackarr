@@ -787,7 +787,7 @@ function dockerActionArgs(input: DockerResourceActionInput) {
   }
 
   if (input.kind === 'volume') {
-    if (input.action === 'pruneUnused') return ['volume', 'prune', '-f'];
+    if (input.action === 'pruneUnused') return ['volume', 'prune', '-a', '-f'];
     requireId(input);
     if (input.action === 'remove') return ['volume', 'rm', ...(input.force ? ['-f'] : []), input.id as string];
   }

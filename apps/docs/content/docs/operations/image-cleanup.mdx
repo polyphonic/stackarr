@@ -4,16 +4,34 @@ title: Image Cleanup
 
 # Image Cleanup
 
-Stackarr includes a maintenance compose service that removes dangling old image layers after successful updates.
+Stackarr includes a maintenance Compose service that removes old images after
+successful managed-service updates. It runs only after Compose has recreated
+the enabled services and removed old containers.
+
+The normal entry point is the managed update workflow:
 
 ```bash
-docker compose -f stackarr/docker-compose.yml --profile maintenance run --rm image-cleanup
+docker exec app /app/bin/stackarr update services
 ```
 
 It runs:
 
 ```bash
-docker image prune -f --filter dangling=true
+docker image prune -a -f
 ```
 
-This does not remove named images still referenced by containers.
+This removes dangling images and tagged images that no container references.
+Images used by running or stopped containers are retained.
+
+## Volume cleanup
+
+Volumes can contain the only copy of persistent application data, so Stackarr
+does not prune them during scheduled updates. Use
+`stackarr_get_container_overview` to inspect the unused-volume list first. When
+you have confirmed those volumes are obsolete, call the dangerous
+`stackarr_manage_container_resource` MCP action with `kind: "volume"`,
+`action: "pruneUnused"`, and the required confirmation and reason.
+
+The confirmed action uses `docker volume prune -a -f`, which includes unused
+named and anonymous volumes. It cannot remove a volume still referenced by a
+container.

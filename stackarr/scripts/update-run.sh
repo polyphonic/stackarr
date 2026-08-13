@@ -80,9 +80,9 @@ update_managed_services() {
     "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
     "$ROOT_DIR/scripts/requests.sh" apply --wait || true
     if stackarr_compose --profile maintenance run --rm image-cleanup; then
-        ok "Dangling Docker images cleaned"
+        ok "Unused Docker images cleaned"
     else
-        warn "Dangling Docker image cleanup failed; run 'docker image prune -f --filter dangling=true' manually if disk usage grows"
+        warn "Unused Docker image cleanup failed; run 'docker image prune -a -f' manually if disk usage grows"
     fi
 
     ok "Managed services updated; the Stackarr controller was left running"

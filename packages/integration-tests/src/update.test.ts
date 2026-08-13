@@ -20,9 +20,29 @@ test('managed app updates cannot pull or recreate the Stackarr controller', asyn
   assert.doesNotMatch(update, /ensure_docker_runtime\nensure_database_if_required/);
 
   const compose = await source('stackarr/docker-compose.yml');
-  assert.match(compose, /docker image prune -f --filter dangling=true >\/dev\/null/);
+  assert.match(compose, /docker image prune -a -f >\/dev\/null/);
   assert.match(compose, /RECYCLARR_IMAGE:-ghcr\.io\/recyclarr\/recyclarr:8/);
   assert.doesNotMatch(compose, /RECYCLARR_IMAGE:-ghcr\.io\/recyclarr\/recyclarr:latest/);
+});
+
+test('managed app updates prune dangling and unused images after old containers are removed', async () => {
+  const update = await source('stackarr/scripts/update-run.sh');
+  const compose = await source('stackarr/docker-compose.yml');
+
+  const recreation = update.indexOf('up -d --no-deps --remove-orphans');
+  const cleanup = update.indexOf('run --rm image-cleanup');
+
+  assert.ok(recreation >= 0, 'managed services should be recreated with old containers removed');
+  assert.ok(cleanup > recreation, 'image cleanup should run only after service recreation');
+  assert.match(compose, /docker image prune -a -f >\/dev\/null/);
+});
+
+test('image-declared service volumes have stable Compose names', async () => {
+  const compose = await source('stackarr/docker-compose.yml');
+
+  assert.match(compose, /\n  flaresolverr:\n[\s\S]*?\n    volumes:\n      - flaresolverr-config:\/config\n/);
+  assert.match(compose, /\n  romm:\n[\s\S]*?\n    volumes:\n[\s\S]*?      - romm-root:\/romm\n/);
+  assert.match(compose, /\nvolumes:\n[\s\S]*?  flaresolverr-config:\n[\s\S]*?  romm-root:\n/);
 });
 
 test('local Stackarr images are preserved while published images use an independent worker', async () => {
