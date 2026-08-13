@@ -72,6 +72,71 @@ test('compose env generation preserves runtime roots and the release image', asy
   }
 });
 
+test('host runtime reload reads current PostgreSQL settings through the Stackarr app', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-postgres-reload-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const binDir = path.join(root, 'bin');
+  const stateRoot = path.join(root, 'app/state');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(
+      path.join(binDir, 'docker'),
+      [
+        '#!/bin/sh',
+        'case " $* " in',
+        '  *" exec -T app sh -lc "*)',
+        '    printf "%s\\n" "export USERNAME=\u0027fresh-user\u0027" "export PASSWORD=\u0027fresh-password\u0027" "export TRANSMISSION_PASSWORD=\u0027fresh-password\u0027"',
+        '    exit 0',
+        '    ;;',
+        'esac',
+        'exit 1',
+        ''
+      ].join('\n')
+    );
+    await chmod(path.join(binDir, 'docker'), 0o755);
+    await writeFile(
+      composeEnvFile,
+      [
+        `APP_ROOT="${path.join(root, 'app')}"`,
+        `CONFIG_ROOT="${path.join(root, 'app/config')}"`,
+        `STATE_ROOT="${stateRoot}"`,
+        `LOG_ROOT="${path.join(root, 'app/logs')}"`,
+        'USERNAME="stale-user"',
+        'PASSWORD="stale-password"',
+        'TRANSMISSION_PASSWORD="stale-password"',
+        'STACKARR_DATABASE_MODE="postgres"',
+        'STACKARR_DATABASE_URL="postgres://stackarr:secret@database:5432/stackarr-main"',
+        ''
+      ].join('\n')
+    );
+
+    const { stdout } = await execFile(
+      'bash',
+      [
+        '-c',
+        'source "$1"; load_env; printf "%s\\n%s\\n%s\\n" "$USERNAME" "$PASSWORD" "$TRANSMISSION_PASSWORD"',
+        'bash',
+        commonScript
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          PATH: `${binDir}:${process.env.PATH}`,
+          HOME: process.env.HOME,
+          TMPDIR: process.env.TMPDIR,
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+          STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
+        }
+      }
+    );
+
+    assert.equal(stdout, 'fresh-user\nfresh-password\nfresh-password\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('compose env generation preserves passwords with shell and URL punctuation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-special-password-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');

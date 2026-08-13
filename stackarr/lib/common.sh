@@ -179,6 +179,19 @@ load_sqlite_runtime_config() {
     eval "$exports"
 }
 
+load_postgres_runtime_config_through_app() {
+    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 0
+    stackarr_runtime_is_container && return 0
+
+    local exports
+    if ! exports="$(stackarr_compose exec -T app sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
+        return 0
+    fi
+
+    [[ -n "$exports" ]] || return 0
+    eval "$exports"
+}
+
 load_compose_runtime_env() {
     local env_file="${STACKARR_COMPOSE_ENV_FILE:-}"
 
@@ -369,10 +382,10 @@ load_env() {
     : "${STACKARR_DATABASE_DIR:=$(dirname "$STACKARR_DATABASE_FILE")}"
     configure_docker_environment
     load_compose_runtime_env
+    # Host commands cannot resolve the Compose-only `database` hostname. Read
+    # PostgreSQL-backed settings through the running Stackarr controller first.
+    load_postgres_runtime_config_through_app
     load_sqlite_runtime_config
-    if [[ -n "${STACKARR_DATABASE_URL:-}" ]]; then
-        load_sqlite_runtime_config
-    fi
     load_browser_link_runtime_settings
 
     if [[ -z "${APP_ROOT:-}" ]]; then

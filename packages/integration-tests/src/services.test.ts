@@ -834,7 +834,10 @@ test('security credential apply leaves the Stackarr controller running', async (
   assert.match(script, /STACKARR_TASK_HANDOFF_STARTED/);
   assert.match(script, /app-updater security apply-worker/);
   assert.match(script, /up -d --force-recreate --no-deps app/);
-  assert.match(script, /task_database_url="\$\{STACKARR_DATABASE_URL:-\}"[\s\S]*?start_security_apply_worker "\$task_database_url"/);
+  assert.match(
+    script,
+    /task_database_url="\$\{STACKARR_DATABASE_URL:-\}"[\s\S]*?start_security_apply_worker "\$task_database_url"/
+  );
   assert.match(script, /STACKARR_DATABASE_URL="\$STACKARR_TASK_DATABASE_URL" node "\$TASK_LOGGER"/);
   assert.match(
     runner,

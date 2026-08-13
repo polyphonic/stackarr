@@ -73,11 +73,7 @@ export function runQueuedTask(task: StackarrTask, command: CommandDefinition) {
   });
 
   child.on('close', (exitCode) => {
-    if (
-      command.name === 'SecurityApply' &&
-      exitCode === 0 &&
-      output.includes('STACKARR_TASK_HANDOFF_STARTED')
-    ) {
+    if (command.name === 'SecurityApply' && exitCode === 0 && output.includes('STACKARR_TASK_HANDOFF_STARTED')) {
       return;
     }
     if (command.name === 'UpdateStackarr' && exitCode === 0 && output.includes('STACKARR_UPDATE_HANDOFF_STARTED')) {

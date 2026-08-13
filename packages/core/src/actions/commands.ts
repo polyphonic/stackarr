@@ -72,11 +72,7 @@ export function queueStackarrCommandAction(input: { command: CommandName; args?:
   });
 
   child.on('close', (exitCode) => {
-    if (
-      definition.name === 'SecurityApply' &&
-      exitCode === 0 &&
-      output.includes('STACKARR_TASK_HANDOFF_STARTED')
-    ) {
+    if (definition.name === 'SecurityApply' && exitCode === 0 && output.includes('STACKARR_TASK_HANDOFF_STARTED')) {
       return;
     }
     updateTask(task.id, {
