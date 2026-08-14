@@ -437,19 +437,26 @@ test('converts inline image placeholders into referenced Portable Text images', 
   assert.equal(images[1].caption, actionableDraft.inlineImages[1].caption);
 });
 
-test('publisher refuses to read a draft outside its temporary work directory', async () => {
+test('preparer refuses to read a draft outside its temporary work directory', async () => {
   const workDir = await mkdtemp(path.join(os.tmpdir(), 'stackarr-blog-work-'));
   const outsideDir = await mkdtemp(path.join(os.tmpdir(), 'stackarr-blog-outside-'));
   const draftPath = path.join(outsideDir, 'article.json');
+  const preparationPath = path.join(workDir, 'preparation.json');
   await writeFile(draftPath, '{}', 'utf8');
 
   try {
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL('./publish-article.mjs', import.meta.url)), draftPath],
+      [fileURLToPath(new URL('./prepare-article.mjs', import.meta.url)), draftPath, preparationPath],
       {
         encoding: 'utf8',
-        env: { ...process.env, STACKARR_BLOG_WORK_DIR: workDir }
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_SANITY_PROJECT_ID: 'stackarrtest',
+          NEXT_PUBLIC_SANITY_DATASET: 'production',
+          STACKARR_BLOG_WORK_DIR: workDir,
+          STACKARR_SANITY_API_TOKEN: 'test-token'
+        }
       }
     );
 
