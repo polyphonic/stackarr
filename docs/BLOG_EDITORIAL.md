@@ -97,7 +97,9 @@ The publisher independently verifies public source URLs, official-source identit
 5. Save draft JSON, cover image, and inline images inside that directory.
 6. Review each image for relevance, legibility, trademarks, and invented UI.
 7. Set `STACKARR_BLOG_WORK_DIR` to the absolute temporary path.
-8. Run `node packages/cms/scripts/article-draft.test.mjs` during publisher maintenance.
-9. Run `node packages/cms/scripts/publish-article.mjs <draft.json>` with server-only Sanity credentials.
-10. Verify tokenless Sanity visibility and the live article route, including every inline image.
-11. Remove the complete temporary work directory.
+8. Run `pnpm --filter @stackarr/cms test` during publisher maintenance.
+9. Run `node packages/cms/scripts/prepare-article.mjs <draft.json> <preparation.json>` with server-only Sanity credentials. This validates the article, uploads reviewed assets, and writes bounded Sanity MCP payloads without creating or publishing a post.
+10. Pass `createDocuments` from the preparation file to Sanity MCP `create_documents`, then pass `publishDocuments` to `publish_documents` exactly once.
+11. Verify tokenless Sanity visibility and the live article route, including every inline image.
+12. If MCP creation, publication, or verification fails, run `node packages/cms/scripts/cleanup-article.mjs <preparation.json>` once. It removes only the recorded draft, public post, and uploaded assets.
+13. Remove the complete temporary work directory.
