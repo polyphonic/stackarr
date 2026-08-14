@@ -1,7 +1,7 @@
 import { getRecentBlogPosts } from '@stackarr/cms';
 import { absoluteUrl, siteDescription } from '~/lib/site';
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export async function GET() {
   const posts = await getRecentBlogPosts(50);
@@ -27,7 +27,7 @@ export async function GET() {
     },
     {
       headers: {
-        'Cache-Control': 'public, max-age=0, s-maxage=3600',
+        'Cache-Control': 'public, max-age=0, s-maxage=60, must-revalidate',
         'Content-Type': 'application/feed+json; charset=utf-8'
       }
     }
