@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0-alpha.14](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.13...v0.3.0-alpha.14) (2026-08-14)
+
+
+### Added
+
+* **blog:** add guarded homelab publishing system ([4f056a7](https://github.com/polyphonic/stackarr/commit/4f056a7bf3f0e3b6ea46bcc7beef46782d6b1476))
+* **blog:** add guarded homelab publishing system ([fb23439](https://github.com/polyphonic/stackarr/commit/fb23439a0afaaf1de59ac2d435a0a83d6fb4acd8))
+* **blog:** refine publishing and reading experience ([592d48b](https://github.com/polyphonic/stackarr/commit/592d48b77749ad73750a806c92ebfa6b428d06c8))
+* **blog:** refine publishing and reading experience ([c0f7186](https://github.com/polyphonic/stackarr/commit/c0f7186a24fc86f648563e2a3a459429673538fd))
+
+
+### Fixed
+
+* **blog:** align category window with public posts ([#49](https://github.com/polyphonic/stackarr/issues/49)) ([2a0aa08](https://github.com/polyphonic/stackarr/commit/2a0aa08034feaeb7a59c1582e5114c3fecfa1185))
+* **blog:** harden publishing guardrails ([a2cb34b](https://github.com/polyphonic/stackarr/commit/a2cb34b7384e6cde8760eb0d7bc39d97a9893ea4))
+* **blog:** keep the latest dispatch visually current ([#48](https://github.com/polyphonic/stackarr/issues/48)) ([cb5a4df](https://github.com/polyphonic/stackarr/commit/cb5a4df54b455e43accfb4b98c5cbc0edbadf235))
+* **ci:** run license-free secret scan ([1efedad](https://github.com/polyphonic/stackarr/commit/1efedad175a47e1d3a427432223fc6bd8b6f0ed5))
+* **cms:** accept Markdown source documents ([#50](https://github.com/polyphonic/stackarr/issues/50)) ([d2b3e16](https://github.com/polyphonic/stackarr/commit/d2b3e16388e0f3f238c895ef761470fc03856b09))
+* **cms:** publish articles through Sanity MCP ([#51](https://github.com/polyphonic/stackarr/issues/51)) ([10eb831](https://github.com/polyphonic/stackarr/commit/10eb831da0f0b9931eadb69b1f34aba5dc95516e))
+* **docs:** bound blog feed cache ([#52](https://github.com/polyphonic/stackarr/issues/52)) ([287be7a](https://github.com/polyphonic/stackarr/commit/287be7a35b30c776d7a846f8a93e06029cd8643c))
+* **docs:** keep blog menu available on mobile ([21a9aa6](https://github.com/polyphonic/stackarr/commit/21a9aa647d3a7563191e7d6d27673cab02c55a5d))
+
 ## [0.3.0-alpha.13](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.12...v0.3.0-alpha.13) (2026-08-10)
 
 
