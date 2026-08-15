@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.15](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.14...v0.3.0-alpha.15) (2026-08-15)
+
+
+### Added
+
+* **stack:** harden Docker updates and provenance ([#54](https://github.com/polyphonic/stackarr/issues/54)) ([eb9ba67](https://github.com/polyphonic/stackarr/commit/eb9ba674a9cb574610a85da33b5d6807f931c97d))
+
 ## [0.3.0-alpha.14](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.13...v0.3.0-alpha.14) (2026-08-14)
 
 
