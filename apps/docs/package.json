@@ -2,7 +2,7 @@
   "name": "@stackarr/docs",
   "version": "0.3.0-alpha.14",
   "dependencies": {
-    "@heroui/styles": "^3.2.1",
+    "@heroui/styles": "^3.2.4",
     "@next/third-parties": "~16.2.9",
     "@portabletext/react": "7.0.1",
     "@stackarr/cms": "workspace:*",

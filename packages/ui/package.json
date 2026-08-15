@@ -3,7 +3,7 @@
   "version": "0.3.0-alpha.14",
   "dependencies": {
     "@heroui/react": "^3.2.2",
-    "@heroui/styles": "^3.2.1",
+    "@heroui/styles": "^3.2.4",
     "nucleo-glass": "^1.4.0",
     "react-hot-toast": "^2.6.0"
   },
