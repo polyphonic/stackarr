@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+TORRENT_ARCHIVE_ROOT="${TORRENT_ARCHIVE_ROOT:-/torrent-archive}"
+QBITTORRENT_TORRENT_STATE_DIR="${QBITTORRENT_TORRENT_STATE_DIR:-/torrent-client-state/qbittorrent}"
+TRANSMISSION_TORRENT_STATE_DIR="${TRANSMISSION_TORRENT_STATE_DIR:-/torrent-client-state/transmission}"
+
 log() {
     printf '%s\n' "$*" >&2
 }
@@ -15,6 +19,107 @@ upper() {
 
 sanitize_filename() {
     printf '%s' "$1" | tr '/' '_'
+}
+
+write_provenance_manifest() {
+    destination_path="$1"
+    manifest_path="${destination_path%.torrent}.provenance.json"
+    temporary_path="$manifest_path.tmp.$$"
+
+    if ! command -v jq >/dev/null 2>&1; then
+        log "archive-torrent: jq is unavailable; the .torrent file was archived without a provenance manifest"
+        return 0
+    fi
+
+    recorded_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    if [ -n "${radarr_moviefile_path:-}" ]; then
+        service="radarr"
+        media_type="movie"
+        title="${radarr_movie_title:-}"
+        year="${radarr_movie_year:-}"
+        arr_item_id="${radarr_movie_id:-}"
+        arr_file_id="${radarr_moviefile_id:-}"
+        tmdb_id="${radarr_movie_tmdbid:-}"
+        imdb_id="${radarr_movie_imdbid:-}"
+        tvdb_id=""
+        release_title="${radarr_release_title:-${radarr_moviefile_scenename:-}}"
+        indexer="${radarr_release_indexer:-}"
+        download_client="${radarr_download_client:-}"
+        download_id="${radarr_download_id:-}"
+        quality="${radarr_release_quality:-}"
+        release_size="${radarr_release_size:-}"
+        source_path="${radarr_moviefile_sourcepath:-${radarr_moviefile_sourcefolder:-}}"
+        imported_path="${radarr_moviefile_path:-}"
+    else
+        service="sonarr"
+        media_type="episode"
+        title="${sonarr_series_title:-}"
+        year="${sonarr_series_year:-}"
+        arr_item_id="${sonarr_series_id:-}"
+        arr_file_id="${sonarr_episodefile_id:-}"
+        tmdb_id=""
+        imdb_id="${sonarr_series_imdbid:-}"
+        tvdb_id="${sonarr_series_tvdbid:-}"
+        release_title="${sonarr_release_title:-${sonarr_episodefile_scenename:-}}"
+        indexer="${sonarr_release_indexer:-}"
+        download_client="${sonarr_download_client:-}"
+        download_id="${sonarr_download_id:-}"
+        quality="${sonarr_release_quality:-}"
+        release_size="${sonarr_release_size:-}"
+        source_path="${sonarr_episodefile_sourcepath:-${sonarr_sourcepath:-${sonarr_sourcefolder:-}}}"
+        imported_path="${sonarr_episodefile_path:-}"
+    fi
+
+    if jq -n \
+        --arg recordedAt "$recorded_at" \
+        --arg service "$service" \
+        --arg mediaType "$media_type" \
+        --arg eventType "${event_type:-}" \
+        --arg title "$title" \
+        --arg year "$year" \
+        --arg arrItemId "$arr_item_id" \
+        --arg arrFileId "$arr_file_id" \
+        --arg tmdbId "$tmdb_id" \
+        --arg imdbId "$imdb_id" \
+        --arg tvdbId "$tvdb_id" \
+        --arg releaseTitle "$release_title" \
+        --arg indexer "$indexer" \
+        --arg downloadClient "$download_client" \
+        --arg downloadId "$download_id" \
+        --arg quality "$quality" \
+        --arg releaseSize "$release_size" \
+        --arg sourcePath "$source_path" \
+        --arg importedPath "$imported_path" \
+        --arg torrentFile "$(basename "$destination_path")" \
+        '{
+            schemaVersion: 1,
+            recordedAt: $recordedAt,
+            service: $service,
+            mediaType: $mediaType,
+            eventType: $eventType,
+            title: $title,
+            year: $year,
+            arrItemId: $arrItemId,
+            arrFileId: $arrFileId,
+            tmdbId: $tmdbId,
+            imdbId: $imdbId,
+            tvdbId: $tvdbId,
+            releaseTitle: $releaseTitle,
+            indexer: $indexer,
+            downloadClient: $downloadClient,
+            downloadId: $downloadId,
+            quality: $quality,
+            releaseSize: $releaseSize,
+            sourcePath: $sourcePath,
+            importedPath: $importedPath,
+            torrentFile: $torrentFile
+        } | with_entries(select(.value != ""))' > "$temporary_path"; then
+        mv -f "$temporary_path" "$manifest_path"
+        log "archive-torrent: wrote provenance manifest to $manifest_path"
+    else
+        rm -f "$temporary_path"
+        log "archive-torrent: failed to write provenance manifest; the .torrent file remains archived"
+    fi
 }
 
 find_torrent_file() {
@@ -42,11 +147,11 @@ copy_into_archive() {
     case "$media_path" in
         /movies/*)
             relative_path="${media_path#/movies/}"
-            archive_root="/torrent-archive/Movies"
+            archive_root="$TORRENT_ARCHIVE_ROOT/Movies"
             ;;
         /tv/*)
             relative_path="${media_path#/tv/}"
-            archive_root="/torrent-archive/TV Shows"
+            archive_root="$TORRENT_ARCHIVE_ROOT/TV Shows"
             ;;
         *)
             log "archive-torrent: unsupported media path '$media_path'"
@@ -62,8 +167,8 @@ copy_into_archive() {
     fi
 
     source_torrent="$(
-        find_torrent_file "/torrent-client-state/qbittorrent" "$download_id" ||
-        find_torrent_file "/torrent-client-state/transmission" "$download_id" ||
+        find_torrent_file "$QBITTORRENT_TORRENT_STATE_DIR" "$download_id" ||
+        find_torrent_file "$TRANSMISSION_TORRENT_STATE_DIR" "$download_id" ||
         true
     )"
 
@@ -76,6 +181,7 @@ copy_into_archive() {
     destination_path="$destination_dir/$(sanitize_filename "$archive_name").torrent"
     cp -f "$source_torrent" "$destination_path"
     log "archive-torrent: copied $(basename "$source_torrent") to $destination_path"
+    write_provenance_manifest "$destination_path"
 }
 
 event_type="${radarr_eventtype:-${sonarr_eventtype:-}}"

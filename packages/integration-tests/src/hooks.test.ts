@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const transmissionHook = path.join(repoRoot, 'stackarr/scripts/hooks/transmission-delete-unsafe.sh');
+const archiveTorrentHook = path.join(repoRoot, 'stackarr/scripts/hooks/archive-torrent.sh');
 const postImportMediaHook = path.join(repoRoot, 'stackarr/scripts/hooks/post-import-media.sh');
 
 test('Transmission unsafe hook rejects torrent names with Windows separators', async () => {
@@ -169,6 +170,145 @@ test('Sonarr post-import hook uses show-level Plex extras and the TMM TV API', a
     ]);
   } finally {
     if (server.listening) server.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Radarr torrent archive hook preserves the torrent and a safe provenance manifest', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-radarr-torrent-archive-'));
+  const transmissionState = path.join(root, 'transmission');
+  const torrentArchive = path.join(root, 'torrent-archive');
+  const downloadId = '8FA681025431DF62CE2E31ACDEE83FCDA921E05A';
+
+  try {
+    await mkdir(transmissionState, { recursive: true });
+    await writeFile(path.join(transmissionState, `${downloadId}.torrent`), 'torrent fixture');
+
+    await execFile('sh', [archiveTorrentHook], {
+      env: {
+        ...process.env,
+        radarr_eventtype: 'Download',
+        radarr_movie_id: '603',
+        radarr_movie_title: 'The Invite',
+        radarr_movie_year: '2026',
+        radarr_movie_tmdbid: '950028',
+        radarr_movie_imdbid: 'tt14173636',
+        radarr_moviefile_id: '901',
+        radarr_moviefile_path: '/movies/The Invite (2026)/The Invite (2026).mkv',
+        radarr_moviefile_sourcepath: '/downloads/complete/radarr/The Invite.mkv',
+        radarr_moviefile_scenename: 'The Invite 2026 1080p WEB-DL HEVC x265 5.1 BONE',
+        radarr_release_title: 'The Invite 2026 1080p WEB-DL HEVC x265 5.1 BONE',
+        radarr_release_indexer: 'Example Indexer',
+        radarr_release_quality: 'WEBDL-1080p',
+        radarr_download_client: 'Transmission',
+        radarr_download_id: downloadId,
+        TRANSMISSION_TORRENT_STATE_DIR: transmissionState,
+        QBITTORRENT_TORRENT_STATE_DIR: path.join(root, 'qbittorrent'),
+        TORRENT_ARCHIVE_ROOT: torrentArchive
+      }
+    });
+
+    const destination = path.join(
+      torrentArchive,
+      'Movies/The Invite (2026)/The Invite 2026 1080p WEB-DL HEVC x265 5.1 BONE'
+    );
+    assert.equal(await readFile(`${destination}.torrent`, 'utf8'), 'torrent fixture');
+    const manifest = JSON.parse(await readFile(`${destination}.provenance.json`, 'utf8'));
+    assert.match(manifest.recordedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    delete manifest.recordedAt;
+    assert.deepEqual(manifest, {
+      schemaVersion: 1,
+      service: 'radarr',
+      mediaType: 'movie',
+      eventType: 'Download',
+      title: 'The Invite',
+      year: '2026',
+      arrItemId: '603',
+      arrFileId: '901',
+      tmdbId: '950028',
+      imdbId: 'tt14173636',
+      releaseTitle: 'The Invite 2026 1080p WEB-DL HEVC x265 5.1 BONE',
+      indexer: 'Example Indexer',
+      downloadClient: 'Transmission',
+      downloadId,
+      quality: 'WEBDL-1080p',
+      sourcePath: '/downloads/complete/radarr/The Invite.mkv',
+      importedPath: '/movies/The Invite (2026)/The Invite (2026).mkv',
+      torrentFile: 'The Invite 2026 1080p WEB-DL HEVC x265 5.1 BONE.torrent'
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Sonarr torrent archive hook preserves episode provenance without source URLs', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-sonarr-torrent-archive-'));
+  const qbittorrentState = path.join(root, 'qbittorrent');
+  const torrentArchive = path.join(root, 'torrent-archive');
+  const downloadId = 'D14D5C69A153F19D1A4FD1348B6B9844C238D5A0';
+
+  try {
+    await mkdir(qbittorrentState, { recursive: true });
+    await writeFile(path.join(qbittorrentState, `${downloadId.toLowerCase()}.torrent`), 'episode torrent fixture');
+
+    await execFile('sh', [archiveTorrentHook], {
+      env: {
+        ...process.env,
+        sonarr_eventtype: 'Download',
+        sonarr_series_id: '134',
+        sonarr_series_title: 'The Test Series',
+        sonarr_series_year: '2026',
+        sonarr_series_tvdbid: '250307',
+        sonarr_series_imdbid: 'tt1234567',
+        sonarr_episodefile_id: '902',
+        sonarr_episodefile_path: '/tv/The Test Series/Season 02/The Test Series - S02E03.mkv',
+        sonarr_episodefile_sourcepath: '/downloads/complete/sonarr/The Test Series S02E03.mkv',
+        sonarr_episodefile_scenename: 'The Test Series S02E03 1080p WEB-DL x265-GROUP',
+        sonarr_release_title: 'The Test Series S02E03 1080p WEB-DL x265-GROUP',
+        sonarr_release_indexer: 'Example Indexer',
+        sonarr_release_quality: 'WEBDL-1080p',
+        sonarr_release_size: '1073741824',
+        sonarr_download_client: 'qBittorrent',
+        sonarr_download_id: downloadId,
+        sonarr_download_url: 'https://example.invalid/private.torrent',
+        TRANSMISSION_TORRENT_STATE_DIR: path.join(root, 'transmission'),
+        QBITTORRENT_TORRENT_STATE_DIR: qbittorrentState,
+        TORRENT_ARCHIVE_ROOT: torrentArchive
+      }
+    });
+
+    const destination = path.join(
+      torrentArchive,
+      'TV Shows/The Test Series/Season 02/The Test Series S02E03 1080p WEB-DL x265-GROUP'
+    );
+    assert.equal(await readFile(`${destination}.torrent`, 'utf8'), 'episode torrent fixture');
+    const manifestText = await readFile(`${destination}.provenance.json`, 'utf8');
+    const manifest = JSON.parse(manifestText);
+    assert.match(manifest.recordedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    delete manifest.recordedAt;
+    assert.deepEqual(manifest, {
+      schemaVersion: 1,
+      service: 'sonarr',
+      mediaType: 'episode',
+      eventType: 'Download',
+      title: 'The Test Series',
+      year: '2026',
+      arrItemId: '134',
+      arrFileId: '902',
+      imdbId: 'tt1234567',
+      tvdbId: '250307',
+      releaseTitle: 'The Test Series S02E03 1080p WEB-DL x265-GROUP',
+      indexer: 'Example Indexer',
+      downloadClient: 'qBittorrent',
+      downloadId,
+      quality: 'WEBDL-1080p',
+      releaseSize: '1073741824',
+      sourcePath: '/downloads/complete/sonarr/The Test Series S02E03.mkv',
+      importedPath: '/tv/The Test Series/Season 02/The Test Series - S02E03.mkv',
+      torrentFile: 'The Test Series S02E03 1080p WEB-DL x265-GROUP.torrent'
+    });
+    assert.doesNotMatch(manifestText, /example\.invalid|download_url/i);
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

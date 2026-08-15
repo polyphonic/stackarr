@@ -387,7 +387,16 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
-    description: 'Start, stop, restart, remove, or prune Docker resources for Stackarr media-server management.'
+    description: 'Start, stop, restart, remove, or prune Docker containers, images, and networks.'
+  },
+  {
+    name: 'stackarr_remove_docker_volume',
+    category: 'containers',
+    scopes: ['containers:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Remove one reviewed Docker volume by exact name; bulk volume pruning is unavailable.'
   },
   {
     name: 'stackarr_get_disk_usage',
@@ -668,6 +677,24 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     enabledForLocalMcp: true,
     remoteReadyDefault: true,
     description: 'Get a Radarr movie status.'
+  },
+  {
+    name: 'stackarr_get_movie_download_provenance',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get safe Radarr grab and import provenance.'
+  },
+  {
+    name: 'stackarr_get_episode_download_provenance',
+    category: 'arr',
+    scopes: ['arr:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Get safe Sonarr grab and import provenance.'
   },
   {
     name: 'stackarr_get_missing_episodes',

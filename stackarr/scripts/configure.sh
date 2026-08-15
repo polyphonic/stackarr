@@ -929,6 +929,121 @@ PY
     esac
 }
 
+ensure_custom_format_non_dcp_hdtv() {
+    local label="$1"
+    local list_url="$2"
+    local create_url="$3"
+    local update_base_url="$4"
+    local api_key="$5"
+    local target_name="$6"
+    local dcp_regex="$7"
+    local current result action format_id payload
+
+    if [[ -z "$api_key" ]]; then
+        warn "$label skipped because the API key is unavailable"
+        return 0
+    fi
+
+    current="$(curl -fsS "$list_url" -H "X-Api-Key: $api_key" 2>/dev/null)" || {
+        warn "$label failed because custom formats could not be read"
+        return 1
+    }
+
+    result="$(python3 - "$target_name" "$dcp_regex" "$current" <<'PY'
+import json
+import sys
+
+target_name = sys.argv[1]
+dcp_regex = sys.argv[2]
+formats = json.loads(sys.argv[3])
+
+payload = {
+    "name": target_name,
+    "includeCustomFormatWhenRenaming": False,
+    "specifications": [
+        {
+            "name": "HDTV source",
+            "implementation": "SourceSpecification",
+            "implementationName": "Source",
+            "infoLink": "https://wiki.servarr.com/radarr/settings#custom-formats-2",
+            "negate": False,
+            "required": True,
+            "fields": [
+                {
+                    "order": 0,
+                    "name": "value",
+                    "label": "Source",
+                    "value": 6,
+                    "type": "select",
+                    "advanced": False,
+                    "privacy": "normal",
+                    "isFloat": False,
+                }
+            ],
+        },
+        {
+            "name": "Title does not identify DCP",
+            "implementation": "ReleaseTitleSpecification",
+            "implementationName": "Release Title",
+            "infoLink": "https://wiki.servarr.com/radarr/settings#custom-formats-2",
+            "negate": True,
+            "required": True,
+            "fields": [
+                {
+                    "order": 0,
+                    "name": "value",
+                    "label": "Regular Expression",
+                    "helpText": "Custom Format RegEx is Case Insensitive",
+                    "value": dcp_regex,
+                    "type": "textbox",
+                    "advanced": False,
+                    "privacy": "normal",
+                    "isFloat": False,
+                }
+            ],
+        },
+    ],
+}
+
+existing = next((item for item in formats if item.get("name") == target_name), None)
+if existing is None:
+    print("create")
+    print("")
+    print(json.dumps(payload, separators=(",", ":")))
+    raise SystemExit(0)
+
+payload["id"] = existing.get("id")
+print("update" if payload != existing else "unchanged")
+print(existing.get("id", ""))
+print(json.dumps(payload, separators=(",", ":")))
+PY
+)"
+
+    action="$(printf '%s\n' "$result" | sed -n '1p')"
+    format_id="$(printf '%s\n' "$result" | sed -n '2p')"
+    payload="$(printf '%s\n' "$result" | sed -n '3p')"
+
+    case "$action" in
+        create)
+            api_post_json "$label" "$create_url" "$api_key" "$payload" || true
+            ;;
+        update)
+            if [[ -z "$format_id" ]]; then
+                warn "$label failed because the existing custom format ID is missing"
+                return 1
+            fi
+            api_put_json "$label" "$update_base_url/$format_id" "$api_key" "$payload" || true
+            ;;
+        unchanged)
+            warn "$label already configured"
+            ;;
+        *)
+            warn "$label failed while building the custom format payload"
+            return 1
+            ;;
+    esac
+}
+
 ensure_request_quality_profile() {
     local label="$1"
     local list_url="$2"
@@ -3088,7 +3203,7 @@ try:
         'qualityProfile': RADARR_DEFAULT_PROFILE,
         'bypassIgnored': False,
         'searchOnAdd': True,
-        'minimumAvailability': 'released',
+        'minimumAvailability': 'inCinemas',
         'monitor': 'movieOnly',
         'tags': [],
         'isDefault': True,
@@ -4182,11 +4297,16 @@ RADARR_X265_REGEX='[xh][ ._-]?265|\\bHEVC(\\b|\\d)'
 RADARR_X265_HD_SCORE="10000"
 RADARR_X265_4K_SCORE="10000"
 RADARR_H264_MIN_FORMAT_SCORE="0"
+RADARR_DCP_REGEX='\\b(?:DCP(?:[ ._-]?(?:RIP|RIPPED))?|DIGITAL[ ._-]?CINEMA[ ._-]?PACKAGE)\\b'
+RADARR_DCP_SCORE="20000"
+RADARR_NON_DCP_HDTV_SCORE="-100000"
 
 ensure_custom_format_release_group "Radarr YTS custom format configured" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "YTS" "^(YIFY|YTS(\\.(MX|LT|AG))?)$"
 ensure_custom_format_release_title "Radarr Tigole custom format configured" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "Tigole" "$RADARR_TIGOLE_REGEX" "false"
 ensure_custom_format_release_title "Radarr x265 custom format configured" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "x265" "$RADARR_X265_REGEX" "false"
 ensure_custom_format_release_title "Radarr movie bundle pack custom format configured" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "Movie Bundle Pack" "$RADARR_MOVIE_BUNDLE_PACK_REGEX" "false"
+ensure_custom_format_release_title "Radarr DCP custom format configured" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "DCP Rip" "$RADARR_DCP_REGEX" "false"
+ensure_custom_format_non_dcp_hdtv "Radarr non-DCP HDTV safeguard configured" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "Non-DCP HDTV" "$RADARR_DCP_REGEX"
 ensure_custom_format_release_title "Sonarr x265 custom format configured" "$SONARR_URL/api/v3/customformat" "$SONARR_URL/api/v3/customformat" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "x265" "$SONARR_X265_REGEX" "false"
 ensure_custom_format_release_title "Sonarr English-only audio custom format configured" "$SONARR_URL/api/v3/customformat" "$SONARR_URL/api/v3/customformat" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "English Only Audio" "$SONARR_ENGLISH_ONLY_AUDIO_REGEX" "true"
 ensure_custom_format_release_title "Sonarr multi-episode pack custom format configured" "$SONARR_URL/api/v3/customformat" "$SONARR_URL/api/v3/customformat" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "Multi-Episode Pack" "$SONARR_MULTI_EPISODE_PACK_REGEX" "false"
@@ -4196,6 +4316,8 @@ if optional_service_enabled radarr4k; then
     ensure_custom_format_release_title "Radarr 4K x265 custom format configured" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "x265" "$RADARR_X265_REGEX" "false"
     ensure_custom_format_release_title "Radarr 4K x265 custom format configured" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "x265 (UHD)" "$RADARR_X265_REGEX" "false"
     ensure_custom_format_release_title "Radarr 4K movie bundle pack custom format configured" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "Movie Bundle Pack" "$RADARR_MOVIE_BUNDLE_PACK_REGEX" "false"
+    ensure_custom_format_release_title "Radarr 4K DCP custom format configured" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "DCP Rip" "$RADARR_DCP_REGEX" "false"
+    ensure_custom_format_non_dcp_hdtv "Radarr 4K non-DCP HDTV safeguard configured" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "Non-DCP HDTV" "$RADARR_DCP_REGEX"
 fi
 if optional_service_enabled sonarr4k; then
     ensure_custom_format_release_title "Sonarr 4K x265 custom format configured" "$SONARR_4K_URL/api/v3/customformat" "$SONARR_4K_URL/api/v3/customformat" "$SONARR_4K_URL/api/v3/customformat" "$SONARR_4K_KEY" "x265" "$SONARR_X265_REGEX" "false"
@@ -4219,30 +4341,30 @@ if optional_service_enabled lidarr; then
 fi
 
 ensure_request_quality_profile "Radarr HD profile configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD Bluray + WEB" "HD" "SDTV,DVD,WEB 480p,Bluray-480p,Bluray-576p,HDTV-720p,WEB 720p,Bluray-720p,HDTV-1080p,WEB 1080p,Bluray-1080p" "false"
-ensure_request_quality_profile "Radarr HD Lite profile configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD Bluray + WEB" "HD Lite" "WEB 1080p,Bluray-1080p" "true" "YTS" "100" "1" "100"
+ensure_request_quality_profile "Radarr HD Lite profile configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD Bluray + WEB" "HD Lite" "HDTV-1080p,WEB 1080p,Bluray-1080p" "true" "YTS" "100" "1" "100"
 
 ensure_request_quality_profile "Sonarr HD profile configured" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "Any" "HD" "SDTV,WEB 480p,DVD,Bluray-480p,Bluray-576p,HDTV-720p,HDTV-1080p,WEB 720p,Bluray-720p,WEB 1080p,Bluray-1080p" "true" "English Only Audio" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE"
 ensure_request_quality_profile "Sonarr HD Lite profile configured" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "Any" "HD Lite" "WEB 1080p,Bluray-1080p" "false" "English Only Audio" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE"
 if optional_service_enabled radarr4k; then
     ensure_request_quality_profile "Radarr 4K profile configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "UHD Bluray + WEB" "4K" "HDTV-2160p,WEB 2160p,Bluray-2160p" "false"
-    ensure_request_quality_profile "Radarr 4K Lite profile configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "UHD Bluray + WEB" "4K Lite" "WEB 2160p,Bluray-2160p" "true" "YTS" "100" "1" "100"
+    ensure_request_quality_profile "Radarr 4K Lite profile configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "UHD Bluray + WEB" "4K Lite" "HDTV-2160p,WEB 2160p,Bluray-2160p" "true" "YTS" "100" "1" "100"
 fi
 if optional_service_enabled sonarr4k; then
     ensure_request_quality_profile "Sonarr 4K profile configured" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/customformat" "$SONARR_4K_KEY" "Any" "4K" "HDTV-2160p,WEB 2160p,Bluray-2160p" "true" "English Only Audio" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE"
     ensure_request_quality_profile "Sonarr 4K Lite profile configured" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/customformat" "$SONARR_4K_KEY" "WEB-2160p" "4K Lite" "WEB 2160p" "false" "English Only Audio" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE" "$SONARR_ENGLISH_ONLY_SCORE"
 fi
 
-ensure_quality_profile_custom_formats "Radarr HD profile safeguards configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},x265 (HD):${RADARR_X265_HD_SCORE},Tigole:${RADARR_TIGOLE_HD_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_X265_HD_SCORE" "1"
-ensure_quality_profile_custom_formats "Radarr HD Lite profile safeguards configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD Lite" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},YTS:100,x265 (HD):${RADARR_X265_HD_SCORE},Tigole:${RADARR_TIGOLE_LITE_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_X265_HD_SCORE" "1"
-ensure_quality_profile_custom_formats "Radarr Any profile h265 gate configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "Any" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},x265:${RADARR_X265_HD_SCORE}" "$RADARR_X265_HD_SCORE" "$RADARR_X265_HD_SCORE" "1"
+ensure_quality_profile_custom_formats "Radarr HD profile safeguards configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},Non-DCP HDTV:${RADARR_NON_DCP_HDTV_SCORE},DCP Rip:${RADARR_DCP_SCORE},x265 (HD):${RADARR_X265_HD_SCORE},Tigole:${RADARR_TIGOLE_HD_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_DCP_SCORE" "1"
+ensure_quality_profile_custom_formats "Radarr HD Lite profile safeguards configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "HD Lite" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},Non-DCP HDTV:${RADARR_NON_DCP_HDTV_SCORE},DCP Rip:${RADARR_DCP_SCORE},YTS:100,x265 (HD):${RADARR_X265_HD_SCORE},Tigole:${RADARR_TIGOLE_LITE_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_DCP_SCORE" "1"
+ensure_quality_profile_custom_formats "Radarr Any profile h265 gate configured" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/qualityprofile" "$RADARR_URL/api/v3/customformat" "$RADARR_KEY" "Any" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},Non-DCP HDTV:${RADARR_NON_DCP_HDTV_SCORE},DCP Rip:${RADARR_DCP_SCORE},x265:${RADARR_X265_HD_SCORE}" "$RADARR_X265_HD_SCORE" "$RADARR_DCP_SCORE" "1"
 
 ensure_quality_profile_custom_formats "Sonarr HD profile safeguards configured" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "HD" "English Only Audio:${SONARR_ENGLISH_ONLY_SCORE},Multi-Episode Pack:${SONARR_MULTI_EPISODE_PACK_SCORE},x265:${SONARR_X265_SCORE}" "$SONARR_H264_MIN_FORMAT_SCORE" "$SONARR_X265_ENGLISH_CUTOFF_SCORE" "1"
 ensure_quality_profile_custom_formats "Sonarr HD Lite profile safeguards configured" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "HD Lite" "English Only Audio:${SONARR_ENGLISH_ONLY_SCORE},Multi-Episode Pack:${SONARR_MULTI_EPISODE_PACK_SCORE},x265:${SONARR_X265_SCORE}" "$SONARR_H264_MIN_FORMAT_SCORE" "$SONARR_X265_ENGLISH_CUTOFF_SCORE" "1"
 ensure_quality_profile_custom_formats "Sonarr Any profile h265 gate configured" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/qualityprofile" "$SONARR_URL/api/v3/customformat" "$SONARR_KEY" "Any" "Multi-Episode Pack:${SONARR_MULTI_EPISODE_PACK_SCORE},x265:${SONARR_X265_SCORE}" "$SONARR_X265_SCORE" "$SONARR_X265_SCORE" "1"
 if optional_service_enabled radarr4k; then
-    ensure_quality_profile_custom_formats "Radarr 4K profile safeguards configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "4K" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},x265 (UHD):${RADARR_X265_4K_SCORE},Tigole:${RADARR_TIGOLE_4K_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_X265_4K_SCORE" "1"
-    ensure_quality_profile_custom_formats "Radarr 4K Lite profile safeguards configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "4K Lite" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},YTS:100,x265 (UHD):${RADARR_X265_4K_SCORE},Tigole:${RADARR_TIGOLE_LITE_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_X265_4K_SCORE" "1"
-    ensure_quality_profile_custom_formats "Radarr 4K Any profile h265 gate configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "Any" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},x265:${RADARR_X265_4K_SCORE}" "$RADARR_X265_4K_SCORE" "$RADARR_X265_4K_SCORE" "1"
+    ensure_quality_profile_custom_formats "Radarr 4K profile safeguards configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "4K" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},Non-DCP HDTV:${RADARR_NON_DCP_HDTV_SCORE},DCP Rip:${RADARR_DCP_SCORE},x265 (UHD):${RADARR_X265_4K_SCORE},Tigole:${RADARR_TIGOLE_4K_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_DCP_SCORE" "1"
+    ensure_quality_profile_custom_formats "Radarr 4K Lite profile safeguards configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "4K Lite" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},Non-DCP HDTV:${RADARR_NON_DCP_HDTV_SCORE},DCP Rip:${RADARR_DCP_SCORE},YTS:100,x265 (UHD):${RADARR_X265_4K_SCORE},Tigole:${RADARR_TIGOLE_LITE_SCORE}" "$RADARR_H264_MIN_FORMAT_SCORE" "$RADARR_DCP_SCORE" "1"
+    ensure_quality_profile_custom_formats "Radarr 4K Any profile h265 gate configured" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/qualityprofile" "$RADARR_4K_URL/api/v3/customformat" "$RADARR_4K_KEY" "Any" "Movie Bundle Pack:${RADARR_MOVIE_BUNDLE_PACK_SCORE},Non-DCP HDTV:${RADARR_NON_DCP_HDTV_SCORE},DCP Rip:${RADARR_DCP_SCORE},x265:${RADARR_X265_4K_SCORE}" "$RADARR_X265_4K_SCORE" "$RADARR_DCP_SCORE" "1"
 fi
 if optional_service_enabled sonarr4k; then
     ensure_quality_profile_custom_formats "Sonarr 4K profile safeguards configured" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/qualityprofile" "$SONARR_4K_URL/api/v3/customformat" "$SONARR_4K_KEY" "4K" "English Only Audio:${SONARR_ENGLISH_ONLY_SCORE},Multi-Episode Pack:${SONARR_MULTI_EPISODE_PACK_SCORE},x265:${SONARR_X265_SCORE}" "$SONARR_H264_MIN_FORMAT_SCORE" "$SONARR_X265_ENGLISH_CUTOFF_SCORE" "1"

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import type { CommandDefinition } from '@stackarr/core/commands';
 import { dispatchNotification, type WebhookEvent } from '@stackarr/core/notifications';
 import { repoRoot, stackarrBin } from '@stackarr/core/paths';
-import { updateTask as persistTaskUpdate, type StackarrTask } from '@stackarr/core/tasks';
+import { commandStartedTaskHandoff, updateTask as persistTaskUpdate, type StackarrTask } from '@stackarr/core/tasks';
 
 type InitialSetupOptions = {
   configureSeerr?: boolean;
@@ -73,7 +73,7 @@ export function runQueuedTask(task: StackarrTask, command: CommandDefinition) {
   });
 
   child.on('close', (exitCode) => {
-    if (command.name === 'UpdateStackarr' && exitCode === 0 && output.includes('STACKARR_UPDATE_HANDOFF_STARTED')) {
+    if (commandStartedTaskHandoff(command.name, exitCode, output)) {
       return;
     }
     const status = exitCode === 0 ? 'completed' : 'failed';

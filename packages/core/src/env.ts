@@ -343,7 +343,7 @@ export const managedEnvDefaults: StackarrEnv = {
   AGREGARR_IMAGE: 'agregarr/agregarr:latest',
   TRACEARR_IMAGE: 'ghcr.io/connorgallopo/tracearr:latest',
   REDIS_IMAGE: 'redis:8.8.0-alpine',
-  RECYCLARR_IMAGE: 'ghcr.io/recyclarr/recyclarr:latest',
+  RECYCLARR_IMAGE: 'ghcr.io/recyclarr/recyclarr:8',
   FLARESOLVERR_IMAGE: 'ghcr.io/flaresolverr/flaresolverr:latest',
   LIDARR_IMAGE: 'lscr.io/linuxserver/lidarr:latest',
   BOOKORBIT_IMAGE: 'ghcr.io/bookorbit/bookorbit:latest',

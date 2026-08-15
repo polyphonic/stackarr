@@ -34,6 +34,7 @@ import {
   getDownloadHistoryAction,
   getDownloadQueueAction,
   getEnabledMcpServiceNames,
+  getEpisodeDownloadProvenanceAction,
   getIndexerStatusAction,
   getMcpConnectionKit,
   getMcpProfileDescription,
@@ -41,6 +42,7 @@ import {
   getMcpToolCatalog,
   getMediaServerSetupProfileAction,
   getMissingEpisodesAction,
+  getMovieDownloadProvenanceAction,
   getMovieStatusAction,
   getNativeAppCapabilitiesAction,
   getPlexLibrariesAction,
@@ -688,9 +690,9 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_manage_container_resource',
-    description: 'Manage Docker resources after interactive approval in the MCP client.',
+    description: 'Manage Docker containers, images, and networks after interactive approval in the MCP client.',
     shape: {
-      kind: z.enum(['container', 'volume', 'image', 'network']),
+      kind: z.enum(['container', 'image', 'network']),
       action: z.enum(['start', 'stop', 'restart', 'remove', 'pruneExited', 'pruneDangling', 'pruneUnused']),
       id: z.string().optional(),
       force: z.boolean().optional(),
@@ -698,6 +700,16 @@ const tools: ToolDef[] = [
       ...dangerous
     },
     handler: manageDockerResourceAction
+  },
+  {
+    name: 'stackarr_remove_docker_volume',
+    description: 'Remove one reviewed Docker volume by exact name after interactive approval in the MCP client.',
+    shape: {
+      id: z.string().min(1),
+      force: z.boolean().optional(),
+      ...dangerous
+    },
+    handler: (input) => manageDockerResourceAction({ ...input, kind: 'volume', action: 'remove' })
   },
   {
     name: 'stackarr_get_disk_usage',
@@ -933,6 +945,26 @@ const tools: ToolDef[] = [
     description: 'Get movie status.',
     shape: { instance: movieInstance, movieId: z.number().optional() },
     handler: getMovieStatusAction
+  },
+  {
+    name: 'stackarr_get_movie_download_provenance',
+    description: 'Get safe Radarr grab and import provenance without returning download URLs or credentials.',
+    shape: {
+      instance: movieInstance,
+      movieId: z.number().int().min(1),
+      limit: z.number().int().min(1).max(100).optional()
+    },
+    handler: getMovieDownloadProvenanceAction
+  },
+  {
+    name: 'stackarr_get_episode_download_provenance',
+    description: 'Get safe Sonarr grab and import provenance without returning download URLs or credentials.',
+    shape: {
+      instance: seriesInstance,
+      episodeId: z.number().int().min(1),
+      limit: z.number().int().min(1).max(100).optional()
+    },
+    handler: getEpisodeDownloadProvenanceAction
   },
   {
     name: 'stackarr_get_missing_episodes',

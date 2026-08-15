@@ -12,6 +12,37 @@ Usage:
 EOF
 }
 
+TASK_LOGGER="$ROOT_DIR/scripts/task-log.cjs"
+
+run_security_task_logger() {
+    [[ -n "${STACKARR_UPDATE_TASK_ID:-}" ]] || return 0
+
+    if node "$TASK_LOGGER" "$@"; then
+        return 0
+    fi
+
+    if [[ -n "${STACKARR_TASK_DATABASE_URL:-}" && "${STACKARR_TASK_DATABASE_URL}" != "${STACKARR_DATABASE_URL:-}" ]]; then
+        STACKARR_DATABASE_URL="$STACKARR_TASK_DATABASE_URL" node "$TASK_LOGGER" "$@"
+        return
+    fi
+
+    return 1
+}
+
+update_security_task_note() {
+    local message="$1"
+    run_security_task_logger append "$STACKARR_UPDATE_TASK_ID" "$message"$'\n'
+}
+
+finish_security_task() {
+    local status="$1"
+    local exit_code="$2"
+    run_security_task_logger update "$STACKARR_UPDATE_TASK_ID" \
+        --status "$status" \
+        --exit-code "$exit_code" \
+        --ended-now
+}
+
 database_running() {
     stackarr_compose ps --services --status running 2>/dev/null | grep -qx 'database'
 }
@@ -79,6 +110,64 @@ rotate_postgres_roles() {
     rotate_postgres_role "${LIDARR_POSTGRES_USER:-lidarr}" "${LIDARR_POSTGRES_PASSWORD:-}" "Lidarr Postgres"
 }
 
+sync_pulsarr_admin_identity() {
+    local admin_count password_hash
+
+    optional_service_enabled pulsarr || return 0
+
+    if [[ -z "${USERNAME:-}" ]]; then
+        warn "Pulsarr admin identity sync skipped because USERNAME is empty"
+        return 1
+    fi
+
+    if [[ -z "${PULSARR_PASSWORD:-}" ]]; then
+        warn "Pulsarr admin identity sync skipped because its shared password is empty"
+        return 1
+    fi
+
+    if ! database_running; then
+        warn "Pulsarr admin identity sync skipped because the database container is not running"
+        return 1
+    fi
+
+    wait_for_database_socket || return 1
+    admin_count="$(stackarr_compose exec -T database \
+        psql \
+        -v ON_ERROR_STOP=1 \
+        -U "${DATABASE_SUPERUSER:-postgres}" \
+        -d "${PULSARR_POSTGRES_DATABASE:-pulsarr}" \
+        -Atqc 'SELECT count(*) FROM admin_users' 2>/dev/null || true)"
+
+    if [[ "$admin_count" != "1" ]]; then
+        warn "Pulsarr admin identity sync requires exactly one local admin; found ${admin_count:-unknown}"
+        return 1
+    fi
+
+    password_hash="$(printf '%s' "$PULSARR_PASSWORD" | stackarr_compose exec -T pulsarr \
+        node --input-type=module -e '
+            import fs from "node:fs";
+            const { scryptHash } = await import("/app/dist/plugins/custom/scrypt.js");
+            process.stdout.write(await scryptHash(fs.readFileSync(0, "utf8")));
+        ' 2>/dev/null || true)"
+    if [[ ${#password_hash} -lt 80 ]]; then
+        warn "Pulsarr admin identity sync could not generate a compatible password hash"
+        return 1
+    fi
+
+    stackarr_compose exec -T database \
+        psql \
+        -v ON_ERROR_STOP=1 \
+        -U "${DATABASE_SUPERUSER:-postgres}" \
+        -d "${PULSARR_POSTGRES_DATABASE:-pulsarr}" \
+        -v admin_username="$USERNAME" \
+        -v admin_password_hash="$password_hash" <<'SQL' >/dev/null
+UPDATE admin_users
+SET username = :'admin_username', password = :'admin_password_hash', updated_at = NOW();
+SQL
+
+    ok "Pulsarr shared admin credentials synced"
+}
+
 ensure_database_roles() {
     database_required || return 0
 
@@ -139,9 +228,12 @@ security_service_list() {
         services+=("tracearr")
         services+=("redis")
     fi
-    if flag_enabled "${STACKARR_WEB_ENABLED:-false}"; then
-        services+=("app")
+    if optional_service_enabled youtarr; then
+        services+=("youtarr")
     fi
+    # Stackarr controller stays online because it reads account credentials from runtime storage.
+    # Recreating it from its own queued task terminates that task before the
+    # remaining credential-dependent services can be reconciled.
 
     for service in "${services[@]}"; do
         [[ -n "$service" ]] || continue
@@ -383,6 +475,8 @@ apply_servarr_auth() {
 }
 
 apply_security() {
+    local credential_sync_failed=false
+
     print_header "Stackarr Security Apply"
     load_env
     write_compose_env_file
@@ -390,21 +484,85 @@ apply_security() {
 
     ensure_database_roles
     recreate_security_services
+    sync_pulsarr_admin_identity || credential_sync_failed=true
     "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
     apply_servarr_auth || true
     configure_bazarr_auth || true
     "$ROOT_DIR/scripts/bookorbit.sh" credentials apply --wait || true
 
-    if optional_service_enabled pulsarr; then
-        warn "Pulsarr existing admin password rotation may require Pulsarr UI if the saved password is not already accepted"
+    if optional_service_enabled cleanuparr; then
+        python3 "$ROOT_DIR/scripts/cleanuparr-credentials.py" || credential_sync_failed=true
+        CLEANUPARR_URL="http://cleanuparr:${CLEANUPARR_PORT:-11011}" \
+            python3 "$ROOT_DIR/scripts/cleanuparr-configure.py" || credential_sync_failed=true
+    fi
+
+    if [[ "$credential_sync_failed" == "true" ]]; then
+        fail "One or more managed service credentials could not be applied"
     fi
 
     ok "Security apply completed"
 }
 
+start_security_apply_worker() {
+    local task_database_url="${1:-}"
+    local -a run_args=(--profile maintenance run --quiet-pull -d --rm)
+    if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
+        run_args+=(-e "STACKARR_UPDATE_TASK_ID=$STACKARR_TASK_ID")
+    fi
+    if [[ -n "$task_database_url" ]]; then
+        run_args+=(-e "STACKARR_TASK_DATABASE_URL=$task_database_url")
+    fi
+
+    STACKARR_SECURITY_HANDOFF=true stackarr_compose "${run_args[@]}" app-updater security apply-worker >/dev/null
+    printf '%s\n' "STACKARR_TASK_HANDOFF_STARTED Security apply handed to the maintenance worker"
+}
+
+apply_security_worker() {
+    local worker_task_finished=false
+
+    if [[ "${STACKARR_RUNTIME:-}" != "docker-updater" || "${STACKARR_SECURITY_HANDOFF:-false}" != "true" ]]; then
+        fail "Stackarr security apply-worker is an internal maintenance command"
+    fi
+
+    finish_failed_worker_task() {
+        local exit_code="$?"
+        if [[ "$worker_task_finished" != true && -n "${STACKARR_UPDATE_TASK_ID:-}" ]]; then
+            set +e
+            update_security_task_note "Security apply stopped before verification completed"
+            finish_security_task failed "${exit_code:-1}"
+        fi
+    }
+    trap finish_failed_worker_task EXIT
+
+    sleep 2
+    # A database password can change during apply_security. Do not use the
+    # task database until Postgres has accepted the new credentials.
+    apply_security
+
+    update_security_task_note "Recreating the Stackarr controller with current database credentials"
+    stackarr_compose --profile stackarr up -d --force-recreate --no-deps app
+    wait_for_http "Stackarr" "http://app:${STACKARR_WEB_PORT:-7777}/api/v1/health"
+
+    update_security_task_note "Security credentials applied and Stackarr is healthy"
+    finish_security_task completed 0
+    worker_task_finished=true
+    trap - EXIT
+}
+
 case "${1:-help}" in
     apply)
-        apply_security
+        if [[ "${STACKARR_RUNTIME:-}" == "docker" && -n "${STACKARR_TASK_ID:-}" ]]; then
+            task_database_url="${STACKARR_DATABASE_URL:-}"
+            load_env
+            write_compose_env_file
+            ensure_docker_runtime
+            start_security_apply_worker "$task_database_url"
+        else
+            apply_security
+        fi
+        ;;
+    apply-worker)
+        apply_security_worker
         ;;
     help|--help|-h)
         usage

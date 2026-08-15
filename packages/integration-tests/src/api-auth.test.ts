@@ -11,6 +11,14 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
+function sqliteTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env = { ...process.env, ...overrides };
+  delete env.STACKARR_DATABASE_MODE;
+  delete env.STACKARR_DATABASE_URL;
+  delete env.STACKARR_LOG_DATABASE_URL;
+  return env;
+}
+
 test('API key auth fails closed for command-style requests', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-api-auth-test-'));
 
@@ -103,6 +111,30 @@ test('API key auth fails closed for command-style requests', async () => {
             })
           );
           const sessionCookie = loginResponse.headers.get('set-cookie') ?? '';
+          const lockedLoginStatuses = [];
+          for (let attempt = 0; attempt < 5; attempt += 1) {
+            const response = await login(
+              new NextRequest('http://127.0.0.1:7777/api/v1/auth/login', {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/json',
+                  'x-forwarded-for': '198.51.100.42'
+                },
+                body: JSON.stringify({ username: 'admin', password: 'stale-password' })
+              })
+            );
+            lockedLoginStatuses.push(response.status);
+          }
+          const validLoginWhileBlocked = await login(
+            new NextRequest('http://127.0.0.1:7777/api/v1/auth/login', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-forwarded-for': '198.51.100.42'
+              },
+              body: JSON.stringify({ username: 'admin', password: 'secret123' })
+            })
+          );
 
           const noHeader = requireApiKey(new NextRequest(commandUrl, { method: 'POST' }));
           const sameOriginBrowser = requireApiKey(
@@ -200,6 +232,7 @@ test('API key auth fails closed for command-style requests', async () => {
               body: JSON.stringify({ config: { USERNAME: 'new-admin' }, currentPassword: 'secret123' })
             })
           );
+          const envAfterIdentityChange = readEnv();
           const identitySessionCookie = identityWithPassword.headers.get('set-cookie') ?? '';
           const originalSessionAfterUsernameChange = requireApiKey(
             new NextRequest(commandUrl, { method: 'POST', headers: { cookie: sessionCookie } })
@@ -214,12 +247,20 @@ test('API key auth fails closed for command-style requests', async () => {
               body: JSON.stringify({ config: { PASSWORD: 'secret456' }, currentPassword: 'secret123' })
             })
           );
+          const envAfterPasswordChange = readEnv();
           const passwordSessionCookie = passwordChange.headers.get('set-cookie') ?? '';
           const oldSessionAfterPasswordChange = requireApiKey(
             new NextRequest(commandUrl, { method: 'POST', headers: { cookie: identitySessionCookie } })
           );
           const renewedSessionAfterPasswordChange = requireApiKey(
             new NextRequest(commandUrl, { method: 'POST', headers: { cookie: passwordSessionCookie } })
+          );
+          const freshLoginAfterPasswordChange = await login(
+            new NextRequest('http://127.0.0.1:7777/api/v1/auth/login', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ username: 'new-admin', password: 'secret456' })
+            })
           );
           const apiKeyChange = await putStackarrConfig(
             new NextRequest('http://127.0.0.1:7777/api/v1/config/stackarr', {
@@ -259,6 +300,8 @@ test('API key auth fails closed for command-style requests', async () => {
             badLogin: badLogin.status,
             loginStatus: loginResponse.status,
             sessionCookie: sessionCookie.includes('stackarr_session='),
+            lockedLoginStatuses,
+            validLoginWhileBlocked: validLoginWhileBlocked.status,
             noHeader: noHeader?.status,
             sameOriginBrowser: sameOriginBrowser?.status,
             validSession: validSession === null,
@@ -278,13 +321,24 @@ test('API key auth fails closed for command-style requests', async () => {
             timezoneAfterAllowedStackConfigChange: envAfterStackConfigActions.TIMEZONE,
             identityWithoutPassword: identityWithoutPassword.status,
             identityWithPassword: identityWithPassword.status,
+            sharedUsernamesAfterIdentityChange: {
+              youtarr: envAfterIdentityChange.YOUTARR_ADMIN_USERNAME,
+              tracearr: envAfterIdentityChange.TRACEARR_ADMIN_USERNAME
+            },
             identitySessionCookie: identitySessionCookie.includes('stackarr_session='),
             originalSessionAfterUsernameChange: originalSessionAfterUsernameChange === null,
             renewedSessionAfterUsernameChange: renewedSessionAfterUsernameChange === null,
             passwordChange: passwordChange.status,
+            sharedPasswordsAfterPasswordChange: {
+              transmission: envAfterPasswordChange.TRANSMISSION_PASSWORD,
+              pulsarr: envAfterPasswordChange.PULSARR_PASSWORD,
+              youtarr: envAfterPasswordChange.YOUTARR_ADMIN_PASSWORD,
+              tracearr: envAfterPasswordChange.TRACEARR_ADMIN_PASSWORD
+            },
             passwordSessionCookie: passwordSessionCookie.includes('stackarr_session='),
             oldSessionAfterPasswordChange: oldSessionAfterPasswordChange?.status,
             renewedSessionAfterPasswordChange: renewedSessionAfterPasswordChange === null,
+            freshLoginAfterPasswordChange: freshLoginAfterPasswordChange.status,
             apiKeyChange: apiKeyChange.status,
             sessionAfterApiKeyChange: sessionAfterApiKeyChange === null,
             oldApiKeyAfterRotation: oldApiKeyAfterRotation?.status,
@@ -295,10 +349,7 @@ test('API key auth fails closed for command-style requests', async () => {
       ],
       {
         cwd: repoRoot,
-        env: {
-          ...process.env,
-          STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db')
-        }
+        env: sqliteTestEnv({ STACKARR_DATABASE_FILE: path.join(root, 'stackarr.db') })
       }
     );
 
@@ -313,6 +364,8 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.badLogin, 401);
     assert.equal(result.loginStatus, 200);
     assert.equal(result.sessionCookie, true);
+    assert.deepEqual(result.lockedLoginStatuses, [401, 401, 401, 401, 401]);
+    assert.equal(result.validLoginWhileBlocked, 429);
     assert.equal(result.noHeader, 401);
     assert.equal(result.sameOriginBrowser, 401);
     assert.equal(result.validSession, true);
@@ -332,13 +385,24 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.timezoneAfterAllowedStackConfigChange, 'UTC');
     assert.equal(result.identityWithoutPassword, 403);
     assert.equal(result.identityWithPassword, 200);
+    assert.deepEqual(result.sharedUsernamesAfterIdentityChange, {
+      youtarr: 'new-admin',
+      tracearr: 'new-admin'
+    });
     assert.equal(result.identitySessionCookie, true);
     assert.equal(result.originalSessionAfterUsernameChange, true);
     assert.equal(result.renewedSessionAfterUsernameChange, true);
     assert.equal(result.passwordChange, 200);
+    assert.deepEqual(result.sharedPasswordsAfterPasswordChange, {
+      transmission: 'secret456',
+      pulsarr: 'secret456',
+      youtarr: 'secret456',
+      tracearr: 'secret456'
+    });
     assert.equal(result.passwordSessionCookie, true);
     assert.equal(result.oldSessionAfterPasswordChange, 401);
     assert.equal(result.renewedSessionAfterPasswordChange, true);
+    assert.equal(result.freshLoginAfterPasswordChange, 200);
     assert.equal(result.apiKeyChange, 200);
     assert.equal(result.sessionAfterApiKeyChange, true);
     assert.equal(result.oldApiKeyAfterRotation, 401);
