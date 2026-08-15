@@ -2,7 +2,7 @@
   "name": "@stackarr/docs",
   "version": "0.3.0-alpha.14",
   "dependencies": {
-    "@heroui/styles": "^3.2.1",
+    "@heroui/styles": "^3.2.4",
     "@next/third-parties": "~16.2.9",
     "@portabletext/react": "7.0.1",
     "@stackarr/cms": "workspace:*",
@@ -11,12 +11,12 @@
     "@t3-oss/env-core": "^0.13.11",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@upstash/ratelimit": "2.0.8",
-    "@upstash/redis": "1.38.0",
+    "@upstash/redis": "1.38.2",
     "@vercel/functions": "3.6.0",
     "fumadocs-core": "16.11.4",
     "fumadocs-mdx": "15.2.2",
     "fumadocs-ui": "16.11.4",
-    "next": "^16.2.9",
+    "next": "^16.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zod": "^4.4.3"
@@ -28,7 +28,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "10.5.0",
-    "postcss": "8.5.19",
+    "postcss": "8.5.26",
     "tailwindcss": "4.3.3",
     "typescript": "^6.0.3"
   },
