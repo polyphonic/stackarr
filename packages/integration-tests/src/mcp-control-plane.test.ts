@@ -36,8 +36,10 @@ test('MCP profiles narrow authority without allowing in-band promotion', () => {
   assert.ok(!manage.some((tool) => tool.name === 'stackarr_update_streamrip_config'));
   assert.ok(!manage.some((tool) => tool.name === 'stackarr_restore_backup'));
   assert.ok(!manage.some((tool) => tool.name === 'stackarr_manage_container_resource'));
+  assert.ok(!manage.some((tool) => tool.name === 'stackarr_remove_docker_volume'));
   assert.ok(admin.some((tool) => tool.name === 'stackarr_update_stack_config'));
   assert.ok(admin.some((tool) => tool.name === 'stackarr_manage_container_resource'));
+  assert.ok(admin.some((tool) => tool.name === 'stackarr_remove_docker_volume'));
 });
 
 test('MCP catalog removes actions for services that are not installed', () => {

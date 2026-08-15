@@ -12,15 +12,15 @@ export async function POST(request: NextRequest) {
   const identifier = typeof body.username === 'string' ? body.username : '';
   const password = typeof body.password === 'string' ? body.password : '';
   const rateLimit = checkStackarrLoginRateLimit(request, identifier);
-  const result = validateStackarrLogin(identifier, password);
 
-  if (rateLimit && !result.ok) {
+  if (rateLimit) {
     return json(
       { authenticated: false, message: rateLimit.message },
       { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
     );
   }
 
+  const result = validateStackarrLogin(identifier, password);
   recordStackarrLoginAttempt(request, identifier, result.ok);
 
   if (!result.ok) {

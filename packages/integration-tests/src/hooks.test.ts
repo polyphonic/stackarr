@@ -240,3 +240,75 @@ test('Radarr torrent archive hook preserves the torrent and a safe provenance ma
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('Sonarr torrent archive hook preserves episode provenance without source URLs', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-sonarr-torrent-archive-'));
+  const qbittorrentState = path.join(root, 'qbittorrent');
+  const torrentArchive = path.join(root, 'torrent-archive');
+  const downloadId = 'D14D5C69A153F19D1A4FD1348B6B9844C238D5A0';
+
+  try {
+    await mkdir(qbittorrentState, { recursive: true });
+    await writeFile(path.join(qbittorrentState, `${downloadId.toLowerCase()}.torrent`), 'episode torrent fixture');
+
+    await execFile('sh', [archiveTorrentHook], {
+      env: {
+        ...process.env,
+        sonarr_eventtype: 'Download',
+        sonarr_series_id: '134',
+        sonarr_series_title: 'The Test Series',
+        sonarr_series_year: '2026',
+        sonarr_series_tvdbid: '250307',
+        sonarr_series_imdbid: 'tt1234567',
+        sonarr_episodefile_id: '902',
+        sonarr_episodefile_path: '/tv/The Test Series/Season 02/The Test Series - S02E03.mkv',
+        sonarr_episodefile_sourcepath: '/downloads/complete/sonarr/The Test Series S02E03.mkv',
+        sonarr_episodefile_scenename: 'The Test Series S02E03 1080p WEB-DL x265-GROUP',
+        sonarr_release_title: 'The Test Series S02E03 1080p WEB-DL x265-GROUP',
+        sonarr_release_indexer: 'Example Indexer',
+        sonarr_release_quality: 'WEBDL-1080p',
+        sonarr_release_size: '1073741824',
+        sonarr_download_client: 'qBittorrent',
+        sonarr_download_id: downloadId,
+        sonarr_download_url: 'https://example.invalid/private.torrent',
+        TRANSMISSION_TORRENT_STATE_DIR: path.join(root, 'transmission'),
+        QBITTORRENT_TORRENT_STATE_DIR: qbittorrentState,
+        TORRENT_ARCHIVE_ROOT: torrentArchive
+      }
+    });
+
+    const destination = path.join(
+      torrentArchive,
+      'TV Shows/The Test Series/Season 02/The Test Series S02E03 1080p WEB-DL x265-GROUP'
+    );
+    assert.equal(await readFile(`${destination}.torrent`, 'utf8'), 'episode torrent fixture');
+    const manifestText = await readFile(`${destination}.provenance.json`, 'utf8');
+    const manifest = JSON.parse(manifestText);
+    assert.match(manifest.recordedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    delete manifest.recordedAt;
+    assert.deepEqual(manifest, {
+      schemaVersion: 1,
+      service: 'sonarr',
+      mediaType: 'episode',
+      eventType: 'Download',
+      title: 'The Test Series',
+      year: '2026',
+      arrItemId: '134',
+      arrFileId: '902',
+      imdbId: 'tt1234567',
+      tvdbId: '250307',
+      releaseTitle: 'The Test Series S02E03 1080p WEB-DL x265-GROUP',
+      indexer: 'Example Indexer',
+      downloadClient: 'qBittorrent',
+      downloadId,
+      quality: 'WEBDL-1080p',
+      releaseSize: '1073741824',
+      sourcePath: '/downloads/complete/sonarr/The Test Series S02E03.mkv',
+      importedPath: '/tv/The Test Series/Season 02/The Test Series - S02E03.mkv',
+      torrentFile: 'The Test Series S02E03 1080p WEB-DL x265-GROUP.torrent'
+    });
+    assert.doesNotMatch(manifestText, /example\.invalid|download_url/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

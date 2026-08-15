@@ -1004,4 +1004,6 @@ volumes:
   immich-model-cache:
   youtarr-db-data:
   flaresolverr-config:
+    name: ${COMPOSE_PROJECT_NAME:-stackarr}_flaresolverr-config
   romm-root:
+    name: ${COMPOSE_PROJECT_NAME:-stackarr}_romm-root

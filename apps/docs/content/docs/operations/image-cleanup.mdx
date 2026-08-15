@@ -29,9 +29,9 @@ Volumes can contain the only copy of persistent application data, so Stackarr
 does not prune them during scheduled updates. Use
 `stackarr_get_container_overview` to inspect the unused-volume list first. When
 you have confirmed one volume is obsolete, call the dangerous
-`stackarr_manage_container_resource` MCP action with `kind: "volume"`,
-`action: "remove"`, the exact volume name as `id`, and the required confirmation
-and reason. Repeat that explicit action for each reviewed volume.
+`stackarr_remove_docker_volume` MCP action with the exact volume name as `id`,
+and the required confirmation and reason. Repeat that explicit action for each
+reviewed volume.
 
 Stackarr rejects bulk volume pruning. Binding confirmation to each exact name
 prevents newly-unused or unrelated named volumes from being removed between the

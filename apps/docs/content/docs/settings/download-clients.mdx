@@ -18,6 +18,12 @@ qBittorrent is available as an alternative profile.
 
 Only the selected torrent-client profile should be active. This avoids port conflicts and duplicate torrent state.
 
+## Early DCP Movie Releases
+
+Stackarr lets Radarr and supported request managers accept movies from the `inCinemas` availability point. A `DCP Rip` custom format strongly prefers release titles that explicitly identify a Digital Cinema Package, while `Non-DCP HDTV` rejects ordinary HDTV releases that do not identify DCP content.
+
+The safeguards apply to the HD, HD Lite, and Any movie profiles and to their optional 4K equivalents. Stackarr does not treat every HDTV upload as an early cinema-quality release: the release title must match the bounded DCP expression before the positive DCP score can outweigh the HDTV rejection score.
+
 ## Download Provenance
 
 Radarr and Sonarr remain the source of truth for grab and import history. Their history records the release title, indexer, download client, quality, and imported path.

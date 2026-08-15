@@ -33,10 +33,16 @@ no longer referenced. The scheduled update job uses this same workflow.
 Persistent Docker volumes are not pruned automatically. First use
 `stackarr_get_container_overview` to review every unused volume. After confirming
 that a specific volume's data is no longer needed, call
-`stackarr_manage_container_resource` with `kind: "volume"`,
-`action: "remove"`, its exact name as `id`, `confirmDangerous: true`, and a
-reason. Repeat for each reviewed volume. Stackarr rejects bulk volume pruning so
-the confirmation cannot sweep up unrelated volumes that became unused later.
+`stackarr_remove_docker_volume` with its exact name as `id`,
+`confirmDangerous: true`, and a reason. Repeat for each reviewed volume. Stackarr
+rejects bulk volume pruning so the confirmation cannot sweep up unrelated
+volumes that became unused later.
+
+When an older RomM or FlareSolverr container still uses an image-declared
+anonymous volume, the next managed Compose reconciliation copies its data into
+the new stable named volume and verifies the copy before recreation. The
+original volume is retained for manual review; remove it only after the
+recreated service is healthy and its data is present.
 
 Stackarr defaults application services such as Youtarr and tinyMediaManager to
 their upstream stable moving tags so this workflow keeps them current. Stateful

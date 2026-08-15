@@ -1853,13 +1853,105 @@ prepare_compose_runtime_file() {
     chmod 0644 "$agregarr_guard_target"
 }
 
+migrate_legacy_image_volume() {
+    local container_name="$1"
+    local destination="$2"
+    local volume_key="$3"
+    local project_name="${COMPOSE_PROJECT_NAME:-stackarr}"
+    local target_volume="${project_name}_${volume_key}"
+    local migration_image="${STACKARR_IMAGE:-polyphonic/stackarr:alpha}"
+    local mount_info source_volume was_running cleanup_target_on_failure=false
+
+    mount_info="$(
+        docker inspect \
+            --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{printf \"%s|%s\" .Type .Name}}{{end}}{{end}}" \
+            "$container_name" 2>/dev/null || true
+    )"
+    [[ "$mount_info" == volume\|* ]] || return 0
+
+    source_volume="${mount_info#volume|}"
+    [[ -n "$source_volume" && "$source_volume" != "$target_volume" ]] || return 0
+    case "$source_volume$target_volume" in
+        *[!A-Za-z0-9_.-]*)
+            warn "Refusing to migrate an invalid Docker volume name for $container_name"
+            return 1
+            ;;
+    esac
+
+    if docker volume inspect "$target_volume" >/dev/null 2>&1; then
+        if ! docker run --rm --user 0:0 --entrypoint sh \
+            -v "$target_volume:/target:ro" "$migration_image" \
+            -c 'test -z "$(find /target -mindepth 1 -maxdepth 1 -print -quit)"'; then
+            if docker run --rm --user 0:0 --entrypoint sh \
+                -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$migration_image" \
+                -c 'diff -qr /source /target >/dev/null'; then
+                ok "Verified the existing $container_name migration in stable volume $target_volume"
+                return 0
+            fi
+            warn "Refusing to overwrite non-empty Docker volume $target_volume"
+            return 1
+        fi
+        cleanup_target_on_failure=true
+    else
+        docker volume create \
+            --label "com.docker.compose.project=$project_name" \
+            --label "com.docker.compose.volume=$volume_key" \
+            "$target_volume" >/dev/null || return 1
+        cleanup_target_on_failure=true
+    fi
+
+    was_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null || true)"
+    if [[ "$was_running" == true ]]; then
+        if ! docker stop "$container_name" >/dev/null; then
+            [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+            return 1
+        fi
+    fi
+
+    if ! docker run --rm --user 0:0 --entrypoint sh \
+        -v "$source_volume:/source:ro" -v "$target_volume:/target" "$migration_image" \
+        -c 'cp -a /source/. /target/'; then
+        [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+        [[ "$was_running" == true ]] && docker start "$container_name" >/dev/null 2>&1 || true
+        warn "Docker volume migration failed for $container_name; the original volume remains attached"
+        return 1
+    fi
+
+    if ! docker run --rm --user 0:0 --entrypoint sh \
+        -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$migration_image" \
+        -c 'diff -qr /source /target >/dev/null'; then
+        [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+        [[ "$was_running" == true ]] && docker start "$container_name" >/dev/null 2>&1 || true
+        warn "Docker volume verification failed for $container_name; the original volume remains attached"
+        return 1
+    fi
+
+    ok "Migrated $container_name $destination data to stable volume $target_volume"
+    warn "Original volume $source_volume was retained for review and is safe to remove only after $container_name is healthy"
+}
+
+migrate_legacy_image_volumes() {
+    migrate_legacy_image_volume flaresolverr /config flaresolverr-config
+    migrate_legacy_image_volume romm /romm romm-root
+}
+
 stackarr_compose() {
-    local project_dir compose_file
+    local project_dir compose_file argument migrate_volumes=false
 
     configure_docker_environment
     prepare_compose_runtime_file
     project_dir="$(stackarr_compose_project_dir)"
     compose_file="$(stackarr_compose_file)"
+
+    for argument in "$@"; do
+        if [[ "$argument" == up || "$argument" == create ]]; then
+            migrate_volumes=true
+            break
+        fi
+    done
+    if [[ "$migrate_volumes" == true ]]; then
+        migrate_legacy_image_volumes
+    fi
 
     docker compose \
         --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" \

@@ -44,7 +44,12 @@ test('image-declared service volumes have stable Compose names', async () => {
 
   assert.match(compose, /\n  flaresolverr:\n[\s\S]*?\n    volumes:\n      - flaresolverr-config:\/config\n/);
   assert.match(compose, /\n  romm:\n[\s\S]*?\n    volumes:\n[\s\S]*?      - romm-root:\/romm\n/);
-  assert.match(compose, /\nvolumes:\n[\s\S]*?  flaresolverr-config:\n[\s\S]*?  romm-root:\n/);
+  assert.match(compose, /flaresolverr-config:\n\s+name: \$\{COMPOSE_PROJECT_NAME:-stackarr\}_flaresolverr-config/);
+  assert.match(compose, /romm-root:\n\s+name: \$\{COMPOSE_PROJECT_NAME:-stackarr\}_romm-root/);
+
+  const common = await source('stackarr/lib/common.sh');
+  assert.match(common, /migrate_legacy_image_volumes\(\)/);
+  assert.match(common, /Original volume \$source_volume was retained for review/);
 });
 
 test('local Stackarr images are preserved while published images use an independent worker', async () => {

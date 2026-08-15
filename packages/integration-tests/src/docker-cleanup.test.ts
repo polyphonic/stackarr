@@ -41,3 +41,15 @@ test('confirmed MCP volume cleanup is bound to reviewed volume names', async () 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('MCP volume removal is exposed separately from resource pruning', async () => {
+  const registry = await readFile(new URL('../../../packages/mcp/src/registry.ts', import.meta.url), 'utf8');
+  const manageTool = registry.match(
+    /name: 'stackarr_manage_container_resource',[\s\S]*?handler: manageDockerResourceAction/
+  );
+  const volumeTool = registry.match(/name: 'stackarr_remove_docker_volume',[\s\S]*?kind: 'volume', action: 'remove'/);
+
+  assert.ok(manageTool);
+  assert.doesNotMatch(manageTool[0], /kind: z\.enum\(\[[^\]]*'volume'/);
+  assert.ok(volumeTool);
+});

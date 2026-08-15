@@ -137,6 +137,162 @@ test('host runtime reload reads current PostgreSQL settings through the Stackarr
   }
 });
 
+test('legacy image-declared volume data is copied to the stable Compose volume before recreation', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-volume-migration-test-'));
+  const binDir = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(
+      path.join(binDir, 'docker'),
+      [
+        '#!/bin/sh',
+        'printf "%s\\n" "$*" >> "$STACKARR_DOCKER_LOG"',
+        'case "$1 $2 $3 $4" in',
+        '  "inspect --format "*)',
+        '    case "$3" in',
+        '      *Mounts*) printf "%s\\n" "volume|legacy-romm-volume" ;;',
+        '      *State.Running*) printf "%s\\n" "true" ;;',
+        '    esac',
+        '    ;;',
+        '  "volume inspect fixture_romm-root "*) exit 1 ;;',
+        'esac',
+        'exit 0',
+        ''
+      ].join('\n')
+    );
+    await chmod(path.join(binDir, 'docker'), 0o755);
+
+    await execFile(
+      'bash',
+      ['-c', 'source "$1"; migrate_legacy_image_volume romm /romm romm-root', 'bash', commonScript],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH}`,
+          STACKARR_DOCKER_LOG: dockerLog,
+          COMPOSE_PROJECT_NAME: 'fixture',
+          STACKARR_IMAGE: 'polyphonic/stackarr:test'
+        }
+      }
+    );
+
+    const commands = await readFile(dockerLog, 'utf8');
+    assert.match(commands, /volume create .*com\.docker\.compose\.project=fixture/);
+    assert.match(commands, /com\.docker\.compose\.volume=romm-root fixture_romm-root/);
+    assert.match(commands, /stop romm/);
+    assert.match(commands, /legacy-romm-volume:\/source:ro -v fixture_romm-root:\/target/);
+    assert.match(commands, /cp -a \/source\/\. \/target\//);
+    assert.match(commands, /diff -qr \/source \/target/);
+    assert.doesNotMatch(commands, /volume rm legacy-romm-volume/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('failed legacy volume copies retain the source and roll back the empty target', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-volume-migration-rollback-test-'));
+  const binDir = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(
+      path.join(binDir, 'docker'),
+      [
+        '#!/bin/sh',
+        'printf "%s\\n" "$*" >> "$STACKARR_DOCKER_LOG"',
+        'case "$1 $2 $3 $4" in',
+        '  "inspect --format "*)',
+        '    case "$3" in',
+        '      *Mounts*) printf "%s\\n" "volume|legacy-romm-volume" ;;',
+        '      *State.Running*) printf "%s\\n" "true" ;;',
+        '    esac',
+        '    ;;',
+        '  "volume inspect fixture_romm-root "*) exit 1 ;;',
+        'esac',
+        'case "$*" in',
+        '  *"cp -a /source/. /target/"*) exit 1 ;;',
+        'esac',
+        'exit 0',
+        ''
+      ].join('\n')
+    );
+    await chmod(path.join(binDir, 'docker'), 0o755);
+
+    await assert.rejects(
+      execFile('bash', ['-c', 'source "$1"; migrate_legacy_image_volume romm /romm romm-root', 'bash', commonScript], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH}`,
+          STACKARR_DOCKER_LOG: dockerLog,
+          COMPOSE_PROJECT_NAME: 'fixture',
+          STACKARR_IMAGE: 'polyphonic/stackarr:test'
+        }
+      })
+    );
+
+    const commands = await readFile(dockerLog, 'utf8');
+    assert.match(commands, /stop romm/);
+    assert.match(commands, /volume rm fixture_romm-root/);
+    assert.match(commands, /start romm/);
+    assert.doesNotMatch(commands, /volume rm legacy-romm-volume/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a verified legacy volume copy can resume Compose after an interrupted recreation', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-volume-migration-resume-test-'));
+  const binDir = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(
+      path.join(binDir, 'docker'),
+      [
+        '#!/bin/sh',
+        'printf "%s\\n" "$*" >> "$STACKARR_DOCKER_LOG"',
+        'case "$1 $2 $3 $4" in',
+        '  "inspect --format "*) printf "%s\\n" "volume|legacy-romm-volume" ;;',
+        'esac',
+        'case "$*" in',
+        '  *"test -z"*) exit 1 ;;',
+        '  *"diff -qr /source /target"*) exit 0 ;;',
+        'esac',
+        'exit 0',
+        ''
+      ].join('\n')
+    );
+    await chmod(path.join(binDir, 'docker'), 0o755);
+
+    await execFile(
+      'bash',
+      ['-c', 'source "$1"; migrate_legacy_image_volume romm /romm romm-root', 'bash', commonScript],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH}`,
+          STACKARR_DOCKER_LOG: dockerLog,
+          COMPOSE_PROJECT_NAME: 'fixture',
+          STACKARR_IMAGE: 'polyphonic/stackarr:test'
+        }
+      }
+    );
+
+    const commands = await readFile(dockerLog, 'utf8');
+    assert.match(commands, /diff -qr \/source \/target/);
+    assert.doesNotMatch(commands, /stop romm|cp -a \/source|volume rm/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('compose env generation preserves passwords with shell and URL punctuation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-special-password-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');

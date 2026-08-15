@@ -559,6 +559,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   );
   const common = await readFile(new URL('../../../stackarr/lib/common.sh', import.meta.url), 'utf8');
   const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
+  const downloadClientDocs = await readFile(
+    new URL('../../../apps/docs/content/docs/settings/download-clients.mdx', import.meta.url),
+    'utf8'
+  );
   const databaseInit = await readFile(new URL('../../../stackarr/scripts/database-init.sh', import.meta.url), 'utf8');
 
   assert.match(configure, /configure_pulsarr_stack\(\)/);
@@ -578,6 +582,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /RADARR_NON_DCP_HDTV_SCORE="-100000"/);
   assert.match(configure, /Radarr DCP custom format configured/);
   assert.match(configure, /'minimumAvailability': 'inCinemas'/);
+  assert.match(configure, /Radarr HD Lite profile safeguards configured[\s\S]*DCP Rip:\$\{RADARR_DCP_SCORE\}/);
+  assert.match(configure, /Radarr 4K Lite profile safeguards configured[\s\S]*DCP Rip:\$\{RADARR_DCP_SCORE\}/);
+  assert.match(downloadClientDocs, /Early DCP Movie Releases/);
+  assert.match(downloadClientDocs, /Non-DCP HDTV/);
   assert.match(configure, /quality_definition_block/);
   assert.match(configure, /WEBDL-1080p", 8, 95, 72/);
   assert.match(configure, /configure_recyclarr_template "\$sonarr_hd_file"[\s\S]*"\$STACKARR_TV_PROFILE_PRESET"/);

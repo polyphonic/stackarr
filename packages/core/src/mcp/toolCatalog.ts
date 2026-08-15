@@ -387,7 +387,16 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
-    description: 'Start, stop, restart, remove, or prune Docker resources for Stackarr media-server management.'
+    description: 'Start, stop, restart, remove, or prune Docker containers, images, and networks.'
+  },
+  {
+    name: 'stackarr_remove_docker_volume',
+    category: 'containers',
+    scopes: ['containers:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Remove one reviewed Docker volume by exact name; bulk volume pruning is unavailable.'
   },
   {
     name: 'stackarr_get_disk_usage',

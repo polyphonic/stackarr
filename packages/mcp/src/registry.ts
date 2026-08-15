@@ -690,9 +690,9 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_manage_container_resource',
-    description: 'Manage Docker resources after interactive approval in the MCP client.',
+    description: 'Manage Docker containers, images, and networks after interactive approval in the MCP client.',
     shape: {
-      kind: z.enum(['container', 'volume', 'image', 'network']),
+      kind: z.enum(['container', 'image', 'network']),
       action: z.enum(['start', 'stop', 'restart', 'remove', 'pruneExited', 'pruneDangling', 'pruneUnused']),
       id: z.string().optional(),
       force: z.boolean().optional(),
@@ -700,6 +700,16 @@ const tools: ToolDef[] = [
       ...dangerous
     },
     handler: manageDockerResourceAction
+  },
+  {
+    name: 'stackarr_remove_docker_volume',
+    description: 'Remove one reviewed Docker volume by exact name after interactive approval in the MCP client.',
+    shape: {
+      id: z.string().min(1),
+      force: z.boolean().optional(),
+      ...dangerous
+    },
+    handler: (input) => manageDockerResourceAction({ ...input, kind: 'volume', action: 'remove' })
   },
   {
     name: 'stackarr_get_disk_usage',

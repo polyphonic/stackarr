@@ -125,7 +125,7 @@ test('API key auth fails closed for command-style requests', async () => {
             );
             lockedLoginStatuses.push(response.status);
           }
-          const validLoginAfterFailedAutofill = await login(
+          const validLoginWhileBlocked = await login(
             new NextRequest('http://127.0.0.1:7777/api/v1/auth/login', {
               method: 'POST',
               headers: {
@@ -301,7 +301,7 @@ test('API key auth fails closed for command-style requests', async () => {
             loginStatus: loginResponse.status,
             sessionCookie: sessionCookie.includes('stackarr_session='),
             lockedLoginStatuses,
-            validLoginAfterFailedAutofill: validLoginAfterFailedAutofill.status,
+            validLoginWhileBlocked: validLoginWhileBlocked.status,
             noHeader: noHeader?.status,
             sameOriginBrowser: sameOriginBrowser?.status,
             validSession: validSession === null,
@@ -365,7 +365,7 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.loginStatus, 200);
     assert.equal(result.sessionCookie, true);
     assert.deepEqual(result.lockedLoginStatuses, [401, 401, 401, 401, 401]);
-    assert.equal(result.validLoginAfterFailedAutofill, 200);
+    assert.equal(result.validLoginWhileBlocked, 429);
     assert.equal(result.noHeader, 401);
     assert.equal(result.sameOriginBrowser, 401);
     assert.equal(result.validSession, true);
