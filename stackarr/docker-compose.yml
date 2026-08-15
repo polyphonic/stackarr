@@ -8,7 +8,7 @@ services:
     command:
       - sh
       - -lc
-      - docker image prune -f --filter dangling=true >/dev/null
+      - docker image prune -a -f >/dev/null
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     restart: "no"
@@ -33,6 +33,7 @@ services:
       STACKARR_COMPOSE_PROJECT_DIR: ${STATE_ROOT:-./.stackarr/state}/compose
       STACKARR_COMPOSE_FILE: ${STATE_ROOT:-./.stackarr/state}/compose/docker-compose.yml
       STACKARR_RUNTIME: docker-updater
+      STACKARR_SECURITY_HANDOFF: ${STACKARR_SECURITY_HANDOFF:-false}
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
@@ -624,7 +625,7 @@ services:
     profiles:
       - recyclarr
     container_name: recyclarr
-    image: ${RECYCLARR_IMAGE:-ghcr.io/recyclarr/recyclarr:latest}
+    image: ${RECYCLARR_IMAGE:-ghcr.io/recyclarr/recyclarr:8}
     environment:
       TZ: ${TIMEZONE:-Etc/UTC}
       CRON_SCHEDULE: 0 3 * * *
@@ -647,6 +648,8 @@ services:
     dns:
       - 1.1.1.1
       - 1.0.0.1
+    volumes:
+      - flaresolverr-config:/config
     ports:
       - "127.0.0.1:8191:8191"
     restart: unless-stopped
@@ -787,6 +790,7 @@ services:
       ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: ${ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA:-false}
       SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON: ${ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON:-0 4 * * *}
     volumes:
+      - romm-root:/romm
       - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"
       - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/Steam"
@@ -999,3 +1003,7 @@ volumes:
   redis-data:
   immich-model-cache:
   youtarr-db-data:
+  flaresolverr-config:
+    name: ${COMPOSE_PROJECT_NAME:-stackarr}_flaresolverr-config
+  romm-root:
+    name: ${COMPOSE_PROJECT_NAME:-stackarr}_romm-root

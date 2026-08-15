@@ -8,6 +8,7 @@ import {
   portablePasswordMinimumLength,
   portablePasswordValidationError
 } from '@stackarr/core/passwordPolicy';
+import type { StackarrTask } from '@stackarr/core/tasks';
 import { Button, icons, Label, Switch } from '@stackarr/ui';
 import { applyStackarrDocumentTheme } from '@stackarr/ui/theme-provider';
 import { toast } from '@stackarr/ui/toast';
@@ -31,6 +32,7 @@ type CloudflareRoute = {
 
 type SelectOption = string | { value: string; label: string };
 type SecurityCredentialType = 'access' | 'database';
+type ApplyState = 'idle' | 'saving' | 'applying' | 'saved' | 'error';
 type SecurityServiceTarget = {
   id: string;
   label: string;
@@ -255,10 +257,10 @@ export function SettingsEditor({ section, env, settings }: Props) {
   const [draftEnv, setDraftEnv] = useState(env);
   const [draftSettings, setDraftSettings] = useState(settings);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [accountState, setAccountState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
+  const [accountState, setAccountState] = useState<ApplyState>('idle');
   const [rotateState, setRotateState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
   const [cloudflareApplyState, setCloudflareApplyState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
-  const [securityState, setSecurityState] = useState<'idle' | 'saving' | 'queued' | 'error'>('idle');
+  const [securityState, setSecurityState] = useState<ApplyState>('idle');
   const [generalCurrentPassword, setGeneralCurrentPassword] = useState('');
   const [accountCurrentPassword, setAccountCurrentPassword] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
@@ -596,13 +598,31 @@ export function SettingsEditor({ section, env, settings }: Props) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'SecurityApply', confirmed: true })
     });
+    const applyTask = (await applyResponse.json().catch(() => null)) as StackarrTask | null;
 
-    setSecurityState(applyResponse.ok ? 'queued' : 'error');
-    const nextMessage = applyResponse.ok
-      ? `${savedMessage} Security apply queued.`
-      : `${savedMessage} Security apply failed to queue.`;
-    setMessage(nextMessage);
-    toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
+    if (!applyResponse.ok || !applyTask?.id) {
+      const nextMessage = `${savedMessage} Security apply failed to queue.`;
+      setSecurityState('error');
+      setMessage(nextMessage);
+      toast.error(nextMessage, { id: toastId });
+      return;
+    }
+
+    setSecurityState('applying');
+    setMessage(`${savedMessage} Applying credentials...`);
+    try {
+      await waitForTask(applyTask.id);
+      const nextMessage = `${savedMessage} Credentials applied.`;
+      setSecurityState('saved');
+      setMessage(nextMessage);
+      toast.success(nextMessage, { id: toastId });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Security apply failed.';
+      const nextMessage = `${savedMessage} ${detail}`;
+      setSecurityState('error');
+      setMessage(nextMessage);
+      toast.error(nextMessage, { id: toastId });
+    }
   }
 
   async function saveAccountChange(nextEnv: StackarrEnv, savedMessage: string, currentPassword: string) {
@@ -625,13 +645,31 @@ export function SettingsEditor({ section, env, settings }: Props) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'SecurityApply', confirmed: true })
     });
+    const applyTask = (await applyResponse.json().catch(() => null)) as StackarrTask | null;
 
-    setAccountState(applyResponse.ok ? 'queued' : 'error');
-    const nextMessage = applyResponse.ok
-      ? `${savedMessage} Security apply queued.`
-      : `${savedMessage} Security apply failed to queue.`;
-    setMessage(nextMessage);
-    toast[applyResponse.ok ? 'success' : 'error'](nextMessage, { id: toastId });
+    if (!applyResponse.ok || !applyTask?.id) {
+      const nextMessage = `${savedMessage} Security apply failed to queue.`;
+      setAccountState('error');
+      setMessage(nextMessage);
+      toast.error(nextMessage, { id: toastId });
+      return;
+    }
+
+    setAccountState('applying');
+    setMessage(`${savedMessage} Applying account credentials...`);
+    try {
+      await waitForTask(applyTask.id);
+      const nextMessage = `${savedMessage} Account credentials applied.`;
+      setAccountState('saved');
+      setMessage(nextMessage);
+      toast.success(nextMessage, { id: toastId });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Security apply failed.';
+      const nextMessage = `${savedMessage} ${detail}`;
+      setAccountState('error');
+      setMessage(nextMessage);
+      toast.error(nextMessage, { id: toastId });
+    }
   }
 
   function updateSecurityService(value: string) {
@@ -1409,9 +1447,16 @@ export function SettingsEditor({ section, env, settings }: Props) {
               />
               <div className={styles.actionRow}>
                 <span>Apply Account Change</span>
-                <Button isDisabled={accountState === 'saving'} onPress={applyAccountSettings}>
+                <Button
+                  isDisabled={accountState === 'saving' || accountState === 'applying'}
+                  onPress={applyAccountSettings}
+                >
                   <KeyIcon size={15} />
-                  {accountState === 'saving' ? 'Saving...' : accountState === 'queued' ? 'Queued' : 'Save account'}
+                  {accountState === 'saving'
+                    ? 'Saving...'
+                    : accountState === 'applying'
+                      ? 'Applying...'
+                      : 'Save account'}
                 </Button>
               </div>
             </FormGrid>
@@ -1486,12 +1531,15 @@ export function SettingsEditor({ section, env, settings }: Props) {
                   />
                   <div className={styles.actionRow}>
                     <span>Apply Service Change</span>
-                    <Button isDisabled={securityState === 'saving'} onPress={applyServicePassword}>
+                    <Button
+                      isDisabled={securityState === 'saving' || securityState === 'applying'}
+                      onPress={applyServicePassword}
+                    >
                       <KeyIcon size={15} />
                       {securityState === 'saving'
                         ? 'Saving...'
-                        : securityState === 'queued'
-                          ? 'Queued'
+                        : securityState === 'applying'
+                          ? 'Applying...'
                           : 'Update selected service'}
                     </Button>
                   </div>
@@ -1638,18 +1686,42 @@ export function SettingsEditor({ section, env, settings }: Props) {
       )}
       {section === 'account' && accountState !== 'idle' && (
         <div className={styles.footer}>
-          {accountState === 'queued' && <span>{message || 'Account settings saved.'}</span>}
+          {(accountState === 'applying' || accountState === 'saved') && (
+            <span>{message || 'Account settings saved.'}</span>
+          )}
           {accountState === 'error' && <span className={styles.error}>{message || 'Account update failed'}</span>}
         </div>
       )}
       {section === 'security' && securityState !== 'idle' && (
         <div className={styles.footer}>
-          {securityState === 'queued' && <span>{message || 'Security apply queued.'}</span>}
+          {(securityState === 'applying' || securityState === 'saved') && (
+            <span>{message || 'Security settings applied.'}</span>
+          )}
           {securityState === 'error' && <span className={styles.error}>{message || 'Security update failed'}</span>}
         </div>
       )}
     </div>
   );
+}
+
+async function waitForTask(taskId: string, timeoutMs = 15 * 60 * 1000): Promise<StackarrTask> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await stackarrFetch('/api/v1/task', { cache: 'no-store' });
+    if (response.ok) {
+      const tasks = (await response.json()) as StackarrTask[];
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      if (task?.status === 'completed') return task;
+      if (task?.status === 'failed' || task?.status === 'blocked') {
+        throw new Error(task.error || 'Security apply failed. Open System Activity for details.');
+      }
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 3000));
+  }
+
+  throw new Error('Security apply timed out. Open System Activity for details.');
 }
 
 function portlessHostActionMessage(action: unknown) {

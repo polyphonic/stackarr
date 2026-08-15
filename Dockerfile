@@ -32,7 +32,7 @@ WORKDIR /app
 ARG STREAMRIP_PACKAGE=https://github.com/nathom/streamrip/archive/e3291615ba6be34aa76df19da8aeb6f41673c6a0.tar.gz
 ARG STREAMRIP_SHA256=88e2026a348ef11025cf7103a7e4f68973f45e656b42edc5becd10af2d4c7fc0
 
-RUN apk add --no-cache --upgrade bash curl docker-cli docker-cli-compose postgresql-client python3 py3-pip rsync sqlite \
+RUN apk add --no-cache --upgrade apache2-utils bash curl docker-cli docker-cli-compose postgresql-client python3 py3-pip rsync sqlite \
     && python3 -m venv /opt/streamrip \
     && /opt/streamrip/bin/python -m pip install --no-cache-dir --upgrade pip \
     && curl --fail --location \

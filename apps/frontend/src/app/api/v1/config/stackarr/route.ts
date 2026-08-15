@@ -140,9 +140,10 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   const stackPassword =
     unredactedConfigValue('PASSWORD') || current.PASSWORD || nodeCrypto.randomBytes(24).toString('hex');
   const currentSessionVersion = normalizedSessionVersion(current.STACKARR_SESSION_VERSION);
-  const passwordChanged = Boolean(
-    current.PASSWORD && unredactedConfigValue('PASSWORD') && unredactedConfigValue('PASSWORD') !== current.PASSWORD
-  );
+  const requestedStackPassword = unredactedConfigValue('PASSWORD');
+  const requestedStackUsername = config.USERNAME?.trim() || '';
+  const usernameChanged = Boolean(requestedStackUsername && requestedStackUsername !== current.USERNAME);
+  const passwordChanged = Boolean(requestedStackPassword && requestedStackPassword !== current.PASSWORD);
   const databasePassword =
     unredactedConfigValue('DATABASE_SUPERUSER_PASSWORD') ||
     current.DATABASE_SUPERUSER_PASSWORD ||
@@ -376,9 +377,16 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       (youtarrEnabled ? nodeCrypto.randomBytes(24).toString('hex') : ''),
     YOUTARR_LOGIN_ENABLED: config.YOUTARR_LOGIN_ENABLED || current.YOUTARR_LOGIN_ENABLED || 'true',
     YOUTARR_ADMIN_USERNAME:
-      config.YOUTARR_ADMIN_USERNAME || current.YOUTARR_ADMIN_USERNAME || config.USERNAME || current.USERNAME || 'admin',
+      (config.YOUTARR_ADMIN_USERNAME && config.YOUTARR_ADMIN_USERNAME !== current.YOUTARR_ADMIN_USERNAME
+        ? config.YOUTARR_ADMIN_USERNAME
+        : '') ||
+      (usernameChanged ? requestedStackUsername : '') ||
+      current.YOUTARR_ADMIN_USERNAME ||
+      current.USERNAME ||
+      'admin',
     YOUTARR_ADMIN_PASSWORD:
       unredactedConfigValue('YOUTARR_ADMIN_PASSWORD') ||
+      (passwordChanged ? stackPassword : '') ||
       current.YOUTARR_ADMIN_PASSWORD ||
       (youtarrEnabled ? stackPassword : ''),
     YOUTARR_TRUST_PROXY: config.YOUTARR_TRUST_PROXY || current.YOUTARR_TRUST_PROXY || 'false',
@@ -477,15 +485,25 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
   };
 
   for (const key of accessPasswordKeys) {
-    next[key] = unredactedConfigValue(key) || current[key] || stackPassword;
+    next[key] = unredactedConfigValue(key) || (passwordChanged ? stackPassword : '') || current[key] || stackPassword;
   }
 
   next.TRACEARR_AUTO_CONFIGURE = config.TRACEARR_AUTO_CONFIGURE || current.TRACEARR_AUTO_CONFIGURE || 'true';
   next.TRACEARR_ADMIN_USERNAME =
-    config.TRACEARR_ADMIN_USERNAME || current.TRACEARR_ADMIN_USERNAME || next.USERNAME || 'stackarr';
+    (config.TRACEARR_ADMIN_USERNAME && config.TRACEARR_ADMIN_USERNAME !== current.TRACEARR_ADMIN_USERNAME
+      ? config.TRACEARR_ADMIN_USERNAME
+      : '') ||
+    (usernameChanged ? requestedStackUsername : '') ||
+    current.TRACEARR_ADMIN_USERNAME ||
+    next.USERNAME ||
+    'stackarr';
   next.TRACEARR_ADMIN_EMAIL = config.TRACEARR_ADMIN_EMAIL || current.TRACEARR_ADMIN_EMAIL || next.USER_EMAIL || '';
   next.TRACEARR_ADMIN_PASSWORD =
-    unredactedConfigValue('TRACEARR_ADMIN_PASSWORD') || current.TRACEARR_ADMIN_PASSWORD || next.PASSWORD || '';
+    unredactedConfigValue('TRACEARR_ADMIN_PASSWORD') ||
+    (passwordChanged ? next.PASSWORD : '') ||
+    current.TRACEARR_ADMIN_PASSWORD ||
+    next.PASSWORD ||
+    '';
   next.TRACEARR_CLAIM_CODE = unredactedConfigValue('TRACEARR_CLAIM_CODE') || current.TRACEARR_CLAIM_CODE || '';
 
   next.STACKARR_POSTGRES_DATABASE = next.STACKARR_POSTGRES_MAIN_DATABASE;

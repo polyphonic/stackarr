@@ -17,3 +17,19 @@ qBittorrent is available as an alternative profile.
 ## Active Client
 
 Only the selected torrent-client profile should be active. This avoids port conflicts and duplicate torrent state.
+
+## Early DCP Movie Releases
+
+Stackarr lets Radarr and supported request managers accept movies from the `inCinemas` availability point. A `DCP Rip` custom format strongly prefers release titles that explicitly identify a Digital Cinema Package, while `Non-DCP HDTV` rejects ordinary HDTV releases that do not identify DCP content.
+
+The safeguards apply to the HD, HD Lite, and Any movie profiles and to their optional 4K equivalents. Stackarr does not treat every HDTV upload as an early cinema-quality release: the release title must match the bounded DCP expression before the positive DCP score can outweigh the HDTV rejection score.
+
+## Download Provenance
+
+Radarr and Sonarr remain the source of truth for grab and import history. Their history records the release title, indexer, download client, quality, and imported path.
+
+Stackarr also archives the exact `.torrent` file after a successful import. A matching `.provenance.json` sidecar records safe identifying metadata, including the Arr item ID, release title, indexer, download client, torrent hash, quality, source path, and imported path. Stackarr never stores magnet URLs or credentials in the provenance manifest.
+
+The torrent and provenance files live together under `STATE_ROOT/torrent-archive/Movies` or `STATE_ROOT/torrent-archive/TV Shows`. Stackarr backup and restore includes this archive.
+
+Use `stackarr_get_movie_download_provenance` with a Radarr movie ID. Use `stackarr_get_episode_download_provenance` with a Sonarr episode ID. Both tools join native grab and import history while excluding source URLs and credentials.
