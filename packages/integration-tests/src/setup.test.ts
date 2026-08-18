@@ -636,6 +636,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /persist_runtime_api_key "TIDARR_API_KEY" "\$TIDARR_KEY"/);
   assert.match(configure, /persist_runtime_api_key "PLEX_TOKEN" "\$PLEX_OWNER_TOKEN"/);
   assert.match(configure, /persist_runtime_api_key "SEERR_API_KEY" "\$SEERR_KEY"/);
+  assert.match(configure, /field\.get\("value"\) != 3/);
+  assert.match(configure, /Prowlarr 1337x indexer configured/);
+  assert.match(configure, /Prowlarr The Pirate Bay indexer disabled/);
+  assert.doesNotMatch(configure, /Prowlarr The Pirate Bay indexer configured/);
   assert.match(configure, /secure_runtime_secret_modes/);
   assert.match(configure, /chmod 600/);
   assert.match(cleanuparrConfigure, /\/api\/configuration\/malware_blocker/);
