@@ -626,7 +626,7 @@ load_env() {
     : "${YOUTARR_WEB_PORT:=3087}"
     : "${YOUTARR_CONTAINER_PORT:=3011}"
     : "${YOUTARR_URL:=http://127.0.0.1:${YOUTARR_WEB_PORT}}"
-    : "${YOUTARR_OUTPUT_ROOT:=$MEDIA_ROOT/YouTube}"
+    : "${YOUTARR_OUTPUT_ROOT:=$MEDIA_ROOT/Videos/YouTube}"
     : "${YOUTARR_CONFIG_ROOT:=$CONFIG_ROOT/youtarr/config}"
     : "${YOUTARR_JOBS_ROOT:=$CONFIG_ROOT/youtarr/jobs}"
     : "${YOUTARR_IMAGES_ROOT:=$CONFIG_ROOT/youtarr/images}"

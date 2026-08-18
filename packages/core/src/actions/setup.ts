@@ -907,7 +907,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     YOUTARR_BIND_IP: '127.0.0.1',
     YOUTARR_WEB_PORT: '3087',
     YOUTARR_CONTAINER_PORT: '3011',
-    YOUTARR_OUTPUT_ROOT: `${input.mediaRoot}/YouTube`,
+    YOUTARR_OUTPUT_ROOT: `${input.mediaRoot}/Videos/YouTube`,
     YOUTARR_CONFIG_ROOT: `${setupDefaultAppRoot}/config/youtarr/config`,
     YOUTARR_JOBS_ROOT: `${setupDefaultAppRoot}/config/youtarr/jobs`,
     YOUTARR_IMAGES_ROOT: `${setupDefaultAppRoot}/config/youtarr/images`,

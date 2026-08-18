@@ -256,7 +256,7 @@ export const managedEnvDefaults: StackarrEnv = {
   YOUTARR_BIND_IP: '127.0.0.1',
   YOUTARR_WEB_PORT: '3087',
   YOUTARR_CONTAINER_PORT: '3011',
-  YOUTARR_OUTPUT_ROOT: `${defaultMediaRoot}/YouTube`,
+  YOUTARR_OUTPUT_ROOT: `${defaultMediaRoot}/Videos/YouTube`,
   YOUTARR_CONFIG_ROOT: `${defaultConfigRoot}/youtarr/config`,
   YOUTARR_JOBS_ROOT: `${defaultConfigRoot}/youtarr/jobs`,
   YOUTARR_IMAGES_ROOT: `${defaultConfigRoot}/youtarr/images`,
@@ -607,7 +607,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (!env.QUESTARR_LIBRARY_ROOT) merged.QUESTARR_LIBRARY_ROOT = merged.ROMM_LIBRARY_ROOT || merged.GAMES_ROOT;
   if (!env.QUESTARR_IGDB_CLIENT_ID) merged.QUESTARR_IGDB_CLIENT_ID = merged.ROMM_IGDB_CLIENT_ID || '';
   if (!env.QUESTARR_IGDB_CLIENT_SECRET) merged.QUESTARR_IGDB_CLIENT_SECRET = merged.ROMM_IGDB_CLIENT_SECRET || '';
-  if (!env.YOUTARR_OUTPUT_ROOT) merged.YOUTARR_OUTPUT_ROOT = `${merged.MEDIA_ROOT}/YouTube`;
+  if (!env.YOUTARR_OUTPUT_ROOT) merged.YOUTARR_OUTPUT_ROOT = `${merged.MEDIA_ROOT}/Videos/YouTube`;
   if (!env.YOUTARR_CONFIG_ROOT) merged.YOUTARR_CONFIG_ROOT = `${appRoot}/config/youtarr/config`;
   if (!env.YOUTARR_JOBS_ROOT) merged.YOUTARR_JOBS_ROOT = `${appRoot}/config/youtarr/jobs`;
   if (!env.YOUTARR_IMAGES_ROOT) merged.YOUTARR_IMAGES_ROOT = `${appRoot}/config/youtarr/images`;

@@ -252,7 +252,7 @@ test('dry-run setup provisions private authenticated Youtarr with a dedicated Ma
 
   assert.equal(result.plan.config.ENABLE_YOUTARR, 'true');
   assert.equal(result.plan.config.YOUTARR_URL, 'http://127.0.0.1:3087');
-  assert.equal(result.plan.config.YOUTARR_OUTPUT_ROOT, '/srv/media/YouTube');
+  assert.equal(result.plan.config.YOUTARR_OUTPUT_ROOT, '/srv/media/Videos/YouTube');
   assert.equal(result.plan.config.YOUTARR_DB_HOST, 'youtarr-db');
   assert.equal(result.plan.config.YOUTARR_DB_PORT, '3306');
   assert.equal(result.plan.config.YOUTARR_DB_PASSWORD, '********');

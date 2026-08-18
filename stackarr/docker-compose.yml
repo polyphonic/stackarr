@@ -908,10 +908,10 @@ services:
       TRUST_PROXY: ${YOUTARR_TRUST_PROXY:-false}
       LOG_LEVEL: ${YOUTARR_LOG_LEVEL:-info}
       PORT: ${YOUTARR_CONTAINER_PORT:-3011}
-      YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}
+      YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/Videos/YouTube}
       PLEX_URL: ${YOUTARR_PLEX_URL:-}
     volumes:
-      - "${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}:/usr/src/app/data"
+      - "${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/Videos/YouTube}:/usr/src/app/data"
       - "${YOUTARR_IMAGES_ROOT:-./.stackarr/config/youtarr/images}:/app/server/images"
       - "${YOUTARR_CONFIG_ROOT:-./.stackarr/config/youtarr/config}:/app/config"
       - "${YOUTARR_JOBS_ROOT:-./.stackarr/config/youtarr/jobs}:/app/jobs"
