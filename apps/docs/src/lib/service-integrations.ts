@@ -279,7 +279,7 @@ const serviceIntegrationDefinitions = [
       'Runs a dedicated server and machine-learning worker while using Stackarr shared Redis and Postgres with pgvector.'
     ],
     stackarr:
-      'Stackarr can enable Immich as optional photo-library functionality, persist uploads under the configured media root, provision its shared Postgres role/database, expose service links and Cloudflare routes, and surface the config through dashboard and MCP tools.'
+      'Stackarr can enable Immich as optional photo-library functionality, persist uploads under the configured media root, mount one configurable external-library root read-only at /external, provision its shared Postgres role/database and a scoped agent API key after owner setup, expose service links and Cloudflare routes, and surface the config through dashboard and MCP tools.'
   },
   {
     slug: 'romm',

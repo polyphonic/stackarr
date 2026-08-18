@@ -302,7 +302,7 @@ Stackarr commands:
   stackarr downloads apply
   stackarr security apply
   stackarr database ensure|status
-  stackarr immich status|url|open|enable|disable
+  stackarr immich status|configure|url|open|enable|disable
   stackarr romm status|url|open|enable|disable|metadata apply
   stackarr questarr status|url|open|enable|disable|apply|configure
   stackarr youtarr status|url|open|enable|disable|apply

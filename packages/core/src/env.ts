@@ -187,6 +187,7 @@ export const managedEnvDefaults: StackarrEnv = {
   IMMICH_WEB_PORT: '2283',
   IMMICH_CONTAINER_PORT: '2283',
   IMMICH_UPLOAD_LOCATION: defaultPicturesRoot,
+  IMMICH_EXTERNAL_LIBRARY_LOCATION: '',
   IMMICH_VERSION: 'release',
   IMMICH_DB_USERNAME: 'immich',
   IMMICH_DB_DATABASE_NAME: 'immich',
@@ -992,6 +993,7 @@ function isHostPathKey(key: string) {
     'YOUTARR_JOBS_ROOT',
     'YOUTARR_IMAGES_ROOT',
     'IMMICH_UPLOAD_LOCATION',
+    'IMMICH_EXTERNAL_LIBRARY_LOCATION',
     'PLEX_CONFIG_PATH',
     'PLEX_PREFS_PATH',
     'JELLYFIN_CONFIG_PATH'

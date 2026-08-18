@@ -88,6 +88,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('backupRoot', 'Backup Root', 'BACKUP_ROOT'),
       envPath('booksRoot', 'Books Root', 'BOOKS_ROOT'),
       envPath('immichUploadLocation', 'Pictures Root', 'IMMICH_UPLOAD_LOCATION'),
+      envPath('immichExternalLibraryLocation', 'Immich External Library Root', 'IMMICH_EXTERNAL_LIBRARY_LOCATION'),
       envPath('gamesRoot', 'Games Root', 'GAMES_ROOT')
     ]),
     group('Database', [
@@ -298,6 +299,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envNumber('immichWebPort', 'Web Port', 'IMMICH_WEB_PORT'),
       envNumber('immichContainerPort', 'Container Port', 'IMMICH_CONTAINER_PORT'),
       envPath('immichUploadLocation', 'Upload/Library Location', 'IMMICH_UPLOAD_LOCATION'),
+      envPath('immichExternalLibraryLocation', 'External Library Root', 'IMMICH_EXTERNAL_LIBRARY_LOCATION'),
       envText('immichVersion', 'Immich Version Tag', 'IMMICH_VERSION'),
       envText('immichServerImage', 'Server Image', 'IMMICH_SERVER_IMAGE'),
       envText('immichMachineLearningImage', 'Machine Learning Image', 'IMMICH_MACHINE_LEARNING_IMAGE'),

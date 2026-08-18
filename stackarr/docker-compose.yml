@@ -965,6 +965,7 @@ services:
       IMMICH_MACHINE_LEARNING_URL: http://immich-ml:3003
     volumes:
       - "${IMMICH_UPLOAD_LOCATION:-./.stackarr/media/Pictures}:/data"
+      - "${IMMICH_EXTERNAL_LIBRARY_LOCATION:-immich-external}:/external:ro"
       - "/etc/localtime:/etc/localtime:ro"
     ports:
       - "${IMMICH_BIND_IP:-127.0.0.1}:${IMMICH_WEB_PORT:-2283}:${IMMICH_CONTAINER_PORT:-2283}"
@@ -1002,6 +1003,7 @@ volumes:
   stackarr-state:
   redis-data:
   immich-model-cache:
+  immich-external:
   youtarr-db-data:
   flaresolverr-config:
     name: ${COMPOSE_PROJECT_NAME:-stackarr}_flaresolverr-config
