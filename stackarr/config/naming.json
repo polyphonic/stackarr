@@ -1,4 +1,7 @@
 {
+  "tv": {
+    "seasonFolders": true
+  },
   "radarr": {
     "renameMovies": true,
     "replaceIllegalCharacters": true,

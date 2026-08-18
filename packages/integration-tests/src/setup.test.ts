@@ -595,6 +595,13 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /SAVED_API_KEY = os\.environ\.get\('PULSARR_API_KEY'/);
   assert.match(configure, /Pulsarr authenticated with its saved Stackarr agent key/);
   assert.match(configure, /neither the saved agent key nor admin login was accepted/);
+  assert.equal(configure.match(/'searchOnAdd': True/g)?.length, 2);
+  assert.doesNotMatch(configure, /'searchOnAdd': False/);
+  assert.match(configure, /'createSeasonFolders': SEASON_FOLDERS_ENABLED/);
+  assert.doesNotMatch(configure, /'createSeasonFolders': False/);
+  assert.match(configure, /"enableSeasonFolders":\$\{season_folders\}/);
+  assert.doesNotMatch(configure, /"enableSeasonFolders":true/);
+  assert.match(agregarrConfigure, /"enableSeasonFolders": season_folders_enabled/);
   assert.match(agregarrConfigure, /placeholderMovieRootFolders/);
   assert.match(agregarrConfigure, /AGREGARR_PLACEHOLDER_FOLDER/);
   assert.match(agregarrConfigure, /_Trailers/);

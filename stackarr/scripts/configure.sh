@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$ROOT_DIR/lib/common.sh"
+NAMING_CONFIG_FILE="${STACKARR_NAMING_CONFIG_FILE:-$ROOT_DIR/config/naming.json}"
+export STACKARR_NAMING_CONFIG_FILE="$NAMING_CONFIG_FILE"
 
 FORCE=false
 case "${1:-}" in
@@ -2858,6 +2860,18 @@ seerr_radarr_payload() {
 EOF
 }
 
+season_folders_enabled_json() {
+    python3 - "$NAMING_CONFIG_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    naming = json.load(fh)
+
+print("true" if bool((naming.get("tv") or {}).get("seasonFolders", True)) else "false")
+PY
+}
+
 seerr_sonarr_payload() {
     local name="$1"
     local hostname="$2"
@@ -2868,8 +2882,10 @@ seerr_sonarr_payload() {
     local is_4k="$7"
     local is_default="$8"
     local external_url="$9"
+    local season_folders
+    season_folders="$(season_folders_enabled_json)"
     cat <<EOF
-{"name":"$name","hostname":"$hostname","port":${service_port},"apiKey":"$api_key","useSsl":false,"baseUrl":"","activeProfileId":${profile_id},"activeProfileName":"$profile_name","activeDirectory":"/tv","activeAnimeProfileId":${profile_id},"activeAnimeProfileName":"$profile_name","activeAnimeDirectory":"/tv","is4k":${is_4k},"enableSeasonFolders":true,"isDefault":${is_default},"externalUrl":"$external_url","syncEnabled":true,"preventSearch":false}
+{"name":"$name","hostname":"$hostname","port":${service_port},"apiKey":"$api_key","useSsl":false,"baseUrl":"","activeProfileId":${profile_id},"activeProfileName":"$profile_name","activeDirectory":"/tv","activeAnimeProfileId":${profile_id},"activeAnimeProfileName":"$profile_name","activeAnimeDirectory":"/tv","is4k":${is_4k},"enableSeasonFolders":${season_folders},"isDefault":${is_default},"externalUrl":"$external_url","syncEnabled":true,"preventSearch":false}
 EOF
 }
 
@@ -2922,6 +2938,7 @@ import xml.etree.ElementTree as ET
 
 PULSARR = f"http://127.0.0.1:{os.environ.get('PULSARR_PORT', '3003')}"
 CONFIG_ROOT = Path(os.environ.get('CONFIG_ROOT', ''))
+NAMING_CONFIG = Path(os.environ.get('STACKARR_NAMING_CONFIG_FILE', str(Path(os.environ.get('STACKARR_REPO_ROOT', '/stackarr')) / 'stackarr/config/naming.json')))
 PLEX_PREFS_PATH = Path(os.environ.get('PLEX_PREFS_PATH', ''))
 USERNAME = os.environ.get('USERNAME', 'stackarr').strip() or 'stackarr'
 PASSWORD = os.environ.get('PULSARR_PASSWORD') or os.environ.get('PASSWORD', '')
@@ -2935,6 +2952,17 @@ OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(COOKIE_J
 SESSION_COOKIE = ''
 USE_API_KEY = False
 API_KEY_FILE = Path(os.environ.get('PULSARR_DISCOVERED_API_KEY_FILE', ''))
+
+
+def season_folders_enabled():
+    try:
+        naming = json.loads(NAMING_CONFIG.read_text(encoding='utf-8'))
+        return bool((naming.get('tv') or {}).get('seasonFolders', True))
+    except Exception:
+        return True
+
+
+SEASON_FOLDERS_ENABLED = season_folders_enabled()
 
 
 def note(kind, message):
@@ -3218,7 +3246,9 @@ try:
         'seasonMonitoring': 'all',
         'monitorNewItems': 'all',
         'searchOnAdd': True,
-        'createSeasonFolders': False,
+        # A false request-manager default becomes Sonarr's per-series value and
+        # overrides the otherwise-correct global seasonFolderFormat.
+        'createSeasonFolders': SEASON_FOLDERS_ENABLED,
         'tags': [],
         'isDefault': True,
         'seriesType': 'standard',
