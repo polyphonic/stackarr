@@ -1785,12 +1785,6 @@ if payload.get("appProfileId") != app_profile_id:
 if sorted(payload.get("tags") or []) != desired_tags:
     payload["tags"] = desired_tags
     changed = True
-if payload.get("enable") is not True:
-    payload["enable"] = True
-    changed = True
-if enforce_seeded_torrents(payload):
-    changed = True
-
 print("update" if changed else "unchanged")
 print(payload.get("id", ""))
 print(json.dumps(payload, separators=(",", ":")))
@@ -1847,39 +1841,6 @@ ensure_prowlarr_indexer() {
             return 1
             ;;
     esac
-}
-
-disable_prowlarr_indexer() {
-    local label="$1"
-    local name="$2"
-    local current result indexer_id payload
-
-    current="$(curl -fsS "$PROWLARR_URL/api/v1/indexer" -H "X-Api-Key: $PROWLARR_KEY" 2>/dev/null)" || {
-        warn "$label failed because current Prowlarr indexers could not be read"
-        return 1
-    }
-    result="$(python3 - "$name" "$current" <<'PY'
-import json
-import sys
-
-name = sys.argv[1]
-indexers = json.loads(sys.argv[2])
-indexer = next((item for item in indexers if item.get("name") == name), None)
-if indexer is None:
-    print("")
-    print("")
-    raise SystemExit(0)
-indexer["enable"] = False
-print(indexer.get("id", ""))
-print(json.dumps(indexer, separators=(",", ":")))
-PY
-)"
-    indexer_id="$(printf '%s\n' "$result" | sed -n '1p')"
-    payload="$(printf '%s\n' "$result" | sed -n '2p')"
-    if [[ -z "$indexer_id" ]]; then
-        return 0
-    fi
-    api_put_json "$label" "$PROWLARR_URL/api/v1/indexer/$indexer_id" "$PROWLARR_KEY" "$payload" || true
 }
 
 ensure_seerr_service() {
@@ -4319,11 +4280,6 @@ else
     ensure_prowlarr_indexer "Prowlarr EZTV indexer configured" "EZTV"
     warn "Skipping 1337x because the FlareSolverr tag is unavailable"
 fi
-disable_prowlarr_indexer "Prowlarr The Pirate Bay indexer disabled" "The Pirate Bay"
-disable_prowlarr_indexer "Prowlarr TorrentQuest indexer disabled" "TorrentQuest"
-disable_prowlarr_indexer "Prowlarr RARBG indexer disabled" "RARBG"
-disable_prowlarr_indexer "Prowlarr Internet Archive indexer disabled" "Internet Archive"
-
 if optional_service_enabled movies; then
     ensure_prowlarr_application "Prowlarr connected to Radarr" "$PROWLARR_URL/api/v1/applications" "$PROWLARR_URL/api/v1/applications" "$PROWLARR_URL/api/v1/applications" "$PROWLARR_KEY" "Radarr" "$(prowlarr_app_payload 'Radarr' 'Radarr' 'http://radarr:7878' "$RADARR_KEY" '[2000,2010,2020,2030,2040,2045,2050,2060,2070,2080]')" || true
 fi

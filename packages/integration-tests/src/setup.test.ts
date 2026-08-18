@@ -639,7 +639,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /persist_runtime_api_key "SEERR_API_KEY" "\$SEERR_KEY"/);
   assert.match(configure, /field\.get\("value"\) != 3/);
   assert.match(configure, /Prowlarr 1337x indexer configured/);
-  assert.match(configure, /Prowlarr The Pirate Bay indexer disabled/);
+  assert.doesNotMatch(configure, /disable_prowlarr_indexer/);
   assert.doesNotMatch(configure, /Prowlarr The Pirate Bay indexer configured/);
   assert.match(configure, /secure_runtime_secret_modes/);
   assert.match(configure, /chmod 600/);
