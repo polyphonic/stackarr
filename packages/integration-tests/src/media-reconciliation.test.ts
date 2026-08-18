@@ -12,12 +12,11 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
-test('portable scheduler runs bounded media search reconciliation every fifteen minutes', async () => {
+test('media search reconciliation stays manual and bounded', async () => {
   const scheduler = await readFile(path.join(repoRoot, 'stackarr/scripts/scheduler.sh'), 'utf8');
   const cli = await readFile(path.join(repoRoot, 'stackarr/bin/stackarr'), 'utf8');
-  assert.match(scheduler, /ENABLE_MEDIA_SEARCH_RECONCILIATION:-true/);
-  assert.match(scheduler, /MEDIA_SEARCH_RECONCILIATION_INTERVAL_SECONDS:-900/);
-  assert.match(scheduler, /run_with_lock media-search-reconciliation/);
+  assert.doesNotMatch(scheduler, /media-reconcile run/);
+  assert.doesNotMatch(scheduler, /media-search-reconciliation/);
   assert.match(cli, /media-reconcile[\s\S]*media-reconcile run/);
 });
 
