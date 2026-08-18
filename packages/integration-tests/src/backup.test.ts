@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFile as execFileCallback } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile as execFileCallback, spawn } from 'node:child_process';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -450,6 +450,181 @@ test('recovery key download requires dashboard reauthentication and disables cac
   assert.match(route, /'content-disposition': `attachment;/);
   assert.match(component, /Without it, encrypted archives cannot be fully restored/);
   assert.match(component, /currentPassword/);
+});
+
+test('backup termination tracks archive children and removes incomplete encrypted output', async () => {
+  const script = await readFile(backupScript, 'utf8');
+
+  assert.match(script, /ACTIVE_BACKUP_PIDS=/);
+  assert.match(script, /trap 'terminate_backup_children 143' TERM/);
+  assert.match(script, /trap 'terminate_backup_children 130' INT/);
+  assert.match(script, /signal_backup_pid TERM "\$pid"/);
+  assert.match(script, /ACTIVE_BACKUP_PIDS="\$command_pid \$monitor_pid"/);
+  assert.match(script, /rm -f "\$ARCHIVE_PATH" "\$ARCHIVE_PATH"\.tmp-\*/);
+  assert.match(script, /tar_pid="\$\(jobs -p %%\)"/);
+});
+
+test('terminating an encrypted backup stops archive children and removes partial output', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-backup-cancel-test-'));
+  const appRoot = path.join(root, 'app');
+  const configRoot = path.join(appRoot, 'config');
+  const stateRoot = path.join(appRoot, 'state');
+  const backupRoot = path.join(appRoot, 'backups');
+  const fakeBin = path.join(root, 'bin');
+  const fakeTar = path.join(fakeBin, 'tar');
+  const databaseFile = path.join(configRoot, 'stackarr.db');
+  let child: ReturnType<typeof spawn> | undefined;
+
+  try {
+    await Promise.all([
+      mkdir(configRoot, { recursive: true }),
+      mkdir(stateRoot, { recursive: true }),
+      mkdir(backupRoot, { recursive: true }),
+      mkdir(path.join(appRoot, 'logs'), { recursive: true }),
+      mkdir(fakeBin, { recursive: true })
+    ]);
+    writeRuntimeConfigDatabase(databaseFile, {});
+    await writeFile(fakeTar, "#!/bin/bash\ntrap 'exit 143' TERM INT\nwhile true; do printf 'fixture-data\\n'; done\n");
+    await chmod(fakeTar, 0o755);
+
+    child = spawn('bash', [backupScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+        APP_ROOT: appRoot,
+        CONFIG_ROOT: configRoot,
+        STATE_ROOT: stateRoot,
+        LOG_ROOT: path.join(appRoot, 'logs'),
+        BACKUP_ROOT: backupRoot,
+        MEDIA_ROOT: path.join(appRoot, 'media'),
+        DOWNLOADS_ROOT: path.join(appRoot, 'downloads'),
+        PLEX_CONFIG_PATH: path.join(root, 'missing-plex'),
+        PLEX_PREFS_PATH: path.join(root, 'missing-plex.plist'),
+        JELLYFIN_INSTALL_MODE: 'disabled',
+        PLEX_BACKUP_MODE: 'lite',
+        ENABLE_BACKUP: 'true',
+        BACKUP_PROGRESS_INTERVAL: '1',
+        BACKUP_RETENTION_COUNT: '5',
+        BACKUP_ENCRYPTION: 'keyfile',
+        STACKARR_DATABASE_FILE: databaseFile,
+        DATABASE_MODE: 'app-default'
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('backup did not reach archive compression')), 15_000);
+      let output = '';
+      child?.stdout?.on('data', (chunk) => {
+        output += chunk.toString();
+        if (output.includes('Compressing backup archive started')) {
+          clearTimeout(timeout);
+          resolve();
+        }
+      });
+      child?.once('error', (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+
+    assert.equal(child.kill('SIGTERM'), true);
+    const exitCode = await new Promise<number | null>((resolve) => child?.once('close', resolve));
+    assert.notEqual(exitCode, 0);
+    assert.deepEqual(
+      (await readdir(backupRoot)).filter((name) => name.endsWith('.tar.gz.enc') || name.includes('.tmp-')),
+      []
+    );
+    assert.deepEqual(await readdir(path.join(backupRoot, '.stackarr-staging')), []);
+  } finally {
+    child?.kill('SIGKILL');
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('terminating a backup stops pre-archive copy processes and removes staging data', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-backup-copy-cancel-test-'));
+  const appRoot = path.join(root, 'app');
+  const configRoot = path.join(appRoot, 'config');
+  const stateRoot = path.join(appRoot, 'state');
+  const backupRoot = path.join(appRoot, 'backups');
+  const fakeBin = path.join(root, 'bin');
+  const fakeRsync = path.join(fakeBin, 'rsync');
+  const copyPidFile = path.join(root, 'copy.pid');
+  const databaseFile = path.join(configRoot, 'stackarr.db');
+  let child: ReturnType<typeof spawn> | undefined;
+
+  try {
+    await Promise.all([
+      mkdir(configRoot, { recursive: true }),
+      mkdir(stateRoot, { recursive: true }),
+      mkdir(backupRoot, { recursive: true }),
+      mkdir(path.join(appRoot, 'logs'), { recursive: true }),
+      mkdir(fakeBin, { recursive: true })
+    ]);
+    writeRuntimeConfigDatabase(databaseFile, {});
+    await writeFile(path.join(configRoot, 'config.xml'), '<Config />');
+    await writeFile(
+      fakeRsync,
+      '#!/bin/bash\nprintf \'%s\\n\' "$$" > "\${BACKUP_CANCEL_PID_FILE:?}"\ntrap \'exit 143\' TERM INT\nwhile true; do sleep 1; done\n'
+    );
+    await chmod(fakeRsync, 0o755);
+
+    child = spawn('bash', [backupScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+        APP_ROOT: appRoot,
+        CONFIG_ROOT: configRoot,
+        STATE_ROOT: stateRoot,
+        LOG_ROOT: path.join(appRoot, 'logs'),
+        BACKUP_ROOT: backupRoot,
+        MEDIA_ROOT: path.join(appRoot, 'media'),
+        DOWNLOADS_ROOT: path.join(appRoot, 'downloads'),
+        PLEX_CONFIG_PATH: path.join(root, 'missing-plex'),
+        PLEX_PREFS_PATH: path.join(root, 'missing-plex.plist'),
+        JELLYFIN_INSTALL_MODE: 'disabled',
+        PLEX_BACKUP_MODE: 'lite',
+        ENABLE_BACKUP: 'true',
+        BACKUP_PROGRESS_INTERVAL: '1',
+        BACKUP_RETENTION_COUNT: '5',
+        BACKUP_ENCRYPTION: 'none',
+        BACKUP_CANCEL_PID_FILE: copyPidFile,
+        STACKARR_DATABASE_FILE: databaseFile,
+        DATABASE_MODE: 'app-default'
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    const copyPid = await new Promise<number>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('backup did not start its configuration copy')), 15_000);
+      const poll = async () => {
+        try {
+          const value = Number((await readFile(copyPidFile, 'utf8')).trim());
+          if (Number.isInteger(value) && value > 0) {
+            clearTimeout(timeout);
+            resolve(value);
+            return;
+          }
+        } catch {
+          // The fixture writes the PID after the copy starts.
+        }
+        setTimeout(poll, 25);
+      };
+      void poll();
+    });
+
+    assert.equal(child.kill('SIGTERM'), true);
+    const exitCode = await new Promise<number | null>((resolve) => child?.once('close', resolve));
+    assert.notEqual(exitCode, 0);
+    assert.throws(() => process.kill(copyPid, 0), { code: 'ESRCH' });
+    assert.deepEqual(await readdir(path.join(backupRoot, '.stackarr-staging')), []);
+  } finally {
+    child?.kill('SIGKILL');
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('full backups keep durable state and skip rebuildable service artifacts', async () => {
