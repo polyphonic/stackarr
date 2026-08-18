@@ -4,6 +4,7 @@ import type { getSystemStatus, HomelabPerformance, ServiceSummary, StackarrTask,
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { compareServicesByDisplayName } from '../lib/serviceOrdering';
+import { AppHealthSummary } from './AppHealthSummary';
 import styles from './DashboardClient.module.css';
 import { DashboardOverview, StorageOverview } from './DashboardOverview';
 import { icons } from './icons';
@@ -103,15 +104,18 @@ export function DashboardClient({
           description="Only items that may need a decision or follow-up"
           action={<Link href="/system/status">System details</Link>}
         >
-          {needsAttention.length === 0 ? (
-            <div className={styles.allClear}>
-              <span aria-hidden="true">✓</span>
-              <div>
-                <strong>Nothing needs you right now</strong>
-                <small>Stackarr will surface setup gaps and failed work here.</small>
+          <AppHealthSummary
+            hasOtherIssues={needsAttention.length > 0}
+            emptyState={
+              <div className={styles.allClear}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <strong>Nothing needs you right now</strong>
+                  <small>Stackarr checked app health, setup gaps, and recent work.</small>
+                </div>
               </div>
-            </div>
-          ) : (
+            }
+          >
             <div className={styles.attentionList}>
               {needsAttention.map((item) => (
                 <Link href={item.href} key={item.label} className={styles.attentionItem}>
@@ -127,7 +131,7 @@ export function DashboardClient({
                 </Link>
               ))}
             </div>
-          )}
+          </AppHealthSummary>
         </Panel>
 
         <Panel
