@@ -158,6 +158,130 @@ restart_tmm_if_running() {
     fi
 }
 
+tv_season_folders_enabled() {
+    python3 - "$NAMING_CONFIG_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    naming = json.load(fh)
+
+print("true" if bool((naming.get("tv") or {}).get("seasonFolders", True)) else "false")
+PY
+}
+
+reconcile_servarr_series_season_folders() {
+    local label="$1"
+    local base_url="$2"
+    local api_key="$3"
+    local desired current result count payload
+
+    if [[ -z "$api_key" ]]; then
+        warn "$label season-folder reconciliation skipped because the API key is missing"
+        return 1
+    fi
+
+    desired="$(tv_season_folders_enabled)"
+    current="$(curl -fsS "$base_url/api/v3/series" -H "X-Api-Key: $api_key" 2>/dev/null)" || {
+        warn "$label series could not be read for season-folder reconciliation"
+        return 1
+    }
+    result="$(python3 - "$desired" "$current" <<'PY'
+import json
+import sys
+
+desired = sys.argv[1].lower() == "true"
+series = json.loads(sys.argv[2])
+series_ids = [item["id"] for item in series if bool(item.get("seasonFolder")) != desired]
+print(len(series_ids))
+print(json.dumps({"seriesIds": series_ids, "seasonFolder": desired}, separators=(",", ":")))
+PY
+)"
+    count="$(printf '%s\n' "$result" | sed -n '1p')"
+    payload="$(printf '%s\n' "$result" | sed -n '2p')"
+
+    if [[ "$count" == 0 ]]; then
+        ok "$label series already follow the season-folder policy"
+        return 0
+    fi
+
+    curl -fsS -X PUT "$base_url/api/v3/series/editor" \
+        -H "X-Api-Key: $api_key" \
+        -H "Content-Type: application/json" \
+        --data "$payload" >/dev/null || {
+        warn "$label season-folder policy could not be applied"
+        return 1
+    }
+
+    ok "$label season-folder policy applied to $count series"
+}
+
+reconcile_request_manager_season_folders() {
+    local label="$1"
+    local base_url="$2"
+    local endpoint="$3"
+    local api_key="$4"
+    local field="$5"
+    local desired current updates count id payload
+
+    if [[ -z "$api_key" ]]; then
+        warn "$label season-folder reconciliation skipped because the API key is missing"
+        return 0
+    fi
+
+    desired="$(tv_season_folders_enabled)"
+    current="$(curl -fsS "$base_url$endpoint" -H "X-Api-Key: $api_key" 2>/dev/null)" || {
+        warn "$label Sonarr defaults could not be read"
+        return 1
+    }
+    updates="$(python3 - "$field" "$desired" "$current" <<'PY'
+import json
+import sys
+
+field = sys.argv[1]
+desired = sys.argv[2].lower() == "true"
+payload = json.loads(sys.argv[3])
+items = payload if isinstance(payload, list) else payload.get("instances", [])
+for item in items:
+    if bool(item.get(field)) == desired:
+        continue
+    item[field] = desired
+    print(f"{item['id']}\t{json.dumps(item, separators=(',', ':'))}")
+PY
+)"
+
+    if [[ -z "$updates" ]]; then
+        ok "$label Sonarr defaults already follow the season-folder policy"
+        return 0
+    fi
+
+    count=0
+    while IFS=$'\t' read -r id payload; do
+        [[ "$id" =~ ^[0-9]+$ && -n "$payload" ]] || continue
+        curl -fsS -X PUT "$base_url$endpoint/$id" \
+            -H "X-Api-Key: $api_key" \
+            -H "Content-Type: application/json" \
+            --data "$payload" >/dev/null || {
+            warn "$label Sonarr default $id could not be updated"
+            return 1
+        }
+        count=$((count + 1))
+    done <<<"$updates"
+
+    ok "$label season-folder policy applied to $count Sonarr default(s)"
+}
+
+apply_request_manager_season_folder_policies() {
+    if optional_service_enabled pulsarr; then
+        reconcile_request_manager_season_folders \
+            "Pulsarr" "$PULSARR_URL" "/v1/sonarr/instances" "$PULSARR_API_KEY" "createSeasonFolders" || true
+    fi
+    if optional_service_enabled agregarr; then
+        reconcile_request_manager_season_folders \
+            "Agregarr" "$AGREGARR_URL" "/api/v1/settings/sonarr" "$AGREGARR_API_KEY" "enableSeasonFolders" || true
+    fi
+}
+
 apply_servarr_presets() {
     local wait_for_ready="$1"
     local radarr_key radarr4k_key sonarr_key sonarr4k_key
@@ -171,6 +295,8 @@ apply_servarr_presets() {
     apply_servarr_preset "Radarr 4K" "$RADARR_4K_URL/api/v3/config/naming" "$radarr4k_key" "radarr" "$wait_for_ready" || true
     apply_servarr_preset "Sonarr" "$SONARR_URL/api/v3/config/naming" "$sonarr_key" "sonarr" "$wait_for_ready" || true
     apply_servarr_preset "Sonarr 4K" "$SONARR_4K_URL/api/v3/config/naming" "$sonarr4k_key" "sonarr" "$wait_for_ready" || true
+    reconcile_servarr_series_season_folders "Sonarr" "$SONARR_URL" "$sonarr_key" || true
+    reconcile_servarr_series_season_folders "Sonarr 4K" "$SONARR_4K_URL" "$sonarr4k_key" || true
 }
 
 main() {
@@ -209,6 +335,8 @@ main() {
     RADARR_4K_URL="$(service_url radarr4k "$RADARR_4K_URL" 7879)"
     SONARR_URL="$(service_url sonarr "$SONARR_URL" 8989)"
     SONARR_4K_URL="$(service_url sonarr4k "$SONARR_4K_URL" 8990)"
+    PULSARR_URL="$(service_url pulsarr "$PULSARR_URL" "${PULSARR_PORT:-3003}")"
+    AGREGARR_URL="$(service_url agregarr "$AGREGARR_URL" "${AGREGARR_PORT:-7171}")"
 
     case "$cmd" in
         prestart)
@@ -222,6 +350,7 @@ main() {
             if [[ "$skip_servarr" != "true" ]]; then
                 apply_servarr_presets "$wait_for_ready"
             fi
+            apply_request_manager_season_folder_policies
             ;;
         *)
             usage
