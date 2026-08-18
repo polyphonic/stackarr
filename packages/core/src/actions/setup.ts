@@ -833,6 +833,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     IMMICH_CONTAINER_PORT: '2283',
     IMMICH_URL: 'http://127.0.0.1:2283',
     IMMICH_UPLOAD_LOCATION: `${input.mediaRoot}/Pictures`,
+    IMMICH_EXTERNAL_LIBRARY_LOCATION: '',
     IMMICH_VERSION: 'release',
     IMMICH_DB_USERNAME: 'immich',
     IMMICH_DB_DATABASE_NAME: 'immich',

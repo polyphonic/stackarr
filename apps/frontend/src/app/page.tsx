@@ -27,6 +27,7 @@ export default async function DashboardPage() {
     env.BACKUP_ROOT ?? '',
     env.BOOKS_ROOT ?? '',
     env.IMMICH_UPLOAD_LOCATION ?? '',
+    env.IMMICH_EXTERNAL_LIBRARY_LOCATION ?? '',
     env.GAMES_ROOT ?? ''
   ]);
   const tasks = readTasks().slice(0, 5);

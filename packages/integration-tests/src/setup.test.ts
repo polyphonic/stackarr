@@ -160,6 +160,7 @@ test('dry-run setup records Immich config for optional photo libraries', async (
   assert.equal(result.plan.config.ENABLE_IMMICH, 'true');
   assert.equal(result.plan.config.IMMICH_URL, 'http://127.0.0.1:2283');
   assert.equal(result.plan.config.IMMICH_UPLOAD_LOCATION, '/srv/media/Pictures');
+  assert.equal(result.plan.config.IMMICH_EXTERNAL_LIBRARY_LOCATION, '');
   assert.equal(result.plan.config.IMMICH_DB_USERNAME, 'immich');
   assert.equal(result.plan.config.IMMICH_DB_DATABASE_NAME, 'immich');
   assert.equal(result.plan.config.IMMICH_DB_VECTOR_EXTENSION, 'pgvector');
@@ -689,6 +690,8 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /container_name: immich-ml/);
   assert.match(compose, /IMMICH_MACHINE_LEARNING_URL: http:\/\/immich-ml:3003/);
   assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);
+  assert.match(compose, /\$\{IMMICH_EXTERNAL_LIBRARY_LOCATION:-immich-external\}:\/external:ro/);
+  assert.match(compose, /^  immich-external:$/m);
   assert.match(compose, /DB_HOSTNAME: database/);
   assert.match(compose, /REDIS_HOSTNAME: redis/);
   assert.doesNotMatch(compose, /container_name: immich-postgres/);

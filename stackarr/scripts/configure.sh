@@ -4127,6 +4127,9 @@ if optional_service_enabled tracearr; then
     wait_for_http "Tracearr" "$TRACEARR_URL"
     configure_tracearr_stack || true
 fi
+if optional_service_enabled immich; then
+    "$ROOT_DIR/scripts/immich.sh" configure || true
+fi
 configure_tinymediamanager_api || true
 if optional_service_enabled romm; then
     wait_for_http "RomM" "$ROMM_URL"
