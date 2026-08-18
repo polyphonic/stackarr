@@ -173,16 +173,6 @@ run_agent_routines() {
     STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" routines run-due || log_scheduler "agent routines check failed"
 }
 
-run_media_reconciliation() {
-    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" media-reconcile run
-}
-
-interval_stamp() {
-    local interval_seconds="${1:-900}"
-    [[ "$interval_seconds" =~ ^[0-9]+$ ]] && (( interval_seconds >= 60 )) || return 1
-    printf '%s\n' "$(( $(date '+%s') / interval_seconds ))"
-}
-
 log_scheduler "started"
 
 while true; do
@@ -199,14 +189,6 @@ while true; do
         if flag_enabled "${ENABLE_SCHEDULED_UPDATES:-false}"; then
             if update_stamp="$(due_daily_or_weekly update weekly "${UPDATE_TIME:-04:30}" "${UPDATE_WEEKDAY:-Sun}")"; then
                 run_with_lock update "$update_stamp" run_update_job
-            fi
-        fi
-
-        if flag_enabled "${ENABLE_MEDIA_SEARCH_RECONCILIATION:-true}"; then
-            if media_stamp="$(interval_stamp "${MEDIA_SEARCH_RECONCILIATION_INTERVAL_SECONDS:-900}")"; then
-                run_with_lock media-search-reconciliation "$media_stamp" run_media_reconciliation
-            else
-                log_scheduler "media search reconciliation skipped: invalid interval"
             fi
         fi
 
