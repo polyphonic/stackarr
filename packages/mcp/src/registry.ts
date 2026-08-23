@@ -13,6 +13,7 @@ import {
   auditStarted,
   cancelStreamripJobAction,
   checkServiceDatabasesAction,
+  configureLidarrManualLibraryAction,
   createMcpConnectionPolicyAction,
   createRequestAction,
   DangerousActionError,
@@ -36,6 +37,7 @@ import {
   getEnabledMcpServiceNames,
   getEpisodeDownloadProvenanceAction,
   getIndexerStatusAction,
+  getLidarrLibraryStatusAction,
   getMcpConnectionKit,
   getMcpProfileDescription,
   getMcpServiceSelection,
@@ -139,6 +141,7 @@ import {
   updateAgregarrCollectionGroupAction,
   updateCloudflareAccessAction,
   updateCloudflareRoutesAction,
+  updateLidarrMusicMountAction,
   updateMcpConnectionPolicyAction,
   updateServiceConfigAction,
   updateStackConfigAction,
@@ -716,6 +719,31 @@ const tools: ToolDef[] = [
     description: 'Get disk usage for configured roots.',
     shape: empty,
     handler: getDiskUsageAction
+  },
+  {
+    name: 'stackarr_get_lidarr_library_status',
+    description:
+      'Inspect Lidarr health warnings, roots, manual-library settings, indexers, queue, and compact library statistics.',
+    shape: empty,
+    handler: getLidarrLibraryStatusAction
+  },
+  {
+    name: 'stackarr_configure_lidarr_manual_library',
+    description:
+      'Keep completed-download handling and automatic track renaming off, ensure /music exists, optionally rescan, and verify Lidarr.',
+    shape: { rescan: z.boolean().optional() },
+    handler: configureLidarrManualLibraryAction
+  },
+  {
+    name: 'stackarr_update_lidarr_music_mount',
+    description:
+      'Change the host directory mounted into Lidarr as /music, recreate only Lidarr, and verify the live mount and library status.',
+    shape: {
+      musicRoot: z.string().min(1).max(500),
+      dryRun: z.boolean().optional(),
+      confirmMountChange: z.boolean().optional()
+    },
+    handler: updateLidarrMusicMountAction
   },
   {
     name: 'stackarr_get_stack_config_summary',

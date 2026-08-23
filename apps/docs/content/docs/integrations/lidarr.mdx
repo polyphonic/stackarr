@@ -6,3 +6,5 @@ description: Lidarr integration overview for Stackarr.
 <ServiceIntegration slug="lidarr" />
 
 The Streamrip picker reads Lidarr's paginated missing-albums feed. It does not load an entire large Lidarr library into the dashboard, so opening the picker remains bounded as the collection grows.
+
+Stackarr exposes focused MCP actions to inspect Lidarr warnings and indexing state, preserve manual-library behavior, rescan `/music`, and apply a path-bounded host mount change. These actions do not expose generic filesystem or Docker control.
