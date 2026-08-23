@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/cli",
-  "version": "0.3.0-alpha.18",
+  "version": "0.3.0-alpha.19",
   "bin": {
     "stackarr": "./bin/stackarr"
   },
