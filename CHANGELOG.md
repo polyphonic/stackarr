@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.19](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.18...v0.3.0-alpha.19) (2026-08-23)
+
+
+### Fixed
+
+* **release:** avoid emulated pnpm installs ([f92a4fe](https://github.com/polyphonic/stackarr/commit/f92a4fe97857bcc1635e415fa8b159b019ce6ab5))
+* **release:** avoid emulated pnpm installs ([#69](https://github.com/polyphonic/stackarr/issues/69)) ([2cbed6e](https://github.com/polyphonic/stackarr/commit/2cbed6e97479b3ab868ec5e35954574b0810e7ce))
+
 ## [0.3.0-alpha.18](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.17...v0.3.0-alpha.18) (2026-08-23)
 
 
