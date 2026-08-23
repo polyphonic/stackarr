@@ -53,7 +53,9 @@ test('managed restricted profiles receive narrow Lidarr status, manual indexing,
   assert.ok(names.includes('stackarr_update_lidarr_music_mount'));
   assert.ok(observed.some((tool) => tool.name === 'stackarr_get_lidarr_library_status'));
   assert.ok(!observed.some((tool) => tool.name === 'stackarr_update_lidarr_music_mount'));
-  assert.equal(managed.find((tool) => tool.name === 'stackarr_update_lidarr_music_mount')?.risk, 'write');
+  const mountTool = managed.find((tool) => tool.name === 'stackarr_update_lidarr_music_mount');
+  assert.equal(mountTool?.risk, 'dangerous');
+  assert.deepEqual(mountTool?.scopes, ['apps:dangerous']);
 });
 
 test('Lidarr library status is compact, secret-safe, and explains indexing/manual mode', async () => {
