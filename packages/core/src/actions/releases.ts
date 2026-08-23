@@ -1,3 +1,4 @@
+import { ServiceApiError } from '../clients/http';
 import { prowlarrGet, prowlarrPost } from '../clients/prowlarr';
 
 export const searchReleasesAction = (input: { query: string; categories?: number[]; indexerIds?: number[] }) =>
@@ -22,7 +23,8 @@ export async function testIndexersAction() {
           id: indexer.id,
           name: indexer.name,
           status: 'failed' as const,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
+          details: error instanceof ServiceApiError ? error.details : undefined
         };
       }
     })
