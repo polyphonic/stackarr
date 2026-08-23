@@ -133,13 +133,11 @@
 }
 
 .cardActions {
-  grid-column: 3;
-  grid-row: 1;
-  display: grid;
-  align-content: start;
-  justify-items: stretch;
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
   gap: 6px;
-  min-width: 104px;
+  padding-top: 2px;
 }
 
 .configButton,
@@ -153,6 +151,9 @@
 }
 
 .openButton {
+  grid-row: 1;
+  grid-column: 3;
+  align-self: start;
   width: 100%;
   margin-right: 0;
   color: var(--textColor);
@@ -171,7 +172,6 @@
 
 .pinButton {
   width: 44px;
-  justify-self: end;
   padding: 0;
   color: var(--mutedTextColor);
 }

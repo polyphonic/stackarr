@@ -742,6 +742,20 @@ test('RomM library path changes queue storage mount reconciliation', async () =>
   assert.match(settingsEditor, /body: JSON\.stringify\(\{ name: 'StackStart', confirmed: true \}\)/);
 });
 
+test('app cards keep their Open action in the top-right grid cell', async () => {
+  const directory = await readFile(path.join(repoRoot, 'apps/frontend/src/components/ServiceDirectory.tsx'), 'utf8');
+  const styles = await readFile(
+    path.join(repoRoot, 'apps/frontend/src/components/ServiceDirectory.module.css'),
+    'utf8'
+  );
+  const openAction = directory.indexOf('className={styles.openButton}');
+  const footerActions = directory.indexOf('className={styles.cardActions}');
+
+  assert.equal(openAction > 0 && openAction < footerActions, true);
+  assert.match(styles, /\.card \{[\s\S]*grid-template-columns: 46px minmax\(0, 1fr\) minmax\(104px, auto\);/);
+  assert.match(styles, /\.openButton \{[\s\S]*grid-row: 1;[\s\S]*grid-column: 3;[\s\S]*align-self: start;/);
+});
+
 test('RomM Steam libraries are opt-in, independently mapped by desktop OS, and cleared when disabled', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-romm-steam-test-'));
   const directory = await readFile(path.join(repoRoot, 'apps/frontend/src/components/ServiceDirectory.tsx'), 'utf8');
