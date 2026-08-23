@@ -56,6 +56,30 @@ enabled_managed_services() {
     done < <(stackarr_compose "${profile_args[@]}" config --services)
 }
 
+pull_managed_services() {
+    local -a services=("$@")
+    local attempts="${STACKARR_UPDATE_PULL_ATTEMPTS:-4}"
+    local parallelism="${STACKARR_UPDATE_PULL_PARALLELISM:-4}"
+    local delay="${STACKARR_UPDATE_PULL_RETRY_SECONDS:-5}"
+    local attempt
+
+    [[ "$attempts" =~ ^[1-9][0-9]*$ ]] || fail "STACKARR_UPDATE_PULL_ATTEMPTS must be a positive integer"
+    [[ "$parallelism" =~ ^[1-9][0-9]*$ ]] || fail "STACKARR_UPDATE_PULL_PARALLELISM must be a positive integer"
+    [[ "$delay" =~ ^[0-9]+$ ]] || fail "STACKARR_UPDATE_PULL_RETRY_SECONDS must be a non-negative integer"
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        if COMPOSE_PARALLEL_LIMIT="$parallelism" stackarr_compose "${profile_args[@]}" pull --quiet "${services[@]}"; then
+            return 0
+        fi
+        if (( attempt >= attempts )); then
+            fail "Could not pull all managed service images after $attempts attempts"
+        fi
+        warn "Image pull attempt $attempt failed; retrying in ${delay}s"
+        sleep "$delay"
+        delay=$((delay * 2))
+    done
+}
+
 update_managed_services() {
     local -a services=()
     local service
@@ -70,7 +94,7 @@ update_managed_services() {
     fi
 
     ok "Pulling latest images for ${#services[@]} managed services"
-    stackarr_compose "${profile_args[@]}" pull --quiet "${services[@]}"
+    pull_managed_services "${services[@]}"
 
     "$ROOT_DIR/scripts/naming.sh" prestart || true
     stackarr_compose "${profile_args[@]}" up -d --no-deps --remove-orphans "${services[@]}"

@@ -1,5 +1,11 @@
 # Agent Rules
 
+## Personal installation versus portable product work
+
+- Requests in this repository may concern either the portable Stackarr product or the maintainer's personal installation, runtime configuration, and databases. Infer the intended scope from context; if a proposed change could reasonably belong to either scope and the distinction would affect tracked files, ask before editing.
+- Keep personal setup, one-off migration or repair logic, database adjustments, host-specific paths, device names, and local automation out of tracked product code and documentation. Personal runtime files may still live under Stackarr-managed state or configuration directories so the existing backup system preserves them; backup coverage does not make those files part of the distributable product.
+- Never copy identifying personal paths, hostnames, domains, usernames, credentials, library layouts, or machine-specific defaults from runtime state into the repository. Generalize a capability only when it is genuinely useful to end users and expose install-specific values through portable runtime configuration.
+
 - Distributable code, docs, examples, compose files, tests, and generated plugin metadata must not contain developer-specific absolute paths, hostnames, domains, usernames, secrets, local workspace paths, or machine-specific defaults.
 - Put install-specific values behind runtime configuration, environment variables, setup prompts, or clearly generic placeholders such as `/absolute/path/to/Stackarr`.
 - Repo defaults should be portable and neutral. Prefer app-local defaults such as `APP_ROOT/media`, `APP_ROOT/downloads`, `APP_ROOT/backups`, and `Etc/UTC` unless a user explicitly asks for a personal override.

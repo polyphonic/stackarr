@@ -8,6 +8,7 @@ export * from './actions/commands';
 export * from './actions/containers';
 export * from './actions/downloads';
 export * from './actions/health';
+export * from './actions/lidarrLibrary';
 export * from './actions/lidarrStreamrip';
 export * from './actions/mediaReconciliation';
 export * from './actions/migration';

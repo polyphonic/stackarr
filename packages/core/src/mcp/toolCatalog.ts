@@ -417,6 +417,33 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Read disk usage for configured roots.'
   },
   {
+    name: 'stackarr_get_lidarr_library_status',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Inspect compact Lidarr health, root, indexer, and manual-library status.'
+  },
+  {
+    name: 'stackarr_configure_lidarr_manual_library',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Keep Lidarr in manual-library mode, index /music, and verify the result.'
+  },
+  {
+    name: 'stackarr_update_lidarr_music_mount',
+    category: 'apps',
+    scopes: ['apps:dangerous'],
+    risk: 'dangerous',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Apply and verify a narrowly scoped host mount change for Lidarr /music.'
+  },
+  {
     name: 'stackarr_get_stack_config_summary',
     category: 'stack',
     scopes: ['stack:read'],

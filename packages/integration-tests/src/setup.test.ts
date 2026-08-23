@@ -701,7 +701,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /REDIS_HOST: \$\{ROMM_REDIS_HOST:-redis\}/);
   assert.match(compose, /REDIS_PORT: \$\{ROMM_REDIS_PORT:-6379\}/);
   assert.match(compose, /ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: \$\{ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false\}/);
-  assert.match(compose, /ENABLE_SCHEDULED_RESCAN: "true"/);
+  assert.doesNotMatch(compose, /ENABLE_SCHEDULED_RESCAN: "true"/);
   assert.doesNotMatch(compose, /\n  romm-scheduler:/);
   assert.doesNotMatch(compose, /container_name: mariadb/);
   assert.doesNotMatch(compose, /container_name: romm-db/);
@@ -718,12 +718,12 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.doesNotMatch(configure, /apply_series_monitoring_policy "Sonarr/);
 });
 
-test('Lidarr is configured as download-only for manually curated music libraries', async () => {
+test('Lidarr keeps automatic completed-download handling off while allowing managed library rescans', async () => {
   const compose = await readFile(new URL('../../../stackarr/docker-compose.yml', import.meta.url), 'utf8');
   const configure = await readFile(new URL('../../../stackarr/scripts/configure.sh', import.meta.url), 'utf8');
   const downloads = await readFile(new URL('../../../stackarr/scripts/downloads.sh', import.meta.url), 'utf8');
 
-  assert.match(compose, /\$\{MUSIC_ROOT:-\.\/\.stackarr\/media\/Music\}:\/music:ro/);
+  assert.match(compose, /\$\{MUSIC_ROOT:-\.\/\.stackarr\/media\/Music\}:\/music:ro"/);
   assert.match(configure, /Lidarr completed download handling disabled[\s\S]*"\$LIDARR_KEY" false/);
   assert.match(downloads, /Lidarr completed download handling disabled[\s\S]*"\$wait_for_ready" false/);
   assert.doesNotMatch(configure, /Lidarr completed download handling enabled/);

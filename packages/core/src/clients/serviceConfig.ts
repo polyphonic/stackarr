@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { readEnv } from '../env';
 import { getServices, type ServiceSummary } from '../services';
 
-export type ArrInstance = 'sonarr' | 'sonarr4k' | 'radarr' | 'radarr4k';
+export type ArrInstance = 'sonarr' | 'sonarr4k' | 'radarr' | 'radarr4k' | 'lidarr';
 export type Downloader = 'transmission' | 'qbittorrent';
 
 const defaults: Record<string, number> = {
