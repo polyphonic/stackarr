@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.17](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.16...v0.3.0-alpha.17) (2026-08-23)
+
+
+### Fixed
+
+* **config:** reconcile pending runtime integrations ([3ddc1ba](https://github.com/polyphonic/stackarr/commit/3ddc1ba4b8513f8183c2b9d6d570e0d21a8d38be))
+
 ## [0.3.0-alpha.16](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.15...v0.3.0-alpha.16) (2026-08-23)
 
 
