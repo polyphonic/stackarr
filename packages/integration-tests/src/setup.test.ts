@@ -701,7 +701,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /REDIS_HOST: \$\{ROMM_REDIS_HOST:-redis\}/);
   assert.match(compose, /REDIS_PORT: \$\{ROMM_REDIS_PORT:-6379\}/);
   assert.match(compose, /ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: \$\{ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false\}/);
-  assert.match(compose, /ENABLE_SCHEDULED_RESCAN: "true"/);
+  assert.doesNotMatch(compose, /ENABLE_SCHEDULED_RESCAN: "true"/);
   assert.doesNotMatch(compose, /\n  romm-scheduler:/);
   assert.doesNotMatch(compose, /container_name: mariadb/);
   assert.doesNotMatch(compose, /container_name: romm-db/);
