@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -326,6 +327,7 @@ test('Service credentials fall back to authoritative local Arr and Plex configur
         '--input-type=module',
         '-e',
         `
+          const { rm } = await import('node:fs/promises');
           const { writeEnvConfig } = await import('./packages/core/src/env.ts');
           const { serviceApiKey } = await import('./packages/core/src/clients/serviceConfig.ts');
           writeEnvConfig({
@@ -335,8 +337,10 @@ test('Service credentials fall back to authoritative local Arr and Plex configur
             PLEX_TOKEN: ''
           });
           const discovered = { sonarr: serviceApiKey('sonarr'), plex: serviceApiKey('plex') };
-          writeEnvConfig({ SONARR_API_KEY: 'explicit-override' });
-          console.log(JSON.stringify({ discovered, override: serviceApiKey('sonarr') }));
+          writeEnvConfig({ SONARR_API_KEY: 'stale-runtime-key' });
+          const reconciled = serviceApiKey('sonarr');
+          await rm(${JSON.stringify(path.join(configRoot, 'sonarr', 'config.xml'))});
+          console.log(JSON.stringify({ discovered, reconciled, remoteFallback: serviceApiKey('sonarr') }));
         `
       ],
       {
@@ -347,9 +351,61 @@ test('Service credentials fall back to authoritative local Arr and Plex configur
 
     assert.deepEqual(JSON.parse(stdout), {
       discovered: { sonarr: 'fixture-sonarr-key', plex: 'fixture-plex&token' },
-      override: 'explicit-override'
+      reconciled: 'fixture-sonarr-key',
+      remoteFallback: 'stale-runtime-key'
     });
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Prowlarr application reconciliation repairs stale local Arr API keys', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-prowlarr-credentials-test-'));
+  const configRoot = path.join(root, 'config');
+  const updates: Array<Record<string, unknown>> = [];
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = chunks.length ? (JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>) : {};
+    if (request.method === 'GET' && request.url === '/api/v1/applications') {
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify([{ id: 3, name: 'Lidarr', fields: [{ name: 'apiKey', value: 'stale-key' }] }]));
+      return;
+    }
+    const apiKey = ((body.fields as Array<{ name: string; value: string }>) ?? []).find(
+      (field) => field.name === 'apiKey'
+    )?.value;
+    if (request.method === 'POST' && request.url === '/api/v1/applications/test' && apiKey === 'current-key') {
+      response.end('{}');
+      return;
+    }
+    if (request.method === 'PUT' && request.url === '/api/v1/applications/3' && apiKey === 'current-key') {
+      updates.push(body);
+      response.end('{}');
+      return;
+    }
+    response.statusCode = 400;
+    response.end('{}');
+  });
+
+  try {
+    await mkdir(path.join(configRoot, 'prowlarr'), { recursive: true });
+    await mkdir(path.join(configRoot, 'lidarr'), { recursive: true });
+    await writeFile(path.join(configRoot, 'prowlarr', 'config.xml'), '<Config><ApiKey>prowlarr-key</ApiKey></Config>');
+    await writeFile(path.join(configRoot, 'lidarr', 'config.xml'), '<Config><ApiKey>current-key</ApiKey></Config>');
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+
+    const { stdout } = await execFile(process.execPath, ['stackarr/scripts/reconcile-prowlarr-applications.cjs'], {
+      cwd: repoRoot,
+      env: { ...process.env, CONFIG_ROOT: configRoot, PROWLARR_URL: `http://127.0.0.1:${address.port}` }
+    });
+
+    assert.match(stdout, /Lidarr credentials updated/);
+    assert.equal(updates.length, 1);
+  } finally {
+    server.close();
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -370,12 +426,17 @@ test('Docker runtime service URLs use reachable hosts and skip non-network helpe
           const { getServiceStatusAction } = await import('./packages/core/src/actions/services.ts');
           const { maybeServiceBaseUrl, serviceBaseUrl } = await import('./packages/core/src/clients/serviceConfig.ts');
 
-          writeEnvConfig({ ENABLE_4K_SERVARR: 'true' });
+          writeEnvConfig({
+            ENABLE_4K_SERVARR: 'true',
+            ENABLE_IMMICH: 'true',
+            IMMICH_URL: 'https://photos.example.invalid'
+          });
 
           console.log(JSON.stringify({
             radarr4k: serviceBaseUrl('radarr4k'),
             bazarr: serviceBaseUrl('bazarr'),
             plex: serviceBaseUrl('plex'),
+            immich: serviceBaseUrl('immich'),
             recyclarr: maybeServiceBaseUrl('recyclarr') ?? null,
             recyclarrStatus: await getServiceStatusAction({ service: 'recyclarr' })
           }));
@@ -395,6 +456,7 @@ test('Docker runtime service URLs use reachable hosts and skip non-network helpe
     assert.equal(result.radarr4k, 'http://radarr4k:7878');
     assert.equal(result.bazarr, 'http://bazarr:6767');
     assert.equal(result.plex, 'http://plex:32400');
+    assert.equal(result.immich, 'http://immich:2283');
     assert.equal(result.recyclarr, null);
     assert.equal(result.recyclarrStatus.unsupported, true);
   } finally {
@@ -848,6 +910,12 @@ test('security credential apply leaves the Stackarr controller running', async (
     worker,
     /apply_security[\s\S]*?update_security_task_note "Recreating the Stackarr controller with current database credentials"/
   );
+  assert.match(script, /sync_servarr_runtime_api_keys/);
+  assert.match(
+    script,
+    /ensure_database_roles\s+recreate_security_services\s+sync_servarr_runtime_api_keys \|\| credential_sync_failed=true\s+write_compose_env_file/
+  );
+  assert.match(script, /reconcile-prowlarr-applications\.cjs/);
 });
 
 test('security credential apply includes services that persist shared credentials', async () => {

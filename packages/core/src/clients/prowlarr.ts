@@ -1,4 +1,4 @@
-import { requestJson, withQuery } from './http';
+import { type JsonRequestOptions, requestJson, withQuery } from './http';
 import { serviceApiKey, serviceBaseUrl } from './serviceConfig';
 
 function key() {
@@ -13,8 +13,9 @@ export const prowlarrGet = <T = unknown>(
   requestJson<T>(
     withQuery(`${serviceBaseUrl('prowlarr')}/api/v1/${path.replace(/^\//, '')}`, { ...query, apikey: key() })
   );
-export const prowlarrPost = <T = unknown>(path: string, body: unknown) =>
+export const prowlarrPost = <T = unknown>(path: string, body: unknown, options: JsonRequestOptions = {}) =>
   requestJson<T>(withQuery(`${serviceBaseUrl('prowlarr')}/api/v1/${path.replace(/^\//, '')}`, { apikey: key() }), {
+    ...options,
     method: 'POST',
     body
   });

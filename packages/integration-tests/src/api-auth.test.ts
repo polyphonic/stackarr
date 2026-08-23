@@ -47,6 +47,7 @@ test('API key auth fails closed for command-style requests', async () => {
           const { GET: getStreamrip } = await import('./apps/frontend/src/app/api/v1/downloaders/streamrip/route.ts');
           const { GET: getLidarrStreamrip } = await import('./apps/frontend/src/app/api/v1/downloaders/streamrip/lidarr/route.ts');
           const { GET: getServiceConfig } = await import('./apps/frontend/src/app/api/v1/services/config/[service]/route.ts');
+          const { GET: getServiceHealth } = await import('./apps/frontend/src/app/api/v1/services/health/route.ts');
           const { GET: getMetrics } = await import('./apps/frontend/src/app/api/v1/system/metrics/route.ts');
           const { GET: getSystemStatus } = await import('./apps/frontend/src/app/api/v1/system/status/route.ts');
           const { readEnv, updateServiceConfigAction, updateStackConfigAction } = await import('./packages/core/src/index.ts');
@@ -182,6 +183,7 @@ test('API key auth fails closed for command-style requests', async () => {
                     params: Promise.resolve({ service: 'radarr' })
                   })
                 ],
+                ['serviceHealth', getServiceHealth(new NextRequest('http://127.0.0.1:7777/api/v1/services/health'))],
                 ['metrics', getMetrics(new NextRequest('http://127.0.0.1:7777/api/v1/system/metrics'))],
                 ['systemStatus', getSystemStatus(new NextRequest('http://127.0.0.1:7777/api/v1/system/status'))],
                 ['stackarrConfig', getStackarrConfig(new NextRequest('http://127.0.0.1:7777/api/v1/config/stackarr'))]
@@ -370,7 +372,7 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.sameOriginBrowser, 401);
     assert.equal(result.validSession, true);
     assert.equal(result.validHeader, true);
-    assert.equal(Object.values(result.protectedReadStatuses).length, 13);
+    assert.equal(Object.values(result.protectedReadStatuses).length, 14);
     assert.ok(Object.values(result.protectedReadStatuses).every((status) => status === 401));
     assert.equal(result.agentActivityWithHeader, 200);
     assert.equal(result.agentActivityDetailWithHeader, 404);

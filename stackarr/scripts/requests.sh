@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 REQUESTS_CONFIG_FILE="${STACKARR_REQUESTS_CONFIG_FILE:-$ROOT_DIR/config/requests.json}"
+NAMING_CONFIG_FILE="${STACKARR_NAMING_CONFIG_FILE:-$ROOT_DIR/config/naming.json}"
 SEERR_URL=""
 
 usage() {
@@ -86,16 +87,18 @@ build_seerr_service_payload() {
     local kind="$1"
     local current_json="$2"
 
-python3 - "$REQUESTS_CONFIG_FILE" "$kind" "$current_json" <<'PY'
+python3 - "$REQUESTS_CONFIG_FILE" "$NAMING_CONFIG_FILE" "$kind" "$current_json" <<'PY'
 import json
 import os
 import sys
 
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     config = json.load(fh)
+with open(sys.argv[2], "r", encoding="utf-8") as fh:
+    naming = json.load(fh)
 
-kind = sys.argv[2]
-current = json.loads(sys.argv[3])
+kind = sys.argv[3]
+current = json.loads(sys.argv[4])
 settings = config.get("seerr", {}).get(kind, {})
 
 if kind == "movies":
@@ -119,8 +122,8 @@ for item in current:
     if kind == "movies" and "minimumAvailability" in settings:
         item["minimumAvailability"] = settings["minimumAvailability"]
 
-    if kind == "tv" and "enableSeasonFolders" in settings:
-        item["enableSeasonFolders"] = bool(settings["enableSeasonFolders"])
+    if kind == "tv":
+        item["enableSeasonFolders"] = bool((naming.get("tv") or {}).get("seasonFolders", True))
 
 print(json.dumps(current, separators=(",", ":")))
 PY

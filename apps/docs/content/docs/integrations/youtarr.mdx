@@ -14,7 +14,7 @@ import { ServiceIntegration } from '../../../src/components/ServiceIntegration';
 - Database image: `mariadb:10.11`
 - Private URL: `http://127.0.0.1:3087`
 - Default Portless URL: `https://youtarr.stack`
-- YouTube library: `${YOUTARR_OUTPUT_ROOT}` → `/usr/src/app/data`
+- YouTube library: `${YOUTARR_OUTPUT_ROOT}` → `/usr/src/app/data` (new installs default to `${MEDIA_ROOT}/Videos/YouTube`)
 - App config: `${YOUTARR_CONFIG_ROOT}` → `/app/config`
 - Job state: `${YOUTARR_JOBS_ROOT}` → `/app/jobs`
 - Images: `${YOUTARR_IMAGES_ROOT}` → `/app/server/images`
@@ -33,6 +33,10 @@ bin/stackarr portless apply
 Stackarr enables Youtarr authentication by default. Setup generates the dedicated MariaDB credentials and uses the Stackarr account as Youtarr’s preset first account. Youtarr accepts usernames up to 32 characters and passwords up to 64 characters. Stackarr enforces those limits when Youtarr is enabled.
 
 Open Youtarr after the containers become healthy. If you want Plex library refreshes, finish the Plex token and library selection in Youtarr. Stackarr manages the container-facing Plex URL but does not copy the Plex token into tracked configuration.
+
+For a folder-organized Plex **Other Videos** library, use `${MEDIA_ROOT}/Videos` as the Plex library location and browse the library by Folder. Youtarr remains in the `YouTube` child folder, while sibling folders such as `Music Videos` become top-level categories without changing Youtarr's selected Plex library ID. Existing installs keep their configured `YOUTARR_OUTPUT_ROOT`; Stackarr does not relocate downloaded media automatically.
+
+Youtarr writes its channel name into the MP4 `album` tag, which Plex uses for the per-channel collection. Music videos can follow the same convention by setting `album` to the artist name; Agregarr is not needed for either grouping model. See [Storage Paths](/docs/setup/storage-paths#folder-organized-videos) for the combined folder and collection layout.
 
 ## Agent actions
 

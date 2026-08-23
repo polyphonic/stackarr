@@ -9,6 +9,7 @@ export * from './actions/containers';
 export * from './actions/downloads';
 export * from './actions/health';
 export * from './actions/lidarrStreamrip';
+export * from './actions/mediaReconciliation';
 export * from './actions/migration';
 export * from './actions/performance';
 export * from './actions/plex';

@@ -103,6 +103,7 @@ test('Arr provenance joins grab and import history without returning source URLs
   try {
     const { getEpisodeDownloadProvenanceAction, getMovieDownloadProvenanceAction } = await core();
     await writeRuntimeConfig({
+      CONFIG_ROOT: path.join(stateDir, 'config'),
       RADARR_URL: server.url,
       RADARR_API_KEY: 'fixture-arr-key',
       SONARR_URL: server.url,

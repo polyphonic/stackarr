@@ -18,6 +18,8 @@ BACKUP_TASK_ID="${STACKARR_TASK_ID:-}"
 BACKUP_TASK_OWNED=false
 BACKUP_TASK_FINALIZED=false
 TMP_DIR=""
+ACTIVE_BACKUP_PIDS=""
+ARCHIVE_PATH=""
 
 run_task_logger() {
     command -v node >/dev/null 2>&1 || return 1
@@ -88,6 +90,54 @@ backup_task_error() {
     return "$exit_code"
 }
 
+terminate_backup_children() {
+    local exit_code="$1"
+
+    trap - TERM INT
+    stop_active_backup_children
+    exit "$exit_code"
+}
+
+signal_backup_pid() {
+    local signal_name="$1"
+    local pid="$2"
+
+    # Long-running backup jobs use their own process groups where supported.
+    # Signal both the group and its leader so this also works without job control.
+    kill -"$signal_name" -- "-$pid" >/dev/null 2>&1 || true
+    kill -"$signal_name" "$pid" >/dev/null 2>&1 || true
+}
+
+stop_active_backup_children() {
+    local pid attempt running
+
+    for pid in $ACTIVE_BACKUP_PIDS; do
+        signal_backup_pid TERM "$pid"
+    done
+
+    for attempt in {1..50}; do
+        running=false
+        for pid in $ACTIVE_BACKUP_PIDS; do
+            if kill -0 "$pid" >/dev/null 2>&1; then
+                running=true
+                break
+            fi
+        done
+        [[ "$running" == "false" ]] && break
+        sleep 0.1
+    done
+
+    for pid in $ACTIVE_BACKUP_PIDS; do
+        if kill -0 "$pid" >/dev/null 2>&1; then
+            signal_backup_pid KILL "$pid"
+        fi
+    done
+    for pid in $ACTIVE_BACKUP_PIDS; do
+        wait "$pid" >/dev/null 2>&1 || true
+    done
+    ACTIVE_BACKUP_PIDS=""
+}
+
 task_ensure_dir() {
     local label="$1"
     local target="$2"
@@ -108,6 +158,8 @@ task_ensure_dir() {
 backup_task_start
 trap 'backup_task_finish "$?"' EXIT
 trap 'backup_task_error "$?"' ERR
+trap 'terminate_backup_children 143' TERM
+trap 'terminate_backup_children 130' INT
 
 if [[ "$(lowercase "${ENABLE_BACKUP:-true}")" =~ ^(0|false|no|off|disabled)$ ]]; then
     skipped_message="$(date '+%Y-%m-%d %H:%M:%S') backup skipped: scheduled backups disabled in Stackarr config"
@@ -230,6 +282,10 @@ JELLYFIN_EXCLUDES=(
 
 cleanup() {
     local exit_code="$?"
+    stop_active_backup_children
+    if [[ "$exit_code" -ne 0 && -n "${ARCHIVE_PATH:-}" ]]; then
+        rm -f "$ARCHIVE_PATH" "$ARCHIVE_PATH".tmp-*
+    fi
     if [[ -n "${TMP_DIR:-}" ]]; then
         rm -rf "$TMP_DIR"
     fi
@@ -262,7 +318,7 @@ with_progress_heartbeat() {
     local percent="$1"
     local label="$2"
     local watch_path="$3"
-    local monitor_pid monitor_sleep_pid monitor_sleep_pid_file status
+    local command_pid monitor_pid monitor_sleep_pid monitor_sleep_pid_file status
     shift 3
 
     monitor_sleep_pid_file="$(mktemp)"
@@ -278,8 +334,16 @@ with_progress_heartbeat() {
     ) &
     monitor_pid=$!
 
+    # Waiting for a foreground command defers Bash signal traps until that
+    # command exits. Run long work as a tracked background process group so a
+    # cancellation can stop copies, snapshots, and dumps immediately.
+    set -m
+    "$@" &
+    command_pid=$!
+    set +m
+    ACTIVE_BACKUP_PIDS="$command_pid $monitor_pid"
     set +e
-    "$@"
+    wait "$command_pid"
     status=$?
     set -e
 
@@ -289,6 +353,7 @@ with_progress_heartbeat() {
     fi
     kill "$monitor_pid" >/dev/null 2>&1 || true
     wait "$monitor_pid" >/dev/null 2>&1 || true
+    ACTIVE_BACKUP_PIDS=""
     rm -f "$monitor_sleep_pid_file"
 
     if [[ "$status" -eq 0 ]]; then
@@ -531,16 +596,47 @@ dump_youtarr_database() {
 }
 
 create_archive() {
+    local tar_pid output_pid tar_status output_status
+
     case "$BACKUP_ENCRYPTION" in
         keyfile)
+            set -m
             COPYFILE_DISABLE=1 tar -czf - -C "$TMP_DIR" "$BACKUP_NAME" | \
                 node "$BACKUP_CRYPTO" encrypt \
                     --key-file "$BACKUP_ENCRYPTION_KEY_FILE" \
-                    --output "$ARCHIVE_PATH"
+                    --output "$ARCHIVE_PATH" &
+            output_pid=$!
+            tar_pid="$(jobs -p %%)"
+            set +m
+            ACTIVE_BACKUP_PIDS="$tar_pid $output_pid"
+            set +e
+            wait "$output_pid"
+            output_status=$?
+            if [[ "$output_status" -ne 0 ]]; then
+                signal_backup_pid TERM "$tar_pid"
+            fi
+            wait "$tar_pid"
+            tar_status=$?
+            set -e
+            ACTIVE_BACKUP_PIDS=""
+            [[ "$output_status" -eq 0 ]] || return "$output_status"
+            return "$tar_status"
             ;;
         none)
-            COPYFILE_DISABLE=1 tar -czf "$ARCHIVE_PATH" -C "$TMP_DIR" "$BACKUP_NAME"
-            chmod 600 "$ARCHIVE_PATH"
+            set -m
+            COPYFILE_DISABLE=1 tar -czf "$ARCHIVE_PATH" -C "$TMP_DIR" "$BACKUP_NAME" &
+            tar_pid=$!
+            set +m
+            ACTIVE_BACKUP_PIDS="$tar_pid"
+            set +e
+            wait "$tar_pid"
+            tar_status=$?
+            set -e
+            ACTIVE_BACKUP_PIDS=""
+            if [[ "$tar_status" -eq 0 ]]; then
+                chmod 600 "$ARCHIVE_PATH"
+            fi
+            return "$tar_status"
             ;;
     esac
 }

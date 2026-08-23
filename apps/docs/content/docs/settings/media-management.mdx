@@ -16,3 +16,11 @@ Media Management stores the roots Stackarr needs to coordinate the stack.
 | Backup root | Archive destination. |
 
 The split keeps downloads away from Plex/Jellyfin library scans and keeps app data separate from generated runtime state.
+
+## Naming policy
+
+`stackarr/config/naming.json` is the portable source of truth for movie, series, season, and episode layout. Stackarr applies its native Radarr and Sonarr formats, translates the equivalent patterns into tinyMediaManager's token syntax, and propagates the TV season-folder policy to Seerr, Pulsarr, and Agregarr so newly requested series cannot override Sonarr with a conflicting per-series value.
+
+`stackarr naming apply` also reconciles the season-folder flag on existing Sonarr and Sonarr 4K series plus saved Pulsarr and Agregarr Sonarr defaults. The normal configure, start, and update workflows run the same naming and request-policy reconciliation. Enabling the flag controls future imports; it does not bulk-move every existing episode file automatically.
+
+Download clients are intentionally outside the naming contract. Transmission and qBittorrent write to the downloads staging area; Radarr and Sonarr own the final library folder and filename. Plex and Jellyfin consume that final layout but do not rename it.

@@ -772,6 +772,7 @@ services:
       REDIS_PORT: ${ROMM_REDIS_PORT:-6379}
       ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: ${ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false}
       RESCAN_ON_FILESYSTEM_CHANGE_DELAY: ${ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY:-5}
+      ENABLE_SCHEDULED_RESCAN: "true"
       ROMM_AUTH_SECRET_KEY: ${ROMM_AUTH_SECRET_KEY:-romm-local-secret-change-me}
       IGDB_CLIENT_ID: ${ROMM_IGDB_CLIENT_ID:-}
       IGDB_CLIENT_SECRET: ${ROMM_IGDB_CLIENT_SECRET:-}
@@ -908,10 +909,10 @@ services:
       TRUST_PROXY: ${YOUTARR_TRUST_PROXY:-false}
       LOG_LEVEL: ${YOUTARR_LOG_LEVEL:-info}
       PORT: ${YOUTARR_CONTAINER_PORT:-3011}
-      YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}
+      YOUTUBE_OUTPUT_DIR: ${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/Videos/YouTube}
       PLEX_URL: ${YOUTARR_PLEX_URL:-}
     volumes:
-      - "${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/YouTube}:/usr/src/app/data"
+      - "${YOUTARR_OUTPUT_ROOT:-./.stackarr/media/Videos/YouTube}:/usr/src/app/data"
       - "${YOUTARR_IMAGES_ROOT:-./.stackarr/config/youtarr/images}:/app/server/images"
       - "${YOUTARR_CONFIG_ROOT:-./.stackarr/config/youtarr/config}:/app/config"
       - "${YOUTARR_JOBS_ROOT:-./.stackarr/config/youtarr/jobs}:/app/jobs"
@@ -965,6 +966,7 @@ services:
       IMMICH_MACHINE_LEARNING_URL: http://immich-ml:3003
     volumes:
       - "${IMMICH_UPLOAD_LOCATION:-./.stackarr/media/Pictures}:/data"
+      - "${IMMICH_EXTERNAL_LIBRARY_LOCATION:-immich-external}:/external:ro"
       - "/etc/localtime:/etc/localtime:ro"
     ports:
       - "${IMMICH_BIND_IP:-127.0.0.1}:${IMMICH_WEB_PORT:-2283}:${IMMICH_CONTAINER_PORT:-2283}"
@@ -1002,6 +1004,7 @@ volumes:
   stackarr-state:
   redis-data:
   immich-model-cache:
+  immich-external:
   youtarr-db-data:
   flaresolverr-config:
     name: ${COMPOSE_PROJECT_NAME:-stackarr}_flaresolverr-config

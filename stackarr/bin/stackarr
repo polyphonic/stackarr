@@ -238,6 +238,22 @@ case "$cmd" in
                 ;;
         esac
         ;;
+    media-reconcile)
+        shift || true
+        sub="${1:-run}"
+        case "$sub" in
+            run)
+                shift || true
+                load_env
+                export STACKARR_REPO_ROOT="$REPO_ROOT"
+                export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+                exec node "$mcp_entrypoint" media-reconcile run "$@"
+                ;;
+            *)
+                fail "Usage: stackarr media-reconcile run"
+                ;;
+        esac
+        ;;
     plugins)
         shift || true
         exec "$ROOT_DIR/scripts/plugins.sh" "$@"
@@ -286,7 +302,7 @@ Stackarr commands:
   stackarr downloads apply
   stackarr security apply
   stackarr database ensure|status
-  stackarr immich status|url|open|enable|disable
+  stackarr immich status|configure|url|open|enable|disable
   stackarr romm status|url|open|enable|disable|metadata apply
   stackarr questarr status|url|open|enable|disable|apply|configure
   stackarr youtarr status|url|open|enable|disable|apply
@@ -303,6 +319,7 @@ Stackarr commands:
   stackarr mcp serve-http
   stackarr mcp config <codex|claude|lmstudio|chatgpt|hermes|openclaw|generic>
   stackarr routines run-due
+  stackarr media-reconcile run
   stackarr plugins install|export [hermes|openclaw|all]
   stackarr update services|app|install|uninstall
   stackarr permissions audit|fix

@@ -1077,6 +1077,11 @@ export function SettingsEditor({ section, env, settings }: Props) {
             value={envValue('IMMICH_UPLOAD_LOCATION')}
             onChange={(value) => updateEnv('IMMICH_UPLOAD_LOCATION', value)}
           />
+          <Text
+            label="Immich External Library Root"
+            value={envValue('IMMICH_EXTERNAL_LIBRARY_LOCATION')}
+            onChange={(value) => updateEnv('IMMICH_EXTERNAL_LIBRARY_LOCATION', value)}
+          />
           <Text label="RomM URL" value={envValue('ROMM_URL')} onChange={(value) => updateEnv('ROMM_URL', value)} />
           <Text
             label="RomM Bind IP"

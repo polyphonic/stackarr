@@ -30,12 +30,23 @@ def folder_name(name: str, default: str) -> str:
     return value
 
 
+def read_season_folders_enabled() -> bool:
+    default_path = Path(__file__).resolve().parent.parent / "config/naming.json"
+    naming_path = Path(env("STACKARR_NAMING_CONFIG_FILE", str(default_path)))
+    try:
+        naming = json.loads(naming_path.read_text(encoding="utf-8"))
+        return bool((naming.get("tv") or {}).get("seasonFolders", True))
+    except (OSError, ValueError, TypeError):
+        return True
+
+
 base_url = env("AGREGARR_URL", "http://127.0.0.1:7171").rstrip("/") + "/api/v1"
 plex_url = env("PLEX_URL", "http://127.0.0.1:32400").rstrip("/")
 settings_path = Path(env("AGREGARR_SETTINGS_PATH"))
 key_output = Path(env("AGREGARR_KEY_OUTPUT"))
 plex_token = env("PLEX_TOKEN")
 placeholder_folder = folder_name("AGREGARR_PLACEHOLDER_FOLDER", "_Trailers")
+season_folders_enabled = read_season_folders_enabled()
 
 if not settings_path.is_file():
     raise SystemExit(f"Agregarr settings are not ready at {settings_path}")
@@ -244,7 +255,13 @@ def configure_servarr(kind: str, api_key_value: str, desired_profile: str, direc
     if kind == "radarr":
         payload["minimumAvailability"] = "announced"
     else:
-        payload.update({"enableSeasonFolders": True, "seriesType": "standard", "monitorType": "none"})
+        payload.update(
+            {
+                "enableSeasonFolders": season_folders_enabled,
+                "seriesType": "standard",
+                "monitorType": "none",
+            }
+        )
 
     existing = request(f"/settings/{kind}")
     current = existing[0] if isinstance(existing, list) and existing else None
