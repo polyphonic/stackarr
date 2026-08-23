@@ -84,6 +84,15 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Read UI-editable Stackarr configuration for one service.'
   },
   {
+    name: 'stackarr_get_romm_metadata_providers',
+    category: 'services',
+    scopes: ['services:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List RomM metadata providers and report their secret-safe configured/enabled state.'
+  },
+  {
     name: 'stackarr_get_app_capabilities',
     category: 'apps',
     scopes: ['apps:read'],
