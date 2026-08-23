@@ -160,6 +160,7 @@ test('dry-run setup records Immich config for optional photo libraries', async (
   assert.equal(result.plan.config.ENABLE_IMMICH, 'true');
   assert.equal(result.plan.config.IMMICH_URL, 'http://127.0.0.1:2283');
   assert.equal(result.plan.config.IMMICH_UPLOAD_LOCATION, '/srv/media/Pictures');
+  assert.equal(result.plan.config.IMMICH_EXTERNAL_LIBRARY_LOCATION, '');
   assert.equal(result.plan.config.IMMICH_DB_USERNAME, 'immich');
   assert.equal(result.plan.config.IMMICH_DB_DATABASE_NAME, 'immich');
   assert.equal(result.plan.config.IMMICH_DB_VECTOR_EXTENSION, 'pgvector');
@@ -252,7 +253,7 @@ test('dry-run setup provisions private authenticated Youtarr with a dedicated Ma
 
   assert.equal(result.plan.config.ENABLE_YOUTARR, 'true');
   assert.equal(result.plan.config.YOUTARR_URL, 'http://127.0.0.1:3087');
-  assert.equal(result.plan.config.YOUTARR_OUTPUT_ROOT, '/srv/media/YouTube');
+  assert.equal(result.plan.config.YOUTARR_OUTPUT_ROOT, '/srv/media/Videos/YouTube');
   assert.equal(result.plan.config.YOUTARR_DB_HOST, 'youtarr-db');
   assert.equal(result.plan.config.YOUTARR_DB_PORT, '3306');
   assert.equal(result.plan.config.YOUTARR_DB_PASSWORD, '********');
@@ -595,6 +596,13 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /SAVED_API_KEY = os\.environ\.get\('PULSARR_API_KEY'/);
   assert.match(configure, /Pulsarr authenticated with its saved Stackarr agent key/);
   assert.match(configure, /neither the saved agent key nor admin login was accepted/);
+  assert.equal(configure.match(/'searchOnAdd': True/g)?.length, 2);
+  assert.doesNotMatch(configure, /'searchOnAdd': False/);
+  assert.match(configure, /'createSeasonFolders': SEASON_FOLDERS_ENABLED/);
+  assert.doesNotMatch(configure, /'createSeasonFolders': False/);
+  assert.match(configure, /"enableSeasonFolders":\$\{season_folders\}/);
+  assert.doesNotMatch(configure, /"enableSeasonFolders":true/);
+  assert.match(agregarrConfigure, /"enableSeasonFolders": season_folders_enabled/);
   assert.match(agregarrConfigure, /placeholderMovieRootFolders/);
   assert.match(agregarrConfigure, /AGREGARR_PLACEHOLDER_FOLDER/);
   assert.match(agregarrConfigure, /_Trailers/);
@@ -629,6 +637,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /persist_runtime_api_key "TIDARR_API_KEY" "\$TIDARR_KEY"/);
   assert.match(configure, /persist_runtime_api_key "PLEX_TOKEN" "\$PLEX_OWNER_TOKEN"/);
   assert.match(configure, /persist_runtime_api_key "SEERR_API_KEY" "\$SEERR_KEY"/);
+  assert.match(configure, /field\.get\("value"\) != 3/);
+  assert.match(configure, /Prowlarr 1337x indexer configured/);
+  assert.doesNotMatch(configure, /disable_prowlarr_indexer/);
+  assert.doesNotMatch(configure, /Prowlarr The Pirate Bay indexer configured/);
   assert.match(configure, /secure_runtime_secret_modes/);
   assert.match(configure, /chmod 600/);
   assert.match(cleanuparrConfigure, /\/api\/configuration\/malware_blocker/);
@@ -678,6 +690,8 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /container_name: immich-ml/);
   assert.match(compose, /IMMICH_MACHINE_LEARNING_URL: http:\/\/immich-ml:3003/);
   assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);
+  assert.match(compose, /\$\{IMMICH_EXTERNAL_LIBRARY_LOCATION:-immich-external\}:\/external:ro/);
+  assert.match(compose, /^  immich-external:$/m);
   assert.match(compose, /DB_HOSTNAME: database/);
   assert.match(compose, /REDIS_HOSTNAME: redis/);
   assert.doesNotMatch(compose, /container_name: immich-postgres/);
@@ -685,6 +699,10 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /ROMM_DB_DRIVER: \$\{ROMM_DB_DRIVER:-postgresql\}/);
   assert.match(compose, /DB_HOST: \$\{ROMM_DB_HOST:-database\}/);
   assert.match(compose, /REDIS_HOST: \$\{ROMM_REDIS_HOST:-redis\}/);
+  assert.match(compose, /REDIS_PORT: \$\{ROMM_REDIS_PORT:-6379\}/);
+  assert.match(compose, /ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: \$\{ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE:-false\}/);
+  assert.match(compose, /ENABLE_SCHEDULED_RESCAN: "true"/);
+  assert.doesNotMatch(compose, /\n  romm-scheduler:/);
   assert.doesNotMatch(compose, /container_name: mariadb/);
   assert.doesNotMatch(compose, /container_name: romm-db/);
   assert.match(databaseInit, /ensure_app_database "\$\{TRACEARR_POSTGRES_DATABASE:-tracearr\}"/);

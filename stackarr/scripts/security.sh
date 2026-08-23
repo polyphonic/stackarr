@@ -474,19 +474,68 @@ apply_servarr_auth() {
     fi
 }
 
+sync_servarr_runtime_api_key() {
+    local env_key="$1"
+    local directory="$2"
+    local label="$3"
+    local key
+
+    key="$(parse_api_key_xml "$CONFIG_ROOT/$directory/config.xml" || true)"
+    if [[ -z "$key" ]]; then
+        warn "$label API key sync failed because config.xml is unavailable"
+        return 1
+    fi
+    if [[ "${!env_key:-}" != "$key" ]]; then
+        set_env_value "$env_key" "$key"
+        ok "$label runtime API key reconciled"
+    else
+        ok "$label runtime API key verified"
+    fi
+}
+
+sync_servarr_runtime_api_keys() {
+    local failed=false
+
+    sync_servarr_runtime_api_key "PROWLARR_API_KEY" "prowlarr" "Prowlarr" || failed=true
+    if optional_service_enabled movies; then
+        sync_servarr_runtime_api_key "RADARR_API_KEY" "radarr" "Radarr" || failed=true
+    fi
+    if optional_service_enabled radarr4k; then
+        sync_servarr_runtime_api_key "RADARR4K_API_KEY" "radarr4k" "Radarr 4K" || failed=true
+    fi
+    if optional_service_enabled tv; then
+        sync_servarr_runtime_api_key "SONARR_API_KEY" "sonarr" "Sonarr" || failed=true
+    fi
+    if optional_service_enabled sonarr4k; then
+        sync_servarr_runtime_api_key "SONARR4K_API_KEY" "sonarr4k" "Sonarr 4K" || failed=true
+    fi
+    if optional_service_enabled lidarr; then
+        sync_servarr_runtime_api_key "LIDARR_API_KEY" "lidarr" "Lidarr" || failed=true
+    fi
+
+    [[ "$failed" == "false" ]]
+}
+
 apply_security() {
     local credential_sync_failed=false
 
     print_header "Stackarr Security Apply"
     load_env
+    # Before recreation, reuse any existing native keys in generated Compose state.
+    # A first start may not have config.xml yet, so only the post-start sync is mandatory.
+    sync_servarr_runtime_api_keys || true
     write_compose_env_file
     ensure_docker_runtime
 
     ensure_database_roles
     recreate_security_services
+    sync_servarr_runtime_api_keys || credential_sync_failed=true
+    write_compose_env_file
     sync_pulsarr_admin_identity || credential_sync_failed=true
     "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
     apply_servarr_auth || true
+    CONFIG_ROOT="$CONFIG_ROOT" PROWLARR_URL="$PROWLARR_URL" \
+        node "$ROOT_DIR/scripts/reconcile-prowlarr-applications.cjs" || credential_sync_failed=true
     configure_bazarr_auth || true
     "$ROOT_DIR/scripts/bookorbit.sh" credentials apply --wait || true
 

@@ -1,0 +1,144 @@
+.stack,
+.healthGroups,
+.issueList {
+  display: grid;
+  gap: 10px;
+}
+
+.loading,
+.probeWarning {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--glass-subtle);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.loading > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-soft-foreground);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-soft-foreground) 12%, transparent);
+  animation: healthPulse 1.35s ease-in-out infinite;
+}
+
+.healthGroup {
+  position: relative;
+  overflow: hidden;
+  padding: 13px;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 15px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warning) 5%, transparent), transparent 55%), var(--glass-subtle);
+}
+
+.healthHeader {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.healthHeader > div {
+  display: grid;
+  min-width: 0;
+}
+
+.healthHeader strong {
+  font-size: 13px;
+}
+
+.healthHeader small,
+.more {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.issueList {
+  margin: 12px 0 0 48px;
+}
+
+.issue {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+}
+
+.issue > span {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+
+.warningDot {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px var(--badge-warn-bg);
+}
+
+.errorDot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px var(--badge-bad-bg);
+}
+
+.issue strong {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.issue p {
+  margin: 1px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.configureLink {
+  display: inline-flex;
+  margin: 12px 0 0 48px;
+  color: var(--accent-soft-foreground);
+  font-size: 10.5px;
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.configureLink:hover {
+  text-decoration: underline;
+}
+
+@keyframes healthPulse {
+  50% {
+    opacity: 0.42;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading > span {
+    animation: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .healthHeader {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .healthHeader > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .issueList,
+  .configureLink {
+    margin-left: 0;
+  }
+}

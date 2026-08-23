@@ -8,7 +8,7 @@ Stackarr separates media, downloads, config, state, logs, and backups.
 
 | Variable | Purpose |
 | --- | --- |
-| `MEDIA_ROOT` | Movie and TV media library root. |
+| `MEDIA_ROOT` | Shared root for movie, TV, video, photo, and other media libraries. |
 | `MUSIC_ROOT` | Music library root mounted read-only into Lidarr as `/music`. |
 | `DOWNLOADS_ROOT` | Completed/incomplete/download-client folders. |
 | `APP_ROOT` | Stackarr application config root. |
@@ -20,3 +20,30 @@ Stackarr separates media, downloads, config, state, logs, and backups.
 Keep downloads outside the media library. This helps hardlink/import behavior for movie and TV libraries and avoids Plex/Jellyfin scanning incomplete files.
 
 Lidarr is configured as a music acquisition helper. It can send releases to the selected download client, but completed Lidarr downloads stay in the downloads folder so you can review, retag, convert, and add them to your source music library manually.
+
+## Folder-organized videos
+
+New Youtarr installs use `${MEDIA_ROOT}/Videos/YouTube` by default. To expose multiple video categories through one Plex **Other Videos** library, point that library at `${MEDIA_ROOT}/Videos` and use Plex's Folder view. Each direct child becomes a top-level category, for example:
+
+```text
+Videos/
+├── Music Videos/
+└── YouTube/
+```
+
+Youtarr can continue targeting the same Plex library ID after its library location is broadened from the `YouTube` child to the `Videos` parent. Its output path and container mount do not need to change. Agregarr collections are not required for this filesystem-backed organization.
+
+The same `Music Videos` folder can also be configured as Plex's global music-video path. When a file should appear both as a Music artist extra and as a standalone item in the generic Videos library, omit the optional `-video` suffix (for example, `Artist/Track Title.mp4`). Plex treats an untyped global music video as a regular music video, while the generic video scanner can index it as a standalone item.
+
+To group those standalone items by artist in Plex, set each MP4's embedded `album` tag to the artist name. This mirrors Youtarr's channel metadata: Plex's Personal Media agent maps the shared album value to a collection, while `Music Videos` remains a filesystem category visible in Folder view. The portable layout is therefore:
+
+```text
+Videos/                         # Plex Other Videos library root
+├── Music Videos/            # Folder-view category, not a collection
+│   └── Artist/Track.mp4    # album=Artist creates the artist collection
+└── YouTube/                 # Youtarr category; album=Channel is written by Youtarr
+```
+
+Agregarr is not required for these path-backed categories or embedded-metadata collections. Tag files before their first Plex scan when possible. After retagging an existing item, use **Refresh Metadata** on that item so Plex rereads the MP4.
+
+After broadening an existing Plex library location from a child folder to `Videos`, run **Scan Library Files** once. Plex's automatic scanner depends on operating-system filesystem notifications; if it does not observe the newly configured root, restart Plex during a maintenance window to register a fresh watcher. The scheduled scan remains the fallback between manual scans.

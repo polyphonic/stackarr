@@ -168,6 +168,10 @@ test('native app router only calls named Immich operations and sends the API key
     );
     assert.equal(agregarr?.dangerousOperations.length, 0);
     assert.match(agregarr?.notice ?? '', /bounded reads/);
+    const romm = capabilities.apps.find((app) => app.app === 'romm');
+    assert.deepEqual(romm?.manageOperations, []);
+    assert.match(romm?.notice ?? '', /filesystem watcher and RQ scheduler/);
+    assert.doesNotMatch(romm?.notice ?? '', /tasks\/run\/scan_library/);
     const recyclarr = capabilities.apps.find((app) => app.app === 'recyclarr');
     assert.deepEqual(
       recyclarr?.readOperations.map((operation) => operation.name),

@@ -28,4 +28,5 @@ stackarr/config/*.sqlite-shm
 stackarr/config/*.sqlite-wal
 stackarr/config/*.secret
 stackarr/state/
+stackarr/agregarr-placeholder-guard.cjs
 tmp/

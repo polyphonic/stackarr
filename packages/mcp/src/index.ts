@@ -10,6 +10,7 @@ import {
   isMcpClientId,
   type McpProfile,
   previewTelemetryPayloadAction,
+  reconcileMediaSearchesAction,
   resolveMcpGroups,
   runAgregarrJobAction,
   runDueRoutinesAction,
@@ -33,6 +34,8 @@ if (command === 'config') {
   await server.connect(new StdioServerTransport());
 } else if (command === 'routines' && process.argv[3] === 'run-due') {
   process.stdout.write(`${JSON.stringify(await runDueRoutinesAction())}\n`);
+} else if (command === 'media-reconcile' && process.argv[3] === 'run') {
+  process.stdout.write(`${JSON.stringify(await reconcileMediaSearchesAction())}\n`);
 } else if (command === 'telemetry') {
   await runTelemetryCli(process.argv.slice(3));
 } else if (command === 'agregarr') {
@@ -41,7 +44,7 @@ if (command === 'config') {
   await startStackarrMcpHttpServer();
 } else {
   throw new Error(
-    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due | stackarr telemetry status|preview|enable|disable|send | stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job'
+    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due | stackarr mcp media-reconcile run | stackarr telemetry status|preview|enable|disable|send | stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job'
   );
 }
 

@@ -400,7 +400,7 @@ test('Youtarr runtime env stays private and generates dedicated credentials and 
     const content = await readFile(composeEnvFile, 'utf8');
     assert.match(content, /^ENABLE_YOUTARR="true"$/m);
     assert.match(content, /^YOUTARR_BIND_IP="127\.0\.0\.1"$/m);
-    assert.match(content, new RegExp(`^YOUTARR_OUTPUT_ROOT="${path.join(appRoot, 'media/YouTube')}"$`, 'm'));
+    assert.match(content, new RegExp(`^YOUTARR_OUTPUT_ROOT="${path.join(appRoot, 'media/Videos/YouTube')}"$`, 'm'));
     assert.match(content, new RegExp(`^YOUTARR_CONFIG_ROOT="${path.join(appRoot, 'config/youtarr/config')}"$`, 'm'));
     assert.match(content, /^YOUTARR_DB_PASSWORD="[A-Za-z0-9]{24}"$/m);
     assert.match(content, /^YOUTARR_DB_ROOT_PASSWORD="[A-Za-z0-9]{24}"$/m);

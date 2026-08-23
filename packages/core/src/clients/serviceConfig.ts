@@ -65,10 +65,12 @@ export function maybeServiceBaseUrl(service: string) {
   const port = stackarrRuntime === 'docker' ? dockerPort : (summary?.port ?? defaults[service]);
   const host = stackarrRuntime === 'docker' ? containerHost(service, summary) : '127.0.0.1';
 
+  if (stackarrRuntime === 'docker' && host && port) {
+    return `http://${host}:${port}`;
+  }
+
   if (configured) {
-    return stackarrRuntime === 'docker' && host && port
-      ? rewriteLocalUrl(configured, host, port)
-      : trimTrailingSlash(configured);
+    return trimTrailingSlash(configured);
   }
 
   if (!host || !port) {
@@ -100,35 +102,21 @@ function containerHost(service: string, summary?: ServiceSummary) {
   return undefined;
 }
 
-function rewriteLocalUrl(raw: string, host: string, port: number) {
-  try {
-    const url = new URL(raw);
-    if (isLocalHostname(url.hostname)) {
-      url.hostname = host;
-      url.port = String(port);
-    }
-    return trimTrailingSlash(url.toString());
-  } catch {
-    return trimTrailingSlash(raw);
-  }
-}
-
-function isLocalHostname(hostname: string) {
-  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
-}
-
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, '');
 }
 
 export function serviceApiKey(service: string) {
   const env = readEnv();
+  const authoritativeServarrKey = readServarrApiKey(service, env.CONFIG_ROOT);
+  if (authoritativeServarrKey) return authoritativeServarrKey;
+
   const prefix = service.toUpperCase().replace(/[^A-Z0-9]/g, '_');
   const configured = env[`${prefix}_API_KEY`] ?? env[`${prefix}_APIKEY`] ?? env[`${prefix}_TOKEN`];
   if (configured?.trim()) return configured.trim();
 
   if (service === 'plex') return readPlexToken(env.PLEX_PREFS_PATH);
-  return readServarrApiKey(service, env.CONFIG_ROOT);
+  return undefined;
 }
 
 const servarrConfigDirectories: Record<string, string> = {

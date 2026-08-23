@@ -247,6 +247,8 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
     dangerous: {}
   },
   romm: {
+    notice:
+      'RomM 5.1 runs automatic library scans through its filesystem watcher and RQ scheduler. Manual scans use an authenticated Socket.IO event and are not exposed by this bounded HTTP-only action surface.',
     reads: {
       heartbeat: operation('GET', '/api/heartbeat', 'Read RomM availability and feature flags.', 'optional-bearer'),
       statistics: operation('GET', '/api/stats', 'Read RomM library statistics.', 'optional-bearer'),
@@ -254,9 +256,7 @@ const definitions: Record<NativeAppName, NativeAppDefinition> = {
       tasks: operation('GET', '/api/tasks', 'List available library tasks.', 'bearer'),
       task_status: operation('GET', '/api/tasks/status', 'Read queued and recent task status.', 'bearer')
     },
-    manages: {
-      scan_library: operation('POST', '/api/tasks/run/scan_library', 'Queue a RomM library scan.', 'bearer')
-    },
+    manages: {},
     dangerous: {
       cleanup_missing_roms: operation(
         'POST',
