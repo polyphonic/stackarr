@@ -39,6 +39,34 @@ test('default database resolver uses the packaged data directory when present', 
   }
 });
 
+test('default database resolver keeps runtime state outside the source checkout', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-settings-store-test-'));
+  const appRoot = path.join(root, 'application-data');
+
+  try {
+    const { stdout } = await execFile(
+      'bash',
+      ['-c', 'source "$1"; default_stackarr_database_file', 'bash', commonScript],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          APP_ROOT: '',
+          APP_ROOT_DEFAULT_OVERRIDE: appRoot,
+          CONFIG_ROOT: '',
+          STACKARR_DATA_DIR: '',
+          STACKARR_DATABASE_FILE: ''
+        }
+      }
+    );
+
+    assert.equal(stdout.trim(), path.join(appRoot, 'config/stackarr.db'));
+    assert.equal(stdout.includes(repoRoot), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('settings reads prefer the active Postgres store over the SQLite bootstrap copy', async () => {
   const fixture = await createFakePostgresFixture('stackarr.settings', { ui: { theme: 'light' } });
   const sqliteValue = JSON.stringify({ ui: { theme: 'dark' } });
