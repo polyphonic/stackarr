@@ -39,6 +39,37 @@ test('default database resolver uses the packaged data directory when present', 
   }
 });
 
+test('default database resolver preserves the former implicit database on upgrade', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-settings-store-legacy-'));
+  const legacyDatabase = path.join(root, 'source-checkout', 'stackarr', 'config', 'stackarr.db');
+  const appRoot = path.join(root, 'application-data');
+  await mkdir(path.dirname(legacyDatabase), { recursive: true });
+  await writeFile(legacyDatabase, 'legacy-state');
+
+  try {
+    const { stdout } = await execFile(
+      'bash',
+      ['-c', 'source "$1"; default_stackarr_database_file', 'bash', commonScript],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          APP_ROOT: '',
+          APP_ROOT_DEFAULT_OVERRIDE: appRoot,
+          CONFIG_ROOT: '',
+          STACKARR_DATA_DIR: '',
+          STACKARR_DATABASE_FILE: '',
+          STACKARR_LEGACY_DATABASE_FILE: legacyDatabase
+        }
+      }
+    );
+
+    assert.equal(stdout.trim(), legacyDatabase);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('default database resolver keeps runtime state outside the source checkout', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-settings-store-test-'));
   const appRoot = path.join(root, 'application-data');
@@ -55,7 +86,8 @@ test('default database resolver keeps runtime state outside the source checkout'
           APP_ROOT_DEFAULT_OVERRIDE: appRoot,
           CONFIG_ROOT: '',
           STACKARR_DATA_DIR: '',
-          STACKARR_DATABASE_FILE: ''
+          STACKARR_DATABASE_FILE: '',
+          STACKARR_LEGACY_DATABASE_FILE: path.join(root, 'missing-legacy.db')
         }
       }
     );
