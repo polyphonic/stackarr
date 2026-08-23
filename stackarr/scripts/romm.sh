@@ -13,6 +13,7 @@ Usage:
   stackarr romm open
   stackarr romm enable
   stackarr romm disable
+  stackarr romm metadata status
   stackarr romm metadata apply
 EOF
 }
@@ -115,6 +116,31 @@ apply_romm_metadata_environment() {
     exec "$ROOT_DIR/scripts/service-apply.sh" apply romm
 }
 
+print_romm_metadata_status() {
+    credentials() {
+        if [[ -n "$1" && -n "$2" ]]; then
+            printf 'configured'
+        elif [[ -n "$1" || -n "$2" ]]; then
+            printf 'incomplete'
+        else
+            printf 'not configured'
+        fi
+    }
+
+    echo "IGDB: $(credentials "${ROMM_IGDB_CLIENT_ID:-}" "${ROMM_IGDB_CLIENT_SECRET:-}")"
+    echo "ScreenScraper.fr: $(credentials "${ROMM_SCREENSCRAPER_USER:-}" "${ROMM_SCREENSCRAPER_PASSWORD:-}")"
+    echo "MobyGames: $([[ -n "${ROMM_MOBYGAMES_API_KEY:-}" ]] && printf configured || printf 'not configured')"
+    echo "RetroAchievements: $([[ -n "${ROMM_RETROACHIEVEMENTS_API_KEY:-}" ]] && printf configured || printf 'not configured')"
+    echo "SteamGridDB: $([[ -n "${ROMM_STEAMGRIDDB_API_KEY:-}" ]] && printf configured || printf 'not configured')"
+    echo "Hasheous: ${ROMM_HASHEOUS_API_ENABLED:-true}"
+    echo "Playmatch: ${ROMM_PLAYMATCH_API_ENABLED:-false}"
+    echo "LaunchBox: ${ROMM_LAUNCHBOX_API_ENABLED:-false}"
+    echo "Flashpoint: ${ROMM_FLASHPOINT_API_ENABLED:-false}"
+    echo "HowLongToBeat: ${ROMM_HLTB_API_ENABLED:-false}"
+    echo "TheGamesDB: ${ROMM_TGDB_API_ENABLED:-false}"
+    echo "ES-DE gamelist.xml: filesystem-discovered"
+}
+
 load_env
 subcommand="${1:-status}"
 case "$subcommand" in
@@ -135,6 +161,9 @@ case "$subcommand" in
         ;;
     metadata)
         case "${2:-help}" in
+            status)
+                print_romm_metadata_status
+                ;;
             apply)
                 apply_romm_metadata_environment
                 ;;
