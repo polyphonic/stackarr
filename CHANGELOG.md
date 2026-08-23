@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.16](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.15...v0.3.0-alpha.16) (2026-08-23)
+
+
+### Added
+
+* **romm:** expose metadata provider status ([3b59564](https://github.com/polyphonic/stackarr/commit/3b5956425c6388866a325838c5cbc14b3b75976a))
+* **romm:** expose metadata provider status ([0c2d303](https://github.com/polyphonic/stackarr/commit/0c2d3033424e71ae5104ec5d3f4a421dc95aa33c))
+
 ## [0.3.0-alpha.15](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.14...v0.3.0-alpha.15) (2026-08-15)
 
 
