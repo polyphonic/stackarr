@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0-alpha.18](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.17...v0.3.0-alpha.18) (2026-08-23)
+
+
+### Added
+
+* **lidarr:** add manual library controls ([8a7f8df](https://github.com/polyphonic/stackarr/commit/8a7f8dff974efb35a970ae85817a2f93007380b1))
+* **lidarr:** add safe manual-library controls and update guards ([#67](https://github.com/polyphonic/stackarr/issues/67)) ([832c5b8](https://github.com/polyphonic/stackarr/commit/832c5b871b706aa8d92f11ecedb28dcb780061c2))
+
+
+### Fixed
+
+* **indexers:** return redacted failure details ([2820ed3](https://github.com/polyphonic/stackarr/commit/2820ed34d3f68a2c1f35944ba447fb6fd03bb704))
+* **lidarr:** keep mount updates read-only ([c7a0840](https://github.com/polyphonic/stackarr/commit/c7a0840fb450e79e180dc71235f4b94c488232b8))
+* **romm:** defer scheduled rescans to upstream ([dca6f24](https://github.com/polyphonic/stackarr/commit/dca6f24a58ec150c83c0d57ea1be21f46da14c07))
+* **runtime:** keep sqlite state outside source ([5d7992b](https://github.com/polyphonic/stackarr/commit/5d7992b66c75cebc3cf4fd8ff925c31e15b60a38))
+* **runtime:** preserve legacy sqlite state ([82a692b](https://github.com/polyphonic/stackarr/commit/82a692bfde9549aedf05ae8ba66bc471b8898789))
+* **tasks:** retry transient persistence failures ([fa0ee6f](https://github.com/polyphonic/stackarr/commit/fa0ee6f532d0f7dbf5df7e5ab5da19cd60fe91e4))
+* **update:** retry bounded image pulls ([80246ae](https://github.com/polyphonic/stackarr/commit/80246ae4b69a275fe161c713bf4978bfafd6dddf))
+
+
+### Documentation
+
+* **agent:** distinguish personal and product work ([ed91a85](https://github.com/polyphonic/stackarr/commit/ed91a85d3c59cab9b1297e4335615084212caa63))
+
 ## [0.3.0-alpha.17](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.16...v0.3.0-alpha.17) (2026-08-23)
 
 
