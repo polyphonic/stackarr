@@ -76,6 +76,11 @@ client ID and secret, ScreenScraper credentials, provider keys and toggles, the 
 LaunchBox scheduling. Stackarr writes secrets to its generated, mode-`0600` Compose environment file rather than the
 tracked Compose file.
 
+For ScreenScraper.fr, enter the username and password for your ScreenScraper account. The official RomM image supplies
+RomM's application/developer credentials at build time, so Stackarr deliberately does not replace them with blank
+container environment values. Custom RomM images remain responsible for embedding or supplying their own developer
+credentials.
+
 - Chef's Choice: Hasheous + IGDB + SteamGridDB + RetroAchievements
 - French Connection: ScreenScraper + RetroAchievements
 - Twitch Fanboy: IGDB + Playmatch
@@ -96,6 +101,16 @@ For a provider change made through host-side runtime tooling, apply it with:
 ```bash
 bin/stackarr romm metadata apply
 ```
+
+Inspect the configured provider state without printing any credential values:
+
+```bash
+bin/stackarr romm metadata status
+```
+
+MCP clients can use `stackarr_get_romm_metadata_providers` for the same secret-safe provider summary, then read field
+definitions with `stackarr_get_service_config` for `romm`. `stackarr_update_service_config` can change non-secret
+provider toggles after approval; credential changes stay restricted to the authenticated dashboard.
 
 `bin/stackarr up` also applies the values. Do not edit the generated Compose `.env` directly because Stackarr replaces
 it from the authoritative runtime config.

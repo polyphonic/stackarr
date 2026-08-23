@@ -16,6 +16,7 @@ export * from './actions/plex';
 export * from './actions/pulsarr';
 export * from './actions/questarr';
 export * from './actions/releases';
+export * from './actions/romm';
 export * from './actions/routines';
 export * from './actions/seerr';
 export * from './actions/services';

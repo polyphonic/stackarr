@@ -55,6 +55,7 @@ import {
   getRecentlyWatchedAction,
   getRequestStatusAction,
   getRequestsAction,
+  getRommMetadataProvidersAction,
   getRoutinesAction,
   getSeriesStatusAction,
   getServiceConfigAction,
@@ -375,6 +376,12 @@ const tools: ToolDef[] = [
     description: 'Get editable config for one service.',
     shape: service,
     handler: getServiceConfigAction
+  },
+  {
+    name: 'stackarr_get_romm_metadata_providers',
+    description: 'List every RomM metadata provider and its secret-safe configured/enabled state.',
+    shape: empty,
+    handler: getRommMetadataProvidersAction
   },
   {
     name: 'stackarr_get_app_capabilities',

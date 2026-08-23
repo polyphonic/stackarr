@@ -382,73 +382,77 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envText('rommAdminEmail', 'Admin Email', 'ROMM_ADMIN_EMAIL'),
       envPassword('rommAdminPassword', 'Admin Password', 'ROMM_ADMIN_PASSWORD')
     ]),
-    group('Metadata Providers', [
-      envText(
-        'rommIgdbClientId',
-        'IGDB Client ID',
-        'ROMM_IGDB_CLIENT_ID',
-        'Twitch application client ID. See https://docs.romm.app/latest/getting-started/metadata-providers/#igdb'
-      ),
-      envPassword(
-        'rommIgdbClientSecret',
-        'IGDB Client Secret',
-        'ROMM_IGDB_CLIENT_SECRET',
-        'Twitch application client secret paired with the IGDB client ID.'
-      ),
-      envPassword(
-        'rommMobyGamesApiKey',
-        'MobyGames API Key',
-        'ROMM_MOBYGAMES_API_KEY',
-        'MobyGames API access is a paid feature; RomM recommends ScreenScraper as the free alternative.'
-      ),
-      envText(
-        'rommScreenscraperUser',
-        'ScreenScraper User',
-        'ROMM_SCREENSCRAPER_USER',
-        'ScreenScraper account username.'
-      ),
-      envPassword(
-        'rommScreenscraperPassword',
-        'ScreenScraper Password',
-        'ROMM_SCREENSCRAPER_PASSWORD',
-        'ScreenScraper account password.'
-      ),
-      envPassword(
-        'rommRetroachievementsApiKey',
-        'RetroAchievements API Key',
-        'ROMM_RETROACHIEVEMENTS_API_KEY',
-        'Web API key from the RetroAchievements account settings page.'
-      ),
-      envNumber(
-        'rommRefreshRetroAchievementsCacheDays',
-        'RetroAchievements Cache Days',
-        'ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS',
-        'How often RomM refreshes its cached RetroAchievements database.'
-      ),
-      envPassword(
-        'rommSteamGridDbApiKey',
-        'SteamGridDB API Key',
-        'ROMM_STEAMGRIDDB_API_KEY',
-        'Used by the manual Search cover action rather than the library scanner.'
-      ),
-      envCheckbox('rommHasheousApiEnabled', 'Use Hasheous Metadata', 'ROMM_HASHEOUS_API_ENABLED'),
-      envCheckbox('rommPlaymatchApiEnabled', 'Use Playmatch Metadata', 'ROMM_PLAYMATCH_API_ENABLED'),
-      envCheckbox('rommLaunchboxApiEnabled', 'Use LaunchBox Metadata', 'ROMM_LAUNCHBOX_API_ENABLED'),
-      envCheckbox(
-        'rommScheduledLaunchboxUpdateEnabled',
-        'Schedule LaunchBox Metadata Updates',
-        'ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA'
-      ),
-      envText(
-        'rommScheduledLaunchboxUpdateCron',
-        'LaunchBox Update Cron',
-        'ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON',
-        'Cron expression used when scheduled LaunchBox metadata updates are enabled.'
-      ),
-      envCheckbox('rommFlashpointApiEnabled', 'Use Flashpoint Metadata', 'ROMM_FLASHPOINT_API_ENABLED'),
-      envCheckbox('rommHltbApiEnabled', 'Use HowLongToBeat Metadata', 'ROMM_HLTB_API_ENABLED'),
-      envCheckbox('rommTgdbApiEnabled', 'Use TheGamesDB Metadata', 'ROMM_TGDB_API_ENABLED')
-    ])
+    group(
+      'Metadata Providers',
+      [
+        envText(
+          'rommIgdbClientId',
+          'IGDB Client ID',
+          'ROMM_IGDB_CLIENT_ID',
+          'Twitch application client ID. See https://docs.romm.app/latest/getting-started/metadata-providers/#igdb'
+        ),
+        envPassword(
+          'rommIgdbClientSecret',
+          'IGDB Client Secret',
+          'ROMM_IGDB_CLIENT_SECRET',
+          'Twitch application client secret paired with the IGDB client ID.'
+        ),
+        envText(
+          'rommScreenscraperUser',
+          'ScreenScraper.fr Username',
+          'ROMM_SCREENSCRAPER_USER',
+          'ScreenScraper.fr account username. The official RomM image already supplies its application credentials.'
+        ),
+        envPassword(
+          'rommScreenscraperPassword',
+          'ScreenScraper.fr Password',
+          'ROMM_SCREENSCRAPER_PASSWORD',
+          'ScreenScraper.fr account password. See https://docs.romm.app/latest/Getting-Started/Metadata-Providers/#screenscraper'
+        ),
+        envPassword(
+          'rommMobyGamesApiKey',
+          'MobyGames API Key',
+          'ROMM_MOBYGAMES_API_KEY',
+          'MobyGames API access is a paid feature; RomM recommends ScreenScraper as the free alternative.'
+        ),
+        envPassword(
+          'rommRetroachievementsApiKey',
+          'RetroAchievements API Key',
+          'ROMM_RETROACHIEVEMENTS_API_KEY',
+          'Web API key from the RetroAchievements account settings page.'
+        ),
+        envNumber(
+          'rommRefreshRetroAchievementsCacheDays',
+          'RetroAchievements Cache Days',
+          'ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS',
+          'How often RomM refreshes its cached RetroAchievements database.'
+        ),
+        envPassword(
+          'rommSteamGridDbApiKey',
+          'SteamGridDB API Key',
+          'ROMM_STEAMGRIDDB_API_KEY',
+          'Used by the manual Search cover action rather than the library scanner.'
+        ),
+        envCheckbox('rommHasheousApiEnabled', 'Use Hasheous Metadata', 'ROMM_HASHEOUS_API_ENABLED'),
+        envCheckbox('rommPlaymatchApiEnabled', 'Use Playmatch Metadata', 'ROMM_PLAYMATCH_API_ENABLED'),
+        envCheckbox('rommLaunchboxApiEnabled', 'Use LaunchBox Metadata', 'ROMM_LAUNCHBOX_API_ENABLED'),
+        envCheckbox(
+          'rommScheduledLaunchboxUpdateEnabled',
+          'Schedule LaunchBox Metadata Updates',
+          'ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA'
+        ),
+        envText(
+          'rommScheduledLaunchboxUpdateCron',
+          'LaunchBox Update Cron',
+          'ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON',
+          'Cron expression used when scheduled LaunchBox metadata updates are enabled.'
+        ),
+        envCheckbox('rommFlashpointApiEnabled', 'Use Flashpoint Metadata', 'ROMM_FLASHPOINT_API_ENABLED'),
+        envCheckbox('rommHltbApiEnabled', 'Use HowLongToBeat Metadata', 'ROMM_HLTB_API_ENABLED'),
+        envCheckbox('rommTgdbApiEnabled', 'Use TheGamesDB Metadata', 'ROMM_TGDB_API_ENABLED')
+      ],
+      'All environment-configurable RomM metadata providers. ES-DE gamelist.xml is discovered from library files and therefore has no Stackarr credential or toggle.'
+    )
   ],
   questarr: [
     group(
