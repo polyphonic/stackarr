@@ -1,6 +1,17 @@
 packages:
   - "apps/*"
   - "packages/*"
+supportedArchitectures:
+  os:
+    - current
+    - linux
+  cpu:
+    - current
+    - x64
+    - arm64
+  libc:
+    - current
+    - musl
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
