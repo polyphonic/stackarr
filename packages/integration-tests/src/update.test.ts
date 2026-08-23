@@ -75,7 +75,8 @@ test('local Stackarr images are preserved while published images use an independ
   assert.doesNotMatch(reconciliation, /\bup\b/);
   assert.match(compose, /\n  app-updater:\n[\s\S]*?command:\n\s+- update\n\s+- app-worker/);
   assert.match(runner, /commandStartedTaskHandoff\(command\.name, exitCode, output\)/);
-  assert.match(runner, /persistTaskUpdate\(id, patch\)/);
+  assert.match(runner, /createBufferedTaskUpdater<StackarrTask>\(persistTaskUpdate/);
+  assert.match(runner, /bufferedTaskUpdater\.update\(id, patch\)/);
   assert.doesNotMatch(runner, /writeTasks\(next\)/);
 });
 

@@ -159,7 +159,13 @@ default_stackarr_database_file() {
         return 0
     fi
 
-    printf '%s/stackarr/config/stackarr.db\n' "$REPO_ROOT"
+    local legacy_database_file="${STACKARR_LEGACY_DATABASE_FILE:-$REPO_ROOT/stackarr/config/stackarr.db}"
+    if [[ -f "$legacy_database_file" ]]; then
+        printf '%s\n' "$legacy_database_file"
+        return 0
+    fi
+
+    printf '%s/config/stackarr.db\n' "$(default_app_root)"
 }
 
 load_sqlite_runtime_config() {
@@ -992,7 +998,6 @@ context_only = {
     "STACKARR_COMPOSE_FILE",
     "STACKARR_COMPOSE_PROJECT_DIR",
     "STACKARR_CONTAINER_NAME",
-    "STACKARR_DATABASE_DIR",
     "STACKARR_DATABASE_FILE",
     "STACKARR_PLEX_HOST",
     "STACKARR_REPO_ROOT",

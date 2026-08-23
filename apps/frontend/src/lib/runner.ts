@@ -3,6 +3,7 @@ import type { CommandDefinition } from '@stackarr/core/commands';
 import { dispatchNotification, type WebhookEvent } from '@stackarr/core/notifications';
 import { repoRoot, stackarrBin } from '@stackarr/core/paths';
 import { commandStartedTaskHandoff, updateTask as persistTaskUpdate, type StackarrTask } from '@stackarr/core/tasks';
+import { createBufferedTaskUpdater } from './task-update-buffer';
 
 type InitialSetupOptions = {
   configureSeerr?: boolean;
@@ -274,6 +275,13 @@ const hostOnlyCommands = new Set([
   'PortlessUninstall'
 ]);
 
+const bufferedTaskUpdater = createBufferedTaskUpdater<StackarrTask>(persistTaskUpdate, {
+  onRetry(id, error, delayMs) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Task ${id} persistence failed; retrying in ${delayMs}ms: ${message}`);
+  }
+});
+
 function updateTask(id: string, patch: Partial<StackarrTask>) {
-  persistTaskUpdate(id, patch);
+  bufferedTaskUpdater.update(id, patch);
 }

@@ -11,6 +11,7 @@ You decide how much authority an agent receives. Stackarr enforces that choice i
 
 - Agents cannot change their own authority profile.
 - Stackarr does not expose a generic shell or generic Docker exec tool.
+- Stackarr does not expose a generic filesystem server. Mount-changing workflows are path-bounded, typed, dry-run-capable, and audited.
 - Apps are controlled through typed Stackarr actions and native app APIs.
 - Disabled apps do not appear in the tool catalog.
 - App credentials cannot be changed through MCP calls.
