@@ -10,27 +10,48 @@ function ensureKey(instance: ArrInstance) {
 export async function servarrGet<T = unknown>(
   instance: ArrInstance,
   path: string,
+  query: Record<string, string | number | boolean | undefined> = {},
+  apiVersion: 'v1' | 'v3' = 'v3'
+) {
+  const baseUrl = serviceBaseUrl(instance);
+  const apiKey = ensureKey(instance);
+  return requestJson<T>(
+    withQuery(`${baseUrl}/api/${apiVersion}/${path.replace(/^\//, '')}`, { ...query, apikey: apiKey })
+  );
+}
+
+export async function servarrPost<T = unknown>(
+  instance: ArrInstance,
+  path: string,
+  body: unknown,
+  apiVersion: 'v1' | 'v3' = 'v3',
   query: Record<string, string | number | boolean | undefined> = {}
 ) {
   const baseUrl = serviceBaseUrl(instance);
   const apiKey = ensureKey(instance);
-  return requestJson<T>(withQuery(`${baseUrl}/api/v3/${path.replace(/^\//, '')}`, { ...query, apikey: apiKey }));
+  return requestJson<T>(
+    withQuery(`${baseUrl}/api/${apiVersion}/${path.replace(/^\//, '')}`, { ...query, apikey: apiKey }),
+    {
+      method: 'POST',
+      body
+    }
+  );
 }
 
-export async function servarrPost<T = unknown>(instance: ArrInstance, path: string, body: unknown) {
+export async function servarrPut<T = unknown>(
+  instance: ArrInstance,
+  path: string,
+  body: unknown,
+  apiVersion: 'v1' | 'v3' = 'v3',
+  query: Record<string, string | number | boolean | undefined> = {}
+) {
   const baseUrl = serviceBaseUrl(instance);
   const apiKey = ensureKey(instance);
-  return requestJson<T>(withQuery(`${baseUrl}/api/v3/${path.replace(/^\//, '')}`, { apikey: apiKey }), {
-    method: 'POST',
-    body
-  });
-}
-
-export async function servarrPut<T = unknown>(instance: ArrInstance, path: string, body: unknown) {
-  const baseUrl = serviceBaseUrl(instance);
-  const apiKey = ensureKey(instance);
-  return requestJson<T>(withQuery(`${baseUrl}/api/v3/${path.replace(/^\//, '')}`, { apikey: apiKey }), {
-    method: 'PUT',
-    body
-  });
+  return requestJson<T>(
+    withQuery(`${baseUrl}/api/${apiVersion}/${path.replace(/^\//, '')}`, { ...query, apikey: apiKey }),
+    {
+      method: 'PUT',
+      body
+    }
+  );
 }

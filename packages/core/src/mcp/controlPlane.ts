@@ -153,6 +153,7 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
 
   if (category === 'plex') return { anyOf: ['plex'] };
   if (category === 'apps') {
+    if (name.includes('_lidarr_')) return { allOf: ['lidarr'] };
     if (name.includes('_pulsarr_')) return { allOf: ['pulsarr'] };
     if (name.includes('_agregarr_')) return { allOf: ['agregarr'] };
     if (name.includes('_questarr_')) return { allOf: ['questarr'] };

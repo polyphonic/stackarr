@@ -674,7 +674,7 @@ services:
       - 1.0.0.1
     volumes:
       - "${APP_ROOT:-./.stackarr}/config/lidarr:/config"
-      - "${MUSIC_ROOT:-./.stackarr/media/Music}:/music:ro"
+      - "${MUSIC_ROOT:-./.stackarr/media/Music}:/music"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
       - "${LIDARR_BIND_IP:-127.0.0.1}:8686:8686"
