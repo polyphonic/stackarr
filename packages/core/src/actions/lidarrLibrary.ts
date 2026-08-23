@@ -223,38 +223,52 @@ export async function updateLidarrMusicMountAction(input: {
   }
 
   const previousRoot = env.MUSIC_ROOT;
-  writeEnvConfig({ MUSIC_ROOT: requestedRoot });
   try {
-    await runStackarrCommandAction({
-      command: 'ServiceRuntimeApply',
-      args: ['lidarr'],
-      confirmDangerous: true,
-      reason: `Apply the approved Lidarr music mount ${requestedRoot} -> ${lidarrContainerRoot}`
-    });
+    await applyLidarrMusicMount(requestedRoot, 'Apply the approved Lidarr music mount');
+    await verifyLidarrMusicMount(requestedRoot);
+    const status = await getLidarrLibraryStatusAction();
+    return {
+      dryRun: false as const,
+      changed: plan.changed,
+      hostRoot: requestedRoot,
+      containerRoot: lidarrContainerRoot,
+      readOnly: true,
+      writable: false,
+      containerRunning: true,
+      status
+    };
   } catch (error) {
-    writeEnvConfig({ MUSIC_ROOT: previousRoot });
-    throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      await applyLidarrMusicMount(previousRoot, 'Restore the previous Lidarr music mount');
+      await verifyLidarrMusicMount(previousRoot);
+    } catch (rollbackError) {
+      const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+      throw new Error(message + ' Lidarr mount rollback failed: ' + rollbackMessage);
+    }
+    throw new Error(message + ' The previous Lidarr mount was restored.');
   }
+}
 
+async function applyLidarrMusicMount(musicRoot: string, reason: string) {
+  writeEnvConfig({ MUSIC_ROOT: musicRoot });
+  await runStackarrCommandAction({
+    command: 'ServiceRuntimeApply',
+    args: ['lidarr'],
+    confirmDangerous: true,
+    reason: reason + ' ' + musicRoot + ' -> ' + lidarrContainerRoot
+  });
+}
+
+async function verifyLidarrMusicMount(expectedRoot: string) {
   const overview = await getDockerContainerOverviewAction();
   const lidarr = overview.containers.find(
     (container) => container.name === 'lidarr' || container.composeService === 'lidarr'
   );
   const mount = lidarr?.mounts.find((item) => item.destination === lidarrContainerRoot);
-  if (!lidarr?.running || mount?.source !== requestedRoot || mount.writable !== true) {
-    throw new Error('Lidarr restarted, but the live /music mount did not match the requested writable host path.');
+  if (!lidarr?.running || mount?.source !== expectedRoot || mount.writable !== false) {
+    throw new Error('Lidarr restarted, but the live read-only /music mount did not match the requested host path.');
   }
-
-  const status = await getLidarrLibraryStatusAction();
-  return {
-    dryRun: false as const,
-    changed: plan.changed,
-    hostRoot: requestedRoot,
-    containerRoot: lidarrContainerRoot,
-    writable: true,
-    containerRunning: true,
-    status
-  };
 }
 
 async function waitForLidarrCommand(commandId: number | undefined) {

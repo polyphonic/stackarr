@@ -428,8 +428,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
   {
     name: 'stackarr_update_lidarr_music_mount',
     category: 'apps',
-    scopes: ['apps:write'],
-    risk: 'write',
+    scopes: ['apps:dangerous'],
+    risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
     description: 'Apply and verify a narrowly scoped host mount change for Lidarr /music.'

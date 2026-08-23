@@ -723,7 +723,7 @@ test('Lidarr keeps automatic completed-download handling off while allowing mana
   const configure = await readFile(new URL('../../../stackarr/scripts/configure.sh', import.meta.url), 'utf8');
   const downloads = await readFile(new URL('../../../stackarr/scripts/downloads.sh', import.meta.url), 'utf8');
 
-  assert.match(compose, /\$\{MUSIC_ROOT:-\.\/\.stackarr\/media\/Music\}:\/music"/);
+  assert.match(compose, /\$\{MUSIC_ROOT:-\.\/\.stackarr\/media\/Music\}:\/music:ro"/);
   assert.match(configure, /Lidarr completed download handling disabled[\s\S]*"\$LIDARR_KEY" false/);
   assert.match(downloads, /Lidarr completed download handling disabled[\s\S]*"\$wait_for_ready" false/);
   assert.doesNotMatch(configure, /Lidarr completed download handling enabled/);

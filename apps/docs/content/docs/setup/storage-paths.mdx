@@ -9,7 +9,7 @@ Stackarr separates media, downloads, config, state, logs, and backups.
 | Variable | Purpose |
 | --- | --- |
 | `MEDIA_ROOT` | Shared root for movie, TV, video, photo, and other media libraries. |
-| `MUSIC_ROOT` | Managed music library root mounted into Lidarr as `/music`. Lidarr receives the access required to validate and index the root while completed-download handling and automatic track renaming stay off for manual library management. |
+| `MUSIC_ROOT` | Music library root mounted read-only into Lidarr as `/music`. |
 | `DOWNLOADS_ROOT` | Completed/incomplete/download-client folders. |
 | `APP_ROOT` | Stackarr application config root. |
 | `CONFIG_ROOT` | Service configuration directories. |
