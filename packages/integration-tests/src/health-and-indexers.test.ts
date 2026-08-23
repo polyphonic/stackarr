@@ -22,6 +22,7 @@ test('Prowlarr indexer tests run per enabled indexer and return compact results'
       response.end(
         JSON.stringify([
           { id: 1, name: 'YTS', enable: true, fields: [] },
+          { id: 3, name: 'Blocked', enable: true, fields: [] },
           { id: 2, name: 'Disabled', enable: false, fields: [] }
         ])
       );
@@ -32,6 +33,11 @@ test('Prowlarr indexer tests run per enabled indexer and return compact results'
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
       const body = JSON.parse(Buffer.concat(chunks).toString()) as { name: string };
       tested.push(body.name);
+      if (body.name === 'Blocked') {
+        response.statusCode = 400;
+        response.end(JSON.stringify({ message: 'Cloudflare challenge detected', apiKey: 'must-not-leak' }));
+        return;
+      }
       response.end('{}');
       return;
     }
@@ -73,14 +79,24 @@ test('Prowlarr indexer tests run per enabled indexer and return compact results'
     );
 
     const result = JSON.parse(stdout);
-    assert.deepEqual(tested, ['YTS']);
+    assert.deepEqual(tested, ['YTS', 'Blocked']);
     assert.deepEqual(result, {
-      tested: 1,
+      tested: 2,
       passed: 1,
-      failed: 0,
-      results: [{ id: 1, name: 'YTS', status: 'passed' }]
+      failed: 1,
+      results: [
+        { id: 1, name: 'YTS', status: 'passed' },
+        {
+          id: 3,
+          name: 'Blocked',
+          status: 'failed',
+          error: `HTTP 400 from ${baseUrl}/api/v1/indexer/test?apikey=********`,
+          details: { message: 'Cloudflare challenge detected', apiKey: '********' }
+        }
+      ]
     });
     assert.doesNotMatch(stdout, /indexer-test-secret/);
+    assert.doesNotMatch(stdout, /must-not-leak/);
   } finally {
     server.close();
     await rm(root, { recursive: true, force: true });
