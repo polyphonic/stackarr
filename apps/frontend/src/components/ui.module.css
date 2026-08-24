@@ -10,7 +10,7 @@
   margin-bottom: 22px;
   background: var(--panel-bg);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 24px;
   overflow: hidden;
   box-shadow: var(--panel-shadow);
 }
