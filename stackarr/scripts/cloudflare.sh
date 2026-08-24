@@ -61,7 +61,7 @@ cloudflare_service_url() {
             printf 'http://127.0.0.1:%s\n' "${TRACEARR_PORT:-3000}"
             ;;
         bookorbit|books)
-            printf 'http://127.0.0.1:%s\n' "${BOOKORBIT_WEB_PORT:-7582}"
+            printf 'http://127.0.0.1:%s\n' "${BOOKORBIT_WEB_PORT:-42873}"
             ;;
         immich|photos|pics)
             printf 'http://127.0.0.1:%s\n' "${IMMICH_WEB_PORT:-2283}"
@@ -266,7 +266,7 @@ ports = {
     str(os.environ.get("PULSARR_PORT") or "3003"): "pulsarr",
     str(os.environ.get("MAINTAINERR_PORT") or "6246"): "maintainerr",
     str(os.environ.get("TRACEARR_PORT") or "3000"): "tracearr",
-    str(os.environ.get("BOOKORBIT_WEB_PORT") or "7582"): "bookorbit",
+    str(os.environ.get("BOOKORBIT_WEB_PORT") or "42873"): "bookorbit",
     str(os.environ.get("IMMICH_WEB_PORT") or "2283"): "immich",
     str(os.environ.get("ROMM_WEB_PORT") or "7583"): "romm",
     str(os.environ.get("QUESTARR_WEB_PORT") or "7584"): "questarr",

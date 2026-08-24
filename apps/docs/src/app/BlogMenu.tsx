@@ -1,8 +1,6 @@
 'use client';
 
-import { Dropdown, icons } from '@stackarr/ui';
-
-const ChevronDownIcon = icons.chevronDown;
+import { Dropdown } from '@stackarr/ui';
 
 type BlogMenuCategory = {
   slug: string;
@@ -15,7 +13,6 @@ export function BlogMenu({ categories, description }: { categories: BlogMenuCate
     <Dropdown>
       <Dropdown.Trigger className="blogCategoryTrigger">
         <span>Blog</span>
-        <ChevronDownIcon className="blogCategoryChevron" size={15} />
       </Dropdown.Trigger>
       <Dropdown.Popover className="blogCategoryPopover" offset={10} placement="bottom end">
         <Dropdown.Menu aria-label="Blog categories" className="blogCategoryPanel">
