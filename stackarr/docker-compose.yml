@@ -711,8 +711,8 @@ services:
       DATABASE_URL: ${BOOKORBIT_DATABASE_URL:-postgres://bookorbit:stackarr@database:5432/bookorbit}
       JWT_SECRET: ${BOOKORBIT_JWT_SECRET:-bookorbit-local-jwt-change-me}
       SETUP_BOOTSTRAP_TOKEN: ${BOOKORBIT_SETUP_TOKEN:-bookorbit-local-bootstrap-change-me}
-      APP_URL: ${BOOKORBIT_APP_URL:-http://127.0.0.1:7582}
-      CLIENT_URL: ${BOOKORBIT_CLIENT_URL:-http://127.0.0.1:7582}
+      APP_URL: ${BOOKORBIT_APP_URL:-http://127.0.0.1:42873}
+      CLIENT_URL: ${BOOKORBIT_CLIENT_URL:-http://127.0.0.1:42873}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       NODE_MAX_OLD_SPACE_SIZE: ${NODE_MAX_OLD_SPACE_SIZE:-2048}
@@ -722,13 +722,13 @@ services:
       - "${BOOKS_ROOT:-./.stackarr/media/Books}:/books"
       - "${APP_ROOT:-./.stackarr}/config/bookorbit/app:/data"
     ports:
-      - "${BOOKORBIT_BIND_IP:-127.0.0.1}:${BOOKORBIT_WEB_PORT:-7582}:${BOOKORBIT_CONTAINER_PORT:-7582}"
+      - "${BOOKORBIT_BIND_IP:-127.0.0.1}:${BOOKORBIT_WEB_PORT:-42873}:${BOOKORBIT_CONTAINER_PORT:-7582}"
     labels:
       org.opencontainers.image.title: BookOrbit
       org.opencontainers.image.description: Book library management and reader sync for Stackarr.
       homepage.name: BookOrbit
       homepage.description: Books library manager
-      homepage.href: ${BOOKORBIT_URL:-http://127.0.0.1:7582}
+      homepage.href: ${BOOKORBIT_URL:-http://127.0.0.1:42873}
     read_only: true
     tmpfs:
       - /tmp
