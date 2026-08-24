@@ -206,11 +206,15 @@ def upsert_arr(token: str, arr_type: str, name: str, url: str, api_key: str, ver
 
 
 def configure_malware_blocker(token: str, enabled: dict[str, bool]) -> None:
+    # Questarr uses the dedicated `games` category. ROM payloads commonly contain
+    # legitimate disk images, so leave this category to Stackarr's fail-closed
+    # ClamAV importer instead of Cleanuparr's media-oriented extension blocklist.
+    ignored_downloads = ["games"] if os.environ.get("ENABLE_QUESTARR", "false").lower() == "true" else []
     payload: dict[str, Any] = {
         "enabled": any(enabled.values()),
         "cronExpression": CRON,
         "useAdvancedScheduling": True,
-        "ignoredDownloads": [],
+        "ignoredDownloads": ignored_downloads,
         "ignorePrivate": False,
         "deletePrivate": True,
         "processNoContentId": True,
