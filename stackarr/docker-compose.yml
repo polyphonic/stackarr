@@ -114,7 +114,7 @@ services:
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:${DOWNLOADS_ROOT:-/stackarr-downloads}"
       # The secure game importer only reads completed downloads and writes to RomM's library.
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads:ro"
-      - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/stackarr-romm-library"
+      - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/stackarr-romm-library:${QUESTARR_ROMM_LIBRARY_MOUNT_MODE:-ro}"
       - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/Steam:ro"
       - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamWindows:ro"
       - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamLinux:ro"

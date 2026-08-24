@@ -75,6 +75,16 @@ async function ensureGameIndexer(apiKey) {
     });
     tags = [...(Array.isArray(tags) ? tags : []), gamesTag];
   }
+  let approvedTag = Array.isArray(tags)
+    ? tags.find((tag) => String(tag.label).toLowerCase() === 'stackarr-approved')
+    : undefined;
+  if (!approvedTag) {
+    approvedTag = await prowlarrRequest('/api/v1/tag', apiKey, {
+      method: 'POST',
+      body: JSON.stringify({ label: 'stackarr-approved' })
+    });
+    tags = [...(Array.isArray(tags) ? tags : []), approvedTag];
+  }
   let indexers = await prowlarrRequest('/api/v1/indexer', apiKey);
   let gameIndexer = Array.isArray(indexers)
     ? indexers.find((indexer) => indexer.name === 'Internet Archive (Games)')
@@ -94,10 +104,22 @@ async function ensureGameIndexer(apiKey) {
         redirect: false,
         priority: 25,
         appProfileId: 1,
-        tags: [gamesTag.id]
+        tags: [gamesTag.id, approvedTag.id]
       })
     });
     indexers = [...(Array.isArray(indexers) ? indexers : []), gameIndexer];
+  } else if (
+    !Array.isArray(gameIndexer.tags) ||
+    !gameIndexer.tags.includes(gamesTag.id) ||
+    !gameIndexer.tags.includes(approvedTag.id)
+  ) {
+    gameIndexer = await prowlarrRequest(`/api/v1/indexer/${gameIndexer.id}`, apiKey, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...gameIndexer,
+        tags: [...new Set([...(Array.isArray(gameIndexer.tags) ? gameIndexer.tags : []), gamesTag.id, approvedTag.id])]
+      })
+    });
   }
   const oldArchive = Array.isArray(indexers)
     ? indexers.find((indexer) => indexer.name === 'Internet Archive')
@@ -124,10 +146,21 @@ async function restrictQuestarrToGameIndexers(headers, prowlarrKey) {
   ]);
   const gamesTag = Array.isArray(tags) ? tags.find((tag) => String(tag.label).toLowerCase() === 'games') : undefined;
   if (!gamesTag) throw new Error('Prowlarr tag "games" is required before Questarr indexers can be enabled');
+  const approvedTag = Array.isArray(tags)
+    ? tags.find((tag) => String(tag.label).toLowerCase() === 'stackarr-approved')
+    : undefined;
+  if (!approvedTag)
+    throw new Error('Prowlarr tag "stackarr-approved" is required before Questarr indexers can be enabled');
 
   const allowedIds = new Set(
     (Array.isArray(prowlarrIndexers) ? prowlarrIndexers : [])
-      .filter((indexer) => indexer.enable && Array.isArray(indexer.tags) && indexer.tags.includes(gamesTag.id))
+      .filter(
+        (indexer) =>
+          indexer.enable &&
+          Array.isArray(indexer.tags) &&
+          indexer.tags.includes(gamesTag.id) &&
+          indexer.tags.includes(approvedTag.id)
+      )
       .map((indexer) => Number(indexer.id))
   );
   let enabled = 0;

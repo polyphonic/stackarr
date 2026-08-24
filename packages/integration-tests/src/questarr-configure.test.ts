@@ -32,11 +32,17 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
     else if (requestPath === '/api/indexers/prowlarr/sync') {
       response.end(JSON.stringify({ success: true, results: { added: 2, updated: 0 } }));
     } else if (requestPath === '/api/v1/tag') {
-      response.end(JSON.stringify([{ id: 2, label: 'games' }]));
+      response.end(
+        JSON.stringify([
+          { id: 2, label: 'games' },
+          { id: 3, label: 'stackarr-approved' }
+        ])
+      );
     } else if (requestPath === '/api/v1/indexer') {
       response.end(
         JSON.stringify([
-          { id: 7, name: 'Internet Archive (Games)', enable: true, tags: [2] },
+          { id: 7, name: 'Internet Archive (Games)', enable: true, tags: [2, 3] },
+          { id: 8, name: 'Unapproved Games', enable: true, tags: [2] },
           { id: 6, name: '1337x', enable: true, tags: [1] },
           { id: 5, name: 'Internet Archive', enable: false, tags: [2] }
         ])
@@ -45,12 +51,15 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
       response.end(
         JSON.stringify([
           { id: 'ia-games', url: `${serverBaseUrl}/7/api`, enabled: true },
+          { id: 'unapproved', url: `${serverBaseUrl}/8/api`, enabled: true },
           { id: '1337x', url: `${serverBaseUrl}/6/api`, enabled: true },
           { id: 'ia-old', url: `${serverBaseUrl}/5/api`, enabled: false }
         ])
       );
     } else if (requestPath === '/api/indexers/1337x' && request.method === 'PATCH') {
       response.end(JSON.stringify({ id: '1337x', enabled: false }));
+    } else if (requestPath === '/api/indexers/unapproved' && request.method === 'PATCH') {
+      response.end(JSON.stringify({ id: 'unapproved', enabled: false }));
     } else if (requestPath === '/api/downloaders/test') {
       response.end(JSON.stringify({ success: true, message: 'connected' }));
     } else if (requestPath === '/api/downloaders' && request.method === 'GET') response.end('[]');
@@ -90,7 +99,7 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
 
     assert.match(
       stdout,
-      /account created, Prowlarr indexers 2 added\/0 updated, game sources 1 enabled\/2 excluded, Stackarr Transmission connected/
+      /account created, Prowlarr indexers 2 added\/0 updated, game sources 1 enabled\/3 excluded, Stackarr Transmission connected/
     );
     assert.match(stdout, /Secure RomM import remains disabled/);
 
@@ -111,6 +120,10 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
       (request) => request.path === '/api/indexers/1337x' && request.method === 'PATCH'
     );
     assert.deepEqual(disabledNonGameSource?.body, { enabled: false });
+    const disabledUnapprovedSource = requests.find(
+      (request) => request.path === '/api/indexers/unapproved' && request.method === 'PATCH'
+    );
+    assert.deepEqual(disabledUnapprovedSource?.body, { enabled: false });
     assert.equal(
       requests.some((request) => request.path === '/api/indexers/ia-old' && request.method === 'PATCH'),
       false

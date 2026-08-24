@@ -39,7 +39,7 @@ RomM stays the library source of truth. Stackarr mirrors RomM records that still
 
 ## First run
 
-`stackarr questarr configure` creates or verifies the first account with Stackarr’s runtime credentials, installs a dedicated Internet Archive software definition, syncs Prowlarr indexers, enables only sources carrying Prowlarr's `games` tag inside Questarr, tests the selected torrent client, and adds it as a downloader. It explicitly disables Questarr's native importer. You can also perform those steps in the Questarr UI. Container-facing defaults are:
+`stackarr questarr configure` creates or verifies the first account with Stackarr’s runtime credentials, installs a dedicated Internet Archive software definition, syncs Prowlarr indexers, enables only sources carrying Prowlarr's `games` and `stackarr-approved` tags inside Questarr, tests the selected torrent client, and adds it as a downloader. It explicitly disables Questarr's native importer. You can also perform those steps in the Questarr UI. Container-facing defaults are:
 
 - Prowlarr: `http://prowlarr:9696`
 - Transmission: `http://transmission:9091`
@@ -52,7 +52,7 @@ RomM stays the library source of truth. Stackarr mirrors RomM records that still
 
 When Questarr and RomM are enabled together, Stackarr can resolve an exact game and platform from a natural title request, add it to Questarr's wanted collection, monitor its download, scan the completed payload through ClamAV, and hardlink clean files into RomM. Existing Questarr wanted items are registered automatically when their platform maps unambiguously to one RomM platform. Ambiguous items remain visible for explicit platform selection instead of being guessed. Hardlinks preserve torrent seeding and avoid a second copy when downloads and games share a filesystem. Copy remains an explicit alternative.
 
-The importer fails closed. A missing ClamAV daemon, scan error, infected result, path outside `/downloads`, or unknown platform prevents placement. Successful changed imports request one targeted RomM Quick Scan for the affected platform. RomM's filesystem watcher stays off because supported RomM 5.1 releases can enqueue duplicate watcher scans.
+The importer fails closed. A missing ClamAV daemon, scan error, infected result, path outside `/downloads`, or unknown platform prevents placement. The Stackarr controller mounts RomM read-only unless secure import is explicitly enabled; enabling import changes only that library mount to read-write. Successful changed imports request one targeted RomM Quick Scan for the affected platform. RomM's filesystem watcher stays off because supported RomM 5.1 releases can enqueue duplicate watcher scans.
 
 Enable it on an existing installation with:
 
@@ -76,11 +76,11 @@ Execution is deliberately limited to 20 writes per run because Questarr protects
 
 When RomM's optional Steam library mounts are enabled, Stackarr mounts the same macOS, Windows, and Linux roots read-only into the controller. This keeps disk verification accurate for relative platform symlinks without giving the importer write access to external Steam libraries.
 
-Owned games preserve RomM's canonical title, platform metadata, summary, and cover URL. When an identified RomM record has no cover URL, Stackarr asks Questarr for that exact IGDB game and uses its cover when available. The sync never substitutes artwork from a different title.
+New Questarr owned records preserve RomM's canonical title, platform metadata, summary, and cover URL. When an identified RomM record has no cover URL, Stackarr asks Questarr for that exact IGDB game and uses its cover when available. Existing Questarr records retain their existing metadata because upstream Questarr only exposes a status update for those records; Stackarr marks them owned without replacing their title or artwork. The sync never substitutes artwork from a different title.
 
 ## Sources
 
-Stackarr supports Questarr's Prowlarr/Torznab/Newznab source model for downloads that produce a completed Questarr downloader record. Questarr only enables Prowlarr sources carrying the `games` tag, preventing movie and TV fallback indexers from being queried for game searches. Use a small, reputable indexer set and explicit platform selection when a title exists on more than one supported platform.
+Stackarr supports Questarr's Prowlarr/Torznab/Newznab source model for downloads that produce a completed Questarr downloader record. Questarr only enables Prowlarr sources carrying both the `games` and `stackarr-approved` tags. The managed Internet Archive Games source receives both tags; an operator must explicitly approve every other lawful source before Questarr can query it. Use a small, reputable source set and explicit platform selection when a title exists on more than one supported platform.
 
 Vimm's Lair has no supported public download API and intentionally constrains download concurrency. Stackarr does not scrape or bypass those controls. Manual-file registration is not implied by this integration; the secure importer currently starts from a completed Questarr downloader record.
 

@@ -179,11 +179,11 @@ test('Questarr game requests resolve an exact platform, preserve IGDB payloads, 
       alreadyInCollection: true,
       game: { igdbId: 64, questarrGameId: 'game-64', title: 'Example Game', fsSlug: 'n64' }
     });
-    assert.match(result.conflict, /already mapped to Questarr game game-64 on RomM platform n64/);
+    assert.match(result.conflict, /RomM platform "snes" does not match IGDB platform "Nintendo 64"/);
     assert.equal(result.mappings.total, 1);
     assert.deepEqual(result.catalog, [{ name: 'stackarr_request_game', risk: 'write' }]);
     assert.deepEqual(result.missingRommCatalog, []);
-    assert.equal(postedGames.length, 3);
+    assert.equal(postedGames.length, 2);
     assert.equal(postedGames[0]?.summary, 'The full selected IGDB payload must survive.');
     assert.deepEqual(postedGames[0]?.cover, { url: 'https://images.igdb.com/example.jpg' });
     assert.equal(postedGames[0]?.status, 'wanted');
