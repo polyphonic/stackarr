@@ -173,6 +173,17 @@ run_agent_routines() {
     STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" routines run-due || log_scheduler "agent routines check failed"
 }
 
+run_questarr_romm_import() {
+    local minute slot
+    minute="$(date '+%M')"
+    slot="$(date '+%F-%H')-$((10#$minute / 10))"
+    already_ran "questarr-romm-import" "$slot" && return 0
+    mark_ran "questarr-romm-import" "$slot"
+
+    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" questarr romm-library sync --yes --limit 20 || log_scheduler "RomM owned-library sync failed"
+    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" questarr romm-import run --yes || log_scheduler "Questarr RomM import failed"
+}
+
 log_scheduler "started"
 
 while true; do
@@ -193,6 +204,10 @@ while true; do
         fi
 
         run_agent_routines
+
+        if flag_enabled "${QUESTARR_ROMM_IMPORT_ENABLED:-false}"; then
+            run_questarr_romm_import
+        fi
     else
         log_scheduler "runtime config not ready"
     fi

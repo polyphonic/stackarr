@@ -13,5 +13,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  }
 }

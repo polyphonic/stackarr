@@ -62,11 +62,13 @@ Games/
 
 This is a filesystem symlink/bind-mount arrangement, not a RomM folder-alias or platform-variant mapping. The folders use RomM's official `mac`, `win`, and `linux` platform slugs. When Steam integration is disabled, Stackarr clears all three external roots and Compose falls back to the normal RomM library source rather than mounting an external desktop library.
 
-## Filesystem watcher
+## Scans after secure imports
 
-Enable **Filesystem Watcher** under **Apps → RomM → Settings** to have RomM schedule a targeted Quick Scan when game files are created, moved, or deleted. **Watcher Delay (minutes)** controls the debounce interval and defaults to five minutes. The watcher is separate from scheduled rescans: it reacts only to filesystem changes and does not add a recurring full-library scan.
+Keep **Filesystem Watcher** disabled when using Stackarr's Questarr importer. Supported RomM 5.1 releases can enqueue duplicate watcher scans for the same filesystem events. After ClamAV approves and Stackarr places changed files, Stackarr sends one authenticated Socket.IO Quick Scan scoped to the affected platform `fs_slug`.
 
-Enabling the watcher does not retroactively enrich games that RomM already indexed without metadata providers. Run an **Unmatched Scan** once for those existing records; subsequent Steam filesystem changes will trigger the watcher normally.
+Manual library maintenance remains available in RomM. Use an **Unmatched Scan** when existing records need metadata enrichment; do not enable scheduled full rescans merely to detect imports.
+
+Treat the mounted game library as the ownership source of truth. A RomM scan marks database records whose files disappeared with `missing_from_fs`; run RomM's **Cleanup missing ROMs** maintenance task only after a current database backup to remove those stale rows without deleting filesystem content. Stackarr's Questarr ownership sync ignores missing rows even before cleanup.
 
 ## Metadata providers
 
