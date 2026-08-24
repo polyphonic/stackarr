@@ -74,6 +74,8 @@ docker exec app /app/bin/stackarr questarr romm-library sync --yes --limit 20
 
 Execution is deliberately limited to 20 writes per run because Questarr protects collection writes with a 30-request-per-minute limiter. Stackarr's scheduler repeats the sync in bounded batches before download reconciliation. Run a RomM scan first when files were added outside RomM; the sync verifies every indexed RomM record against its actual path under the mounted library and cannot identify a file that RomM has never scanned.
 
+When RomM's optional Steam library mounts are enabled, Stackarr mounts the same macOS, Windows, and Linux roots read-only into the controller. This keeps disk verification accurate for relative platform symlinks without giving the importer write access to external Steam libraries.
+
 Owned games preserve RomM's canonical title, platform metadata, summary, and cover URL. When an identified RomM record has no cover URL, Stackarr asks Questarr for that exact IGDB game and uses its cover when available. The sync never substitutes artwork from a different title.
 
 ## Sources

@@ -115,6 +115,9 @@ services:
       # The secure game importer only reads completed downloads and writes to RomM's library.
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads:ro"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/stackarr-romm-library"
+      - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/Steam:ro"
+      - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamWindows:ro"
+      - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamLinux:ro"
       - "${BACKUP_ROOT:-./.stackarr/backups}:${BACKUP_ROOT:-/stackarr-backups}"
       - "${PLEX_CONFIG_PATH:-/dev/null}:${PLEX_CONFIG_PATH:-/native-plex-config}:ro"
       - "${PLEX_PREFS_PATH:-/dev/null}:${PLEX_PREFS_PATH:-/native-plex-prefs}:ro"
