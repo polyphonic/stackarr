@@ -10,7 +10,7 @@
     "@prisma/client-runtime-utils": "7.9.1",
     "@t3-oss/env-nextjs": "^0.13.11",
     "pg": "8.20.0",
-    "ws": "8.20.1",
+    "ws": "8.21.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
