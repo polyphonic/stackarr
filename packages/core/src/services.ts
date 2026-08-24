@@ -290,7 +290,7 @@ export function getServices(): ServiceSummary[] {
       'bookorbit',
       'support',
       optionalMode(env.ENABLE_BOOKORBIT),
-      Number(env.BOOKORBIT_WEB_PORT ?? 7582),
+      Number(env.BOOKORBIT_WEB_PORT ?? 42873),
       settings
     ),
     service('immich', 'media', optionalMode(env.ENABLE_IMMICH), Number(env.IMMICH_WEB_PORT ?? 2283), settings, {

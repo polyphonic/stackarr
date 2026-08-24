@@ -593,12 +593,7 @@ function withGeneratedOptionalSecrets(config: StackarrEnv): StackarrEnv {
       unredactedConfigValue('PASSWORD') ||
       current.PASSWORD ||
       nodeCrypto.randomBytes(32).toString('hex'),
-    BOOKORBIT_CONTAINER_PORT:
-      config.BOOKORBIT_CONTAINER_PORT ||
-      current.BOOKORBIT_CONTAINER_PORT ||
-      config.BOOKORBIT_WEB_PORT ||
-      current.BOOKORBIT_WEB_PORT ||
-      '7582'
+    BOOKORBIT_CONTAINER_PORT: config.BOOKORBIT_CONTAINER_PORT || current.BOOKORBIT_CONTAINER_PORT || '7582'
   };
 
   function unredactedConfigValue(key: keyof StackarrEnv) {
