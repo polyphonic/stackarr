@@ -5,6 +5,7 @@ import { absoluteUrl, githubUrl, siteDescription, siteName } from '~/lib/site';
 import { BlogMenu } from './BlogMenu';
 import { LandingActions } from './LandingActions';
 import { LandingCodeBlock } from './LandingCodeBlock';
+import { ThemeToggle } from './ThemeToggle';
 
 const BoxIcon = icons.container;
 const BackupIcon = icons.backup;
@@ -14,24 +15,24 @@ const agentClients = ['Codex', 'Claude', 'Hermes', 'OpenClaw', 'LM Studio'];
 
 const features = [
   {
-    title: 'Chat-first control plane',
+    title: 'One control plane',
     icon: BoxIcon,
-    copy: 'Inspect, configure, repair, and operate the stack from Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client.'
+    copy: 'Operate the same stack from chat, the dashboard, the API, or the CLI without splitting state between tools.'
   },
   {
-    title: 'Native app actions',
+    title: 'Actions built for each app',
     icon: icons.download,
-    copy: 'Agents use typed Stackarr and app API actions instead of improvising shell commands against your containers.'
+    copy: 'Agents use typed Stackarr and app APIs instead of improvising shell commands against your containers.'
   },
   {
-    title: 'Authority you choose',
+    title: 'Boundaries you choose',
     icon: BackupIcon,
-    copy: 'Start read-only, allow routine management, unlock admin setup, or deliberately grant unrestricted autonomous control.'
+    copy: 'Start read-only, allow routine management, unlock setup, or deliberately grant unrestricted control.'
   },
   {
-    title: 'Never chat-only',
+    title: 'Evidence for every action',
     icon: CloudIcon,
-    copy: 'The dashboard, API, and CLI remain available whenever you want to inspect a plan, intervene, or work manually.'
+    copy: 'Review plans, approvals, results, and failures in one activity trail whenever you want to take over.'
   }
 ];
 
@@ -103,28 +104,28 @@ export default function LandingPage() {
             <img alt="" src="/icon.svg" /> Stackarr
           </a>
           <span className="navLinks">
-            <a href="/docs/agent/agent-setup">Agent setup</a>
+            <a href="#product">Product</a>
             <a href="/docs">Docs</a>
-            <a href="/docs/installation">Install</a>
             <a href={githubUrl} rel="noreferrer" target="_blank">
               GitHub
             </a>
             <BlogMenu categories={editorialCategories} description="Practical field notes for self-hosted systems." />
+            <ThemeToggle />
+            <a className="navAction" href="/docs/installation">
+              Install Stackarr
+            </a>
           </span>
         </nav>
         <div className="heroGrid">
           <div>
-            <p className="eyebrow">Agent-managed homelab control</p>
-            <h1>Your homelab, managed from chat.</h1>
+            <p className="eyebrow">Agentic control for self-hosted apps</p>
+            <h1>Run your homelab with an agent you control.</h1>
             <p className="lede">
-              Stackarr gives trusted agents one typed, safety-controlled interface to your self-hosted apps, backups,
-              containers, downloads, and infrastructure.
+              Stackarr gives trusted agents a typed, safety-controlled way to operate apps, containers, downloads,
+              backups, and infrastructure. You keep the dashboard and the final say.
             </p>
             <LandingActions />
-            <p className="heroNote">
-              Chat-first, never chat-only. Keep the dashboard and CLI, or grant an agent complete control when you
-              choose.
-            </p>
+            <p className="heroNote">Start with approvals. Expand authority only when the workflow earns your trust.</p>
           </div>
           <div className="agentConsole" aria-label="Example Stackarr agent plan">
             <div className="agentConsoleTop">
@@ -187,15 +188,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="agentPath" aria-labelledby="agent-path-title" data-analytics-section="agent_path">
+      <section
+        className="agentPath"
+        id="product"
+        aria-labelledby="agent-path-title"
+        data-analytics-section="agent_path"
+      >
         <div className="agentPathHeader">
           <div>
-            <p className="eyebrow">The first way in</p>
-            <h2 id="agent-path-title">Use the chat surface you already trust</h2>
+            <p className="eyebrow">Bring your own agent</p>
+            <h2 id="agent-path-title">Your tools, one shared operating model</h2>
           </div>
           <p>
-            Every client reaches the same shared actions and safety policy. Stackarr trims the catalog to the apps you
-            installed, so agents see useful tools instead of a wall of irrelevant commands.
+            Every client reaches the same actions and safety policy. Stackarr exposes only the apps you installed, so an
+            agent gets a focused toolset with clear consequences.
           </p>
         </div>
         <div className="agentClientRail" aria-label="Supported agent clients">
@@ -214,7 +220,7 @@ export default function LandingPage() {
           <li>
             <span className="stepNumber">02</span>
             <h3>Choose authority</h3>
-            <p>Use observe, manage, admin, or unrestricted. The launch profile—not the agent—sets the boundary.</p>
+            <p>Use observe, manage, admin, or unrestricted. The launch profile, not the agent, sets the boundary.</p>
             <a href="/docs/agent/mcp">Compare MCP profiles →</a>
           </li>
           <li>
@@ -228,11 +234,11 @@ export default function LandingPage() {
 
       <section className="visualShowcase" aria-labelledby="visual-showcase-title" data-analytics-section="product_tour">
         <div className="sectionHeader">
-          <p className="eyebrow">Manual control, always available</p>
-          <h2 id="visual-showcase-title">See what the agent sees. Take over any time.</h2>
+          <p className="eyebrow">A complete manual surface</p>
+          <h2 id="visual-showcase-title">See the stack clearly. Take over at any time.</h2>
           <p>
-            The dashboard is an optional but complete operating surface for setup, status, activity, recovery, and
-            direct service access. Agent and human actions share the same control plane.
+            Setup, status, activity, recovery, and direct app access live in the same place. Human and agent actions
+            share one source of truth.
           </p>
         </div>
         <div className="screenshotHeroCard">
@@ -254,8 +260,8 @@ export default function LandingPage() {
 
       <section className="band" id="download" data-analytics-section="download">
         <div className="sectionHeader">
-          <p className="eyebrow">Run it, then hand over the keys you choose</p>
-          <h2>Install once. Connect anywhere.</h2>
+          <p className="eyebrow">Private by default</p>
+          <h2>Install at home. Connect from the tools you use.</h2>
         </div>
         <div className="tabs">
           <article>
