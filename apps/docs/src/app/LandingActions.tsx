@@ -20,7 +20,7 @@ export function LandingActions() {
         href="/docs/agent/agent-setup"
       >
         <RocketIcon aria-hidden="true" size={18} />
-        Connect an agent
+        Start with an agent
       </Link>
       <Link
         className="heroButton secondary"
@@ -33,7 +33,7 @@ export function LandingActions() {
         href="/docs/agent/mcp"
       >
         <ControlIcon aria-hidden="true" size={18} />
-        MCP &amp; plugins
+        See safety profiles
       </Link>
       <Link
         className="heroButton secondary"
@@ -46,7 +46,7 @@ export function LandingActions() {
         href="#download"
       >
         <DownloadIcon aria-hidden="true" size={18} />
-        Install with Docker
+        Install Stackarr
       </Link>
     </div>
   );
