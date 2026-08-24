@@ -640,11 +640,12 @@ body {
   padding: 14px;
   font-size: 13px;
   line-height: 1.55;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .landingPage pre code {
   display: block;
-  min-width: max-content;
+  min-width: 0;
   color: inherit;
   font: inherit;
 }
@@ -1723,5 +1724,41 @@ body {
   .landingPage .screenshotHeroCard,
   .landingPage .screenshotGrid article {
     border-radius: 16px;
+  }
+}
+
+/* Keep the compact site header on one baseline at tablet and mobile widths. */
+@media (max-width: 700px) {
+  .landingPage .nav {
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+
+  .landingPage .navLinks {
+    width: auto;
+    flex: 1;
+    justify-content: flex-end;
+    overflow: visible;
+    margin-left: auto;
+    padding-bottom: 0;
+  }
+
+  .landingPage .navOptional {
+    display: none;
+  }
+
+  .landingPage .navLinks .navAction {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .landingPage .brand {
+    gap: 0;
+    font-size: 0;
+  }
+
+  .landingPage .navDocs {
+    display: none;
   }
 }
