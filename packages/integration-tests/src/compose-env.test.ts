@@ -57,6 +57,9 @@ test('compose env generation preserves runtime roots and the release image', asy
     assert.match(content, /^MUSIC_ROOT="\/mnt\/stackarr-media\/Music"$/m);
     assert.match(content, /^DOWNLOADS_ROOT="\/mnt\/stackarr-media\/Downloads"$/m);
     assert.match(content, /^BACKUP_ROOT="\/mnt\/stackarr-media\/Backups\/Plex"$/m);
+    assert.match(content, /^BOOKORBIT_WEB_PORT="42873"$/m);
+    assert.match(content, /^BOOKORBIT_CONTAINER_PORT="7582"$/m);
+    assert.match(content, /^BOOKORBIT_URL="http:\/\/127\.0\.0\.1:42873"$/m);
     assert.match(content, /^STACKARR_IMAGE="polyphonic\/stackarr:alpha"$/m);
     assert.match(content, /^TRANSMISSION_PASSWORD="Portable435"$/m);
     const databasePassword = content.match(/^DATABASE_SUPERUSER_PASSWORD="([^"]+)"$/m)?.[1];
