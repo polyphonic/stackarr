@@ -459,12 +459,18 @@
 
 .blogServiceMarks {
   display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
 }
 
 .blogServiceMarks img {
+  display: block;
   width: 28px;
   height: 28px;
-  margin-left: -5px;
+  flex: 0 0 28px;
+  margin-left: 0;
+  aspect-ratio: 1;
   border: 1px solid var(--blog-line);
   border-radius: 50%;
   background: var(--blog-card-strong);

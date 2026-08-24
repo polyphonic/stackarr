@@ -104,9 +104,13 @@ export default function LandingPage() {
             <img alt="" src="/icon.svg" /> Stackarr
           </a>
           <span className="navLinks">
-            <a href="#product">Product</a>
-            <a href="/docs">Docs</a>
-            <a href={githubUrl} rel="noreferrer" target="_blank">
+            <a className="navOptional" href="#product">
+              Product
+            </a>
+            <a className="navDocs" href="/docs">
+              Docs
+            </a>
+            <a className="navOptional" href={githubUrl} rel="noreferrer" target="_blank">
               GitHub
             </a>
             <BlogMenu categories={editorialCategories} description="Practical field notes for self-hosted systems." />
@@ -267,7 +271,8 @@ export default function LandingPage() {
           <article>
             <h3>1. Start Stackarr</h3>
             <p>Download the Compose file and run the control plane on any Docker-compatible host.</p>
-            <LandingCodeBlock>{`curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
+            <LandingCodeBlock>{`curl -fsSL https://stackarr.app/docker-compose.yml \\
+  -o docker-compose.yml
 docker compose --profile stackarr up -d app`}</LandingCodeBlock>
           </article>
           <article>

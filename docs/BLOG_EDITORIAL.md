@@ -45,17 +45,17 @@ When new integrations, mobile apps, or automation features enter the repository,
 
 ## Image direction
 
-Use a consistent editorial system that differs from Hypo:
+Use a consistent graphite, deep-aubergine, and electric-violet editorial system, but rotate the cover composition. Before prompting or drawing, review the four newest public covers and classify each as one of these lanes:
 
-- Technical cutaway, route map, decision diagram, or restrained system collage.
-- Graphite and deep aubergine base.
-- Electric violet signal lines.
-- Fine grid, matte texture, and restrained depth.
-- No people, fake application screenshots, invented UI, or unreadable text.
-- Use reviewed official service marks from `apps/docs/public/logos` when the article references that service.
-- Never fetch an arbitrary remote SVG at render time.
+1. **Editorial scene**: a clear physical setting or object-led illustration, such as a rooftop antenna path, storage cabinet, home floor plan, server shelf, or device environment. This is the default lane.
+2. **System cutaway**: a restrained technical illustration that shows parts or boundaries without turning the cover into a labeled flowchart.
+3. **Diagram**: a route map, decision diagram, verification matrix, graph, or boxes-and-arrows composition. Use this only when the article genuinely needs it.
 
-The cover uses a 16:9 crop. Inline figures should be wide, legible, and useful at mobile width. Alt text must explain the information in each figure, not only its appearance.
+Do not use the Diagram lane for consecutive covers, and use it at most once within any four-post window. If the newest cover is a diagram, route map, graph, labeled matrix, or boxes-and-arrows composition, the next cover must use the Editorial scene lane. Prefer the earlier object-led and environmental cover style over repeated panels, nodes, graphs, or signal-flow boxes.
+
+Keep graphite and deep aubergine as the base, with electric violet used as a signal rather than the whole composition. Fine grids, matte texture, and restrained depth are optional details, not a required template. Do not use people, fake application screenshots, invented UI, or unreadable generated text. Use reviewed official service marks from `apps/docs/public/logos` when the article references that service. Never fetch an arbitrary remote SVG at render time.
+
+The cover uses a 16:9 crop. Inline figures may still use diagrams when they materially explain a procedure, but they should not force the cover into the same diagram style. Inline figures must be wide, legible, and useful at mobile width. Alt text must explain the information in each figure, not only its appearance.
 
 ## Inline image contract
 
