@@ -31,7 +31,7 @@ print_status() {
     if optional_service_enabled questarr; then ok "Questarr is enabled"; else warn "Questarr is disabled"; fi
     echo "URL: $(questarr_url)"
     echo "Downloads: ${DOWNLOADS_ROOT} -> /downloads"
-    echo "Optional game destination: ${QUESTARR_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-$GAMES_ROOT}} -> /games"
+    echo "Stackarr-managed game destination: ${QUESTARR_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-$GAMES_ROOT}} -> /stackarr-romm-library (controller only; Questarr remains download-only)"
     echo "Database: SQLite at ${QUESTARR_DATA_ROOT:-$CONFIG_ROOT/questarr}/sqlite.db (current Questarr releases do not support PostgreSQL)"
     if [[ -n "${QUESTARR_IGDB_CLIENT_ID:-}" && -n "${QUESTARR_IGDB_CLIENT_SECRET:-}" ]]; then echo "IGDB: configured"; else echo "IGDB: needs setup"; fi
 
