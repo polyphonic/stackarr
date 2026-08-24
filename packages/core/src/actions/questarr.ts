@@ -5,7 +5,7 @@ import { readEnv } from '../env';
 
 type JsonRecord = Record<string, unknown>;
 type QuestarrRequestOptions = {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PATCH';
   body?: unknown;
 };
 
@@ -108,14 +108,14 @@ export async function startQuestarrDownloadAction(input: {
   };
 }
 
-async function questarrRequest<T>(url: string, options: QuestarrRequestOptions = {}, retry = true): Promise<T> {
+export async function questarrRequest<T>(url: string, options: QuestarrRequestOptions = {}, retry = true): Promise<T> {
   const token = await questarrToken();
   try {
     return await requestJson<T>(url, {
       method: options.method ?? 'GET',
       headers: { authorization: `Bearer ${token}` },
       body: options.body,
-      timeoutMs: options.method === 'POST' ? 30_000 : 20_000
+      timeoutMs: options.method && options.method !== 'GET' ? 30_000 : url.includes('/api/search') ? 60_000 : 20_000
     });
   } catch (error) {
     if (retry && error instanceof ServiceApiError && error.status === 401) {

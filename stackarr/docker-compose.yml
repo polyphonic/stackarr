@@ -112,6 +112,12 @@ services:
       - "${MEDIA_ROOT:-./.stackarr/media}:${MEDIA_ROOT:-/stackarr-media}:ro"
       - "${MUSIC_ROOT:-./.stackarr/media/Music}:${MUSIC_ROOT:-/stackarr-music}:ro"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:${DOWNLOADS_ROOT:-/stackarr-downloads}"
+      # The secure game importer only reads completed downloads and writes to RomM's library.
+      - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads:ro"
+      - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/stackarr-romm-library:${QUESTARR_ROMM_LIBRARY_MOUNT_MODE:-ro}"
+      - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/Steam:ro"
+      - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamWindows:ro"
+      - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamLinux:ro"
       - "${BACKUP_ROOT:-./.stackarr/backups}:${BACKUP_ROOT:-/stackarr-backups}"
       - "${PLEX_CONFIG_PATH:-/dev/null}:${PLEX_CONFIG_PATH:-/native-plex-config}:ro"
       - "${PLEX_PREFS_PATH:-/dev/null}:${PLEX_PREFS_PATH:-/native-plex-prefs}:ro"
@@ -754,6 +760,28 @@ services:
       retries: 3
       start_period: 20s
 
+  clamav:
+    profiles:
+      - questarr-import
+    container_name: clamav
+    image: ${CLAMAV_IMAGE:-clamav/clamav-debian:stable}
+    environment:
+      CLAMAV_NO_MILTERD: "true"
+    volumes:
+      - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads:ro"
+      - "${CLAMAV_DATA_ROOT:-./.stackarr/config/clamav}:/var/lib/clamav"
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping 3 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+
   romm:
     profiles:
       - romm
@@ -835,7 +863,7 @@ services:
     volumes:
       - "${QUESTARR_DATA_ROOT:-./.stackarr/config/questarr}:/app/data"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
-      - "${QUESTARR_LIBRARY_ROOT:-./.stackarr/media/Games}:/games"
+      # Questarr finds and monitors downloads. Stackarr owns scanned RomM placement.
     ports:
       - "${QUESTARR_BIND_IP:-127.0.0.1}:${QUESTARR_WEB_PORT:-7584}:${QUESTARR_CONTAINER_PORT:-5000}"
     labels:

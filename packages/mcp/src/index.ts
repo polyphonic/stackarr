@@ -11,12 +11,14 @@ import {
   type McpProfile,
   previewTelemetryPayloadAction,
   reconcileMediaSearchesAction,
+  reconcileQuestarrRommImportsAction,
   resolveMcpGroups,
   runAgregarrJobAction,
   runDueRoutinesAction,
   sendTelemetryAction,
   syncAgregarrCollectionAction,
   syncAgregarrCollectionGroupAction,
+  syncRommOwnedGamesAction,
   type ToolCategory,
   updateAgregarrCollectionGroupAction,
   updateTelemetryConfigAction
@@ -36,6 +38,16 @@ if (command === 'config') {
   process.stdout.write(`${JSON.stringify(await runDueRoutinesAction())}\n`);
 } else if (command === 'media-reconcile' && process.argv[3] === 'run') {
   process.stdout.write(`${JSON.stringify(await reconcileMediaSearchesAction())}\n`);
+} else if (command === 'questarr-romm-import' && process.argv[3] === 'run') {
+  process.stdout.write(
+    `${JSON.stringify(await reconcileQuestarrRommImportsAction({ dryRun: !process.argv.includes('--yes') }))}\n`
+  );
+} else if (command === 'romm-owned-sync' && process.argv[3] === 'run') {
+  const limitIndex = process.argv.indexOf('--limit');
+  const limit = limitIndex >= 0 ? Number(process.argv[limitIndex + 1]) : undefined;
+  process.stdout.write(
+    `${JSON.stringify(await syncRommOwnedGamesAction({ dryRun: !process.argv.includes('--yes'), limit }))}\n`
+  );
 } else if (command === 'telemetry') {
   await runTelemetryCli(process.argv.slice(3));
 } else if (command === 'agregarr') {
@@ -44,7 +56,7 @@ if (command === 'config') {
   await startStackarrMcpHttpServer();
 } else {
   throw new Error(
-    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due | stackarr mcp media-reconcile run | stackarr telemetry status|preview|enable|disable|send | stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job'
+    'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due | stackarr mcp media-reconcile run | stackarr mcp questarr-romm-import run [--yes] | stackarr mcp romm-owned-sync run [--yes] [--limit 20] | stackarr telemetry status|preview|enable|disable|send | stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job'
   );
 }
 

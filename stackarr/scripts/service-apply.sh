@@ -107,6 +107,13 @@ apply_service_runtime() {
             romm|immich|immich-ml|tracearr)
                 stackarr_compose "${profile_args[@]}" up -d redis
                 ;;
+            questarr)
+                if [[ "${QUESTARR_ROMM_IMPORT_ENABLED:-false}" == "true" ]]; then
+                    stackarr_compose "${profile_args[@]}" up -d --wait clamav
+                else
+                    stackarr_compose --profile questarr-import rm -f -s clamav >/dev/null 2>&1 || true
+                fi
+                ;;
             youtarr)
                 ensure_dir "$YOUTARR_OUTPUT_ROOT"
                 ensure_dir "$YOUTARR_CONFIG_ROOT"

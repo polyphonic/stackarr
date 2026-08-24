@@ -18,7 +18,7 @@
   "main": "dist/index.js",
   "private": true,
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --log-level=warning",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/index.js --log-level=warning",
     "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/index.ts",
     "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning node dist/index.js",
     "typecheck": "tsc --noEmit"

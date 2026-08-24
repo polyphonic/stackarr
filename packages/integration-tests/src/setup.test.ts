@@ -647,6 +647,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(cleanuparrConfigure, /\*\.exe/);
   assert.match(cleanuparrConfigure, /\/config\/stackarr-malware-blocklist\.txt/);
   assert.match(cleanuparrConfigure, /deleteIfAnyFileBlocked/);
+  assert.match(cleanuparrConfigure, /ignored_downloads = \["games"\]/);
   assert.match(configure, /Maintainerr first-run setup is complete/);
   assert.match(configure, /Maintainerr cleanup preset ideas recorded/);
   assert.match(configure, /optional_service_enabled tracearr/);

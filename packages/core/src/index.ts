@@ -16,6 +16,7 @@ export * from './actions/performance';
 export * from './actions/plex';
 export * from './actions/pulsarr';
 export * from './actions/questarr';
+export * from './actions/questarrRommImport';
 export * from './actions/releases';
 export * from './actions/romm';
 export * from './actions/routines';
