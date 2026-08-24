@@ -354,7 +354,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('rommResourcesRoot', 'Resources Root', 'ROMM_RESOURCES_ROOT'),
       envText('rommRedisHost', 'Redis Host', 'ROMM_REDIS_HOST'),
       envNumber('rommRedisPort', 'Redis Port', 'ROMM_REDIS_PORT'),
-      envCheckbox('rommFilesystemWatcher', 'Filesystem Watcher', 'ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE'),
+      envCheckbox(
+        'rommFilesystemWatcher',
+        'Filesystem Watcher',
+        'ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE',
+        'Keep disabled when using secure game imports. Stackarr requests one targeted scan after changed files.'
+      ),
       envNumber('rommFilesystemWatcherDelay', 'Watcher Delay (minutes)', 'ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY'),
       envText('rommImage', 'RomM Image', 'ROMM_IMAGE')
     ]),
@@ -466,15 +471,23 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         envNumber('questarrWebPort', 'Web Port', 'QUESTARR_WEB_PORT'),
         envNumber('questarrContainerPort', 'Container Port', 'QUESTARR_CONTAINER_PORT'),
         envPath('questarrDataRoot', 'App Data Root', 'QUESTARR_DATA_ROOT'),
-        envPath(
-          'questarrLibraryRoot',
-          'Optional Game Destination',
-          'QUESTARR_LIBRARY_ROOT',
-          'Mounted at /games for opt-in post-processing. Questarr does not synchronize RomM inventory.'
+
+        envCheckbox(
+          'questarrRommImportEnabled',
+          'Enable Secure RomM Import',
+          'QUESTARR_ROMM_IMPORT_ENABLED',
+          'Scan completed Questarr downloads with ClamAV, then place clean files in an explicit RomM platform folder.'
         ),
+        envSelect('questarrRommTransferMode', 'Transfer Mode', 'QUESTARR_ROMM_TRANSFER_MODE', ['hardlink', 'copy']),
+
+        envText('questarrRommClamavHost', 'ClamAV Host', 'QUESTARR_ROMM_CLAMAV_HOST'),
+        envNumber('questarrRommClamavPort', 'ClamAV Port', 'QUESTARR_ROMM_CLAMAV_PORT'),
+        envNumber('questarrRommImportLimit', 'Import Batch Limit', 'QUESTARR_ROMM_IMPORT_LIMIT'),
+        envPath('clamavDataRoot', 'ClamAV Signature Data', 'CLAMAV_DATA_ROOT'),
+        envText('clamavImage', 'ClamAV Image', 'CLAMAV_IMAGE'),
         envText('questarrImage', 'Docker Image', 'QUESTARR_IMAGE')
       ],
-      'Questarr shares the stack download path and can hand files to the Games folder, while RomM remains the library source of truth.'
+      'Stackarr can virus-scan completed Questarr downloads and place clean files in RomM fs_slug folders. RomM remains the library source of truth.'
     ),
     group('Questarr Credentials', [
       envText(
@@ -707,7 +720,7 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
         ),
         envText('cleanuparrImage', 'Docker Image', 'CLEANUPARR_IMAGE')
       ],
-      'Cleanuparr runs loopback-only and removes an entire Arr-managed download when any file matches the official malware blacklist.'
+      'Cleanuparr provides risky-extension and content-ID blocking. It is not antivirus; ClamAV gates secure Questarr-to-RomM imports.'
     )
   ],
   agregarr: [

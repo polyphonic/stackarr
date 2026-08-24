@@ -193,18 +193,13 @@ export function ServiceDirectory({
                   {!requirementMet ? config.service.requirement?.message : (link ?? experienceLabel(config.service))}
                 </span>
               </div>
+              {canOpen && (
+                <Button className={styles.openButton} onPress={() => openService(config)} size="sm" variant="tertiary">
+                  <icons.open aria-hidden="true" size={14} />
+                  <span>Open</span>
+                </Button>
+              )}
               <div className={styles.cardActions}>
-                {canOpen && (
-                  <Button
-                    className={styles.openButton}
-                    onPress={() => openService(config)}
-                    size="sm"
-                    variant="tertiary"
-                  >
-                    <icons.open aria-hidden="true" size={14} />
-                    <span>Open</span>
-                  </Button>
-                )}
                 {variant === 'installed' && (
                   <Button
                     aria-label={`${isFavorite ? 'Unpin' : 'Pin'} ${config.service.displayName}`}

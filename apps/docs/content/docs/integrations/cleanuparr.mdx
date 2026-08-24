@@ -1,11 +1,11 @@
 ---
 title: Cleanuparr
-description: Automated download malware blocking and queue cleanup in Stackarr.
+description: Risky-file blocking and queue cleanup in Stackarr.
 ---
 
 # Cleanuparr
 
-[Cleanuparr](https://github.com/cleanuparr/cleanuparr) monitors download clients and Arr applications for unwanted or unsafe files. Stackarr keeps its dashboard bound to loopback by default and can configure it automatically when at least one of Radarr, Sonarr, or Lidarr is enabled.
+[Cleanuparr](https://github.com/cleanuparr/cleanuparr) monitors download clients and Arr applications for unwanted or unsafe file patterns. Stackarr keeps its dashboard bound to loopback by default and can configure it automatically when at least one of Radarr, Sonarr, or Lidarr is enabled.
 
 ## Stackarr defaults
 
@@ -20,6 +20,10 @@ When **Cleanuparr Download Security** is enabled, Stackarr:
 The blocklist rejects executable, script, shortcut, macro-document, installer, package, and disk-image patterns such as `.exe`, `.lnk`, `.ps1`, and `.dmg`. Ordinary video, audio, subtitle, image, and metadata files are not blocked merely because they are inside the same download.
 
 Cleanuparr deletes the complete download when any included file matches a blocked pattern. Review its history after enabling it and adjust the managed schedule or disable auto-configuration if your library intentionally contains software images or other blocked file types.
+
+Cleanuparr is not a virus scanner. For Questarr-to-RomM imports, Stackarr uses ClamAV as a fail-closed antivirus gate before any file reaches the game library. Cleanuparr remains defense in depth for executable/script patterns and can inspect non-game downloads because Stackarr enables processing for downloads without an Arr content ID.
+
+The dedicated `games` category is excluded from Cleanuparr's media-oriented extension blocklist because valid retro payloads commonly contain `.iso` and other disk images. Those downloads remain gated by ClamAV before Stackarr imports them into RomM.
 
 ## Dashboard settings
 

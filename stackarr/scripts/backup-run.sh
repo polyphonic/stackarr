@@ -207,6 +207,7 @@ LITE_CONFIG_EXCLUDES=(
     "recyclarr/resources/"
     "*.log"
     "logs.db*"
+    "events.db*"
     "database/"
     "postgres/"
     "mysql/"
@@ -803,7 +804,7 @@ non_sqlite_snapshot_path() {
     local rel="$1"
 
     case "$rel" in
-        Backups/*|*/Backups/*|backups/*|*/backups/*|backup/*|*/backup/*|Cache/*|*/Cache/*|Caches/*|*/Caches/*|cache/*|*/cache/*|repair-*/*|*/repair-*/*|repair-backups/*|*/repair-backups/*|restore-safety-*/*|*/restore-safety-*/*|*.db.bak*|*/*.db.bak*|*.db-wal.bak*|*/*.db-wal.bak*|*.db-shm.bak*|*/*.db-shm.bak*|*.db-journal.bak*|*/*.db-journal.bak*|*.db.corrupt*|*/*.db.corrupt*|*.sqlite.bak*|*/*.sqlite.bak*|*.sqlite-wal.bak*|*/*.sqlite-wal.bak*|*.sqlite-shm.bak*|*/*.sqlite-shm.bak*|*.sqlite-journal.bak*|*/*.sqlite-journal.bak*|*.sqlite.corrupt*|*/*.sqlite.corrupt*|*.sqlite3.bak*|*/*.sqlite3.bak*|*.sqlite3-wal.bak*|*/*.sqlite3-wal.bak*|*.sqlite3-shm.bak*|*/*.sqlite3-shm.bak*|*.sqlite3-journal.bak*|*/*.sqlite3-journal.bak*|*.sqlite3.corrupt*|*/*.sqlite3.corrupt*)
+        Backups/*|*/Backups/*|backups/*|*/backups/*|backup/*|*/backup/*|Cache/*|*/Cache/*|Caches/*|*/Caches/*|cache/*|*/cache/*|repair-*/*|*/repair-*/*|repair-backups/*|*/repair-backups/*|restore-safety-*/*|*/restore-safety-*/*|*/events.db|*.db.bak*|*/*.db.bak*|*.db-wal.bak*|*/*.db-wal.bak*|*.db-shm.bak*|*/*.db-shm.bak*|*.db-journal.bak*|*/*.db-journal.bak*|*.db.corrupt*|*/*.db.corrupt*|*.sqlite.bak*|*/*.sqlite.bak*|*.sqlite-wal.bak*|*/*.sqlite-wal.bak*|*.sqlite-shm.bak*|*/*.sqlite-shm.bak*|*.sqlite-journal.bak*|*/*.sqlite-journal.bak*|*.sqlite.corrupt*|*/*.sqlite.corrupt*|*.sqlite3.bak*|*/*.sqlite3.bak*|*.sqlite3-wal.bak*|*/*.sqlite-wal.bak*|*.sqlite3-shm.bak*|*/*.sqlite3-shm.bak*|*.sqlite3-journal.bak*|*/*.sqlite3-journal.bak*|*.sqlite3.corrupt*|*/*.sqlite3.corrupt*)
             return 0
             ;;
         tinymediamanager/data/*.db|*/tinymediamanager/data/*.db)
@@ -933,6 +934,10 @@ streamrip_runtime_config=stackarr/stackarr.db:stackarr.streamripConfig
 streamrip_state_path=state/streamrip
 postgres_dump_path=database
 postgres_dump_format=globals.sql plus per-database custom-format dumps
+questarr_state=config/questarr
+romm_state=database/romm.dump plus config/romm/config and config/romm/assets
+prowlarr_custom_definitions=config/prowlarr/Definitions/Custom
+questarr_romm_import_state=state/questarr-romm-import.json
 portable_runtime_config=stackarr/runtime-config.json
 credential_audit=stackarr/credential-audit.json
 compose_env_restore=regenerated from portable runtime config; generated state/compose/.env is intentionally excluded

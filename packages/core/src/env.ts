@@ -58,6 +58,14 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_IMMICH: 'false',
   ENABLE_ROMM: 'false',
   ENABLE_QUESTARR: 'false',
+  QUESTARR_ROMM_IMPORT_ENABLED: 'false',
+  QUESTARR_ROMM_TRANSFER_MODE: 'hardlink',
+  QUESTARR_ROMM_DOWNLOAD_ROOT: '/downloads',
+  QUESTARR_ROMM_LIBRARY_ROOT: '/stackarr-romm-library',
+  QUESTARR_ROMM_CLAMAV_ENABLED: 'true',
+  QUESTARR_ROMM_CLAMAV_HOST: 'clamav',
+  QUESTARR_ROMM_CLAMAV_PORT: '3310',
+  QUESTARR_ROMM_IMPORT_LIMIT: '10',
   ENABLE_YOUTARR: 'false',
   ENABLE_TINYMEDIAMANAGER: 'true',
   ENABLE_RECYCLARR: 'true',
@@ -248,6 +256,7 @@ export const managedEnvDefaults: StackarrEnv = {
   QUESTARR_WEB_PORT: '7584',
   QUESTARR_CONTAINER_PORT: '5000',
   QUESTARR_DATA_ROOT: `${defaultConfigRoot}/questarr`,
+  CLAMAV_DATA_ROOT: `${defaultConfigRoot}/clamav`,
   QUESTARR_LIBRARY_ROOT: defaultGamesRoot,
   QUESTARR_SQLITE_DB_PATH: '/app/data/sqlite.db',
   QUESTARR_JWT_SECRET: '',
@@ -341,6 +350,7 @@ export const managedEnvDefaults: StackarrEnv = {
   PULSARR_IMAGE: 'lakker/pulsarr:latest',
   MAINTAINERR_IMAGE: 'ghcr.io/maintainerr/maintainerr:latest',
   CLEANUPARR_IMAGE: 'ghcr.io/cleanuparr/cleanuparr:latest',
+  CLAMAV_IMAGE: 'clamav/clamav-debian:stable',
   AGREGARR_IMAGE: 'agregarr/agregarr:latest',
   TRACEARR_IMAGE: 'ghcr.io/connorgallopo/tracearr:latest',
   REDIS_IMAGE: 'redis:8.8.0-alpine',
@@ -605,6 +615,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (!env.ROMM_REDIS_DATA_ROOT) merged.ROMM_REDIS_DATA_ROOT = `${appRoot}/config/romm/redis`;
   if (!env.ROMM_DB_DATA_LOCATION) merged.ROMM_DB_DATA_LOCATION = `${appRoot}/config/romm/mysql`;
   if (!env.QUESTARR_DATA_ROOT) merged.QUESTARR_DATA_ROOT = `${appRoot}/config/questarr`;
+  if (!env.CLAMAV_DATA_ROOT) merged.CLAMAV_DATA_ROOT = `${appRoot}/config/clamav`;
   if (!env.QUESTARR_LIBRARY_ROOT) merged.QUESTARR_LIBRARY_ROOT = merged.ROMM_LIBRARY_ROOT || merged.GAMES_ROOT;
   if (!env.QUESTARR_IGDB_CLIENT_ID) merged.QUESTARR_IGDB_CLIENT_ID = merged.ROMM_IGDB_CLIENT_ID || '';
   if (!env.QUESTARR_IGDB_CLIENT_SECRET) merged.QUESTARR_IGDB_CLIENT_SECRET = merged.ROMM_IGDB_CLIENT_SECRET || '';
@@ -987,6 +998,7 @@ function isHostPathKey(key: string) {
     'ROMM_REDIS_DATA_ROOT',
     'ROMM_DB_DATA_LOCATION',
     'QUESTARR_DATA_ROOT',
+    'CLAMAV_DATA_ROOT',
     'QUESTARR_LIBRARY_ROOT',
     'YOUTARR_OUTPUT_ROOT',
     'YOUTARR_CONFIG_ROOT',
