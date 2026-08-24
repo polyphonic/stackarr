@@ -547,8 +547,8 @@ load_env() {
     : "${SONARR4K_URL:=$SONARR_4K_URL}"
     : "${LIDARR_URL:=http://127.0.0.1:8686}"
     : "${BOOKORBIT_BIND_IP:=127.0.0.1}"
-    : "${BOOKORBIT_WEB_PORT:=7582}"
-    : "${BOOKORBIT_CONTAINER_PORT:=${BOOKORBIT_WEB_PORT:-7582}}"
+    : "${BOOKORBIT_WEB_PORT:=42873}"
+    : "${BOOKORBIT_CONTAINER_PORT:=7582}"
     : "${BOOKORBIT_URL:=http://127.0.0.1:${BOOKORBIT_WEB_PORT}}"
     : "${BOOKORBIT_APP_URL:=$BOOKORBIT_URL}"
     : "${BOOKORBIT_CLIENT_URL:=$BOOKORBIT_URL}"
@@ -1275,7 +1275,7 @@ service_default_port() {
             printf '%s\n' "8484"
             ;;
         bookorbit)
-            printf '%s\n' "${BOOKORBIT_WEB_PORT:-7582}"
+            printf '%s\n' "${BOOKORBIT_WEB_PORT:-42873}"
             ;;
         immich)
             printf '%s\n' "${IMMICH_WEB_PORT:-2283}"

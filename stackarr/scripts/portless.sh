@@ -170,7 +170,7 @@ register_aliases() {
     fi
 
     if truthy "${ENABLE_BOOKORBIT:-false}"; then
-        register bookorbit "${BOOKORBIT_WEB_PORT:-7582}"
+        register bookorbit "${BOOKORBIT_WEB_PORT:-42873}"
     fi
 
     if truthy "${ENABLE_IMMICH:-false}"; then

@@ -76,17 +76,22 @@ export function DashboardClient({
             </Link>
           </div>
         </div>
-        <div className={styles.heroPulse} aria-label="Stack summary">
-          <span className={metrics.serviceCounts.dockerRunning === null ? styles.pulseWarn : styles.pulseGood}></span>
-          <strong>{metrics.serviceCounts.dockerRunning ?? '—'}</strong>
-          <small>
-            {metrics.serviceCounts.dockerRunning === null ? 'Docker status unavailable' : 'containers running'}
-          </small>
+        <div className={styles.heroPulse} aria-label="Container runtime status">
+          <span className={metrics.serviceCounts.dockerRunning === null ? styles.pulseWarn : styles.pulseGood} />
+          <div>
+            <small>Container runtime</small>
+            <strong>
+              {metrics.serviceCounts.dockerRunning === null
+                ? 'Status unavailable'
+                : String(metrics.serviceCounts.dockerRunning) + ' running'}
+            </strong>
+          </div>
+          <Link href="/containers">View containers</Link>
         </div>
       </section>
 
       <section className={styles.quickLinks} aria-label="Quick destinations">
-        <QuickLink href="/activity/queue" icon="activity" label="Active Work" value={String(activeTasks.length)} />
+        <QuickLink href="/activity/queue" icon="activity" label="Active work" value={String(activeTasks.length)} />
         <QuickLink href="/containers" icon="containers" label="Containers" value="Explore" />
         {hasDownloads && <QuickLink href="/downloaders" icon="download" label="Downloads" value="Manage" />}
         <QuickLink href="/agent" icon="manage" label="Agents" value="Explore" />
