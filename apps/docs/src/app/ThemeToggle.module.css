@@ -67,21 +67,23 @@
 
 @media (max-width: 760px) {
   .toggle {
-    width: 2.25rem;
+    width: auto;
     justify-content: center;
-    padding: 0;
+    padding: 0 0.75rem;
   }
 
   .track {
-    width: 1.5rem;
+    display: none;
   }
 
   .label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
+    position: static;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+    clip: auto;
     white-space: nowrap;
+    text-align: center;
   }
 }
