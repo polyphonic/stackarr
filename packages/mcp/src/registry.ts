@@ -75,6 +75,7 @@ import {
   listLidarrStreamripAlbumsAction,
   listMcpConnectionPoliciesAction,
   listPulsarrUsersAction,
+  listQuestarrRommImportMappingsAction,
   listServiceConfigsAction,
   listServicesAction,
   listStreamripJobsAction,
@@ -90,10 +91,13 @@ import {
   queueYoutarrDownloadAction,
   readNativeAppAction,
   readTasks,
+  reconcileQuestarrRommImportsAction,
   redactSecrets,
   refreshArrItemAction,
   refreshPlexMetadataAction,
+  registerQuestarrRommGameAction,
   removeDownloadAction,
+  requestQuestarrGameAction,
   resolveMcpGroups,
   resolveMcpProfile,
   restoreBackupAction,
@@ -126,6 +130,7 @@ import {
   stopStackAction,
   syncAgregarrCollectionAction,
   syncAgregarrCollectionGroupAction,
+  syncRommOwnedGamesAction,
   type ToolCatalogEntry,
   type ToolCategory,
   testArrToDownloaderAction,
@@ -546,6 +551,55 @@ const tools: ToolDef[] = [
       downloadType: z.enum(['main', 'update', 'dlc', 'extra']).optional()
     },
     handler: startQuestarrDownloadAction
+  },
+  {
+    name: 'stackarr_request_game',
+    description:
+      'Resolve one exact IGDB game through Questarr, add it to the wanted collection, and map its platform into RomM. Returns candidates instead of guessing when the title is ambiguous.',
+    shape: {
+      title: z.string().trim().min(1).max(200),
+      platform: z.string().trim().min(1).max(200).optional(),
+      fsSlug: z
+        .string()
+        .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
+        .optional()
+    },
+    handler: requestQuestarrGameAction
+  },
+  {
+    name: 'stackarr_register_questarr_romm_game',
+    description: 'Add one IGDB game to Questarr and explicitly register its RomM platform filesystem slug.',
+    shape: {
+      igdbId: z.number().int().positive().max(2_147_483_647),
+      fsSlug: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
+    },
+    handler: registerQuestarrRommGameAction
+  },
+  {
+    name: 'stackarr_list_questarr_romm_import_mappings',
+    description: 'List Stackarr-owned Questarr-to-RomM import mappings and their idempotent import status.',
+    shape: empty,
+    handler: listQuestarrRommImportMappingsAction
+  },
+  {
+    name: 'stackarr_sync_romm_owned_games',
+    description:
+      'Dry-run by default: mirror RomM games that are still present on disk into Questarr as owned. Uses RomM IGDB identity and returns unidentified records for review.',
+    shape: {
+      dryRun: z.boolean().optional(),
+      limit: z.number().int().min(1).max(20).optional()
+    },
+    handler: syncRommOwnedGamesAction
+  },
+  {
+    name: 'stackarr_reconcile_questarr_romm_imports',
+    description: 'Dry-run by default: safely reconcile only registered completed Questarr downloads into RomM.',
+    shape: {
+      dryRun: z.boolean().optional(),
+      mode: z.enum(['hardlink', 'copy']).optional(),
+      limit: z.number().int().min(1).max(100).optional()
+    },
+    handler: reconcileQuestarrRommImportsAction
   },
   {
     name: 'stackarr_get_youtarr_health',

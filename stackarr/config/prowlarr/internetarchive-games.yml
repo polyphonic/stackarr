@@ -1,0 +1,91 @@
+---
+id: internetarchive-stackarr
+name: Internet Archive (Games)
+description: "Internet Archive software search for Stackarr game requests"
+language: en-US
+type: public
+encoding: UTF-8
+links:
+  - https://archive.org/
+
+caps:
+  categorymappings:
+    - {id: software, cat: PC, desc: software}
+  modes:
+    search: [q]
+
+settings:
+  - name: titleOnly
+    type: checkbox
+    label: Search only in title
+    default: true
+  - name: noMagnet
+    type: checkbox
+    label: Download using .torrent only. No Magnets.
+    default: false
+  - name: sort
+    type: select
+    label: Sort requested from site
+    default: publicdate
+    options:
+      publicdate: created
+      downloads: downloads
+      item_size: size
+  - name: type
+    type: select
+    label: Order requested from site
+    default: "-"
+    options:
+      "-": desc
+      "_": asc
+
+search:
+  headers:
+    User-Agent: ["Mozilla/5.0 (compatible; Stackarr/1.0; +https://github.com/polyphonic/stackarr)"]
+  paths:
+    - path: advancedsearch.php
+      response:
+        type: json
+  inputs:
+    q: "{{ if and .Config.titleOnly .Keywords }}title:({{ else }}{{ end }}{{ if .Keywords }}{{ .Keywords }}{{ else }}{{ end }}{{ if and .Config.titleOnly .Keywords }}){{ else }}{{ end }}{{ if .Keywords }} AND {{ else }}{{ end }}format:(\"Archive BitTorrent\") AND mediatype:(software)"
+    fl[]: "identifier,title,mediatype,item_size,downloads,btih,publicdate"
+    sort: "{{ if .Keywords }}{{ re_replace .Config.type \"_\" \"\" }}{{ .Config.sort }}{{ else }}-publicdate{{ end }}"
+    rows: 100
+    output: json
+  rows:
+    selector: response.docs
+    count:
+      selector: response.numFound
+  fields:
+    _id:
+      selector: identifier
+    category:
+      text: software
+    title:
+      selector: title
+      optional: true
+      default: "Missing title for {{ .Result._id }}"
+    details:
+      text: "details/{{ .Result._id }}"
+    download:
+      text: "download/{{ .Result._id }}/{{ .Result._id }}_archive.torrent"
+    _btih:
+      selector: btih
+      optional: true
+    infohash:
+      text: "{{ if .Config.noMagnet }}{{ else }}{{ .Result._btih }}{{ end }}"
+    date:
+      selector: publicdate
+    size:
+      selector: item_size
+    grabs:
+      selector: downloads
+      optional: true
+    seeders:
+      text: 1
+    leechers:
+      text: 1
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1

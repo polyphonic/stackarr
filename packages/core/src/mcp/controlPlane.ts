@@ -153,6 +153,13 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
 
   if (category === 'plex') return { anyOf: ['plex'] };
   if (category === 'apps') {
+    if (
+      name === 'stackarr_request_game' ||
+      name === 'stackarr_register_questarr_romm_game' ||
+      name === 'stackarr_sync_romm_owned_games' ||
+      name === 'stackarr_reconcile_questarr_romm_imports'
+    )
+      return { allOf: ['questarr', 'romm'] };
     if (name.includes('_lidarr_')) return { allOf: ['lidarr'] };
     if (name.includes('_pulsarr_')) return { allOf: ['pulsarr'] };
     if (name.includes('_agregarr_')) return { allOf: ['agregarr'] };

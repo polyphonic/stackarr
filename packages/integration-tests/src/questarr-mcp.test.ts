@@ -158,7 +158,8 @@ test('Questarr MCP actions stay focused, hide release links, and use the configu
       { name: 'stackarr_search_questarr_games', risk: 'read' },
       { name: 'stackarr_search_questarr_releases', risk: 'read' },
       { name: 'stackarr_get_questarr_downloads', risk: 'read' },
-      { name: 'stackarr_start_questarr_download', risk: 'write' }
+      { name: 'stackarr_start_questarr_download', risk: 'write' },
+      { name: 'stackarr_list_questarr_romm_import_mappings', risk: 'read' }
     ]);
     assert.deepEqual(result.disabledCatalog, []);
     assert.deepEqual(downloadBody, {

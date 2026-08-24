@@ -273,6 +273,53 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Start one exact Questarr search result through its configured downloader.'
   },
   {
+    name: 'stackarr_request_game',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description:
+      'Resolve one exact IGDB game through Questarr, add it to the wanted collection, and register its RomM platform mapping.'
+  },
+  {
+    name: 'stackarr_register_questarr_romm_game',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description:
+      'Add one IGDB game to Questarr and write its explicit RomM filesystem-platform mapping in Stackarr state.'
+  },
+  {
+    name: 'stackarr_list_questarr_romm_import_mappings',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List Stackarr-owned Questarr-to-RomM import mappings and idempotent import state.'
+  },
+  {
+    name: 'stackarr_sync_romm_owned_games',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Dry-run by default: mirror filesystem-present RomM games into Questarr with owned status.'
+  },
+  {
+    name: 'stackarr_reconcile_questarr_romm_imports',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Dry-run by default: scan and import only registered completed Questarr downloads into RomM.'
+  },
+  {
     name: 'stackarr_get_youtarr_health',
     category: 'apps',
     scopes: ['apps:read'],
