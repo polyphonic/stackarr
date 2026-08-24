@@ -23,6 +23,7 @@ type ImportState = {
   games: RegisteredGame[];
   imports: Record<string, ImportedDownload>;
   pendingScanSlugs: string[];
+  reconcileCursor: number;
 };
 
 export async function requestQuestarrGameAction(input: { title: string; platform?: string; fsSlug?: string }) {
@@ -62,7 +63,7 @@ export async function requestQuestarrGameAction(input: { title: string; platform
   if (!selectedTitle) throw new Error('Questarr returned an IGDB game without a title.');
   const platform = requestedPlatform ? matchingPlatform(selected, requestedPlatform) : firstPlatform(selected);
   if (!platform) throw new Error('Questarr returned the selected game without a usable platform.');
-  const fsSlug = input.fsSlug ? platformSlug(input.fsSlug) : await resolveRommPlatformSlug(platform);
+  const fsSlug = await validatedRommPlatformSlug(platform, input.fsSlug);
   await assertRommPlatform(fsSlug);
 
   let game: JsonRecord;
@@ -100,12 +101,15 @@ export async function registerQuestarrRommGameAction(input: { igdbId: number; fs
   const detail = record(await questarrRequest<unknown>(`${serviceBaseUrl('questarr')}/api/igdb/game/${igdbId}`));
   const title = text(detail.title) ?? text(detail.name);
   if (!title) throw new Error('Questarr returned an IGDB game without a title.');
+  const platform = firstPlatform(detail);
+  if (!platform) throw new Error('Questarr returned the IGDB game without a usable platform.');
+  await validatedRommPlatformSlug(platform, fsSlug);
   let game: JsonRecord;
   try {
     game = record(
       await questarrRequest<unknown>(`${serviceBaseUrl('questarr')}/api/games`, {
         method: 'POST',
-        body: { ...detail, igdbId, title, status: 'wanted', platform: firstPlatform(detail) ?? 'PC' }
+        body: { ...detail, igdbId, title, status: 'wanted', platform }
       })
     );
   } catch (error) {
@@ -279,9 +283,13 @@ export async function reconcileQuestarrRommImportsAction(
   const results: Array<Record<string, unknown>> = await discoverQuestarrCollectionMappings(state, !dryRun);
   const pendingScanSlugs = new Set(state.pendingScanSlugs);
   let considered = 0;
+  let mappingsRead = 0;
+  const mappingReadLimit = Math.min(state.games.length, Math.max(50, limit * 5));
 
-  for (const mapping of state.games) {
+  for (let step = 0; step < mappingReadLimit; step += 1) {
     if (considered >= limit) break;
+    const mapping = state.games[(state.reconcileCursor + step) % state.games.length]!;
+    mappingsRead += 1;
     const downloads = records(
       await questarrRequest<unknown>(
         `${serviceBaseUrl('questarr')}/api/games/${encodeURIComponent(mapping.questarrGameId)}/downloads`
@@ -338,6 +346,10 @@ export async function reconcileQuestarrRommImportsAction(
       }
     }
   }
+  if (!dryRun && state.games.length > 0) {
+    state.reconcileCursor = (state.reconcileCursor + mappingsRead) % state.games.length;
+    await saveState(state);
+  }
   const rescan =
     dryRun || pendingScanSlugs.size === 0
       ? { queued: false, verified: false, platformFsSlugs: [] as string[] }
@@ -351,6 +363,7 @@ export async function reconcileQuestarrRommImportsAction(
     mode,
     limit,
     registeredGames: state.games.length,
+    mappingsRead,
     results,
     rescanNeeded: state.pendingScanSlugs.length > 0,
     rescan
@@ -479,11 +492,12 @@ async function loadState(): Promise<ImportState> {
       imports: parsed.imports ?? {},
       pendingScanSlugs: Array.isArray(parsed.pendingScanSlugs)
         ? parsed.pendingScanSlugs.filter((slug): slug is string => typeof slug === 'string')
-        : []
+        : [],
+      reconcileCursor: numberValue(parsed.reconcileCursor) ?? 0
     };
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { version: 1, games: [], imports: {}, pendingScanSlugs: [] };
+      return { version: 1, games: [], imports: {}, pendingScanSlugs: [], reconcileCursor: 0 };
     }
     throw new Error('Questarr RomM import state is unreadable.');
   }
@@ -590,6 +604,22 @@ async function resolveRommPlatformSlug(platformName: string) {
   return platformSlug(slugs[0]!);
 }
 
+async function validatedRommPlatformSlug(platformName: string, requestedFsSlug?: string) {
+  if (!requestedFsSlug) return resolveRommPlatformSlug(platformName);
+  const fsSlug = platformSlug(requestedFsSlug);
+  await assertRommPlatform(fsSlug);
+  let resolved: string | undefined;
+  try {
+    resolved = await resolveRommPlatformSlug(platformName);
+  } catch {
+    // Explicit selection is the safe escape hatch when platform aliases are ambiguous.
+  }
+  if (resolved && resolved !== fsSlug) {
+    throw new Error(`RomM platform "${fsSlug}" does not match IGDB platform "${platformName}".`);
+  }
+  return fsSlug;
+}
+
 async function queueRommScan(platformFsSlugs: string[]) {
   try {
     const cookie = await rommSessionCookie();
@@ -652,6 +682,7 @@ async function listRommLibraryRecords() {
   const results: JsonRecord[] = [];
   let offset = 0;
   let total = Number.POSITIVE_INFINITY;
+  const maximumRecords = 5000;
   while (offset < total) {
     const response = await fetch(
       withQuery(`${serviceBaseUrl('romm')}/api/roms`, {
@@ -668,6 +699,9 @@ async function listRommLibraryRecords() {
     const items = records(page.items);
     results.push(...items);
     total = numberValue(page.total) ?? results.length;
+    if (total > maximumRecords && results.length >= maximumRecords) {
+      throw new Error(`RomM library exceeds the bounded ${maximumRecords}-record synchronization read limit.`);
+    }
     if (items.length === 0) break;
     offset += items.length;
   }

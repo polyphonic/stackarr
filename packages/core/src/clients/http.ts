@@ -34,7 +34,17 @@ export async function requestJson<T = unknown>(url: string, options: JsonRequest
       signal: controller.signal
     });
     const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        if (response.ok) {
+          throw new ServiceApiError(`Invalid JSON from ${redactUrl(url)}`, response.status);
+        }
+        data = { message: text.slice(0, 500) };
+      }
+    }
     if (!response.ok) {
       throw new ServiceApiError(`HTTP ${response.status} from ${redactUrl(url)}`, response.status, data);
     }

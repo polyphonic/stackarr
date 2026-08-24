@@ -368,9 +368,11 @@ test('Questarr inherits RomM IGDB credentials and portable game paths at runtime
     assert.match(content, /^QUESTARR_IGDB_CLIENT_ID="shared-client"$/m);
     assert.match(content, /^QUESTARR_IGDB_CLIENT_SECRET="shared-secret"$/m);
     assert.match(content, /^QUESTARR_JWT_SECRET="[A-Za-z0-9]{32}"$/m);
+    assert.match(content, /^QUESTARR_ROMM_LIBRARY_MOUNT_MODE="ro"$/m);
 
     const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
     const appService = compose.match(/\n  app:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+    assert.match(appService, /:\/stackarr-romm-library:\$\{QUESTARR_ROMM_LIBRARY_MOUNT_MODE:-ro\}"/);
     assert.match(appService, /:\/stackarr-romm-library\/Steam:ro"/);
     assert.match(appService, /:\/stackarr-romm-library\/SteamWindows:ro"/);
     assert.match(appService, /:\/stackarr-romm-library\/SteamLinux:ro"/);
