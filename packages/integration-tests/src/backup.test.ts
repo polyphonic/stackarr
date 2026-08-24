@@ -96,6 +96,11 @@ async function runFixtureBackup(mode: 'full' | 'lite', envOverrides: NodeJS.Proc
   await mkdir(path.join(configRoot, 'transmission/blocklists'), { recursive: true });
   await mkdir(path.join(configRoot, 'recyclarr/resources/trash-guides'), { recursive: true });
   await mkdir(path.join(configRoot, 'prowlarr/repair-20260522-zeroed-live'), { recursive: true });
+  await mkdir(path.join(configRoot, 'prowlarr/Definitions/Custom'), { recursive: true });
+  await mkdir(path.join(configRoot, 'questarr'), { recursive: true });
+  await mkdir(path.join(configRoot, 'romm/config'), { recursive: true });
+  await mkdir(path.join(configRoot, 'romm/assets/covers'), { recursive: true });
+  await mkdir(path.join(configRoot, 'cleanuparr'), { recursive: true });
   await mkdir(path.join(configRoot, 'sonarr/repair-backups'), { recursive: true });
   await mkdir(path.join(configRoot, 'sonarr4k/restore-safety-20260513-024349'), { recursive: true });
   await mkdir(path.join(stateRoot, 'torrent-archive'), { recursive: true });
@@ -134,12 +139,22 @@ async function runFixtureBackup(mode: 'full' | 'lite', envOverrides: NodeJS.Proc
   await writeFile(path.join(configRoot, 'transmission/blocklists/list.bin'), 'downloaded blocklist');
   await writeFile(path.join(configRoot, 'recyclarr/resources/trash-guides/cache.yml'), 'downloaded guide');
   await writeFile(path.join(configRoot, 'prowlarr/repair-20260522-zeroed-live/prowlarr.db'), 'stale repair copy');
+  await writeFile(
+    path.join(configRoot, 'prowlarr/Definitions/Custom/internetarchive-stackarr.yml'),
+    'id: internetarchive-stackarr\n'
+  );
+  await writeDatabaseFixture(path.join(configRoot, 'questarr/sqlite.db'), 'questarr fixture db');
+  await writeFile(path.join(configRoot, 'romm/config/config.yml'), 'filesystem: romm-library\n');
+  await writeFile(path.join(configRoot, 'romm/assets/covers/custom.png'), 'custom RomM cover');
+  await writeDatabaseFixture(path.join(configRoot, 'cleanuparr/cleanuparr.db'), 'cleanuparr fixture db');
+  await writeFile(path.join(configRoot, 'cleanuparr/events.db'), 'malformed rebuildable event log');
   await writeDatabaseFixture(path.join(configRoot, 'sonarr/repair-backups/sonarr.db'), 'manual repair backup');
   await writeDatabaseFixture(
     path.join(configRoot, 'sonarr4k/restore-safety-20260513-024349/sonarr.db'),
     'restore safety backup'
   );
   await writeFile(path.join(stateRoot, 'torrent-archive/state.txt'), 'state');
+  await writeFile(path.join(stateRoot, 'questarr-romm-import.json'), '{"version":1,"games":[],"imports":{}}');
   await writeFile(
     path.join(stateRoot, 'compose/.env'),
     'ROMM_STEAMGRIDDB_API_KEY="compose-only-test-key"\nSTACKARR_VERSION="transient-version"\n'
@@ -287,6 +302,13 @@ test('lite backups exclude rebuildable service assets', async (t) => {
     assert.match(fixture.stdout, /PROGRESS 100 Backup archive created:/);
     assert.match(fixture.listing, /\/config\/lidarr\/lidarr\.db\n/);
     assert.match(fixture.listing, /\/config\/tinymediamanager\/data\/movies\.db\n/);
+    assert.match(fixture.listing, /\/config\/questarr\/sqlite\.db\n/);
+    assert.match(fixture.listing, /\/config\/prowlarr\/Definitions\/Custom\/internetarchive-stackarr\.yml\n/);
+    assert.match(fixture.listing, /\/config\/romm\/config\/config\.yml\n/);
+    assert.match(fixture.listing, /\/config\/romm\/assets\/covers\/custom\.png\n/);
+    assert.match(fixture.listing, /\/state\/questarr-romm-import\.json\n/);
+    assert.match(fixture.listing, /\/config\/cleanuparr\/cleanuparr\.db\n/);
+    assert.doesNotMatch(fixture.listing, /\/config\/cleanuparr\/events\.db\n/);
     assert.doesNotMatch(fixture.listing, /\/config\/lidarr\/MediaCover\//);
     assert.doesNotMatch(fixture.listing, /\/config\/lidarr\/Backups\//);
     assert.doesNotMatch(fixture.listing, /\/config\/lidarr\/lidarr\.db\.bak\.20260611123002\n/);
