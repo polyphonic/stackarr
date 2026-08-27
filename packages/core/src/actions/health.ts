@@ -1,5 +1,8 @@
 import { requestJson, ServiceApiError, withQuery } from '../clients/http';
-import { maybeServiceBaseUrl, serviceApiKey } from '../clients/serviceConfig';
+import { prowlarrGet } from '../clients/prowlarr';
+import { seerrGet } from '../clients/seerr';
+import { servarrGet } from '../clients/servarr';
+import { type ArrInstance, maybeServiceBaseUrl, selectedDownloader, serviceApiKey } from '../clients/serviceConfig';
 import { readEnv } from '../env';
 import { redactSecrets } from '../safety/redaction';
 import { getServices } from '../services';
@@ -10,18 +13,156 @@ import { getServiceStatusAction } from './services';
 export const diagnoseServiceAction = (input: { service: string }) => getServiceStatusAction(input);
 export const testServiceApiAction = (input: { service: string }) => getServiceStatusAction(input);
 export const testServiceConnectivityAction = (input: { service: string }) => getServiceStatusAction(input);
-export const testArrToDownloaderAction = () => ({
-  status: 'notImplemented',
-  note: 'Safe diagnostic placeholder; no services mutated.'
-});
-export const testProwlarrToArrAction = () => ({
-  status: 'notImplemented',
-  note: 'Safe diagnostic placeholder; no services mutated.'
-});
-export const testSeerrToArrAction = () => ({
-  status: 'notImplemented',
-  note: 'Safe diagnostic placeholder; no services mutated.'
-});
+const arrServices: ArrInstance[] = ['radarr', 'radarr4k', 'sonarr', 'sonarr4k', 'lidarr'];
+const databaseBackedServices = new Set([
+  'prowlarr',
+  'lidarr',
+  'radarr',
+  'radarr4k',
+  'sonarr',
+  'sonarr4k',
+  'seerr',
+  'pulsarr',
+  'maintainerr',
+  'bookorbit',
+  'immich',
+  'romm',
+  'questarr',
+  'youtarr',
+  'bazarr',
+  'tracearr'
+]);
+
+type DiagnosticResult = {
+  service: string;
+  status: 'passed' | 'failed' | 'notConfigured';
+  message: string;
+};
+
+function enabledArrServices() {
+  const enabled = new Set(
+    getServices()
+      .filter((service) => service.mode !== 'disabled')
+      .map((service) => service.name)
+  );
+  return arrServices.filter((service) => enabled.has(service));
+}
+
+function diagnosticError(service: string, error: unknown): DiagnosticResult {
+  return {
+    service,
+    status: 'failed',
+    message: safeMessage(error instanceof Error ? error.message : String(error))
+  };
+}
+
+function values(record: Record<string, unknown>, keys: string[]) {
+  return keys.map((key) => record[key]).filter((value): value is string => typeof value === 'string');
+}
+
+function matchingArrTargets(value: string) {
+  const candidate = value.toLowerCase();
+  return arrServices.filter((service) => {
+    const base = service.replace('4k', '');
+    return service.endsWith('4k')
+      ? candidate.includes(service) || candidate.includes(`${base} 4k`)
+      : candidate.includes(base) && !candidate.includes(`${base}4k`) && !candidate.includes(`${base} 4k`);
+  });
+}
+
+function configuredArrTarget(record: Record<string, unknown>) {
+  return matchingArrTargets(values(record, ['name', 'implementation', 'syncLevel', 'url', 'baseUrl']).join(' '))[0];
+}
+
+function summarizeDiagnostics(kind: string, results: DiagnosticResult[], extra: Record<string, unknown> = {}) {
+  const failed = results.filter((result) => result.status === 'failed').length;
+  const notConfigured = results.filter((result) => result.status === 'notConfigured').length;
+  return {
+    kind,
+    status: failed ? 'issues' : notConfigured ? 'notConfigured' : 'healthy',
+    checked: results.length,
+    passed: results.filter((result) => result.status === 'passed').length,
+    failed,
+    notConfigured,
+    results,
+    note: 'Read-only diagnostic; no service configuration was changed.',
+    ...extra
+  };
+}
+
+/** Read each Arr download-client configuration without invoking its test or save endpoints. */
+export async function testArrToDownloaderAction() {
+  const downloader = selectedDownloader();
+  const expected = downloader === 'qbittorrent' ? 'qbittorrent' : 'transmission';
+  const results = await Promise.all(
+    enabledArrServices().map(async (service): Promise<DiagnosticResult> => {
+      try {
+        const clients = await servarrGet<Array<Record<string, unknown>>>(
+          service,
+          'downloadclient',
+          {},
+          service === 'lidarr' ? 'v1' : 'v3'
+        );
+        const configured = clients.some((client) => {
+          const implementation = values(client, ['implementation', 'name']).join(' ').toLowerCase();
+          return client.enable !== false && implementation.includes(expected);
+        });
+        return {
+          service,
+          status: configured ? 'passed' : 'notConfigured',
+          message: configured
+            ? `Configured ${downloader} download client found.`
+            : `No enabled ${downloader} download client found.`
+        };
+      } catch (error) {
+        return diagnosticError(service, error);
+      }
+    })
+  );
+  return summarizeDiagnostics('arrToDownloader', results, { downloader });
+}
+
+/** Read Prowlarr application registrations; no indexer sync or configuration is triggered. */
+export async function testProwlarrToArrAction() {
+  try {
+    const applications = await prowlarrGet<Array<Record<string, unknown>>>('application');
+    const configured = new Set(
+      applications.map(configuredArrTarget).filter((service): service is ArrInstance => Boolean(service))
+    );
+    const results = enabledArrServices().map<DiagnosticResult>((service) => ({
+      service,
+      status: configured.has(service) ? 'passed' : 'notConfigured',
+      message: configured.has(service)
+        ? 'Prowlarr application registration found.'
+        : 'No Prowlarr application registration found.'
+    }));
+    return summarizeDiagnostics('prowlarrToArr', results);
+  } catch (error) {
+    return summarizeDiagnostics('prowlarrToArr', [diagnosticError('prowlarr', error)]);
+  }
+}
+
+/** Read Seerr service settings; no requests, syncs, or configuration changes are triggered. */
+export async function testSeerrToArrAction() {
+  try {
+    const settings = await seerrGet<Record<string, unknown>>('settings/services');
+    const configured = new Set(
+      Object.entries(settings)
+        .filter(([, value]) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))
+        .flatMap(([name]) => matchingArrTargets(name))
+    );
+    const results = enabledArrServices()
+      .filter((service) => service !== 'lidarr')
+      .map<DiagnosticResult>((service) => ({
+        service,
+        status: configured.has(service) ? 'passed' : 'notConfigured',
+        message: configured.has(service) ? 'Seerr service setting found.' : 'No Seerr service setting found.'
+      }));
+    return summarizeDiagnostics('seerrToArr', results);
+  } catch (error) {
+    return summarizeDiagnostics('seerrToArr', [diagnosticError('seerr', error)]);
+  }
+}
 export const testPlexIdentityAction = () => getPlexServerStatusAction();
 export const getCommonIssuesAction = () => {
   const env = readEnv();
@@ -45,10 +186,33 @@ export const applySafeFixAction = (input: { fixId: 'refresh-status-cache' | 'non
   applied: input.fixId === 'refresh-status-cache',
   note: 'Only enumerated no-downtime safe fixes are allowed.'
 });
-export const checkServiceDatabasesAction = () => ({
-  status: 'notImplemented',
-  note: 'Database checks are pending; no services touched.'
-});
+/**
+ * Application health endpoints are the safe, credential-scoped way to check
+ * their backing stores. This intentionally performs no direct database login,
+ * migration, or write and returns only sanitized health diagnostics.
+ */
+export async function checkServiceDatabasesAction() {
+  const summary = await getAppHealthSummaryAction();
+  const checks = summary.checks
+    .filter((check) => databaseBackedServices.has(check.service))
+    .map((check) => ({
+      service: check.service,
+      status: check.status,
+      issues: check.issues
+    }));
+  return {
+    checkedAt: summary.checkedAt,
+    status: checks.some((check) => check.status === 'unavailable')
+      ? 'issues'
+      : checks.some((check) => check.status === 'issues')
+        ? 'issues'
+        : 'healthy',
+    checked: checks.length,
+    healthy: checks.filter((check) => check.status === 'healthy').length,
+    checks,
+    note: 'Read-only application health checks; no database connections or service configuration were changed.'
+  };
+}
 export const validateSqliteDbAction = (input: { path: string }) => ({
   path: input.path,
   status: 'notImplemented',
@@ -84,6 +248,7 @@ type HealthCheckSpec = {
   body?: unknown;
   issueArray?: boolean;
   reachableStatuses?: number[];
+  allowTextResponse?: boolean;
 };
 
 const healthChecks: Record<string, HealthCheckSpec> = {
@@ -98,7 +263,7 @@ const healthChecks: Record<string, HealthCheckSpec> = {
   maintainerr: { path: '/api/health' },
   tracearr: { path: '/api/v1/public/health', credential: 'bearer' },
   bookorbit: { path: '/api/v1/health' },
-  romm: { path: '/api/heartbeat', credential: 'optional-bearer' },
+  romm: { path: '/api/heartbeat', credential: 'optional-bearer', allowTextResponse: true },
   youtarr: { path: '/api/health' },
   jellyfin: { path: '/System/Info/Public' },
   immich: { path: '/api/server/about', credential: 'immich' },
@@ -166,7 +331,8 @@ async function checkAppHealth(service: string, displayName: string): Promise<App
       method: spec.method,
       headers,
       body: spec.body,
-      timeoutMs: 8_000
+      timeoutMs: 8_000,
+      allowTextResponse: spec.allowTextResponse
     });
     const issues = spec.issueArray ? normalizeIssueArray(response, key) : normalizeGenericHealth(response, key);
     return { service, displayName, status: issues.length ? 'issues' : 'healthy', issues };

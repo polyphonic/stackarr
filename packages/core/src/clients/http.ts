@@ -5,6 +5,12 @@ export type JsonRequestOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   timeoutMs?: number;
+  /**
+   * Only use for native health probes whose documented response is text rather
+   * than JSON. Regular API requests remain strict so an HTML login page is not
+   * mistaken for an authenticated API response.
+   */
+  allowTextResponse?: boolean;
 };
 
 export class ServiceApiError extends Error {
@@ -39,10 +45,10 @@ export async function requestJson<T = unknown>(url: string, options: JsonRequest
       try {
         data = JSON.parse(text);
       } catch {
-        if (response.ok) {
+        if (response.ok && !options.allowTextResponse) {
           throw new ServiceApiError(`Invalid JSON from ${redactUrl(url)}`, response.status);
         }
-        data = { message: text.slice(0, 500) };
+        data = options.allowTextResponse && response.ok ? text.slice(0, 500) : { message: text.slice(0, 500) };
       }
     }
     if (!response.ok) {

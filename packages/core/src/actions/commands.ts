@@ -25,7 +25,7 @@ export const stopStackAction = (input: DangerousConfirmation) =>
   runStackarrCommandAction({ command: 'StackStop', ...input });
 export const runUpdateAction = (input: DangerousConfirmation) =>
   runStackarrCommandAction({ command: 'Update', ...input });
-export const runDoctorAction = () => runStackarrCommandAction({ command: 'DbInfo' });
+export const runDoctorAction = () => runStackarrCommandAction({ command: 'Doctor' });
 export const runPermissionsAuditAction = () => runStackarrCommandAction({ command: 'PermissionsAudit' });
 export const runPermissionsFixAction = (input: DangerousConfirmation) =>
   runStackarrCommandAction({ command: 'PermissionsFix', ...input });

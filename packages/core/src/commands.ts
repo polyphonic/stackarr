@@ -23,6 +23,7 @@ export type CommandName =
   | 'BackupUninstall'
   | 'UpdateInstall'
   | 'UpdateUninstall'
+  | 'Doctor'
   | 'DbInfo'
   | 'CloudflareInstall'
   | 'CloudflareStart'
@@ -214,6 +215,13 @@ export const commandRegistry: Record<CommandName, CommandDefinition> = {
     args: ['update', 'uninstall'],
     disruptive: false,
     event: 'Configure'
+  },
+  Doctor: {
+    name: 'Doctor',
+    label: 'Run doctor diagnostics',
+    args: ['doctor'],
+    disruptive: false,
+    event: 'Health'
   },
   DbInfo: {
     name: 'DbInfo',
