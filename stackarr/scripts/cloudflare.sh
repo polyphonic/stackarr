@@ -22,8 +22,112 @@ DEFAULT_TUNNEL_NAME="stackarr"
 DEFAULT_ACCESS_POLICY_NAME="${CLOUDFLARE_ACCESS_POLICY_NAME:-Email Allowlist}"
 LEGACY_ACCESS_POLICY_NAME="Stackarr family allowlist"
 
+cloudflared_release_asset() {
+    local os arch
+    os="$(uname -s)"
+    arch="$(uname -m)"
+
+    case "$os:$arch" in
+        Darwin:arm64)
+            printf 'cloudflared-darwin-arm64.tgz\n'
+            ;;
+        Darwin:x86_64)
+            printf 'cloudflared-darwin-amd64.tgz\n'
+            ;;
+        Linux:aarch64|Linux:arm64)
+            printf 'cloudflared-linux-arm64\n'
+            ;;
+        Linux:x86_64|Linux:amd64)
+            printf 'cloudflared-linux-amd64\n'
+            ;;
+        MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64)
+            printf 'cloudflared-windows-amd64.exe\n'
+            ;;
+        *)
+            fail "Stackarr does not have a managed cloudflared build for $os $arch"
+            ;;
+    esac
+}
+
+install_managed_cloudflared() (
+    local target asset release_api release_json asset_info download_url expected_sha actual_sha tmp_dir archive candidate
+
+    target="$(managed_cloudflared_bin)"
+    if [[ -x "$target" ]] && "$target" --version >/dev/null 2>&1; then
+        printf '%s\n' "$target"
+        return 0
+    fi
+
+    asset="$(cloudflared_release_asset)"
+    release_api="${CLOUDFLARED_RELEASE_API:-https://api.github.com/repos/cloudflare/cloudflared/releases/latest}"
+    ensure_dir "$(dirname "$target")"
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/stackarr-cloudflared.XXXXXX")"
+    release_json="$tmp_dir/release.json"
+    archive="$tmp_dir/$asset"
+    candidate="$tmp_dir/cloudflared"
+
+    trap 'rm -rf "$tmp_dir"' EXIT
+
+    curl -fsSL --retry 3 --connect-timeout 15 --max-time 60 "$release_api" -o "$release_json" \
+        || fail "Could not read Cloudflare's official cloudflared release metadata"
+    asset_info="$(python3 - "$release_json" "$asset" <<'PY'
+import json
+import pathlib
+import sys
+
+release = json.loads(pathlib.Path(sys.argv[1]).read_text())
+asset_name = sys.argv[2]
+for asset in release.get("assets", []):
+    if asset.get("name") != asset_name:
+        continue
+    digest = str(asset.get("digest") or "")
+    if not digest.startswith("sha256:"):
+        raise SystemExit("release asset is missing a SHA-256 digest")
+    print(f"{asset['browser_download_url']}\t{digest.split(':', 1)[1]}")
+    break
+else:
+    raise SystemExit(f"release asset not found: {asset_name}")
+PY
+)" || fail "Could not resolve the verified cloudflared release asset for this platform"
+    IFS=$'\t' read -r download_url expected_sha <<< "$asset_info"
+
+    curl -fsSL --retry 3 --connect-timeout 15 --max-time 300 "$download_url" -o "$archive" \
+        || fail "Could not download Stackarr-managed cloudflared from Cloudflare's official release"
+    if command -v shasum >/dev/null 2>&1; then
+        actual_sha="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+    elif command -v sha256sum >/dev/null 2>&1; then
+        actual_sha="$(sha256sum "$archive" | cut -d' ' -f1)"
+    else
+        fail "A SHA-256 tool is required to verify cloudflared"
+    fi
+    [[ "$actual_sha" == "$expected_sha" ]] || fail "The cloudflared download failed SHA-256 verification"
+
+    case "$asset" in
+        *.tgz)
+            tar -xzf "$archive" -C "$tmp_dir"
+            ;;
+        *.exe)
+            candidate="$tmp_dir/cloudflared.exe"
+            mv "$archive" "$candidate"
+            ;;
+        *)
+            mv "$archive" "$candidate"
+            ;;
+    esac
+
+    [[ -f "$candidate" ]] || fail "The cloudflared release did not contain the expected executable"
+    chmod 755 "$candidate"
+    "$candidate" --version >/dev/null 2>&1 || fail "The downloaded cloudflared executable failed validation"
+
+    mv "$candidate" "$target"
+    chmod 755 "$target"
+    set_env_value "CLOUDFLARED_BIN" "$target"
+    printf '%s\n' "$target"
+)
+
 usage() {
     fail "Usage: stackarr cloudflare install [--api-token <api-token>] [--route <hostname=service[:access|public]>] [--access-email <email>] [--access-session <duration>] [--no-access]
+       stackarr cloudflare binary install
        stackarr cloudflare start
        stackarr cloudflare stop
        stackarr cloudflare status
@@ -1591,13 +1695,17 @@ load_agent() {
 }
 
 create_plist() {
-    local stackarr_bin
+    local cloudflared_bin token_file metrics_port launch_app_root
 
-    stackarr_bin="$(find_stackarr_bin || true)"
-    [[ -n "$stackarr_bin" ]] || fail "Could not find a stackarr executable"
+    cloudflared_bin="$(install_managed_cloudflared)"
+    token_file="${CLOUDFLARED_TOKEN_FILE:-$TOKEN_FILE}"
+    metrics_port="${CLOUDFLARED_METRICS_PORT:-$DEFAULT_METRICS_PORT}"
+    launch_app_root="$(default_app_root)"
 
     ensure_dir "$PLIST_DIR"
+    ensure_dir "$launch_app_root"
     ensure_dir "$LOG_ROOT/launchd"
+    ensure_dir "$LOG_ROOT/cloudflared"
 
     cat > "$PLIST_PATH" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1608,17 +1716,22 @@ create_plist() {
   <string>$LAUNCH_LABEL</string>
   <key>ProcessType</key>
   <string>Background</string>
-  <key>AssociatedBundleIdentifiers</key>
-  <array>
-    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
-  </array>
   <key>WorkingDirectory</key>
-  <string>$APP_ROOT</string>
+  <string>$launch_app_root</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$stackarr_bin</string>
-    <string>cloudflare</string>
-    <string>run-agent</string>
+    <string>$cloudflared_bin</string>
+    <string>tunnel</string>
+    <string>--no-autoupdate</string>
+    <string>--metrics</string>
+    <string>127.0.0.1:$metrics_port</string>
+    <string>--loglevel</string>
+    <string>info</string>
+    <string>--logfile</string>
+    <string>$LOG_ROOT/cloudflared/cloudflared.log</string>
+    <string>run</string>
+    <string>--token-file</string>
+    <string>$token_file</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
@@ -1820,8 +1933,7 @@ install_cloudflare() {
         require_cloudflare_access_allowlist
     fi
 
-    cloudflared_bin="$(find_cloudflared_bin || true)"
-    [[ -n "$cloudflared_bin" ]] || fail "cloudflared is not installed. Run 'brew install cloudflared' first."
+    cloudflared_bin="$(install_managed_cloudflared)"
 
     tunnel_id="${CLOUDFLARED_TUNNEL_ID:-}"
     resolved_zone_id=""
@@ -2090,19 +2202,18 @@ status_cloudflare() {
     local metrics_port="$DEFAULT_METRICS_PORT"
     local route_managed=false
     local api_token_available=false
-    local routes_file route_hostname route_service route_access route_service_url
+    local routes_file route_hostname route_service route_access route_service_url managed_binary
 
     print_header "Stackarr Cloudflare"
     load_cloudflare_state
     routes_file="$(mktemp)"
     collect_cloudflare_routes > "$routes_file"
+    managed_binary="$(managed_cloudflared_bin)"
 
-    if [[ -n "${CLOUDFLARED_BIN:-}" && -x "${CLOUDFLARED_BIN:-}" ]]; then
-        pass "cloudflared binary found at $CLOUDFLARED_BIN"
-    elif find_cloudflared_bin >/dev/null 2>&1; then
-        pass "cloudflared binary is installed"
+    if [[ -x "$managed_binary" ]]; then
+        pass "Stackarr-managed cloudflared binary found at $managed_binary"
     else
-        warning "cloudflared is not installed"
+        warning "Stackarr-managed cloudflared is not installed"
     fi
 
     if [[ -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
@@ -2332,8 +2443,8 @@ PY
         fi
     fi
 
-    cloudflared_bin="$(find_cloudflared_bin || true)"
-    [[ -n "$cloudflared_bin" ]] && set_env_value "CLOUDFLARED_BIN" "$cloudflared_bin"
+    cloudflared_bin="$(install_managed_cloudflared)"
+    set_env_value "CLOUDFLARED_BIN" "$cloudflared_bin"
     set_env_value "CLOUDFLARED_METRICS_PORT" "${CLOUDFLARED_METRICS_PORT:-$DEFAULT_METRICS_PORT}"
     [[ -f "$TOKEN_FILE" ]] && set_env_value "CLOUDFLARED_TOKEN_FILE" "$TOKEN_FILE"
     set_env_value "CLOUDFLARED_KEEP_LAN" "${CLOUDFLARED_KEEP_LAN:-true}"
@@ -2600,6 +2711,12 @@ failure() {
 }
 
 case "$ACTION" in
+    binary)
+        sub="${1:-install}"
+        [[ "$sub" == "install" ]] || usage
+        managed_binary="$(install_managed_cloudflared)"
+        ok "Installed Stackarr-managed cloudflared at $managed_binary"
+        ;;
     run-agent)
         exec "$RUN_SCRIPT"
         ;;

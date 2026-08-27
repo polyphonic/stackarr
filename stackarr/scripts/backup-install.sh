@@ -45,8 +45,7 @@ if stackarr_runtime_is_container; then
     esac
 fi
 
-STACKARR_BIN="$(find_stackarr_bin || true)"
-[[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
+STACKARR_BIN="$(install_managed_host_runtime)"
 
 stackarr_app_bundle_for_bin() {
     local bin_path="$1"
@@ -293,7 +292,9 @@ WEEKDAY="$(parse_backup_weekday "${BACKUP_WEEKDAY:-Sun}")" || fail "BACKUP_WEEKD
 HOUR="${BACKUP_TIME%%:*}"
 MINUTE="${BACKUP_TIME##*:}"
 PROGRAM_ARGUMENTS="$(plist_program_arguments)"
-APP_ROOT_PLIST="$(xml_escape "$APP_ROOT")"
+LAUNCH_APP_ROOT="$(default_app_root)"
+ensure_dir "$LAUNCH_APP_ROOT"
+APP_ROOT_PLIST="$(xml_escape "$LAUNCH_APP_ROOT")"
 LOG_ROOT_PLIST="$(xml_escape "$LOG_ROOT")"
 if [[ "$BACKUP_SCHEDULE_NORMALIZED" == "weekly" ]]; then
     START_CALENDAR_INTERVAL="  <key>StartCalendarInterval</key>
@@ -326,7 +327,7 @@ cat > "$PLIST_PATH" <<EOF
   <string>Background</string>
   <key>AssociatedBundleIdentifiers</key>
   <array>
-    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
+    <string>com.stackarr.backup-agent</string>
   </array>
   <key>WorkingDirectory</key>
   <string>$APP_ROOT_PLIST</string>

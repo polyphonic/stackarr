@@ -13,13 +13,8 @@ LOG_DIR="$LOG_ROOT/cloudflared"
 TOKEN_FILE="${CLOUDFLARED_TOKEN_FILE:-$DEFAULT_TOKEN_FILE}"
 [[ -f "$TOKEN_FILE" ]] || fail "Missing Cloudflare connector token. Run 'stackarr cloudflare install --api-token <token>' first."
 
-if [[ -n "${CLOUDFLARED_BIN:-}" && -x "${CLOUDFLARED_BIN:-}" ]]; then
-    CLOUDFLARED_CMD="$CLOUDFLARED_BIN"
-else
-    CLOUDFLARED_CMD="$(find_cloudflared_bin || true)"
-fi
-
-[[ -n "${CLOUDFLARED_CMD:-}" ]] || fail "cloudflared is not installed. Run 'brew install cloudflared' first."
+CLOUDFLARED_CMD="$(managed_cloudflared_bin)"
+[[ -x "$CLOUDFLARED_CMD" ]] || fail "Stackarr-managed cloudflared is missing. Run 'stackarr cloudflare start' to install it in app data."
 
 ensure_dir "$LOG_DIR"
 

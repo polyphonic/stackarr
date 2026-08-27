@@ -354,8 +354,9 @@ start_proxy() {
 }
 
 setup_launch_agent_paths() {
-    STACKARR_BIN="$(find_stackarr_bin || true)"
-    [[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
+    STACKARR_BIN="$(install_managed_host_runtime)"
+    LAUNCH_APP_ROOT="$(default_app_root)"
+    ensure_dir "$LAUNCH_APP_ROOT"
     PLIST_DIR="$HOME/Library/LaunchAgents"
     PLIST_PATH="$PLIST_DIR/com.stackarr.portless.plist"
     LAUNCH_DOMAIN="gui/$(id -u)"
@@ -385,12 +386,8 @@ install_agent() {
   <string>com.stackarr.portless</string>
   <key>ProcessType</key>
   <string>Background</string>
-  <key>AssociatedBundleIdentifiers</key>
-  <array>
-    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
-  </array>
   <key>WorkingDirectory</key>
-  <string>$APP_ROOT</string>
+  <string>$LAUNCH_APP_ROOT</string>
   <key>ProgramArguments</key>
   <array>
     <string>$STACKARR_BIN</string>

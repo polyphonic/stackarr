@@ -21,9 +21,9 @@ if stackarr_runtime_is_container; then
     exit 0
 fi
 
-STACKARR_BIN="$(find_stackarr_bin || true)"
-[[ -n "$STACKARR_BIN" ]] || fail "Could not find a stackarr executable"
-STACKARR_APP_BUNDLE="$(find_stackarr_app_bundle_for_bin "$STACKARR_BIN" || true)"
+STACKARR_BIN="$(install_managed_host_runtime)"
+LAUNCH_APP_ROOT="$(default_app_root)"
+ensure_dir "$LAUNCH_APP_ROOT"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/com.stackarr.stack.plist"
 LAUNCH_DOMAIN="gui/$(id -u)"
@@ -48,14 +48,6 @@ if [[ "$ACTION" == "uninstall" ]]; then
     exit 0
 fi
 
-ASSOCIATED_BUNDLE_XML=""
-if [[ -n "$STACKARR_APP_BUNDLE" ]]; then
-    ASSOCIATED_BUNDLE_XML="  <key>AssociatedBundleIdentifiers</key>
-  <array>
-    <string>$STACKARR_BUNDLE_IDENTIFIER</string>
-  </array>"
-fi
-
 cat > "$PLIST_PATH" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -65,9 +57,8 @@ cat > "$PLIST_PATH" <<EOF
   <string>com.stackarr.stack</string>
   <key>ProcessType</key>
   <string>Background</string>
-$ASSOCIATED_BUNDLE_XML
   <key>WorkingDirectory</key>
-  <string>$APP_ROOT</string>
+  <string>$LAUNCH_APP_ROOT</string>
   <key>ProgramArguments</key>
   <array>
     <string>$STACKARR_BIN</string>

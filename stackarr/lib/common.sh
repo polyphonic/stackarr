@@ -92,11 +92,89 @@ default_app_root() {
     esac
 }
 
+managed_host_runtime_root() {
+    printf '%s/state/host-runtime\n' "$(default_app_root)"
+}
+
+managed_host_runtime_bin() {
+    printf '%s/bin/stackarr\n' "$(managed_host_runtime_root)"
+}
+
+install_managed_host_runtime() (
+    local target_root tmp_root previous_root lock_root lock_pid attempts
+
+    target_root="$(managed_host_runtime_root)"
+    if [[ "$ROOT_DIR" == "$target_root" ]]; then
+        printf '%s\n' "$target_root/bin/stackarr"
+        return 0
+    fi
+
+    ensure_dir "$(dirname "$target_root")"
+    tmp_root="${target_root}.tmp.$$"
+    previous_root="${target_root}.previous.$$"
+    lock_root="${target_root}.install.lock"
+    attempts=0
+    while ! mkdir "$lock_root" 2>/dev/null; do
+        if [[ -f "$lock_root/pid" ]]; then
+            lock_pid="$(cat "$lock_root/pid" 2>/dev/null || true)"
+            if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
+                rm -rf "$lock_root"
+                continue
+            fi
+        fi
+        attempts=$((attempts + 1))
+        [[ "$attempts" -lt 100 ]] || fail "Timed out waiting to install the Stackarr host runtime"
+        sleep 0.1
+    done
+    printf '%s\n' "${BASHPID:-$$}" > "$lock_root/pid"
+    trap 'rm -rf "$tmp_root" "$previous_root" "$lock_root"' EXIT
+
+    mkdir -p "$tmp_root"
+    cp -R "$ROOT_DIR/." "$tmp_root/"
+    if [[ "$REPO_ROOT" != "$ROOT_DIR" && -d "$REPO_ROOT/packages/agent-plugins" ]]; then
+        mkdir -p "$tmp_root/packages"
+        cp -R "$REPO_ROOT/packages/agent-plugins" "$tmp_root/packages/agent-plugins"
+    fi
+    if [[ "$REPO_ROOT" != "$ROOT_DIR" && -d "$REPO_ROOT/packages/mcp/dist" ]]; then
+        mkdir -p "$tmp_root/packages/mcp"
+        cp -R "$REPO_ROOT/packages/mcp/dist" "$tmp_root/packages/mcp/dist"
+    fi
+    chmod 755 "$tmp_root/bin/stackarr"
+
+    if [[ -e "$target_root" ]]; then
+        mv "$target_root" "$previous_root"
+    fi
+    if mv "$tmp_root" "$target_root"; then
+        rm -rf "$previous_root"
+    else
+        [[ -e "$previous_root" ]] && mv "$previous_root" "$target_root"
+        fail "Could not install the Stackarr host runtime in app data"
+    fi
+    printf '%s\n' "$target_root/bin/stackarr"
+)
+
+managed_cloudflared_bin() {
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            printf '%s/bin/cloudflared.exe\n' "$(default_app_root)"
+            ;;
+        *)
+            printf '%s/bin/cloudflared\n' "$(default_app_root)"
+            ;;
+    esac
+}
+
 find_stackarr_bin() {
     local candidate=""
 
     if [[ -n "${STACKARR_CLI_BIN:-}" && -x "$STACKARR_CLI_BIN" ]]; then
         printf '%s\n' "$STACKARR_CLI_BIN"
+        return 0
+    fi
+
+    candidate="$(managed_host_runtime_bin)"
+    if [[ -x "$candidate" ]]; then
+        printf '%s\n' "$candidate"
         return 0
     fi
 
@@ -2108,24 +2186,9 @@ is_subpath() {
 find_cloudflared_bin() {
     local candidate
 
-    if candidate="$(command -v cloudflared 2>/dev/null)"; then
-        printf '%s\n' "$candidate"
-        return 0
-    fi
-
-    for candidate in \
-        "/opt/homebrew/bin/cloudflared" \
-        "/usr/local/bin/cloudflared" \
-        "/opt/homebrew/opt/cloudflared/bin/cloudflared" \
-        "/usr/local/opt/cloudflared/bin/cloudflared"
-    do
-        if [[ -x "$candidate" ]]; then
-            printf '%s\n' "$candidate"
-            return 0
-        fi
-    done
-
-    return 1
+    candidate="$(managed_cloudflared_bin)"
+    [[ -x "$candidate" ]] || return 1
+    printf '%s\n' "$candidate"
 }
 
 set_env_value() {
