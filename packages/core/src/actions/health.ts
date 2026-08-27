@@ -125,7 +125,7 @@ export async function testArrToDownloaderAction() {
 /** Read Prowlarr application registrations; no indexer sync or configuration is triggered. */
 export async function testProwlarrToArrAction() {
   try {
-    const applications = await prowlarrGet<Array<Record<string, unknown>>>('application');
+    const applications = await prowlarrGet<Array<Record<string, unknown>>>('applications');
     const configured = new Set(
       applications.map(configuredArrTarget).filter((service): service is ArrInstance => Boolean(service))
     );
@@ -142,22 +142,31 @@ export async function testProwlarrToArrAction() {
   }
 }
 
-/** Read Seerr service settings; no requests, syncs, or configuration changes are triggered. */
+function seerrArrTarget(family: 'radarr' | 'sonarr', record: Record<string, unknown>): ArrInstance {
+  return record.is4k === true ? `${family}4k` : family;
+}
+
+/** Read Seerr's native Radarr/Sonarr settings; no requests, syncs, or configuration changes are triggered. */
 export async function testSeerrToArrAction() {
   try {
-    const settings = await seerrGet<Record<string, unknown>>('settings/services');
-    const configured = new Set(
-      Object.entries(settings)
-        .filter(([, value]) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))
-        .flatMap(([name]) => matchingArrTargets(name))
+    const targets = enabledArrServices().filter((service) => service !== 'lidarr');
+    const families = [...new Set(targets.map((service) => (service.startsWith('radarr') ? 'radarr' : 'sonarr')))] as Array<
+      'radarr' | 'sonarr'
+    >;
+    const registrations = await Promise.all(
+      families.map(async (family) => ({
+        family,
+        records: await seerrGet<Array<Record<string, unknown>>>(`settings/${family}`)
+      }))
     );
-    const results = enabledArrServices()
-      .filter((service) => service !== 'lidarr')
-      .map<DiagnosticResult>((service) => ({
-        service,
-        status: configured.has(service) ? 'passed' : 'notConfigured',
-        message: configured.has(service) ? 'Seerr service setting found.' : 'No Seerr service setting found.'
-      }));
+    const configured = new Set(
+      registrations.flatMap(({ family, records }) => records.map((record) => seerrArrTarget(family, record)))
+    );
+    const results = targets.map<DiagnosticResult>((service) => ({
+      service,
+      status: configured.has(service) ? 'passed' : 'notConfigured',
+      message: configured.has(service) ? 'Seerr service setting found.' : 'No Seerr service setting found.'
+    }));
     return summarizeDiagnostics('seerrToArr', results);
   } catch (error) {
     return summarizeDiagnostics('seerrToArr', [diagnosticError('seerr', error)]);

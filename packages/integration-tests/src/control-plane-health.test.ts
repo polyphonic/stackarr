@@ -40,15 +40,15 @@ test('control-plane health probes use native Lidarr and RomM endpoints and diagn
       response.end(JSON.stringify([{ enable: true, implementation: 'Transmission' }]));
       return;
     }
-    if (url.pathname === '/api/v1/application') {
+    if (url.pathname === '/api/v1/applications') {
       response.setHeader('content-type', 'application/json');
       response.end(JSON.stringify([{ name: 'Radarr' }, { name: 'Lidarr' }]));
       return;
     }
-    if (url.pathname === '/api/v1/settings/services') {
+    if (url.pathname === '/api/v1/settings/radarr') {
       assert.equal(request.headers['x-api-key'], 'seerr-test-key');
       response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify({ radarr: [{ id: 1 }] }));
+      response.end(JSON.stringify([{ id: 1, name: 'Radarr', is4k: false }]));
       return;
     }
     if (url.pathname === '/api/v1/health' || url.pathname === '/api/v3/health') {
@@ -142,6 +142,10 @@ test('control-plane health probes use native Lidarr and RomM endpoints and diagn
     assert.ok(result.seerrArr.results.every((item: { status: string }) => item.status === 'passed'));
     assert.ok(requested.some((request) => request.path === '/api/v1/system/status'));
     assert.ok(requested.some((request) => request.path === '/api/heartbeat'));
+    assert.ok(requested.some((request) => request.path === '/api/v1/applications'));
+    assert.ok(requested.some((request) => request.path === '/api/v1/settings/radarr'));
+    assert.ok(requested.every((request) => request.path !== '/api/v1/application'));
+    assert.ok(requested.every((request) => request.path !== '/api/v1/settings/services'));
     assert.ok(requested.every((request) => request.method === 'GET'));
     assert.doesNotMatch(stdout, /arr-test-key|seerr-test-key/);
   } finally {

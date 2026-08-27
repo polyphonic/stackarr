@@ -68,6 +68,14 @@ const transmissionFields = [
   'errorString'
 ];
 
+export async function getTransmissionSessionStatus() {
+  const response = await transmissionRpc<{ version?: string; 'rpc-version'?: number }>('session-get');
+  return {
+    version: response.arguments?.version,
+    rpcVersion: response.arguments?.['rpc-version']
+  };
+}
+
 export async function getDownloadQueueAction(input: { downloader?: Downloader } = {}) {
   const downloader = client(input);
   const items = downloader === 'transmission' ? await getTransmissionTorrents() : await getQbittorrentTorrents();

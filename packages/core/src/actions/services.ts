@@ -3,6 +3,7 @@ import { maybeServiceBaseUrl, serviceApiKey } from '../clients/serviceConfig';
 import { getServiceConfigAction, listServiceConfigsAction, updateServiceConfigAction } from '../serviceCatalog';
 import { listServiceFavoritesAction, updateServiceFavoritesAction } from '../serviceFavorites';
 import { getServices } from '../services';
+import { getTransmissionSessionStatus } from './downloads';
 
 export function listServicesAction() {
   return getServices();
@@ -23,6 +24,14 @@ export async function getServiceStatusAction({ service }: { service: string }) {
   const baseUrl = maybeServiceBaseUrl(service);
   if (!baseUrl) {
     return { ...summary, reachable: false, unsupported: true, error: 'Service does not expose an HTTP endpoint.' };
+  }
+  if (service === 'transmission') {
+    try {
+      const response = await getTransmissionSessionStatus();
+      return { ...summary, baseUrl, reachable: true, response };
+    } catch (error) {
+      return { ...summary, baseUrl, reachable: false, error: error instanceof Error ? error.message : String(error) };
+    }
   }
   const apiKey = serviceApiKey(service);
   let endpoint = baseUrl;
