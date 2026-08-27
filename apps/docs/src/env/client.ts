@@ -1,3 +1,4 @@
+import { defaultSanityProjectId } from '@stackarr/cms';
 import { createEnv } from '@t3-oss/env-nextjs';
 import { z } from 'zod';
 
@@ -12,13 +13,13 @@ export const clientEnv = createEnv({
     NEXT_PUBLIC_SANITY_PROJECT_ID: z
       .string()
       .regex(/^[a-z0-9-]+$/)
-      .optional(),
+      .default(defaultSanityProjectId),
     NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED: booleanString,
     NEXT_PUBLIC_STACKARR_VERSION: z.string().min(1).default('0.3.0-alpha.19') // x-release-please-version
   },
   runtimeEnv: {
     NEXT_PUBLIC_SANITY_DATASET: process.env.NEXT_PUBLIC_SANITY_DATASET,
-    NEXT_PUBLIC_SANITY_PROJECT_ID: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
+    NEXT_PUBLIC_SANITY_PROJECT_ID: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? defaultSanityProjectId,
     NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED:
       process.env.NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED,
     NEXT_PUBLIC_STACKARR_VERSION: process.env.NEXT_PUBLIC_STACKARR_VERSION

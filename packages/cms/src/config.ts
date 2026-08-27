@@ -1,4 +1,5 @@
 export const sanityApiVersion = '2026-08-10';
+export const defaultSanityProjectId = 'ug2s0zi0';
 
 export type PublicSanityConfig = {
   projectId: string;
@@ -6,15 +7,8 @@ export type PublicSanityConfig = {
 };
 
 export function getPublicSanityConfig(): PublicSanityConfig | null {
-  const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID?.trim();
+  const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID?.trim() || defaultSanityProjectId;
   const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET?.trim() || 'production';
-
-  if (!projectId) {
-    if (process.env.NODE_ENV === 'production' && process.env.SKIP_ENV_VALIDATION !== '1') {
-      throw new Error('NEXT_PUBLIC_SANITY_PROJECT_ID is required in production.');
-    }
-    return null;
-  }
 
   return { projectId, dataset };
 }

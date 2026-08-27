@@ -1,4 +1,4 @@
-export { getPublicSanityConfig, sanityApiVersion } from './config';
+export { defaultSanityProjectId, getPublicSanityConfig, sanityApiVersion } from './config';
 export { editorialCategories, editorialDiscoverySources } from './editorial';
 export type {
   BlogCategory,
