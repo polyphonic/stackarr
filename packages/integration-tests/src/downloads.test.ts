@@ -64,6 +64,49 @@ test('Transmission add magnet handles session retry and credentials', async () =
   }
 });
 
+test('Transmission service status uses authenticated RPC session negotiation', async () => {
+  const seen: { auth?: string; session?: string; method?: string }[] = [];
+  const server = await startServer(async (request, response) => {
+    assert.equal(request.url, '/transmission/rpc');
+    const payload = JSON.parse(await body(request));
+    seen.push({
+      auth: request.headers.authorization,
+      session: request.headers['x-transmission-session-id'] as string | undefined,
+      method: payload.method
+    });
+
+    if (seen.length === 1) {
+      response.writeHead(409, { 'X-Transmission-Session-Id': 'status-session' });
+      response.end();
+      return;
+    }
+
+    json(response, { result: 'success', arguments: { version: '4.0.6', 'rpc-version': 17 } });
+  });
+
+  try {
+    const { getServiceStatusAction } = await core();
+    await writeRuntimeConfig({
+      PREFERRED_TORRENT_CLIENT: 'transmission',
+      TRANSMISSION_URL: server.url,
+      USERNAME: 'stackarr',
+      PASSWORD: 'secret'
+    });
+    const result = await getServiceStatusAction({ service: 'transmission' });
+
+    assert.ok('reachable' in result);
+    assert.equal(result.reachable, true);
+    assert.ok('response' in result);
+    assert.deepEqual(result.response, { version: '4.0.6', rpcVersion: 17 });
+    assert.equal(seen.length, 2);
+    assert.deepEqual(seen.map((request) => request.method), ['session-get', 'session-get']);
+    assert.equal(seen[0].auth, `Basic ${Buffer.from('stackarr:secret').toString('base64')}`);
+    assert.equal(seen[1].session, 'status-session');
+  } finally {
+    await server.close();
+  }
+});
+
 test('Transmission queue and write operations call the expected RPC methods', async () => {
   const methods: string[] = [];
   const server = await startServer(async (request, response) => {

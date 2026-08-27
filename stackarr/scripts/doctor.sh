@@ -236,18 +236,27 @@ if [[ -d "${PLEX_CONFIG_PATH:-}" ]] && [[ -d "${BACKUP_ROOT:-}" ]] && is_subpath
     failure "Backup root is inside the Plex Media Server data directory"
 fi
 
-if pgrep -x "Plex Media Server" >/dev/null 2>&1; then
-    pass "Plex Media Server process detected"
+if stackarr_runtime_is_container; then
+    pass "Native Plex host process and API checks are not applicable inside Docker"
 else
-    warning "Plex Media Server process not detected"
+    if pgrep -x "Plex Media Server" >/dev/null 2>&1; then
+        pass "Plex Media Server process detected"
+    else
+        warning "Plex Media Server process not detected"
+    fi
+
+    if [[ -f "${PLEX_PREFS_PATH:-}" ]]; then
+        check_native_plex_identity_health
+    fi
 fi
 
-if [[ -f "${PLEX_PREFS_PATH:-}" ]]; then
-    check_native_plex_identity_health
-fi
-
-if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.stack.plist" ]]; then
-    pass "Startup launch agent installed"
+if stackarr_runtime_is_container; then
+    pass "macOS launch agent checks are not applicable inside Docker"
+elif [[ "$(uname -s)" != "Darwin" ]]; then
+    pass "macOS launch agent checks are not applicable on this platform"
+else
+    if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.stack.plist" ]]; then
+        pass "Startup launch agent installed"
     MANAGED_STACKARR_BIN="$(managed_host_runtime_bin)"
     if grep -Fq "<string>$MANAGED_STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
         pass "Startup launch agent uses the Stackarr app-data runtime"
@@ -345,6 +354,7 @@ if [[ -n "$UNSAFE_STACKARR_AGENTS" ]]; then
 else
     pass "All Stackarr launch agents use app-data runtime paths"
 fi
+fi
 
 if torrent_client_enabled transmission; then
     if service_port_localhost_only "transmission" "9091"; then
@@ -366,6 +376,9 @@ else
     pass "qBittorrent is not selected for this install"
 fi
 
+if stackarr_runtime_is_container; then
+    pass "Cloudflare connector checks are handled by the Stackarr host runtime"
+else
 CLOUDFLARED_PLIST="$HOME/Library/LaunchAgents/com.stackarr.cloudflared.plist"
 CLOUDFLARED_TOKEN_PATH="${CLOUDFLARED_TOKEN_FILE:-${STATE_ROOT:-$HOME/Library/Application Support/Stackarr/state}/cloudflared-token}"
 if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
@@ -412,8 +425,11 @@ if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
         warning "Seerr is exposed beyond localhost while Cloudflare is enabled"
     fi
 fi
+fi
 
-if command -v tailscale >/dev/null 2>&1; then
+if stackarr_runtime_is_container; then
+    pass "Tailscale host checks are not applicable inside Docker"
+elif command -v tailscale >/dev/null 2>&1; then
     if tailscale status >/dev/null 2>&1; then
         pass "Tailscale is installed"
     else

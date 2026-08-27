@@ -23,6 +23,14 @@ test('Doctor audits Portless and every com.stackarr LaunchAgent for non-app-data
   assert.match(source, /All Stackarr launch agents use app-data runtime paths/);
 });
 
+test('Doctor skips host-only diagnostics inside the Docker controller', async () => {
+  const source = await readFile(path.join(scriptsRoot, 'doctor.sh'), 'utf8');
+  assert.match(source, /if stackarr_runtime_is_container; then\n\s+pass "Native Plex host process and API checks are not applicable inside Docker"/);
+  assert.match(source, /pass "macOS launch agent checks are not applicable inside Docker"/);
+  assert.match(source, /pass "Cloudflare connector checks are handled by the Stackarr host runtime"/);
+  assert.match(source, /pass "Tailscale host checks are not applicable inside Docker"/);
+});
+
 test('cloudflared discovery cannot fall back to environment, PATH, or Homebrew', async () => {
   const source = await readFile(path.join(repoRoot, 'stackarr/lib/common.sh'), 'utf8');
   const match = source.match(/find_cloudflared_bin\(\) \{([\s\S]*?)\n\}/);
