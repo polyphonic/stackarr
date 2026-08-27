@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -57,7 +57,7 @@ printf '%s' "$attempts" > "$STACKARR_TEST_ATTEMPTS"
   }
 });
 
-test('startup installer enables, loads, verifies, and retries a source agent', async () => {
+test('startup installer stages an app-data runtime and never launches from the source checkout', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-startup-agent-test-'));
   const home = path.join(root, 'home');
   const binDir = path.join(root, 'bin');
@@ -98,6 +98,10 @@ exit 0
     const plist = await readFile(path.join(home, 'Library/LaunchAgents/com.stackarr.stack.plist'), 'utf8');
     const launchctlCalls = await readFile(launchctlLog, 'utf8');
 
+    const managedRuntimeBin = path.join(home, 'Library/Application Support/Stackarr/state/host-runtime/bin/stackarr');
+    assert.match(plist, new RegExp(`<string>${managedRuntimeBin.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}</string>`));
+    assert.doesNotMatch(plist, new RegExp(repoRoot.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')));
+    assert.match(await readFile(managedRuntimeBin, 'utf8'), /ROOT_DIR=/);
     assert.match(plist, /<key>STACKARR_RUN_SOURCE<\/key>\s*<string>startup<\/string>/);
     assert.match(plist, /<key>SuccessfulExit<\/key>\s*<false\/>/);
     assert.match(plist, /<key>ThrottleInterval<\/key>\s*<integer>30<\/integer>/);
@@ -151,6 +155,34 @@ recover_database_startup_failures`,
 
     assert.match(stdout, /radarr is stuck after starting before the database was ready/);
     assert.equal(await readFile(restartLog, 'utf8'), 'radarr\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('concurrent runtime staging is serialized and leaves one complete canonical install', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-runtime-lock-test-'));
+  const home = path.join(root, 'home');
+  const managedParent = path.join(home, 'Library/Application Support/Stackarr/state');
+  const managedBin = path.join(managedParent, 'host-runtime/bin/stackarr');
+  const commonScript = path.join(repoRoot, 'stackarr/lib/common.sh');
+  const command = 'source "$1"; install_managed_host_runtime';
+
+  try {
+    await mkdir(home, { recursive: true });
+    const env = { ...process.env, HOME: home };
+    const [first, second] = await Promise.all([
+      execFile('bash', ['-c', command, 'runtime-stage', commonScript], { cwd: repoRoot, env }),
+      execFile('bash', ['-c', command, 'runtime-stage', commonScript], { cwd: repoRoot, env })
+    ]);
+
+    assert.equal(first.stdout.trim(), managedBin);
+    assert.equal(second.stdout.trim(), managedBin);
+    assert.match(await readFile(managedBin, 'utf8'), /ROOT_DIR=/);
+    assert.deepEqual(
+      (await readdir(managedParent)).filter((entry) => entry.includes('.tmp.') || entry.includes('.previous.') || entry.endsWith('.install.lock')),
+      []
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

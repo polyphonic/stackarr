@@ -72,13 +72,7 @@ EOF
 }
 
 stackarr_command_path() {
-    local bin
-    bin="$(find_stackarr_bin || true)"
-    if [[ -n "$bin" ]]; then
-        printf '%s\n' "$bin"
-    else
-        printf '%s\n' "$REPO_ROOT/bin/stackarr"
-    fi
+    install_managed_host_runtime
 }
 
 install_hermes() {
@@ -101,7 +95,7 @@ install_hermes() {
         ok "Prepared the Hermes Stackarr MCP integration at $destination"
         warn "Run on the Docker host: hermes mcp add stackarr --command docker --args exec -i -e STACKARR_MCP_PROFILE='$MCP_PROFILE' -e STACKARR_MCP_CLIENT=hermes$docker_groups '$MCP_CONTAINER_NAME' /app/bin/stackarr mcp serve"
     elif $CONFIGURE && command -v hermes >/dev/null 2>&1; then
-        local hermes_env=("STACKARR_REPO_ROOT=$REPO_ROOT" "STACKARR_MCP_PROFILE=$MCP_PROFILE" "STACKARR_MCP_CLIENT=hermes")
+        local hermes_env=("STACKARR_MCP_PROFILE=$MCP_PROFILE" "STACKARR_MCP_CLIENT=hermes")
         if [[ -n "$MCP_GROUPS" ]]; then
             hermes_env+=("STACKARR_MCP_GROUPS=$MCP_GROUPS")
         fi
@@ -113,21 +107,22 @@ install_hermes() {
         ok "Configured Stackarr as a native Hermes MCP server with the '$MCP_PROFILE' profile"
     else
         ok "Prepared the Hermes Stackarr MCP integration at $destination"
-        warn "Configure it with: hermes mcp add stackarr --command '$command_path' --env STACKARR_REPO_ROOT='$REPO_ROOT' STACKARR_MCP_PROFILE='$MCP_PROFILE' STACKARR_MCP_CLIENT=hermes --args mcp serve"
+        warn "Configure it with: hermes mcp add stackarr --command '$command_path' --env STACKARR_MCP_PROFILE='$MCP_PROFILE' STACKARR_MCP_CLIENT=hermes --args mcp serve"
     fi
 }
 
 install_openclaw() {
     local destination="${TARGET:-$APP_ROOT/agent-plugins/openclaw/stackarr}"
     local source="$REPO_ROOT/packages/agent-plugins/openclaw/stackarr"
-    local command_path
+    local command_path runtime_root
     [[ -d "$source" ]] || fail "OpenClaw plugin source missing: $source"
 
     rm -rf "$destination"
     mkdir -p "$(dirname "$destination")"
     cp -R "$source" "$destination"
     command_path="$(stackarr_command_path)"
-    python3 - "$destination/plugin.yaml" "$destination/mcp.json" "$command_path" "$REPO_ROOT" "$MCP_PROFILE" "${STACKARR_RUNTIME:-}" "$MCP_CONTAINER_NAME" "$MCP_GROUPS" <<'PY'
+    runtime_root="$(managed_host_runtime_root)"
+    python3 - "$destination/plugin.yaml" "$destination/mcp.json" "$command_path" "$runtime_root" "$MCP_PROFILE" "${STACKARR_RUNTIME:-}" "$MCP_CONTAINER_NAME" "$MCP_GROUPS" <<'PY'
 import json
 import sys
 from pathlib import Path

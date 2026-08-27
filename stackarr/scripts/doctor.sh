@@ -28,7 +28,6 @@ print_header "Stackarr Doctor"
 load_env
 configure_docker_environment
 STACKARR_BIN="$(find_stackarr_bin || true)"
-STACKARR_APP_BUNDLE="$(find_stackarr_app_bundle_for_bin "$STACKARR_BIN" || true)"
 
 check_launch_agent_state() {
     local label="$1"
@@ -249,21 +248,11 @@ fi
 
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.stack.plist" ]]; then
     pass "Startup launch agent installed"
-    if [[ -n "$STACKARR_APP_BUNDLE" ]]; then
-        if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
-            pass "Startup launch agent is associated with the Stackarr app bundle"
-        else
-            warning "Startup launch agent is not associated with the installed Stackarr app bundle. Reinstall it with 'stackarr startup install'."
-        fi
-    elif grep -Fq "<key>AssociatedBundleIdentifiers</key>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
-        warning "Source startup launch agent has an app-bundle association, but no matching Stackarr.app exists. Reinstall it with 'stackarr startup install'."
+    MANAGED_STACKARR_BIN="$(managed_host_runtime_bin)"
+    if grep -Fq "<string>$MANAGED_STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
+        pass "Startup launch agent uses the Stackarr app-data runtime"
     else
-        pass "Source startup launch agent does not reference a missing app bundle"
-    fi
-    if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.stack.plist"; then
-        pass "Startup launch agent points at this Stackarr executable"
-    else
-        warning "Startup launch agent points at a different Stackarr executable. Reinstall it with 'stackarr startup install'."
+        warning "Startup launch agent does not use the Stackarr app-data runtime. Reinstall it with 'stackarr startup install'."
     fi
     check_launch_agent_state "com.stackarr.stack" "Startup"
 else
@@ -273,17 +262,15 @@ fi
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.backup.plist" ]]; then
     pass "Backup launch agent installed"
     BACKUP_AGENT_BIN="${STATE_ROOT:-}/launchd/Stackarr Backup Agent.app/Contents/MacOS/stackarr-backup-agent"
-    if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
-        pass "Backup launch agent is associated with the Stackarr app bundle"
+    if grep -Fq "<string>com.stackarr.backup-agent</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
+        pass "Backup launch agent is associated with its app-data helper"
     else
-        warning "Backup launch agent is not associated with the Stackarr app bundle. Reinstall it with 'stackarr backup install'."
+        warning "Backup launch agent is not associated with its app-data helper. Reinstall it with 'stackarr backup install'."
     fi
-    if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
-        pass "Backup launch agent points at this Stackarr executable"
-    elif [[ -x "$BACKUP_AGENT_BIN" ]] && grep -Fq "<string>$BACKUP_AGENT_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
+    if [[ -x "$BACKUP_AGENT_BIN" ]] && grep -Fq "<string>$BACKUP_AGENT_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.backup.plist"; then
         pass "Backup launch agent uses the dedicated Stackarr Backup Agent helper"
     else
-        warning "Backup launch agent points at a different Stackarr executable. Reinstall it with 'stackarr backup install'."
+        warning "Backup launch agent does not use the app-data helper. Reinstall it with 'stackarr backup install'."
     fi
 else
     warning "Backup launch agent not installed"
@@ -291,18 +278,72 @@ fi
 
 if [[ -f "$HOME/Library/LaunchAgents/com.stackarr.update.plist" ]]; then
     pass "Update launch agent installed"
-    if [[ -n "${STACKARR_BUNDLE_IDENTIFIER:-}" ]] && grep -Fq "<string>$STACKARR_BUNDLE_IDENTIFIER</string>" "$HOME/Library/LaunchAgents/com.stackarr.update.plist"; then
-        pass "Update launch agent is associated with the Stackarr app bundle"
+    MANAGED_STACKARR_BIN="$(managed_host_runtime_bin)"
+    if grep -Fq "<string>$MANAGED_STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.update.plist"; then
+        pass "Update launch agent uses the Stackarr app-data runtime"
     else
-        warning "Update launch agent is not associated with the Stackarr app bundle. Reinstall it with 'stackarr update install'."
-    fi
-    if [[ -n "${STACKARR_BIN:-}" ]] && grep -Fq "<string>$STACKARR_BIN</string>" "$HOME/Library/LaunchAgents/com.stackarr.update.plist"; then
-        pass "Update launch agent points at this Stackarr executable"
-    else
-        warning "Update launch agent points at a different Stackarr executable. Reinstall it with 'stackarr update install'."
+        warning "Update launch agent does not use the Stackarr app-data runtime. Reinstall it with 'stackarr update install'."
     fi
 else
     warning "Update launch agent not installed"
+fi
+
+PORTLESS_PLIST="$HOME/Library/LaunchAgents/com.stackarr.portless.plist"
+if [[ -f "$PORTLESS_PLIST" ]]; then
+    pass "Portless launch agent installed"
+    MANAGED_STACKARR_BIN="$(managed_host_runtime_bin)"
+    if grep -Fq "<string>$MANAGED_STACKARR_BIN</string>" "$PORTLESS_PLIST"; then
+        pass "Portless launch agent uses the Stackarr app-data runtime"
+    else
+        warning "Portless launch agent does not use the Stackarr app-data runtime. Reinstall it with 'stackarr portless install'."
+    fi
+    check_launch_agent_state "com.stackarr.portless" "Portless"
+else
+    pass "Portless launch agent is not installed"
+fi
+
+UNSAFE_STACKARR_AGENTS="$(
+    python3 - "$HOME/Library/LaunchAgents" "$(default_app_root)" <<'PY'
+import glob
+import os
+import plistlib
+import sys
+
+agent_dir, app_root = sys.argv[1:]
+allowed_programs = {"/bin/bash", "/bin/sh", "/usr/bin/python3", "/usr/bin/env"}
+script_extensions = (".sh", ".bash", ".py", ".js", ".cjs", ".mjs")
+for path in sorted(glob.glob(os.path.join(agent_dir, "com.stackarr.*.plist"))):
+    try:
+        with open(path, "rb") as handle:
+            payload = plistlib.load(handle)
+    except Exception:
+        print(os.path.basename(path))
+        continue
+    arguments = [str(value) for value in payload.get("ProgramArguments", [])]
+    program = str(payload.get("Program") or (arguments[0] if arguments else ""))
+    working_directory = str(payload.get("WorkingDirectory") or "")
+    executable_paths = [program]
+    executable_paths.extend(
+        value for value in arguments[1:]
+        if os.path.isabs(value) and value.lower().endswith(script_extensions)
+    )
+    unsafe = any(
+        value
+        and os.path.isabs(value)
+        and value not in allowed_programs
+        and not os.path.normpath(value).startswith(os.path.normpath(app_root) + os.sep)
+        for value in executable_paths
+    )
+    if working_directory and os.path.isabs(working_directory):
+        unsafe = unsafe or not os.path.normpath(working_directory).startswith(os.path.normpath(app_root))
+    if unsafe:
+        print(os.path.basename(path))
+PY
+)"
+if [[ -n "$UNSAFE_STACKARR_AGENTS" ]]; then
+    warning "Stackarr launch agents reference executables, scripts, or working directories outside app data: $(printf '%s' "$UNSAFE_STACKARR_AGENTS" | paste -sd ', ' -)"
+else
+    pass "All Stackarr launch agents use app-data runtime paths"
 fi
 
 if torrent_client_enabled transmission; then
@@ -329,14 +370,20 @@ CLOUDFLARED_PLIST="$HOME/Library/LaunchAgents/com.stackarr.cloudflared.plist"
 CLOUDFLARED_TOKEN_PATH="${CLOUDFLARED_TOKEN_FILE:-${STATE_ROOT:-$HOME/Library/Application Support/Stackarr/state}/cloudflared-token}"
 if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
 
-    if find_cloudflared_bin >/dev/null 2>&1; then
-        pass "cloudflared is installed"
+    MANAGED_CLOUDFLARED_BIN="$(managed_cloudflared_bin)"
+    if [[ -x "$MANAGED_CLOUDFLARED_BIN" ]]; then
+        pass "Stackarr-managed cloudflared is installed in app data"
     else
-        warning "Cloudflare tunnel is configured, but cloudflared is not installed"
+        warning "Cloudflare tunnel is configured, but Stackarr-managed cloudflared is missing"
     fi
 
     if [[ -f "$CLOUDFLARED_PLIST" ]]; then
         pass "Cloudflare tunnel launch agent installed"
+        if grep -Fq "<string>$MANAGED_CLOUDFLARED_BIN</string>" "$CLOUDFLARED_PLIST"; then
+            pass "Cloudflare launch agent uses the Stackarr-managed binary"
+        else
+            warning "Cloudflare launch agent uses an external binary. Run 'stackarr cloudflare start' to migrate it."
+        fi
     else
         warning "Cloudflare tunnel runtime config exists but launch agent is missing"
     fi
@@ -359,10 +406,10 @@ if [[ -f "$CLOUDFLARED_PLIST" || -n "${CLOUDFLARED_TUNNEL_ID:-}" ]]; then
         warning "Cloudflare tunnel metrics endpoint is not ready"
     fi
 
-    if [[ "${SEERR_BIND_IP:-}" != "127.0.0.1" ]]; then
-        pass "Seerr is LAN-accessible while Cloudflare is enabled"
+    if [[ "${SEERR_BIND_IP:-}" == "127.0.0.1" ]]; then
+        pass "Seerr remains localhost-only behind the Cloudflare tunnel"
     else
-        warning "Seerr is still localhost-only even though Cloudflare is configured"
+        warning "Seerr is exposed beyond localhost while Cloudflare is enabled"
     fi
 fi
 
