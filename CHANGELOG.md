@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0-alpha.20](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.19...v0.3.0-alpha.20) (2026-08-27)
+
+
+### Added
+
+* **questarr:** add secure RomM game workflow ([7f54b48](https://github.com/polyphonic/stackarr/commit/7f54b484c470c0985f34f7605287d5c926919083))
+* **questarr:** add secure RomM game workflow ([810e71b](https://github.com/polyphonic/stackarr/commit/810e71b61a57765922b96173824b642ca37e1797))
+* **web:** unify homepage design system ([08853e2](https://github.com/polyphonic/stackarr/commit/08853e213645f8668884913108b6b6b71220d3cb))
+* **web:** unify homepage design system ([ac2d92b](https://github.com/polyphonic/stackarr/commit/ac2d92baf43a78bce126c434b884cdf8446fdfca))
+
+
+### Fixed
+
+* **backup:** preserve game integration state ([01d979e](https://github.com/polyphonic/stackarr/commit/01d979ebc33bb06a4229a58fe77ddd54a64ef831))
+* **bookorbit:** move host traffic to port 42873 ([aba7c93](https://github.com/polyphonic/stackarr/commit/aba7c9308d023d52f95a1c5e6daf6ac91aa072f6))
+* **bookorbit:** move host traffic to port 42873 ([07baf80](https://github.com/polyphonic/stackarr/commit/07baf808862f9f0f9db8cff9ef51649b044ec96b))
+* **cleanuparr:** exempt game downloads from media blocklist ([55c89c7](https://github.com/polyphonic/stackarr/commit/55c89c726d610a425214997e4b61779e41e0dc89))
+* **control-plane:** repair health diagnostics and docs build ([079eb97](https://github.com/polyphonic/stackarr/commit/079eb97d6cfc307a18e1eb59b8f962e9dbe8c2d3))
+* **docs:** center header action labels ([f938f42](https://github.com/polyphonic/stackarr/commit/f938f42a9a60810c7b4ebaf0afe17d138bd35e5b))
+* **docs:** center header action labels ([b4e0569](https://github.com/polyphonic/stackarr/commit/b4e0569ee1eb3bffb8f8d21e05a30ff8dbcbdde8))
+* **docs:** restore mobile theme label ([cfd62d5](https://github.com/polyphonic/stackarr/commit/cfd62d5a0eabc28e205d8fb639a459980bb11c76))
+* **docs:** restore mobile theme label ([ecc24c9](https://github.com/polyphonic/stackarr/commit/ecc24c9973f7027a5cdae74a4e7434c4a0b9a27a))
+* **questarr:** describe controller-owned game mount ([e2f811b](https://github.com/polyphonic/stackarr/commit/e2f811b367fdc0d3648a2031a058712ae73b3c4f))
+* **questarr:** harden game workflow boundaries ([7be86e6](https://github.com/polyphonic/stackarr/commit/7be86e63754f343bc56d811bc1e64cae7e6bd11c))
+* **questarr:** verify external RomM library mounts ([0bd6034](https://github.com/polyphonic/stackarr/commit/0bd60349d3babcd296dbb22c90ae7cbf2bb75dbb))
+* **ui:** reserve app card action column ([1f9bd95](https://github.com/polyphonic/stackarr/commit/1f9bd95e3c50fada7aa52d94d5e2ab66d0a6a085))
+* **web:** repair responsive visual regressions ([55daea9](https://github.com/polyphonic/stackarr/commit/55daea9db0535c08cb66598e78feb58dda12e1a8))
+* **web:** repair responsive visual regressions ([1ff6052](https://github.com/polyphonic/stackarr/commit/1ff6052a6714c5d1e31918e166e7018ed76863d0))
+
 ## [0.3.0-alpha.19](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.18...v0.3.0-alpha.19) (2026-08-23)
 
 
