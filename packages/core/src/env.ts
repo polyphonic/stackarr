@@ -142,6 +142,12 @@ export const managedEnvDefaults: StackarrEnv = {
   CLEANUPARR_URL: 'http://127.0.0.1:11011',
   CLEANUPARR_AUTO_CONFIGURE: 'true',
   CLEANUPARR_MALWARE_CRON: '0/5 * * * * ?',
+  CLEANUPARR_DATABASE_PROVIDER: 'sqlite',
+  CLEANUPARR_POSTGRES_HOST: 'database',
+  CLEANUPARR_POSTGRES_PORT: '5432',
+  CLEANUPARR_POSTGRES_DATABASE: 'cleanuparr',
+  CLEANUPARR_POSTGRES_USER: 'cleanuparr',
+  CLEANUPARR_POSTGRES_PASSWORD: '',
   AGREGARR_BIND_IP: '127.0.0.1',
   AGREGARR_PORT: '7171',
   AGREGARR_URL: 'http://127.0.0.1:7171',
@@ -640,6 +646,10 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   merged.STACKARR_DATABASE_MODE = normalizeDatabaseMode(merged.STACKARR_DATABASE_MODE);
   applyAccessPasswordDefaults(merged);
   const databasePassword = merged.DATABASE_SUPERUSER_PASSWORD || '';
+  merged.CLEANUPARR_POSTGRES_HOST = merged.CLEANUPARR_POSTGRES_HOST || 'database';
+  merged.CLEANUPARR_POSTGRES_PORT = merged.CLEANUPARR_POSTGRES_PORT || '5432';
+  merged.CLEANUPARR_POSTGRES_PASSWORD = merged.CLEANUPARR_POSTGRES_PASSWORD || databasePassword;
+
   merged.STACKARR_POSTGRES_MAIN_DATABASE =
     merged.STACKARR_POSTGRES_MAIN_DATABASE || merged.STACKARR_POSTGRES_DATABASE || 'stackarr-main';
   merged.STACKARR_POSTGRES_DATABASE = merged.STACKARR_POSTGRES_MAIN_DATABASE;
