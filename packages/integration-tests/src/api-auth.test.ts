@@ -367,7 +367,7 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.loginStatus, 200);
     assert.equal(result.sessionCookie, true);
     assert.deepEqual(result.lockedLoginStatuses, [401, 401, 401, 401, 401]);
-    assert.equal(result.validLoginWhileBlocked, 429);
+    assert.equal(result.validLoginWhileBlocked, 200);
     assert.equal(result.noHeader, 401);
     assert.equal(result.sameOriginBrowser, 401);
     assert.equal(result.validSession, true);

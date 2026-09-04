@@ -419,7 +419,7 @@ if flag_enabled "$ENABLE_TRACEARR"; then
     TRACEARR_COOKIE_SECRET="$(random_hex_secret 32)"
     TRACEARR_ADMIN_PASSWORD="$PASSWORD"
 fi
-RECYCLARR_IMAGE="ghcr.io/recyclarr/recyclarr:latest"
+RECYCLARR_IMAGE="ghcr.io/recyclarr/recyclarr:8"
 FLARESOLVERR_IMAGE="ghcr.io/flaresolverr/flaresolverr:latest"
 LIDARR_IMAGE="lscr.io/linuxserver/lidarr:latest"
 TIDARR_IMAGE="cstaelen/tidarr:latest"

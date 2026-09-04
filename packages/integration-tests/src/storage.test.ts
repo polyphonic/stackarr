@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -60,4 +60,26 @@ test('storage wait ignores backup root when backups are disabled', async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('startup waits for external storage before rewriting state and refreshes Postgres before reconciliation', async () => {
+  for (const relativePath of ['stackarr/scripts/up.sh', 'stackarr/scripts/start-stack.sh']) {
+    const source = await readFile(path.join(repoRoot, relativePath), 'utf8');
+    const storage = source.indexOf('wait_for_stackarr_storage');
+    const firstWrite = source.indexOf('write_compose_env_file');
+    const database = source.indexOf('ensure_database_if_required');
+    const refresh = source.indexOf('load_postgres_runtime_config', database);
+    const composeUp = source.indexOf('up -d --remove-orphans');
+
+    assert.ok(storage >= 0, `${relativePath} must wait for storage`);
+    assert.ok(firstWrite > storage, `${relativePath} must not rewrite generated state before storage is ready`);
+    assert.ok(database > firstWrite, `${relativePath} must initialize PostgreSQL after preserving generated state`);
+    assert.ok(refresh > database, `${relativePath} must reload authoritative PostgreSQL state after database startup`);
+    assert.ok(composeUp > refresh, `${relativePath} must reconcile services only after authoritative reload`);
+  }
+
+  const common = await readFile(commonScript, 'utf8');
+  const init = await readFile(path.join(repoRoot, 'stackarr/scripts/init.sh'), 'utf8');
+  assert.match(common, /RECYCLARR_IMAGE:=ghcr\.io\/recyclarr\/recyclarr:8/);
+  assert.match(init, /RECYCLARR_IMAGE="ghcr\.io\/recyclarr\/recyclarr:8"/);
 });

@@ -131,6 +131,23 @@ install_managed_host_runtime() (
 
     mkdir -p "$tmp_root"
     cp -R "$ROOT_DIR/." "$tmp_root/"
+    # The host runtime is a portable code bundle, not a copy of the source
+    # checkout's ignored installation state. Never carry a developer
+    # .env/database/secret into app data: those stale files can become an
+    # accidental recovery source while the controller is unavailable.
+    rm -rf \
+        "$tmp_root/.env" \
+        "$tmp_root/.stackarr" \
+        "$tmp_root/state" \
+        "$tmp_root/logs" \
+        "$tmp_root/downloads" \
+        "$tmp_root/backups" \
+        "$tmp_root/media" \
+        "$tmp_root/config/stackarr.db" \
+        "$tmp_root/config/stackarr.secret" \
+        "$tmp_root/scripts/__pycache__" \
+        "$tmp_root/scripts/postprocess"
+
     if [[ "$REPO_ROOT" != "$ROOT_DIR" && -d "$REPO_ROOT/packages/agent-plugins" ]]; then
         mkdir -p "$tmp_root/packages"
         cp -R "$REPO_ROOT/packages/agent-plugins" "$tmp_root/packages/agent-plugins"
@@ -263,19 +280,154 @@ load_sqlite_runtime_config() {
     eval "$exports"
 }
 
+
+is_container_runtime_path() {
+    case "${1:-}" in
+        /app/stackarr/.stackarr|/app/stackarr/.stackarr/*|/stackarr-state|/stackarr-state/*|/stackarr-workspace|/stackarr-workspace/*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+eval_host_runtime_config_exports() {
+    local exports="$1"
+    local key backup_key before after
+    local path_keys=(
+        APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT
+        BOOKS_ROOT GAMES_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
+        JELLYFIN_CONFIG_PATH ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT
+        ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_DB_DATA_LOCATION QUESTARR_DATA_ROOT
+        CLAMAV_DATA_ROOT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT
+        YOUTARR_IMAGES_ROOT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION
+    )
+
+    for key in "${path_keys[@]}"; do
+        backup_key="STACKARR_HOST_PATH_BEFORE_${key}"
+        printf -v "$backup_key" '%s' "${!key:-}"
+    done
+
+    eval "$exports"
+
+    for key in "${path_keys[@]}"; do
+        backup_key="STACKARR_HOST_PATH_BEFORE_${key}"
+        before="${!backup_key:-}"
+        after="${!key:-}"
+        if [[ -n "$before" ]] && ! is_container_runtime_path "$before" && is_container_runtime_path "$after"; then
+            printf -v "$key" '%s' "$before"
+            export "$key"
+        fi
+        unset "$backup_key"
+    done
+}
 load_postgres_runtime_config_through_app() {
-    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 0
-    stackarr_runtime_is_container && return 0
+    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    stackarr_runtime_is_container && return 1
 
     local exports
     if ! exports="$(stackarr_compose exec -T app sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
-        return 0
+        return 1
     fi
 
-    [[ -n "$exports" ]] || return 0
-    eval "$exports"
+    [[ -n "$exports" ]] || return 1
+    eval_host_runtime_config_exports "$exports"
 }
 
+
+host_postgres_url() {
+    local database_url="${1:-}"
+    local host_port="${DATABASE_HOST_PORT:-5433}"
+
+    [[ -n "$database_url" ]] || return 1
+    command -v python3 >/dev/null 2>&1 || return 1
+
+    python3 - "$database_url" "$host_port" <<'PY'
+import sys
+from urllib.parse import urlsplit, urlunsplit
+
+parts = urlsplit(sys.argv[1])
+if parts.hostname != "database":
+    print(sys.argv[1])
+    raise SystemExit(0)
+
+userinfo = parts.netloc.rsplit("@", 1)[0] + "@" if "@" in parts.netloc else ""
+print(urlunsplit((parts.scheme, f"{userinfo}127.0.0.1:{sys.argv[2]}", parts.path, parts.query, parts.fragment)))
+PY
+}
+
+load_postgres_runtime_config_from_host() {
+    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    stackarr_runtime_is_container && return 1
+    command -v node >/dev/null 2>&1 || return 1
+
+    local exporter="$ROOT_DIR/scripts/runtime-config-export.cjs"
+    local database_url exports
+    [[ -f "$exporter" ]] || return 1
+    database_url="$(host_postgres_url "$STACKARR_DATABASE_URL")" || return 1
+    if ! exports="$(STACKARR_DATABASE_URL="$database_url" node "$exporter" 2>/dev/null)"; then
+        return 1
+    fi
+
+    [[ -n "$exports" ]] || return 1
+    eval_host_runtime_config_exports "$exports"
+}
+
+load_postgres_runtime_config_through_database() {
+    [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    stackarr_runtime_is_container && return 1
+    command -v python3 >/dev/null 2>&1 || return 1
+
+    local runtime_json exports
+    if ! runtime_json="$(stackarr_compose --profile database exec -T database \
+        psql -U "${DATABASE_SUPERUSER:-postgres}" -d "${STACKARR_POSTGRES_DATABASE:-stackarr-main}" -Atc \
+        "select value from app_settings where key = 'stackarr.runtimeConfig'" 2>/dev/null)"; then
+        return 1
+    fi
+    [[ -n "$runtime_json" ]] || return 1
+
+    if ! exports="$(printf '%s' "$runtime_json" | python3 -c '
+import json
+import re
+import shlex
+import sys
+
+config = json.load(sys.stdin)
+for key, value in config.items():
+    if re.fullmatch(r"[A-Z][A-Z0-9_]*", key) and isinstance(value, str):
+        print(f"export {key}={shlex.quote(value)}")
+')"; then
+        return 1
+    fi
+    [[ -n "$exports" ]] || return 1
+    eval_host_runtime_config_exports "$exports"
+}
+
+load_postgres_runtime_config() {
+    load_postgres_runtime_config_through_app || \
+        load_postgres_runtime_config_through_database || \
+        load_postgres_runtime_config_from_host
+}
+
+start_existing_database_for_runtime_config() {
+    [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] || return 1
+    ensure_docker_runtime
+    docker inspect database >/dev/null 2>&1 || return 1
+    docker start database >/dev/null
+
+    local attempt=1
+    while [[ "$attempt" -le 60 ]]; do
+        if docker exec database pg_isready -U "${DATABASE_SUPERUSER:-postgres}" -d "${STACKARR_POSTGRES_DATABASE:-stackarr-main}" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    warn "Existing Stackarr database did not become ready for runtime recovery"
+    return 1
+}
 load_compose_runtime_env() {
     local env_file="${STACKARR_COMPOSE_ENV_FILE:-}"
 
@@ -468,8 +620,13 @@ load_env() {
     load_compose_runtime_env
     # Host commands cannot resolve the Compose-only `database` hostname. Read
     # PostgreSQL-backed settings through the running Stackarr controller first.
-    load_postgres_runtime_config_through_app
-    load_sqlite_runtime_config
+    if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]]; then
+        # Retain the last generated Compose values when PostgreSQL is
+        # temporarily unavailable; never replace them with stale SQLite state.
+        load_postgres_runtime_config || true
+    else
+        load_sqlite_runtime_config
+    fi
     load_browser_link_runtime_settings
 
     if [[ -z "${APP_ROOT:-}" ]]; then
@@ -799,7 +956,7 @@ load_env() {
     : "${AGREGARR_IMAGE:=agregarr/agregarr:latest}"
     : "${TRACEARR_IMAGE:=ghcr.io/connorgallopo/tracearr:latest}"
     : "${REDIS_IMAGE:=redis:8.8.0-alpine}"
-    : "${RECYCLARR_IMAGE:=ghcr.io/recyclarr/recyclarr:latest}"
+    : "${RECYCLARR_IMAGE:=ghcr.io/recyclarr/recyclarr:8}"
     : "${FLARESOLVERR_IMAGE:=ghcr.io/flaresolverr/flaresolverr:latest}"
     : "${LIDARR_IMAGE:=lscr.io/linuxserver/lidarr:latest}"
     : "${TIDARR_IMAGE:=cstaelen/tidarr:latest}"
@@ -1107,13 +1264,24 @@ def quote(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("$", "$$")
     return f'"{escaped}"'
 
+def is_secret(key: str) -> bool:
+    if key.endswith("_TOKEN_FILE"):
+        return False
+    return bool(
+        re.search(r"(?:PASSWORD|TOKEN|SECRET|CLAIM_CODE|_KEY)$", key)
+        or key in {"ROMM_IGDB_CLIENT_ID", "QUESTARR_IGDB_CLIENT_ID", "ROMM_SCREENSCRAPER_USER"}
+        or key in {"STACKARR_DATABASE_URL", "STACKARR_LOG_DATABASE_URL", "DATABASE_URL"}
+        or key.endswith("_DATABASE_URL")
+        or key.endswith("_DB_URL")
+    )
+
 lines = [
     "# Generated by Stackarr. Do not commit this file.",
-    "# It keeps Docker Compose interpolation aligned with runtime settings.",
+    "# It contains non-secret topology only; credentials are loaded from runtime storage.",
 ]
 
 for key in sorted(os.environ):
-    if include.match(key) and key not in context_only:
+    if include.match(key) and key not in context_only and not is_secret(key):
         lines.append(f"{key}={quote(os.environ[key])}")
 
 tmp = target.with_suffix(target.suffix + ".tmp")
