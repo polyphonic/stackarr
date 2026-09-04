@@ -38,15 +38,19 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
           { id: 3, label: 'stackarr-approved' }
         ])
       );
+    } else if (requestPath === '/api/v1/appprofile') {
+      response.end(JSON.stringify([{ id: 2, name: 'Interactive only', enableRss: false, enableAutomaticSearch: false, enableInteractiveSearch: true, minimumSeeders: 1 }]));
     } else if (requestPath === '/api/v1/indexer') {
       response.end(
         JSON.stringify([
-          { id: 7, name: 'Internet Archive (Games)', enable: true, tags: [2, 3] },
+          { id: 7, name: 'Internet Archive (Games)', enable: true, appProfileId: 1, tags: [2, 3], fields: [{ name: 'baseSettings.queryLimit', value: null }, { name: 'baseSettings.limitsUnit', value: 1 }] },
           { id: 8, name: 'Unapproved Games', enable: true, tags: [2] },
           { id: 6, name: '1337x', enable: true, tags: [1] },
-          { id: 5, name: 'Internet Archive', enable: false, tags: [2] }
+          { id: 5, name: 'Internet Archive', enable: false, appProfileId: 1, tags: [2], fields: [{ name: 'baseSettings.queryLimit', value: null }, { name: 'baseSettings.limitsUnit', value: 1 }] }
         ])
       );
+    } else if (/^\/api\/v1\/indexer\/(5|7)\?forceSave=true$/.test(requestPath) && request.method === 'PUT') {
+      response.end(JSON.stringify(body));
     } else if (requestPath === '/api/indexers' && request.method === 'GET') {
       response.end(
         JSON.stringify([
@@ -128,6 +132,17 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
       requests.some((request) => request.path === '/api/indexers/ia-old' && request.method === 'PATCH'),
       false
     );
+
+    for (const id of [5, 7]) {
+      const archiveUpdate = requests.find(
+        (request) => request.path === `/api/v1/indexer/${id}?forceSave=true` && request.method === 'PUT'
+      );
+      assert.equal(archiveUpdate?.body.enable, true);
+      assert.equal(archiveUpdate?.body.appProfileId, 2);
+      const fields = archiveUpdate?.body.fields as Array<{ name: string; value: unknown }>;
+      assert.equal(fields.find((field) => field.name === 'baseSettings.queryLimit')?.value, 1);
+      assert.equal(fields.find((field) => field.name === 'baseSettings.limitsUnit')?.value, 0);
+    }
 
     const downloader = requests.find((request) => request.path === '/api/downloaders' && request.method === 'POST');
     assert.equal(downloader?.body.url, 'http://transmission');
