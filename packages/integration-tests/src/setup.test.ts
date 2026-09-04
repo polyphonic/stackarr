@@ -579,6 +579,11 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /Sonarr HD profile configured[\s\S]*DVD/);
   assert.match(configure, /Radarr HD Lite profile configured[\s\S]*HDTV-1080p,WEB 1080p,Bluray-1080p/);
   assert.match(configure, /Sonarr HD Lite profile configured[\s\S]*WEB 1080p,Bluray-1080p/);
+  assert.match(configure, /SONARR_MULTI_EPISODE_PACK_SCORE="5000"/);
+  assert.doesNotMatch(configure, /SONARR_MULTI_EPISODE_PACK_SCORE="-100000"/);
+  assert.match(configure, /SONARR_X265_SCORE="10000"/);
+  assert.match(configure, /Multi-Episode Pack:\$\{SONARR_MULTI_EPISODE_PACK_SCORE\}/);
+  assert.match(configure, /x265:\$\{SONARR_X265_SCORE\}/);
   assert.match(configure, /RADARR_DCP_REGEX=/);
   assert.match(configure, /RADARR_NON_DCP_HDTV_SCORE="-100000"/);
   assert.match(configure, /Radarr DCP custom format configured/);
@@ -625,7 +630,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /AGREGARR_PLACEHOLDER_FOLDER="\$\{AGREGARR_PLACEHOLDER_FOLDER:-_Trailers\}"/);
   assert.match(configure, /RADARR_DEFAULT_PROFILE/);
   assert.match(configure, /LIDARR_DEFAULT_PROFILE/);
-  assert.ok(configure.includes('Season[ ._-]?\\\\d{1,2}'));
+  assert.ok(configure.includes('Season[ ._-]?\\d{1,2}'));
   assert.match(configure, /configure_pulsarr_stack \|\| true/);
   assert.match(configure, /configure_maintainerr_stack \|\| true/);
   assert.match(configure, /configure_cleanuparr_stack \|\| true/);
