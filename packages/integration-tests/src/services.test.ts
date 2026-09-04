@@ -896,6 +896,7 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.match(directory, /Container update queued for/);
   assert.match(script, /write_compose_env_file/);
   assert.match(script, /up -d --force-recreate --no-deps "\$service"/);
+  assert.match(script, /app\|database\|transmission/);
 });
 
 test('security credential apply leaves the Stackarr controller running', async () => {
@@ -906,8 +907,12 @@ test('security credential apply leaves the Stackarr controller running', async (
 
   assert.ok(serviceList);
   assert.doesNotMatch(serviceList, /services\+=\("app"\)/);
+  assert.doesNotMatch(serviceList, /services\+=\("redis"\)/);
   assert.match(script, /Stackarr controller stays online because it reads account credentials from runtime storage/);
   assert.match(script, /STACKARR_TASK_HANDOFF_STARTED/);
+  assert.match(script, /docker inspect "\$\{STACKARR_CONTAINER_NAME:-app\}" --format '\{\{\.Config\.Image\}\}'/);
+  assert.match(script, /STACKARR_IMAGE="\$worker_image" STACKARR_SECURITY_HANDOFF=true/);
+  assert.doesNotMatch(script, /STACKARR_SECURITY_HANDOFF=true stackarr_compose/);
   assert.match(script, /app-updater security apply-worker/);
   assert.match(script, /up -d --force-recreate --no-deps app/);
   assert.match(
@@ -927,8 +932,10 @@ test('security credential apply leaves the Stackarr controller running', async (
   assert.match(script, /sync_servarr_runtime_api_keys/);
   assert.match(
     script,
-    /ensure_database_roles\s+recreate_security_services\s+sync_servarr_runtime_api_keys \|\| credential_sync_failed=true\s+write_compose_env_file/
+    /stop_security_services\s+ensure_database_roles\s+recreate_security_services\s+sync_servarr_runtime_api_keys \|\| credential_sync_failed=true\s+write_compose_env_file/
   );
+  assert.match(script, /stop "\$\{services\[@\]\}"/);
+  assert.match(script, /up -d --wait --wait-timeout 180 --force-recreate --no-deps "\$\{services\[@\]\}"/);
   assert.match(script, /reconcile-prowlarr-applications\.cjs/);
 });
 

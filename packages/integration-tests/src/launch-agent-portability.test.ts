@@ -11,9 +11,33 @@ test('all repository-managed Stackarr LaunchAgent installers use the canonical a
   for (const filename of ['startup-install.sh', 'update-install.sh', 'backup-install.sh', 'portless.sh']) {
     const source = await readFile(path.join(scriptsRoot, filename), 'utf8');
     assert.match(source, /install_managed_host_runtime/, `${filename} must stage the managed host runtime`);
-    assert.doesNotMatch(source, /STACKARR_BIN="\$\(find_stackarr_bin/, `${filename} must not select a checkout executable`);
-    assert.match(source, /LAUNCH_APP_ROOT="\$\(default_app_root\)"/, `${filename} must use the canonical app-data working directory`);
+    assert.doesNotMatch(
+      source,
+      /STACKARR_BIN="\$\(find_stackarr_bin/,
+      `${filename} must not select a checkout executable`
+    );
+    assert.match(
+      source,
+      /LAUNCH_APP_ROOT="\$\(default_app_root\)"/,
+      `${filename} must use the canonical app-data working directory`
+    );
   }
+});
+
+test('managed host runtime excludes ignored installation state and source context', async () => {
+  const source = await readFile(path.join(repoRoot, 'stackarr/lib/common.sh'), 'utf8');
+  const installer = source.match(/install_managed_host_runtime\(\) \(([\s\S]*?)\n\)/)?.[1] ?? '';
+
+  assert.match(installer, /"\$tmp_root\/\.env"/);
+  assert.match(installer, /"\$tmp_root\/\.stackarr"/);
+  assert.match(installer, /"\$tmp_root\/config\/stackarr\.db"/);
+  assert.match(installer, /"\$tmp_root\/config\/stackarr\.secret"/);
+  assert.match(installer, /"\$tmp_root\/state"/);
+  assert.match(installer, /"\$tmp_root\/scripts\/__pycache__"/);
+  assert.ok(
+    source.indexOf('rm -rf', source.indexOf('cp -R "$ROOT_DIR/." "$tmp_root/"')) > 0,
+    'ignored installation state must be removed after the portable runtime is copied'
+  );
 });
 
 test('Doctor audits Portless and every com.stackarr LaunchAgent for non-app-data code paths', async () => {
@@ -25,7 +49,10 @@ test('Doctor audits Portless and every com.stackarr LaunchAgent for non-app-data
 
 test('Doctor skips host-only diagnostics inside the Docker controller', async () => {
   const source = await readFile(path.join(scriptsRoot, 'doctor.sh'), 'utf8');
-  assert.match(source, /if stackarr_runtime_is_container; then\n\s+pass "Native Plex host process and API checks are not applicable inside Docker"/);
+  assert.match(
+    source,
+    /if stackarr_runtime_is_container; then\n\s+pass "Native Plex host process and API checks are not applicable inside Docker"/
+  );
   assert.match(source, /pass "macOS launch agent checks are not applicable inside Docker"/);
   assert.match(source, /pass "Cloudflare connector checks are handled by the Stackarr host runtime"/);
   assert.match(source, /pass "Tailscale host checks are not applicable inside Docker"/);

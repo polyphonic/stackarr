@@ -212,11 +212,9 @@ security_service_list() {
     if optional_service_enabled immich; then
         services+=("immich")
         services+=("immich-ml")
-        services+=("redis")
     fi
     if optional_service_enabled romm; then
         services+=("romm")
-        services+=("redis")
     fi
     if optional_service_enabled seerr; then
         services+=("seerr")
@@ -226,7 +224,6 @@ security_service_list() {
     fi
     if optional_service_enabled tracearr; then
         services+=("tracearr")
-        services+=("redis")
     fi
     if optional_service_enabled youtarr; then
         services+=("youtarr")
@@ -247,7 +244,26 @@ security_service_list() {
     done
 }
 
+stop_security_services() {
+    local profile_args=()
+    local services=()
+    local service
+
+    while IFS= read -r profile_arg; do
+        profile_args+=("$profile_arg")
+    done < <(compose_profile_args)
+    while IFS= read -r service; do
+        [[ -n "$service" ]] || continue
+        services+=("$service")
+    done < <(security_service_list)
+
+    [[ "${#services[@]}" -gt 0 ]] || return 0
+    stackarr_compose "${profile_args[@]}" stop "${services[@]}"
+    ok "Security-sensitive services stopped before database credential rotation"
+}
+
 recreate_security_services() {
+
     local profile_args=()
     local services=()
     local service
@@ -263,8 +279,8 @@ recreate_security_services() {
 
     [[ "${#services[@]}" -gt 0 ]] || return 0
 
-    stackarr_compose "${profile_args[@]}" up -d --force-recreate --no-deps "${services[@]}"
-    ok "Security-sensitive services recreated"
+    stackarr_compose "${profile_args[@]}" up -d --wait --wait-timeout 180 --force-recreate --no-deps "${services[@]}"
+    ok "Security-sensitive services recreated and healthy"
 }
 
 api_put_json() {
@@ -527,6 +543,7 @@ apply_security() {
     write_compose_env_file
     ensure_docker_runtime
 
+    stop_security_services
     ensure_database_roles
     recreate_security_services
     sync_servarr_runtime_api_keys || credential_sync_failed=true
@@ -554,6 +571,9 @@ apply_security() {
 
 start_security_apply_worker() {
     local task_database_url="${1:-}"
+    local worker_image=""
+    worker_image="$(docker inspect "${STACKARR_CONTAINER_NAME:-app}" --format '{{.Config.Image}}' 2>/dev/null || true)"
+    [[ -n "$worker_image" ]] || fail "Could not resolve the running Stackarr image for security apply"
     local -a run_args=(--profile maintenance run --quiet-pull -d --rm)
     if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
         run_args+=(-e "STACKARR_UPDATE_TASK_ID=$STACKARR_TASK_ID")
@@ -562,7 +582,8 @@ start_security_apply_worker() {
         run_args+=(-e "STACKARR_TASK_DATABASE_URL=$task_database_url")
     fi
 
-    STACKARR_SECURITY_HANDOFF=true stackarr_compose "${run_args[@]}" app-updater security apply-worker >/dev/null
+    STACKARR_IMAGE="$worker_image" STACKARR_SECURITY_HANDOFF=true \
+        stackarr_compose "${run_args[@]}" app-updater security apply-worker >/dev/null
     printf '%s\n' "STACKARR_TASK_HANDOFF_STARTED Security apply handed to the maintenance worker"
 }
 

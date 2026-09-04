@@ -516,7 +516,7 @@ function migrate(db: Database) {
 }
 
 function postgresConfigured(target: StackarrDatabaseTarget) {
-  return Boolean(resolvePostgresUrl(target));
+  return process.env.STACKARR_DATABASE_MODE?.trim().toLowerCase() === 'postgres' || Boolean(resolvePostgresUrl(target));
 }
 
 function migratePostgres(target: StackarrDatabaseTarget) {
