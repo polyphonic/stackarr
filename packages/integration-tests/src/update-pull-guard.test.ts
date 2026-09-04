@@ -13,7 +13,10 @@ test('managed app pulls use bounded concurrency and retry transient registry fai
   assert.match(update, /STACKARR_UPDATE_PULL_PARALLELISM:-4/);
   assert.match(update, /STACKARR_UPDATE_PULL_ATTEMPTS:-4/);
   assert.match(update, /COMPOSE_PARALLEL_LIMIT="\$parallelism"/);
-  assert.match(update, /Image pull attempt .* failed; retrying in/);
-  assert.match(update, /delay=\$\(\(delay \* 2\)\)/);
+  assert.match(update, /retrying each service independently/);
+  assert.match(update, /its running container will be left unchanged/);
+  assert.match(update, /PULLED_MANAGED_SERVICES/);
+  assert.doesNotMatch(update, /Could not pull all managed service images/);
+  assert.match(update, /service_delay=\$\(\(service_delay \* 2\)\)/);
   assert.match(update, /pull_managed_services "\$\{services\[@\]\}"/);
 });
