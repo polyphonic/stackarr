@@ -56,28 +56,50 @@ enabled_managed_services() {
     done < <(stackarr_compose "${profile_args[@]}" config --services)
 }
 
+PULLED_MANAGED_SERVICES=()
+
 pull_managed_services() {
     local -a services=("$@")
     local attempts="${STACKARR_UPDATE_PULL_ATTEMPTS:-4}"
     local parallelism="${STACKARR_UPDATE_PULL_PARALLELISM:-4}"
     local delay="${STACKARR_UPDATE_PULL_RETRY_SECONDS:-5}"
-    local attempt
+    local attempt service service_delay
 
     [[ "$attempts" =~ ^[1-9][0-9]*$ ]] || fail "STACKARR_UPDATE_PULL_ATTEMPTS must be a positive integer"
     [[ "$parallelism" =~ ^[1-9][0-9]*$ ]] || fail "STACKARR_UPDATE_PULL_PARALLELISM must be a positive integer"
     [[ "$delay" =~ ^[0-9]+$ ]] || fail "STACKARR_UPDATE_PULL_RETRY_SECONDS must be a non-negative integer"
 
-    for ((attempt = 1; attempt <= attempts; attempt++)); do
-        if COMPOSE_PARALLEL_LIMIT="$parallelism" stackarr_compose "${profile_args[@]}" pull --quiet "${services[@]}"; then
-            return 0
-        fi
-        if (( attempt >= attempts )); then
-            fail "Could not pull all managed service images after $attempts attempts"
-        fi
-        warn "Image pull attempt $attempt failed; retrying in ${delay}s"
-        sleep "$delay"
-        delay=$((delay * 2))
+    PULLED_MANAGED_SERVICES=()
+    if COMPOSE_PARALLEL_LIMIT="$parallelism" stackarr_compose "${profile_args[@]}" pull --quiet "${services[@]}"; then
+        PULLED_MANAGED_SERVICES=("${services[@]}")
+        return 0
+    fi
+    warn "Batch image pull failed; retrying each service independently"
+
+    for service in "${services[@]}"; do
+        service_delay="$delay"
+        for ((attempt = 1; attempt <= attempts; attempt++)); do
+            if COMPOSE_PARALLEL_LIMIT=1 stackarr_compose "${profile_args[@]}" pull --quiet "$service"; then
+                PULLED_MANAGED_SERVICES+=("$service")
+                break
+            fi
+            if (( attempt >= attempts )); then
+                warn "Could not pull $service after $attempts attempts; its running container will be left unchanged"
+                update_task_note "Image pull failed for $service; its running container was left unchanged"
+                break
+            fi
+            warn "$service image pull attempt $attempt failed; retrying in ${service_delay}s"
+            sleep "$service_delay"
+            service_delay=$((service_delay * 2))
+        done
     done
+
+    if [[ "${#PULLED_MANAGED_SERVICES[@]}" -eq 0 ]]; then
+        fail "Could not pull any managed service images"
+    fi
+    if [[ "${#PULLED_MANAGED_SERVICES[@]}" -lt "${#services[@]}" ]]; then
+        warn "Updating ${#PULLED_MANAGED_SERVICES[@]} of ${#services[@]} services whose image pulls succeeded"
+    fi
 }
 
 update_managed_services() {
@@ -97,7 +119,7 @@ update_managed_services() {
     pull_managed_services "${services[@]}"
 
     "$ROOT_DIR/scripts/naming.sh" prestart || true
-    stackarr_compose "${profile_args[@]}" up -d --no-deps --remove-orphans "${services[@]}"
+    stackarr_compose "${profile_args[@]}" up -d --no-deps --remove-orphans "${PULLED_MANAGED_SERVICES[@]}"
     remove_database_init_sidecar
     remove_inactive_torrent_client_container
     if stackarr_compose --profile maintenance run --rm image-cleanup; then

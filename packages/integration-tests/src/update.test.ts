@@ -15,7 +15,7 @@ test('managed app updates cannot pull or recreate the Stackarr controller', asyn
 
   assert.match(update, /app\|app-updater\|database\|database-init\|image-cleanup/);
   assert.match(update, /pull --quiet "\$\{services\[@\]\}"/);
-  assert.match(update, /up -d --no-deps --remove-orphans "\$\{services\[@\]\}"/);
+  assert.match(update, /up -d --no-deps --remove-orphans "\$\{PULLED_MANAGED_SERVICES\[@\]\}"/);
   assert.match(update, /Managed services updated; the Stackarr controller was left running/);
   assert.doesNotMatch(update, /ensure_docker_runtime\nensure_database_if_required/);
 
