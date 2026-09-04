@@ -251,6 +251,10 @@ if flag_enabled "${ENABLE_PULSARR:-false}" && [ "$(printf '%s' "${PULSARR_DB_TYP
     ensure_app_database "${PULSARR_POSTGRES_DATABASE:-pulsarr}" "${PULSARR_POSTGRES_USER:-pulsarr}" "${PULSARR_POSTGRES_PASSWORD:-$DATABASE_SUPERUSER_PASSWORD}" ""
 fi
 
+if flag_enabled "${ENABLE_CLEANUPARR:-false}" && [ "$(printf '%s' "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}" | tr '[:upper:]' '[:lower:]')" = "postgres" ]; then
+    ensure_app_database "${CLEANUPARR_POSTGRES_DATABASE:-cleanuparr}" "${CLEANUPARR_POSTGRES_USER:-cleanuparr}" "${CLEANUPARR_POSTGRES_PASSWORD:-$DATABASE_SUPERUSER_PASSWORD}" ""
+fi
+
 if flag_enabled "${ENABLE_TRACEARR:-false}"; then
     ensure_app_database "${TRACEARR_POSTGRES_DATABASE:-tracearr}" "${TRACEARR_POSTGRES_USER:-tracearr}" "${TRACEARR_POSTGRES_PASSWORD:-${TRACEARR_DB_PASSWORD:-$DATABASE_SUPERUSER_PASSWORD}}" "timescaledb" "drizzle"
 fi
