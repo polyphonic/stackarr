@@ -1651,6 +1651,17 @@ export function SettingsEditor({ section, env, settings }: Props) {
             value={String(draftSettings.ui.refreshIntervalSeconds)}
             onChange={(value) => updateSettings('ui', 'refreshIntervalSeconds', Number(value) || 30)}
           />
+          <Text
+            label="Disk Warning Threshold %"
+            value={String(draftSettings.ui.diskWarningThresholdPercent)}
+            onChange={(value) =>
+              updateSettings(
+                'ui',
+                'diskWarningThresholdPercent',
+                Math.max(1, Math.min(100, Math.round(Number(value) || 90)))
+              )
+            }
+          />
           <Select
             label="Service Link Mode"
             value={draftSettings.ui.serviceUrlMode}
