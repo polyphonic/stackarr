@@ -3,6 +3,7 @@ import {
   getServices,
   getStackMetrics,
   getSystemStatus,
+  readSettings,
   listServiceFavoritesAction,
   readEnv,
   readTasks
@@ -18,6 +19,7 @@ export default async function DashboardPage() {
   await requireDashboardAuth('/');
 
   const status = getSystemStatus();
+  const settings = readSettings();
   const services = getServices();
   const env = readEnv();
   const metrics = getStackMetrics([
@@ -52,6 +54,7 @@ export default async function DashboardPage() {
       <PageBody>
         <DashboardClient
           favoriteNames={favoriteNames}
+          diskWarningThresholdPercent={settings.ui.diskWarningThresholdPercent}
           status={status}
           services={services}
           metrics={metrics}

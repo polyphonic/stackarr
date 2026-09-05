@@ -27,6 +27,7 @@ services:
     environment:
       STACKARR_REPO_ROOT: /app
       STACKARR_DATABASE_FILE: /stackarr-config/stackarr.db
+      STACKARR_DATABASE_MODE: ${STACKARR_DATABASE_MODE:-app-default}
       STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
       STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
       STACKARR_COMPOSE_PROJECT_NAME: ${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}
@@ -86,6 +87,7 @@ services:
       STACKARR_WEB_PORT: ${STACKARR_WEB_PORT:-7777}
       STACKARR_REPO_ROOT: /app
       STACKARR_DATABASE_FILE: /stackarr-config/stackarr.db
+      STACKARR_DATABASE_MODE: ${STACKARR_DATABASE_MODE:-app-default}
       STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
       STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
       STACKARR_COMPOSE_PROJECT_NAME: ${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}
@@ -462,13 +464,23 @@ services:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       UMASK: ${UMASK:-002}
-      TZ: ${TZ:-Etc/UTC}
+      TZ: ${TIMEZONE:-Etc/UTC}
       PORT: 11011
       BASE_PATH: ''
+      DATABASE_PROVIDER: ${CLEANUPARR_DATABASE_PROVIDER:-sqlite}
+      POSTGRES_HOST: ${CLEANUPARR_POSTGRES_HOST:-database}
+      POSTGRES_PORT: ${CLEANUPARR_POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${CLEANUPARR_POSTGRES_USER:-cleanuparr}
+      POSTGRES_PASS: ${CLEANUPARR_POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${CLEANUPARR_POSTGRES_DATABASE:-cleanuparr}
     ports:
       - '${CLEANUPARR_BIND_IP:-127.0.0.1}:${CLEANUPARR_PORT:-11011}:11011'
     volumes:
       - ${APP_ROOT:-./.stackarr}/config/cleanuparr:/config
+    depends_on:
+      database:
+        condition: service_healthy
+        required: false
     security_opt:
       - no-new-privileges:true
 

@@ -90,6 +90,37 @@ function taskOutputShowsHandoff(task: StackarrTask) {
   return Boolean(marker && task.output?.includes(marker));
 }
 
+export function expireStaleTaskHandoffs(
+  tasks: StackarrTask[],
+  checkedAt = new Date().toISOString(),
+  graceMs = taskHandoffGraceMs
+): StackarrTask[] {
+  const now = Date.parse(checkedAt);
+  if (!Number.isFinite(now)) {
+    return tasks;
+  }
+
+  return tasks.map((task) => {
+    if (task.status !== 'running' || !taskOutputShowsHandoff(task)) {
+      return task;
+    }
+
+    const startedAt = Date.parse(task.startedAt ?? task.queuedAt);
+    if (!Number.isFinite(startedAt) || now - startedAt < graceMs) {
+      return task;
+    }
+
+    return {
+      ...task,
+      status: 'failed',
+      endedAt: checkedAt,
+      exitCode: 1,
+      error: 'The maintenance worker did not report completion before the handoff deadline.',
+      reviewedAt: null
+    };
+  });
+}
+
 export function writeTasks(tasks: StackarrTask[]) {
   if (writeTaskRows(tasks)) {
     return;
@@ -165,12 +196,12 @@ function migrateTaskFileToDatabase() {
 }
 
 function reconcileControllerRestart(tasks: StackarrTask[]): StackarrTask[] {
-  if (reconciledInterruptedTasks || process.env.STACKARR_RUNTIME !== 'docker') {
-    return tasks;
-  }
+  const afterRestart =
+    reconciledInterruptedTasks || process.env.STACKARR_RUNTIME !== 'docker'
+      ? tasks
+      : interruptedTasksAfterControllerRestart(tasks, controllerStartedAt);
   reconciledInterruptedTasks = true;
-
-  const reconciled = interruptedTasksAfterControllerRestart(tasks, controllerStartedAt);
+  const reconciled = expireStaleTaskHandoffs(afterRestart);
   for (let index = 0; index < tasks.length; index += 1) {
     const before = tasks[index];
     const after = reconciled[index];

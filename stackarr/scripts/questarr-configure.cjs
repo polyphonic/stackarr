@@ -83,8 +83,36 @@ async function ensureGameIndexer(apiKey) {
       method: 'POST',
       body: JSON.stringify({ label: 'stackarr-approved' })
     });
-    tags = [...(Array.isArray(tags) ? tags : []), approvedTag];
   }
+
+  let profiles = await prowlarrRequest('/api/v1/appprofile', apiKey);
+  let interactiveProfile = Array.isArray(profiles)
+    ? profiles.find((profile) => profile.name === 'Interactive only')
+    : undefined;
+  if (!interactiveProfile) {
+    interactiveProfile = await prowlarrRequest('/api/v1/appprofile', apiKey, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Interactive only',
+        enableRss: false,
+        enableAutomaticSearch: false,
+        enableInteractiveSearch: true,
+        minimumSeeders: 1
+      })
+    });
+  }
+
+  const archivePolicy = (indexer) => ({
+    ...indexer,
+    enable: true,
+    appProfileId: interactiveProfile.id,
+    fields: (indexer.fields || []).map((field) => {
+      if (field.name === 'baseSettings.queryLimit') return { ...field, value: 1 };
+      if (field.name === 'baseSettings.limitsUnit') return { ...field, value: 0 };
+      return field;
+    })
+  });
+
   let indexers = await prowlarrRequest('/api/v1/indexer', apiKey);
   let gameIndexer = Array.isArray(indexers)
     ? indexers.find((indexer) => indexer.name === 'Internet Archive (Games)')
@@ -97,37 +125,36 @@ async function ensureGameIndexer(apiKey) {
     if (!schema) throw new Error('Stackarr Internet Archive game indexer definition was not loaded by Prowlarr');
     gameIndexer = await prowlarrRequest('/api/v1/indexer', apiKey, {
       method: 'POST',
-      body: JSON.stringify({
-        ...schema,
-        name: 'Internet Archive (Games)',
-        enable: true,
-        redirect: false,
-        priority: 25,
-        appProfileId: 1,
-        tags: [gamesTag.id, approvedTag.id]
-      })
+      body: JSON.stringify(
+        archivePolicy({
+          ...schema,
+          name: 'Internet Archive (Games)',
+          redirect: false,
+          priority: 25,
+          tags: [gamesTag.id, approvedTag.id]
+        })
+      )
     });
     indexers = [...(Array.isArray(indexers) ? indexers : []), gameIndexer];
-  } else if (
-    !Array.isArray(gameIndexer.tags) ||
-    !gameIndexer.tags.includes(gamesTag.id) ||
-    !gameIndexer.tags.includes(approvedTag.id)
-  ) {
-    gameIndexer = await prowlarrRequest(`/api/v1/indexer/${gameIndexer.id}`, apiKey, {
+  } else {
+    gameIndexer = await prowlarrRequest(`/api/v1/indexer/${gameIndexer.id}?forceSave=true`, apiKey, {
       method: 'PUT',
-      body: JSON.stringify({
-        ...gameIndexer,
-        tags: [...new Set([...(Array.isArray(gameIndexer.tags) ? gameIndexer.tags : []), gamesTag.id, approvedTag.id])]
-      })
+      body: JSON.stringify(
+        archivePolicy({
+          ...gameIndexer,
+          tags: [...new Set([...(Array.isArray(gameIndexer.tags) ? gameIndexer.tags : []), gamesTag.id, approvedTag.id])]
+        })
+      )
     });
   }
-  const oldArchive = Array.isArray(indexers)
+
+  const genericArchive = Array.isArray(indexers)
     ? indexers.find((indexer) => indexer.name === 'Internet Archive')
     : undefined;
-  if (oldArchive?.enable) {
-    await prowlarrRequest(`/api/v1/indexer/${oldArchive.id}`, apiKey, {
+  if (genericArchive) {
+    await prowlarrRequest(`/api/v1/indexer/${genericArchive.id}?forceSave=true`, apiKey, {
       method: 'PUT',
-      body: JSON.stringify({ ...oldArchive, enable: false })
+      body: JSON.stringify(archivePolicy(genericArchive))
     });
   }
   return gameIndexer;

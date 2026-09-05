@@ -150,9 +150,9 @@ function seerrArrTarget(family: 'radarr' | 'sonarr', record: Record<string, unkn
 export async function testSeerrToArrAction() {
   try {
     const targets = enabledArrServices().filter((service) => service !== 'lidarr');
-    const families = [...new Set(targets.map((service) => (service.startsWith('radarr') ? 'radarr' : 'sonarr')))] as Array<
-      'radarr' | 'sonarr'
-    >;
+    const families = [
+      ...new Set(targets.map((service) => (service.startsWith('radarr') ? 'radarr' : 'sonarr')))
+    ] as Array<'radarr' | 'sonarr'>;
     const registrations = await Promise.all(
       families.map(async (family) => ({
         family,
@@ -343,7 +343,10 @@ async function checkAppHealth(service: string, displayName: string): Promise<App
       timeoutMs: 8_000,
       allowTextResponse: spec.allowTextResponse
     });
-    const issues = spec.issueArray ? normalizeIssueArray(response, key) : normalizeGenericHealth(response, key);
+    const issues = filterExpectedIssues(
+      service,
+      spec.issueArray ? normalizeIssueArray(response, key) : normalizeGenericHealth(response, key)
+    );
     return { service, displayName, status: issues.length ? 'issues' : 'healthy', issues };
   } catch (error) {
     if (error instanceof ServiceApiError && spec.reachableStatuses?.includes(error.status ?? 0)) {
@@ -351,6 +354,16 @@ async function checkAppHealth(service: string, displayName: string): Promise<App
     }
     return unavailable(service, displayName, safeMessage(error instanceof Error ? error.message : String(error), key));
   }
+}
+
+function filterExpectedIssues(service: string, issues: AppHealthIssue[]) {
+  if (service !== 'lidarr') return issues;
+
+  return issues.filter(
+    (issue) =>
+      !(issue.source === 'ImportMechanismCheck' && issue.message === 'Enable Completed Download Handling') &&
+      !(issue.source === 'MountCheck' && /artist path is mounted read-only/i.test(issue.message))
+  );
 }
 
 function unavailable(service: string, displayName: string, message: string): AppHealthCheck {

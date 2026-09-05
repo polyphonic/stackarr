@@ -131,6 +131,23 @@ install_managed_host_runtime() (
 
     mkdir -p "$tmp_root"
     cp -R "$ROOT_DIR/." "$tmp_root/"
+    # The host runtime is a portable code bundle, not a copy of the source
+    # checkout's ignored installation state. Never carry a developer
+    # .env/database/secret into app data: those stale files can become an
+    # accidental recovery source while the controller is unavailable.
+    rm -rf \
+        "$tmp_root/.env" \
+        "$tmp_root/.stackarr" \
+        "$tmp_root/state" \
+        "$tmp_root/logs" \
+        "$tmp_root/downloads" \
+        "$tmp_root/backups" \
+        "$tmp_root/media" \
+        "$tmp_root/config/stackarr.db" \
+        "$tmp_root/config/stackarr.secret" \
+        "$tmp_root/scripts/__pycache__" \
+        "$tmp_root/scripts/postprocess"
+
     if [[ "$REPO_ROOT" != "$ROOT_DIR" && -d "$REPO_ROOT/packages/agent-plugins" ]]; then
         mkdir -p "$tmp_root/packages"
         cp -R "$REPO_ROOT/packages/agent-plugins" "$tmp_root/packages/agent-plugins"
@@ -263,19 +280,154 @@ load_sqlite_runtime_config() {
     eval "$exports"
 }
 
+
+is_container_runtime_path() {
+    case "${1:-}" in
+        /app/stackarr/.stackarr|/app/stackarr/.stackarr/*|/stackarr-state|/stackarr-state/*|/stackarr-workspace|/stackarr-workspace/*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+eval_host_runtime_config_exports() {
+    local exports="$1"
+    local key backup_key before after
+    local path_keys=(
+        APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT
+        BOOKS_ROOT GAMES_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
+        JELLYFIN_CONFIG_PATH ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT
+        ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_DB_DATA_LOCATION QUESTARR_DATA_ROOT
+        CLAMAV_DATA_ROOT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT
+        YOUTARR_IMAGES_ROOT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION
+    )
+
+    for key in "${path_keys[@]}"; do
+        backup_key="STACKARR_HOST_PATH_BEFORE_${key}"
+        printf -v "$backup_key" '%s' "${!key:-}"
+    done
+
+    eval "$exports"
+
+    for key in "${path_keys[@]}"; do
+        backup_key="STACKARR_HOST_PATH_BEFORE_${key}"
+        before="${!backup_key:-}"
+        after="${!key:-}"
+        if [[ -n "$before" ]] && ! is_container_runtime_path "$before" && is_container_runtime_path "$after"; then
+            printf -v "$key" '%s' "$before"
+            export "$key"
+        fi
+        unset "$backup_key"
+    done
+}
 load_postgres_runtime_config_through_app() {
-    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 0
-    stackarr_runtime_is_container && return 0
+    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    stackarr_runtime_is_container && return 1
 
     local exports
     if ! exports="$(stackarr_compose exec -T app sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
-        return 0
+        return 1
     fi
 
-    [[ -n "$exports" ]] || return 0
-    eval "$exports"
+    [[ -n "$exports" ]] || return 1
+    eval_host_runtime_config_exports "$exports"
 }
 
+
+host_postgres_url() {
+    local database_url="${1:-}"
+    local host_port="${DATABASE_HOST_PORT:-5433}"
+
+    [[ -n "$database_url" ]] || return 1
+    command -v python3 >/dev/null 2>&1 || return 1
+
+    python3 - "$database_url" "$host_port" <<'PY'
+import sys
+from urllib.parse import urlsplit, urlunsplit
+
+parts = urlsplit(sys.argv[1])
+if parts.hostname != "database":
+    print(sys.argv[1])
+    raise SystemExit(0)
+
+userinfo = parts.netloc.rsplit("@", 1)[0] + "@" if "@" in parts.netloc else ""
+print(urlunsplit((parts.scheme, f"{userinfo}127.0.0.1:{sys.argv[2]}", parts.path, parts.query, parts.fragment)))
+PY
+}
+
+load_postgres_runtime_config_from_host() {
+    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    stackarr_runtime_is_container && return 1
+    command -v node >/dev/null 2>&1 || return 1
+
+    local exporter="$ROOT_DIR/scripts/runtime-config-export.cjs"
+    local database_url exports
+    [[ -f "$exporter" ]] || return 1
+    database_url="$(host_postgres_url "$STACKARR_DATABASE_URL")" || return 1
+    if ! exports="$(STACKARR_DATABASE_URL="$database_url" node "$exporter" 2>/dev/null)"; then
+        return 1
+    fi
+
+    [[ -n "$exports" ]] || return 1
+    eval_host_runtime_config_exports "$exports"
+}
+
+load_postgres_runtime_config_through_database() {
+    [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    stackarr_runtime_is_container && return 1
+    command -v python3 >/dev/null 2>&1 || return 1
+
+    local runtime_json exports
+    if ! runtime_json="$(stackarr_compose --profile database exec -T database \
+        psql -U "${DATABASE_SUPERUSER:-postgres}" -d "${STACKARR_POSTGRES_DATABASE:-stackarr-main}" -Atc \
+        "select value from app_settings where key = 'stackarr.runtimeConfig'" 2>/dev/null)"; then
+        return 1
+    fi
+    [[ -n "$runtime_json" ]] || return 1
+
+    if ! exports="$(printf '%s' "$runtime_json" | python3 -c '
+import json
+import re
+import shlex
+import sys
+
+config = json.load(sys.stdin)
+for key, value in config.items():
+    if re.fullmatch(r"[A-Z][A-Z0-9_]*", key) and isinstance(value, str):
+        print(f"export {key}={shlex.quote(value)}")
+')"; then
+        return 1
+    fi
+    [[ -n "$exports" ]] || return 1
+    eval_host_runtime_config_exports "$exports"
+}
+
+load_postgres_runtime_config() {
+    load_postgres_runtime_config_through_app || \
+        load_postgres_runtime_config_through_database || \
+        load_postgres_runtime_config_from_host
+}
+
+start_existing_database_for_runtime_config() {
+    [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] || return 1
+    ensure_docker_runtime
+    docker inspect database >/dev/null 2>&1 || return 1
+    docker start database >/dev/null
+
+    local attempt=1
+    while [[ "$attempt" -le 60 ]]; do
+        if docker exec database pg_isready -U "${DATABASE_SUPERUSER:-postgres}" -d "${STACKARR_POSTGRES_DATABASE:-stackarr-main}" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    warn "Existing Stackarr database did not become ready for runtime recovery"
+    return 1
+}
 load_compose_runtime_env() {
     local env_file="${STACKARR_COMPOSE_ENV_FILE:-}"
 
@@ -468,8 +620,13 @@ load_env() {
     load_compose_runtime_env
     # Host commands cannot resolve the Compose-only `database` hostname. Read
     # PostgreSQL-backed settings through the running Stackarr controller first.
-    load_postgres_runtime_config_through_app
-    load_sqlite_runtime_config
+    if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]]; then
+        # Retain the last generated Compose values when PostgreSQL is
+        # temporarily unavailable; never replace them with stale SQLite state.
+        load_postgres_runtime_config || true
+    else
+        load_sqlite_runtime_config
+    fi
     load_browser_link_runtime_settings
 
     if [[ -z "${APP_ROOT:-}" ]]; then
@@ -799,7 +956,7 @@ load_env() {
     : "${AGREGARR_IMAGE:=agregarr/agregarr:latest}"
     : "${TRACEARR_IMAGE:=ghcr.io/connorgallopo/tracearr:latest}"
     : "${REDIS_IMAGE:=redis:8.8.0-alpine}"
-    : "${RECYCLARR_IMAGE:=ghcr.io/recyclarr/recyclarr:latest}"
+    : "${RECYCLARR_IMAGE:=ghcr.io/recyclarr/recyclarr:8}"
     : "${FLARESOLVERR_IMAGE:=ghcr.io/flaresolverr/flaresolverr:latest}"
     : "${LIDARR_IMAGE:=lscr.io/linuxserver/lidarr:latest}"
     : "${TIDARR_IMAGE:=cstaelen/tidarr:latest}"
@@ -876,6 +1033,12 @@ load_env() {
     fi
     : "${PULSARR_DB_PATH:=/app/data/db/pulsarr.db}"
     : "${SEERR_DB_TYPE:=postgres}"
+    : "${CLEANUPARR_POSTGRES_DATABASE:=cleanuparr}"
+    : "${CLEANUPARR_POSTGRES_USER:=cleanuparr}"
+    : "${CLEANUPARR_POSTGRES_PASSWORD:=${DATABASE_SUPERUSER_PASSWORD}}"
+    : "${CLEANUPARR_DATABASE_PROVIDER:=sqlite}"
+    : "${CLEANUPARR_POSTGRES_HOST:=database}"
+    : "${CLEANUPARR_POSTGRES_PORT:=5432}"
     : "${BAZARR_POSTGRES_DATABASE:=bazarr}"
     : "${BAZARR_POSTGRES_USER:=bazarr}"
     : "${BAZARR_POSTGRES_PASSWORD:=${DATABASE_SUPERUSER_PASSWORD}}"
@@ -1045,7 +1208,7 @@ load_env() {
     esac
     export STACKARR_REPO_ROOT STACKARR_DATABASE_FILE STACKARR_DATABASE_DIR STACKARR_DATABASE_MODE STACKARR_DATABASE_URL STACKARR_LOG_DATABASE_URL STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD COMPOSE_PROJECT_NAME TIMEZONE PUID PGID MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH PLEX_INSTALL_MODE JELLYFIN_INSTALL_MODE JELLYFIN_CONFIG_PATH ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM BOOKORBIT_JWT_SECRET BOOKORBIT_SETUP_TOKEN BOOKORBIT_DATABASE_URL BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD BOOKORBIT_IMAGE BOOKORBIT_BIND_IP BOOKORBIT_WEB_PORT BOOKORBIT_CONTAINER_PORT BOOKORBIT_URL BOOKORBIT_APP_URL BOOKORBIT_CLIENT_URL BOOKS_ROOT DATABASE_IMAGE DATABASE_PGDATA DATABASE_BIND_IP DATABASE_HOST_PORT DATABASE_NAME DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD REDIS_IMAGE SEERR_DB_TYPE SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD PULSARR_DB_TYPE PULSARR_DB_PATH PULSARR_DB_HOST PULSARR_DB_PORT PULSARR_DB_NAME PULSARR_DB_USER PULSARR_DB_PASSWORD PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD BAZARR_POSTGRES_ENABLED BAZARR_POSTGRES_HOST BAZARR_POSTGRES_PORT BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD PROWLARR_POSTGRES_HOST PROWLARR_POSTGRES_PORT PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD RADARR_POSTGRES_HOST RADARR_POSTGRES_PORT RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD RADARR4K_POSTGRES_HOST RADARR4K_POSTGRES_PORT RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD SONARR_POSTGRES_HOST SONARR_POSTGRES_PORT SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD SONARR4K_POSTGRES_HOST SONARR4K_POSTGRES_PORT SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD LIDARR_POSTGRES_HOST LIDARR_POSTGRES_PORT LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD ENABLE_TINYMEDIAMANAGER ENABLE_RECYCLARR ENABLE_FLARESOLVERR ENABLE_TIDARR ENABLE_SEERR STACKARR_CONFIGURE_SEERR ENABLE_PULSARR ENABLE_TRACEARR STACKARR_MOVIE_PROFILE_PRESET STACKARR_MOVIE_4K_PROFILE_PRESET STACKARR_TV_PROFILE_PRESET STACKARR_TV_4K_PROFILE_PRESET STACKARR_MUSIC_PROFILE_PRESET STACKARR_MOVIE_DEFAULT_PROFILE STACKARR_MOVIE_4K_DEFAULT_PROFILE STACKARR_TV_DEFAULT_PROFILE STACKARR_TV_4K_DEFAULT_PROFILE STACKARR_MUSIC_DEFAULT_PROFILE ENABLE_BACKUP STACKARR_API_KEY STACKARR_DOCKER_CONTEXT USERNAME PASSWORD USER_EMAIL TRANSMISSION_URL QBITTORRENT_URL PROWLARR_URL RADARR_URL RADARR_4K_URL RADARR4K_URL SONARR_URL SONARR_4K_URL SONARR4K_URL LIDARR_URL BAZARR_URL SEERR_URL PULSARR_URL TRACEARR_URL PLEX_URL JELLYFIN_URL TINYMEDIAMANAGER_URL FLARESOLVERR_URL TRANSMISSION_IMAGE QBITTORRENT_IMAGE RADARR_IMAGE SONARR_IMAGE PROWLARR_IMAGE BAZARR_IMAGE SEERR_IMAGE RECYCLARR_IMAGE FLARESOLVERR_IMAGE LIDARR_IMAGE TIDARR_IMAGE TINYMEDIAMANAGER_IMAGE TRANSMISSION_BIND_IP TRANSMISSION_TORRENT_PORT QBITTORRENT_BIND_IP QBITTORRENT_WEBUI_PORT QBITTORRENT_TORRENT_PORT PLEX_IMAGE PLEX_DOCKER_PORT JELLYFIN_IMAGE JELLYFIN_DOCKER_PORT STACKARR_WEB_ENABLED STACKARR_IMAGE STACKARR_BIND_IP STACKARR_WEB_PORT STACKARR_TELEMETRY_FEATURE_ENABLED STACKARR_TELEMETRY_ENABLED STACKARR_TELEMETRY_ENDPOINT STACKARR_TELEMETRY_CHANNEL STACKARR_TELEMETRY_INGEST_KEY PULSARR_IMAGE SEERR_BIND_IP PULSARR_BIND_IP PULSARR_PORT PULSARR_AUTHENTICATION_METHOD PULSARR_COOKIE_SECURED PREFERRED_TORRENT_CLIENT BACKUP_ROOT BACKUP_STAGING_ROOT BACKUP_TIME BACKUP_SCHEDULE BACKUP_WEEKDAY BACKUP_RETENTION_COUNT BACKUP_ENCRYPTION ENABLE_SCHEDULED_UPDATES UPDATE_TIME UPDATE_WEEKDAY DOWNLOAD_INCOMPLETE_NAME DOWNLOAD_COMPLETE_NAME RADARR_CATEGORY RADARR_4K_CATEGORY SONARR_CATEGORY SONARR_4K_CATEGORY LIDARR_CATEGORY PLEX_BACKUP_MODE CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARED_TUNNEL_NAME CLOUDFLARED_TUNNEL_ID CLOUDFLARED_METRICS_PORT CLOUDFLARED_BIN CLOUDFLARED_TOKEN_FILE CLOUDFLARED_KEEP_LAN CLOUDFLARE_ROUTE_MANAGED CLOUDFLARE_TUNNEL_ROUTES CLOUDFLARE_ACCESS_ENABLED CLOUDFLARE_ACCESS_ALLOWED_EMAILS CLOUDFLARE_ACCESS_SESSION_DURATION SEERR_ORIGIN_URL STACKARR_SERVICE_URL_MODE STACKARR_SERVICE_URL_SCHEME STACKARR_SERVICE_URL_HOST_SUFFIX STACKARR_UNIFY_SERVICE_URLS
     export ENABLE_MAINTAINERR MAINTAINERR_URL MAINTAINERR_IMAGE MAINTAINERR_BIND_IP MAINTAINERR_PORT MAINTAINERR_BASE_PATH MAINTAINERR_GITHUB_TOKEN MAINTAINERR_CLEANUP_PRESETS MAINTAINERR_PLEX_SERVER_URL MAINTAINERR_JELLYFIN_SERVER_URL MAINTAINERR_QBITTORRENT_URL
-    export ENABLE_CLEANUPARR CLEANUPARR_URL CLEANUPARR_IMAGE CLEANUPARR_BIND_IP CLEANUPARR_PORT CLEANUPARR_AUTO_CONFIGURE CLEANUPARR_MALWARE_CRON CLAMAV_IMAGE CLAMAV_DATA_ROOT
+    export ENABLE_CLEANUPARR CLEANUPARR_URL CLEANUPARR_IMAGE CLEANUPARR_BIND_IP CLEANUPARR_PORT CLEANUPARR_AUTO_CONFIGURE CLEANUPARR_MALWARE_CRON CLEANUPARR_DATABASE_PROVIDER CLEANUPARR_POSTGRES_HOST CLEANUPARR_POSTGRES_PORT CLEANUPARR_POSTGRES_DATABASE CLEANUPARR_POSTGRES_USER CLEANUPARR_POSTGRES_PASSWORD CLAMAV_IMAGE CLAMAV_DATA_ROOT
     export ENABLE_AGREGARR AGREGARR_URL AGREGARR_API_KEY AGREGARR_IMAGE AGREGARR_BIND_IP AGREGARR_PORT AGREGARR_PLACEHOLDER_FOLDER
     export IMMICH_URL IMMICH_API_KEY IMMICH_SERVER_IMAGE IMMICH_MACHINE_LEARNING_IMAGE IMMICH_BIND_IP IMMICH_WEB_PORT IMMICH_CONTAINER_PORT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION IMMICH_VERSION IMMICH_DB_USERNAME IMMICH_DB_PASSWORD IMMICH_DB_DATABASE_NAME IMMICH_DB_VECTOR_EXTENSION
     export GAMES_ROOT ROMM_URL ROMM_API_KEY ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED ROMM_TGDB_API_ENABLED ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON
@@ -1107,13 +1270,24 @@ def quote(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("$", "$$")
     return f'"{escaped}"'
 
+def is_secret(key: str) -> bool:
+    if key.endswith("_TOKEN_FILE"):
+        return False
+    return bool(
+        re.search(r"(?:PASSWORD|TOKEN|SECRET|CLAIM_CODE|_KEY)$", key)
+        or key in {"ROMM_IGDB_CLIENT_ID", "QUESTARR_IGDB_CLIENT_ID", "ROMM_SCREENSCRAPER_USER"}
+        or key in {"STACKARR_DATABASE_URL", "STACKARR_LOG_DATABASE_URL", "DATABASE_URL"}
+        or key.endswith("_DATABASE_URL")
+        or key.endswith("_DB_URL")
+    )
+
 lines = [
     "# Generated by Stackarr. Do not commit this file.",
-    "# It keeps Docker Compose interpolation aligned with runtime settings.",
+    "# It contains non-secret topology only; credentials are loaded from runtime storage.",
 ]
 
 for key in sorted(os.environ):
-    if include.match(key) and key not in context_only:
+    if include.match(key) and key not in context_only and not is_secret(key):
         lines.append(f"{key}={quote(os.environ[key])}")
 
 tmp = target.with_suffix(target.suffix + ".tmp")
@@ -1515,6 +1689,10 @@ database_required() {
         return 0
     fi
 
+    if flag_enabled "${ENABLE_CLEANUPARR:-false}" && [[ "$(lowercase "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}")" == "postgres" ]]; then
+        return 0
+    fi
+
     if flag_enabled "${ENABLE_TRACEARR:-false}"; then
         return 0
     fi
@@ -1530,13 +1708,14 @@ database_init_env_args() {
 
     for key in \
         DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD DATABASE_NAME STACKARR_DATABASE_MODE \
-        ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM ENABLE_SEERR ENABLE_PULSARR ENABLE_TRACEARR PULSARR_DB_TYPE \
+        ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM ENABLE_SEERR ENABLE_PULSARR ENABLE_CLEANUPARR ENABLE_TRACEARR PULSARR_DB_TYPE CLEANUPARR_DATABASE_PROVIDER \
         STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD \
         BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD \
         IMMICH_DB_USERNAME IMMICH_DB_DATABASE_NAME IMMICH_DB_PASSWORD IMMICH_DB_VECTOR_EXTENSION \
         ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD \
         SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD \
         PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD \
+        CLEANUPARR_POSTGRES_DATABASE CLEANUPARR_POSTGRES_USER CLEANUPARR_POSTGRES_PASSWORD \
         BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD \
         TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_DB_PASSWORD \
         PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD \

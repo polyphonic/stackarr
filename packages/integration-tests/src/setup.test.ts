@@ -419,6 +419,8 @@ test('dry-run setup can place supported apps in shared Postgres mode', async () 
   assert.equal(result.plan.config.DATABASE_HOST_PORT, '5433');
   assert.equal(result.plan.config.BAZARR_POSTGRES_ENABLED, 'true');
   assert.equal(result.plan.config.PULSARR_DB_TYPE, 'postgres');
+  assert.equal(result.plan.config.CLEANUPARR_DATABASE_PROVIDER, 'postgres');
+  assert.equal(result.plan.config.CLEANUPARR_POSTGRES_HOST, 'database');
   assert.equal(result.plan.config.PROWLARR_POSTGRES_HOST, 'database');
   assert.equal(result.plan.config.SONARR_POSTGRES_HOST, 'database');
   assert.equal(result.plan.config.RADARR_POSTGRES_HOST, 'database');
@@ -579,6 +581,11 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /Sonarr HD profile configured[\s\S]*DVD/);
   assert.match(configure, /Radarr HD Lite profile configured[\s\S]*HDTV-1080p,WEB 1080p,Bluray-1080p/);
   assert.match(configure, /Sonarr HD Lite profile configured[\s\S]*WEB 1080p,Bluray-1080p/);
+  assert.match(configure, /SONARR_MULTI_EPISODE_PACK_SCORE="5000"/);
+  assert.doesNotMatch(configure, /SONARR_MULTI_EPISODE_PACK_SCORE="-100000"/);
+  assert.match(configure, /SONARR_X265_SCORE="10000"/);
+  assert.match(configure, /Multi-Episode Pack:\$\{SONARR_MULTI_EPISODE_PACK_SCORE\}/);
+  assert.match(configure, /x265:\$\{SONARR_X265_SCORE\}/);
   assert.match(configure, /RADARR_DCP_REGEX=/);
   assert.match(configure, /RADARR_NON_DCP_HDTV_SCORE="-100000"/);
   assert.match(configure, /Radarr DCP custom format configured/);
@@ -625,7 +632,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(configure, /AGREGARR_PLACEHOLDER_FOLDER="\$\{AGREGARR_PLACEHOLDER_FOLDER:-_Trailers\}"/);
   assert.match(configure, /RADARR_DEFAULT_PROFILE/);
   assert.match(configure, /LIDARR_DEFAULT_PROFILE/);
-  assert.ok(configure.includes('Season[ ._-]?\\\\d{1,2}'));
+  assert.ok(configure.includes('Season[ ._-]?\\d{1,2}'));
   assert.match(configure, /configure_pulsarr_stack \|\| true/);
   assert.match(configure, /configure_maintainerr_stack \|\| true/);
   assert.match(configure, /configure_cleanuparr_stack \|\| true/);
@@ -688,6 +695,17 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /image: \$\{CLEANUPARR_IMAGE:-ghcr\.io\/cleanuparr\/cleanuparr:latest\}/);
   assert.match(compose, /\$\{CLEANUPARR_BIND_IP:-127\.0\.0\.1\}:\$\{CLEANUPARR_PORT:-11011\}:11011/);
   assert.match(compose, /\$\{APP_ROOT:-\.\/\.stackarr\}\/config\/cleanuparr:\/config/);
+  assert.match(compose, /DATABASE_PROVIDER: \$\{CLEANUPARR_DATABASE_PROVIDER:-sqlite\}/);
+  assert.match(compose, /POSTGRES_HOST: \$\{CLEANUPARR_POSTGRES_HOST:-database\}/);
+  assert.match(compose, /POSTGRES_DB: \$\{CLEANUPARR_POSTGRES_DATABASE:-cleanuparr\}/);
+  assert.match(
+    compose,
+    /cleanuparr:[\s\S]*depends_on:[\s\S]*database:[\s\S]*condition: service_healthy/
+  );
+  assert.match(databaseInit, /ENABLE_CLEANUPARR/);
+  assert.match(databaseInit, /CLEANUPARR_POSTGRES_DATABASE/);
+  assert.match(databaseInit, /ensure_app_database "\$\{CLEANUPARR_POSTGRES_DATABASE:-cleanuparr\}"/);
+
   assert.match(compose, /container_name: immich-ml/);
   assert.match(compose, /IMMICH_MACHINE_LEARNING_URL: http:\/\/immich-ml:3003/);
   assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);

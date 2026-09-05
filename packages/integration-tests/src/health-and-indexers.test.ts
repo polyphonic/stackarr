@@ -108,6 +108,20 @@ test('App health summary groups Arr issues and isolates unavailable apps', async
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     response.setHeader('content-type', 'application/json');
+    if (url.pathname === '/api/v1/health' && request.headers['x-api-key'] === 'lidarr-secret') {
+      response.end(
+        JSON.stringify([
+          { source: 'ImportMechanismCheck', type: 'warning', message: 'Enable Completed Download Handling' },
+          {
+            source: 'MountCheck',
+            type: 'error',
+            message: 'Mount containing an artist path is mounted read-only: mac (/music)'
+          },
+          { source: 'IndexerStatusCheck', type: 'warning', message: 'Indexer is unavailable' }
+        ])
+      );
+      return;
+    }
     if (url.pathname === '/api/v1/health') {
       response.end(
         JSON.stringify([{ source: 'IndexerStatusCheck', type: 'warning', message: 'Indexer is unavailable' }])
@@ -159,7 +173,9 @@ test('App health summary groups Arr issues and isolates unavailable apps', async
             SONARR_API_KEY: 'sonarr-secret',
             ENABLE_CLEANUPARR: 'true',
             CLEANUPARR_URL: ${JSON.stringify(baseUrl)},
-            ENABLE_LIDARR: 'false'
+            ENABLE_LIDARR: 'true',
+            LIDARR_URL: ${JSON.stringify(baseUrl)},
+            LIDARR_API_KEY: 'lidarr-secret'
           });
           console.log(JSON.stringify(await getAppHealthSummaryAction()));
         `
@@ -173,7 +189,7 @@ test('App health summary groups Arr issues and isolates unavailable apps', async
           ENABLE_MOVIES: 'true',
           ENABLE_TV_SHOWS: 'true',
           ENABLE_CLEANUPARR: 'true',
-          ENABLE_LIDARR: 'false'
+          ENABLE_LIDARR: 'true'
         }
       }
     );
@@ -184,11 +200,15 @@ test('App health summary groups Arr issues and isolates unavailable apps', async
     assert.deepEqual(byService.prowlarr.issues, [
       { severity: 'warning', source: 'IndexerStatusCheck', message: 'Indexer is unavailable' }
     ]);
+    assert.equal(byService.lidarr.status, 'issues');
+    assert.deepEqual(byService.lidarr.issues, [
+      { severity: 'warning', source: 'IndexerStatusCheck', message: 'Indexer is unavailable' }
+    ]);
     assert.equal(byService.radarr.status, 'healthy');
     assert.equal(byService.sonarr.status, 'unavailable');
     assert.equal(byService.cleanuparr.status, 'healthy');
     assert.ok(summary.issueCount >= 2);
-    assert.doesNotMatch(stdout, /prowlarr-secret|radarr-secret|sonarr-secret/);
+    assert.doesNotMatch(stdout, /prowlarr-secret|radarr-secret|sonarr-secret|lidarr-secret/);
     assert.doesNotMatch(stdout, /http:\/\/127\.0\.0\.1/);
   } finally {
     server.close();

@@ -59,6 +59,7 @@ test('controller restart fails only orphaned queued and running tasks', async ()
       commandName: 'ApplyNamingPreset' as const,
       commandLabel: 'Apply naming preset',
       status: 'completed' as const,
+
       queuedAt: '2026-08-13T09:00:00.000Z'
     }
   ];
@@ -71,6 +72,38 @@ test('controller restart fails only orphaned queued and running tasks', async ()
   assert.equal(result[2]?.status, 'running');
   assert.equal(result[3]?.status, 'running');
   assert.equal(result[4]?.status, 'completed');
+});
+
+test('stale maintenance handoffs fail instead of remaining active forever', async () => {
+  const { expireStaleTaskHandoffs } = await import('../../core/src/tasks.ts');
+  const tasks = [
+    {
+      id: 'orphaned-security-worker',
+      commandName: 'SecurityApply' as const,
+      commandLabel: 'Apply security credentials',
+      status: 'running' as const,
+      queuedAt: '2026-08-13T09:00:00.000Z',
+      startedAt: '2026-08-13T09:01:00.000Z',
+      output: 'STACKARR_TASK_HANDOFF_STARTED Security apply handed to the maintenance worker'
+    },
+    {
+      id: 'recent-security-worker',
+      commandName: 'SecurityApply' as const,
+      commandLabel: 'Apply security credentials',
+      status: 'running' as const,
+      queuedAt: '2026-08-13T09:08:00.000Z',
+      startedAt: '2026-08-13T09:09:00.000Z',
+      output: 'STACKARR_TASK_HANDOFF_STARTED Security apply handed to the maintenance worker'
+    }
+  ];
+
+  const result = expireStaleTaskHandoffs(tasks, '2026-08-13T09:10:00.000Z', 5 * 60 * 1000);
+
+  assert.equal(result[0]?.status, 'failed');
+  assert.equal(result[0]?.endedAt, '2026-08-13T09:10:00.000Z');
+  assert.equal(result[0]?.exitCode, 1);
+  assert.equal(result[0]?.error, 'The maintenance worker did not report completion before the handoff deadline.');
+  assert.equal(result[1]?.status, 'running');
 });
 
 test('task handoff detection is shared by every command runner', async () => {

@@ -7,8 +7,8 @@ source "$ROOT_DIR/lib/common.sh"
 
 print_header "Stackarr Up"
 load_env
-write_compose_env_file
 wait_for_stackarr_storage
+write_compose_env_file
 if optional_service_enabled youtarr; then
     ensure_dir "$YOUTARR_OUTPUT_ROOT"
     ensure_dir "$YOUTARR_CONFIG_ROOT"
@@ -21,7 +21,19 @@ else
     ensure_docker_runtime
 fi
 
+if start_existing_database_for_runtime_config && load_postgres_runtime_config_through_database; then
+    # Persist only non-secret topology after loading credentials into this process.
+    write_compose_env_file
+fi
+
 ensure_database_if_required
+
+# The controller may have been unavailable while load_env ran. Once the
+# database is healthy, refresh authoritative settings directly through its
+# loopback port before selecting profiles or recreating containers.
+if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] && load_postgres_runtime_config; then
+    write_compose_env_file
+fi
 
 profile_args=()
 while IFS= read -r profile_arg; do

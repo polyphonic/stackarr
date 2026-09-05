@@ -397,7 +397,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       YOUTARR_BIND_IP: '127.0.0.1',
       YOUTARR_WEB_PORT: '3087',
       YOUTARR_CONTAINER_PORT: '3011',
-      YOUTARR_OUTPUT_ROOT: `${state.mediaRoot}/YouTube`,
+      YOUTARR_OUTPUT_ROOT: `${state.mediaRoot}/Videos/YouTube`,
       YOUTARR_CONFIG_ROOT: '',
       YOUTARR_JOBS_ROOT: '',
       YOUTARR_IMAGES_ROOT: '',

@@ -43,6 +43,47 @@ def bcrypt_hash(password: str) -> str:
     return value
 
 
+def sync_postgres(username: str, password_hash: str) -> None:
+    database_password = os.environ.get("CLEANUPARR_POSTGRES_PASSWORD", "")
+    database_user = os.environ.get("CLEANUPARR_POSTGRES_USER", "cleanuparr")
+    database_name = os.environ.get("CLEANUPARR_POSTGRES_DATABASE", "cleanuparr")
+    if not database_password:
+        fail("CLEANUPARR_POSTGRES_PASSWORD is empty")
+
+    sql = """\
+BEGIN;
+DO $$
+BEGIN
+  IF (SELECT COUNT(*) FROM users.users) <> 1 THEN
+    RAISE EXCEPTION 'expected exactly one local owner';
+  END IF;
+END
+$$;
+UPDATE users.users
+   SET username = :'stackarr_username',
+       password_hash = :'stackarr_password_hash',
+       failed_login_attempts = 0,
+       lockout_end = NULL,
+       updated_at = NOW();
+DELETE FROM users.refresh_tokens;
+COMMIT;
+"""
+    command = [
+        "docker", "exec", "-i", "-e", "PGPASSWORD", "database",
+        "psql", "-X", "-v", "ON_ERROR_STOP=1",
+        "-U", database_user, "-d", database_name,
+        "--set", f"stackarr_username={username}",
+        "--set", f"stackarr_password_hash={password_hash}",
+    ]
+    environment = os.environ.copy()
+    environment["PGPASSWORD"] = database_password
+    try:
+        subprocess.run(command, input=sql, text=True, capture_output=True, check=True, env=environment)
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        detail = getattr(error, "stderr", "").strip()
+        fail(f"PostgreSQL user sync failed{(' : ' + detail) if detail else ''}")
+
+
 def main() -> None:
     username = os.environ.get("USERNAME", "").strip()
     password = os.environ.get("PASSWORD", "")
@@ -51,10 +92,16 @@ def main() -> None:
 
     if not username:
         fail("USERNAME is empty")
-    if not database.is_file():
+    provider = os.environ.get("CLEANUPARR_DATABASE_PROVIDER", "sqlite").strip().lower()
+    if provider != "postgres" and not database.is_file():
         fail(f"users database is missing at {database}")
 
     password_hash = bcrypt_hash(password)
+    if provider == "postgres":
+        sync_postgres(username, password_hash)
+        print("Cleanuparr shared credentials synced")
+        return
+
     now = dt.datetime.now(dt.UTC).isoformat()
 
     with sqlite3.connect(database, timeout=10) as connection:
