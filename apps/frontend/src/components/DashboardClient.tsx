@@ -21,7 +21,8 @@ export function DashboardClient({
   metrics,
   performance,
   tasks,
-  favoriteNames
+  favoriteNames,
+  diskWarningThresholdPercent
 }: {
   status: SystemStatus;
   services: ServiceSummary[];
@@ -29,6 +30,7 @@ export function DashboardClient({
   performance: HomelabPerformance;
   tasks: StackarrTask[];
   favoriteNames: string[];
+  diskWarningThresholdPercent: number;
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const liveTasks = useLiveTasks(tasks, { limit: 8 });
@@ -38,8 +40,8 @@ export function DashboardClient({
     .sort(compareServicesByDisplayName);
   const favoriteRank = new Map(favoriteNames.map((name, index) => [name, index]));
   const needsAttention = useMemo(
-    () => buildAttentionItems(status.configured, services, metrics, liveTasks),
-    [liveTasks, metrics, services, status.configured]
+    () => buildAttentionItems(status.configured, services, metrics, liveTasks, diskWarningThresholdPercent),
+    [diskWarningThresholdPercent, liveTasks, metrics, services, status.configured]
   );
   const activeTasks = liveTasks.filter((task) => task.status === 'queued' || task.status === 'running');
   const recentTasks = liveTasks.filter((task) => task.status !== 'queued' && task.status !== 'running').slice(0, 4);
@@ -307,14 +309,15 @@ function buildAttentionItems(
   configured: boolean,
   services: ServiceSummary[],
   metrics: StackMetrics,
-  tasks: StackarrTask[]
+  tasks: StackarrTask[],
+  diskWarningThresholdPercent: number
 ) {
   const items: Array<{ label: string; detail: string; href: string; action: string; tone: 'warn' | 'bad' }> = [];
   const missing = services.filter((service) => service.mode !== 'disabled' && service.status === 'missing').length;
   const failed = tasks.filter(
     (task) => (task.status === 'failed' || task.status === 'blocked') && !task.reviewedAt
   ).length;
-  const fullDisk = metrics.disks.find((disk) => (disk.usedPercent ?? 0) >= 90);
+  const fullDisk = metrics.disks.find((disk) => (disk.usedPercent ?? 0) >= diskWarningThresholdPercent);
   if (!configured)
     items.push({
       label: 'Finish Initial Setup',

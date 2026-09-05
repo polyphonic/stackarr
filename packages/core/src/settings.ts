@@ -21,6 +21,7 @@ export type StackarrSettings = {
     theme: StackarrTheme;
     showAdvanced: boolean;
     refreshIntervalSeconds: number;
+    diskWarningThresholdPercent: number;
     serviceUrlMode: 'localhost' | 'loopback' | 'portless';
     serviceUrlScheme: 'http' | 'https';
     serviceUrlHostSuffix: string;
@@ -112,6 +113,7 @@ export const defaultSettings: StackarrSettings = {
     theme: 'dark',
     showAdvanced: false,
     refreshIntervalSeconds: 30,
+    diskWarningThresholdPercent: 90,
     serviceUrlMode: 'portless',
     serviceUrlScheme: 'https',
     serviceUrlHostSuffix: 'stack',
@@ -343,7 +345,14 @@ function syncEnvBackedSettings(current: StackarrSettings, envSettings: StackarrS
 function mergeSettings(base: StackarrSettings, partial: StackarrSettingsPatch): StackarrSettings {
   return {
     setup: { ...base.setup, ...partial.setup },
-    ui: { ...base.ui, ...partial.ui, theme: normalizeTheme(partial.ui?.theme ?? base.ui.theme) },
+    ui: {
+      ...base.ui,
+      ...partial.ui,
+      theme: normalizeTheme(partial.ui?.theme ?? base.ui.theme),
+      diskWarningThresholdPercent: normalizeDiskWarningThreshold(
+        partial.ui?.diskWarningThresholdPercent ?? base.ui.diskWarningThresholdPercent
+      )
+    },
     host: {
       ...base.host,
       ...partial.host,
@@ -400,6 +409,11 @@ function mergeSettingsPatch(base: StackarrSettingsPatch, patch: StackarrSettings
     backups: { ...base.backups, ...patch.backups },
     telemetry: { ...base.telemetry, ...patch.telemetry }
   };
+}
+
+function normalizeDiskWarningThreshold(value: unknown) {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(100, parsed)) : defaultSettings.ui.diskWarningThresholdPercent;
 }
 
 function normalizeTheme(value: unknown): StackarrTheme {

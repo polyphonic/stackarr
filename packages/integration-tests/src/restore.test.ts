@@ -382,7 +382,7 @@ test('encrypted restore bootstraps portable credentials and native Jellyfin data
       await readFile(path.join(stateRoot, 'backup-encryption.key'), 'utf8'),
       await readFile(backupKeyPath, 'utf8')
     );
-    assert.match(await readFile(composeEnvFile, 'utf8'), /^ROMM_STEAMGRIDDB_API_KEY="restored-romm-provider-key"$/m);
+    assert.doesNotMatch(await readFile(composeEnvFile, 'utf8'), /^ROMM_STEAMGRIDDB_API_KEY=/m);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

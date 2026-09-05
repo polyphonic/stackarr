@@ -6,15 +6,22 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 load_env
-write_compose_env_file
 ensure_dir "$LOG_ROOT/launchd"
 LOG_FILE="$LOG_ROOT/launchd/start-stack.log"
 
 {
     echo "$(date '+%Y-%m-%d %H:%M:%S') starting Stackarr stack"
     wait_for_stackarr_storage
+    write_compose_env_file
     ensure_docker_runtime
     ensure_database_if_required
+    if start_existing_database_for_runtime_config && load_postgres_runtime_config_through_database; then
+        write_compose_env_file
+    fi
+
+    if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] && load_postgres_runtime_config; then
+        write_compose_env_file
+    fi
     profile_args=()
     while IFS= read -r profile_arg; do
         profile_args+=("$profile_arg")

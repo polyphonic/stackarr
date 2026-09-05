@@ -11,6 +11,14 @@ const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const commonScript = path.join(repoRoot, 'stackarr/lib/common.sh');
 
+function sqliteTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env = { ...process.env, ...overrides };
+  delete env.STACKARR_DATABASE_MODE;
+  delete env.STACKARR_DATABASE_URL;
+  delete env.STACKARR_LOG_DATABASE_URL;
+  return env;
+}
+
 test('compose env generation preserves runtime roots and the release image', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');
@@ -61,10 +69,8 @@ test('compose env generation preserves runtime roots and the release image', asy
     assert.match(content, /^BOOKORBIT_CONTAINER_PORT="7582"$/m);
     assert.match(content, /^BOOKORBIT_URL="http:\/\/127\.0\.0\.1:42873"$/m);
     assert.match(content, /^STACKARR_IMAGE="polyphonic\/stackarr:alpha"$/m);
-    assert.match(content, /^TRANSMISSION_PASSWORD="Portable435"$/m);
-    const databasePassword = content.match(/^DATABASE_SUPERUSER_PASSWORD="([^"]+)"$/m)?.[1];
-    assert.ok(databasePassword);
-    assert.notEqual(databasePassword, 'Portable435');
+    assert.doesNotMatch(content, /^TRANSMISSION_PASSWORD=/m);
+    assert.doesNotMatch(content, /^DATABASE_SUPERUSER_PASSWORD=/m);
     assert.doesNotMatch(
       content,
       /STACKARR_(?:CHANNEL|COMPOSE_FILE|COMPOSE_PROJECT_DIR|REVISION|RUNTIME|RUN_SOURCE|SCHEDULER_ENABLED|TASK_ID|UPDATE_TASK_ID|REPO_ROOT|VERSION)/
@@ -140,6 +146,192 @@ test('host runtime reload reads current PostgreSQL settings through the Stackarr
   }
 });
 
+test('host runtime reload reads PostgreSQL directly when the controller is unavailable', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-host-postgres-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const binDir = path.join(root, 'bin');
+  const psqlLog = path.join(root, 'psql.log');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(path.join(binDir, 'docker'), '#!/bin/sh\nexit 1\n');
+    await writeFile(
+      path.join(binDir, 'psql'),
+      [
+        '#!/bin/sh',
+        'printf "%s\\n" "$*" >> "$STACKARR_TEST_PSQL_LOG"',
+        'sql=$(cat)',
+        'case "$sql" in',
+        '  *"select value from app_settings"*)',
+        '    printf "%s\\n" "{\\"APP_ROOT\\":\\"/app/stackarr/.stackarr\\",\\"CONFIG_ROOT\\":\\"/app/stackarr/.stackarr/config\\",\\"USERNAME\\":\\"database-user\\",\\"PASSWORD\\":\\"database-password\\",\\"TRANSMISSION_PASSWORD\\":\\"database-password\\"}"',
+        '    ;;',
+        'esac',
+        'exit 0',
+        ''
+      ].join('\n')
+    );
+    await chmod(path.join(binDir, 'docker'), 0o755);
+    await chmod(path.join(binDir, 'psql'), 0o755);
+    await writeFile(
+      composeEnvFile,
+      [
+        `APP_ROOT="${path.join(root, 'app')}"`,
+        `CONFIG_ROOT="${path.join(root, 'app/config')}"`,
+        `STATE_ROOT="${path.join(root, 'app/state')}"`,
+        `LOG_ROOT="${path.join(root, 'app/logs')}"`,
+        'USERNAME="stale-user"',
+        'PASSWORD="stale-password"',
+        'TRANSMISSION_PASSWORD="stale-password"',
+        'DATABASE_HOST_PORT="6543"',
+        'STACKARR_DATABASE_MODE="postgres"',
+        'STACKARR_DATABASE_URL="postgres://stackarr:secret@database:5432/stackarr-main"',
+        ''
+      ].join('\n')
+    );
+
+    const { stdout } = await execFile(
+      'bash',
+      [
+        '-c',
+        'source "$1"; load_env; printf "%s\\n%s\\n%s\\n%s\\n%s\\n" "$USERNAME" "$PASSWORD" "$TRANSMISSION_PASSWORD" "$APP_ROOT" "$CONFIG_ROOT"',
+        'bash',
+        commonScript
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH}`,
+          USERNAME: '',
+          PASSWORD: '',
+          TRANSMISSION_PASSWORD: '',
+          STACKARR_TEST_PSQL_LOG: psqlLog,
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+          STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
+        }
+      }
+    );
+
+    assert.equal(
+      stdout,
+      `database-user\ndatabase-password\ndatabase-password\n${path.join(root, 'app')}\n${path.join(root, 'app/config')}\n`
+    );
+    assert.match(await readFile(psqlLog, 'utf8'), /-h 127\.0\.0\.1 -p 6543/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('host runtime reload reads PostgreSQL through the database container socket', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-database-socket-test-'));
+  const binDir = path.join(root, 'bin');
+  const appRoot = path.join(root, 'app');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(
+      path.join(binDir, 'docker'),
+      [
+        '#!/bin/sh',
+        'case " $* " in',
+        '  *" exec -T app "*) exit 1 ;;',
+        '  *" exec -T database psql "*)',
+        '    printf "%s\\n" "{\\"APP_ROOT\\":\\"/app/stackarr/.stackarr\\",\\"USERNAME\\":\\"socket-user\\",\\"RECYCLARR_IMAGE\\":\\"ghcr.io/recyclarr/recyclarr:8\\"}"',
+        '    exit 0',
+        '    ;;',
+        'esac',
+        'exit 1',
+        ''
+      ].join('\n')
+    );
+    await chmod(path.join(binDir, 'docker'), 0o755);
+
+    const { stdout } = await execFile(
+      'bash',
+      [
+        '-c',
+        'source "$1"; load_postgres_runtime_config; printf "%s\\n%s\\n%s\\n" "$USERNAME" "$RECYCLARR_IMAGE" "$APP_ROOT"',
+        'bash',
+        commonScript
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH}`,
+          APP_ROOT: appRoot,
+          CONFIG_ROOT: path.join(appRoot, 'config'),
+          STATE_ROOT: path.join(appRoot, 'state'),
+          STACKARR_DATABASE_URL: 'postgres://stackarr:secret@database:5432/stackarr-main',
+          STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
+          STACKARR_COMPOSE_PROJECT_DIR: path.join(root, 'compose'),
+          STACKARR_COMPOSE_FILE: path.join(repoRoot, 'stackarr/docker-compose.yml'),
+          USERNAME: '',
+          RECYCLARR_IMAGE: ''
+        }
+      }
+    );
+
+    assert.equal(stdout, `socket-user\nghcr.io/recyclarr/recyclarr:8\n${appRoot}\n`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('PostgreSQL recovery never falls back to a stale SQLite runtime', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-no-sqlite-fallback-test-'));
+  const composeEnvFile = path.join(root, 'stackarr.env');
+  const databaseFile = path.join(root, 'stackarr.db');
+  const binDir = path.join(root, 'bin');
+
+  try {
+    await mkdir(binDir, { recursive: true });
+    await writeFile(path.join(binDir, 'docker'), '#!/bin/sh\nexit 1\n');
+    await writeFile(path.join(binDir, 'psql'), '#!/bin/sh\nexit 1\n');
+    await chmod(path.join(binDir, 'docker'), 0o755);
+    await chmod(path.join(binDir, 'psql'), 0o755);
+    await execFile(
+      process.execPath,
+      [path.join(repoRoot, 'stackarr/scripts/runtime-config-write.cjs'), 'USERNAME', 'sqlite-user'],
+      {
+        cwd: repoRoot,
+        env: sqliteTestEnv({ STACKARR_DATABASE_FILE: databaseFile })
+      }
+    );
+    await writeFile(
+      composeEnvFile,
+      [
+        `APP_ROOT="${path.join(root, 'app')}"`,
+        `CONFIG_ROOT="${path.join(root, 'app/config')}"`,
+        `STATE_ROOT="${path.join(root, 'app/state')}"`,
+        `LOG_ROOT="${path.join(root, 'app/logs')}"`,
+        'USERNAME="compose-user"',
+        'STACKARR_DATABASE_MODE="postgres"',
+        'STACKARR_DATABASE_URL="postgres://stackarr:secret@database:5432/stackarr-main"',
+        ''
+      ].join('\n')
+    );
+
+    const { stdout } = await execFile(
+      'bash',
+      ['-c', 'source "$1"; load_env; printf "%s" "$USERNAME"', 'bash', commonScript],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH}`,
+          USERNAME: '',
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
+          STACKARR_DATABASE_FILE: databaseFile
+        }
+      }
+    );
+
+    assert.equal(stdout, 'compose-user');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 test('legacy image-declared volume data is copied to the stable Compose volume before recreation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-volume-migration-test-'));
   const binDir = path.join(root, 'bin');
@@ -296,7 +488,7 @@ test('a verified legacy volume copy can resume Compose after an interrupted recr
   }
 });
 
-test('compose env generation preserves passwords with shell and URL punctuation', async () => {
+test('compose env generation omits passwords with shell and URL punctuation', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-special-password-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');
   const password = `space $dollar $$pair 'single' "double" :/@\\ unicode-✓`;
@@ -317,22 +509,8 @@ test('compose env generation preserves passwords with shell and URL punctuation'
     });
 
     const content = await readFile(composeEnvFile, 'utf8');
-    assert.match(content, /^PASSWORD="space \$\$dollar \$\$\$\$pair/m);
-
-    const { stdout } = await execFile(
-      'bash',
-      ['-c', 'source "$1"; load_compose_runtime_env; printf "%s" "$PASSWORD"', 'bash', commonScript],
-      {
-        cwd: repoRoot,
-        env: {
-          ...process.env,
-          PASSWORD: '',
-          STACKARR_COMPOSE_ENV_FILE: composeEnvFile
-        }
-      }
-    );
-
-    assert.equal(stdout, password);
+    assert.doesNotMatch(content, /^PASSWORD=/m);
+    assert.doesNotMatch(content, new RegExp(password.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -368,9 +546,9 @@ test('Questarr inherits RomM IGDB credentials and portable game paths at runtime
     assert.match(content, new RegExp(`^QUESTARR_DATA_ROOT="${path.join(appRoot, 'config/questarr')}"$`, 'm'));
     assert.match(content, new RegExp(`^QUESTARR_LIBRARY_ROOT="${path.join(appRoot, 'media/Games')}"$`, 'm'));
     assert.match(content, /^QUESTARR_SQLITE_DB_PATH="\/app\/data\/sqlite.db"$/m);
-    assert.match(content, /^QUESTARR_IGDB_CLIENT_ID="shared-client"$/m);
-    assert.match(content, /^QUESTARR_IGDB_CLIENT_SECRET="shared-secret"$/m);
-    assert.match(content, /^QUESTARR_JWT_SECRET="[A-Za-z0-9]{32}"$/m);
+    assert.doesNotMatch(content, /^QUESTARR_IGDB_CLIENT_ID=/m);
+    assert.doesNotMatch(content, /^QUESTARR_IGDB_CLIENT_SECRET=/m);
+    assert.doesNotMatch(content, /^QUESTARR_JWT_SECRET=/m);
     assert.match(content, /^QUESTARR_ROMM_LIBRARY_MOUNT_MODE="ro"$/m);
 
     const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
@@ -413,11 +591,11 @@ test('Youtarr runtime env stays private and generates dedicated credentials and 
     assert.match(content, /^YOUTARR_BIND_IP="127\.0\.0\.1"$/m);
     assert.match(content, new RegExp(`^YOUTARR_OUTPUT_ROOT="${path.join(appRoot, 'media/Videos/YouTube')}"$`, 'm'));
     assert.match(content, new RegExp(`^YOUTARR_CONFIG_ROOT="${path.join(appRoot, 'config/youtarr/config')}"$`, 'm'));
-    assert.match(content, /^YOUTARR_DB_PASSWORD="[A-Za-z0-9]{24}"$/m);
-    assert.match(content, /^YOUTARR_DB_ROOT_PASSWORD="[A-Za-z0-9]{24}"$/m);
+    assert.doesNotMatch(content, /^YOUTARR_DB_PASSWORD=/m);
+    assert.doesNotMatch(content, /^YOUTARR_DB_ROOT_PASSWORD=/m);
     assert.match(content, /^YOUTARR_LOGIN_ENABLED="true"$/m);
     assert.match(content, /^YOUTARR_ADMIN_USERNAME="stackarr-user"$/m);
-    assert.match(content, /^YOUTARR_ADMIN_PASSWORD="PortableYoutarrPassword"$/m);
+    assert.doesNotMatch(content, /^YOUTARR_ADMIN_PASSWORD=/m);
     assert.match(content, /^YOUTARR_PLEX_URL="http:\/\/plex:32400"$/m);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -624,4 +802,18 @@ test('every sensitive Compose variable has a managed runtime source', async () =
     [],
     'Sensitive Compose settings must be represented in the managed runtime config and portable backup snapshot'
   );
+});
+
+test('PostgreSQL mode reaches the controller and cannot silently fall back to SQLite', async () => {
+  const composeSource = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  const databaseSource = await readFile(path.join(repoRoot, 'packages/core/src/database.ts'), 'utf8');
+  const wizardSource = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SetupWizard.tsx'), 'utf8');
+  const appService = composeSource.match(/\n  app:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+  const updaterService = composeSource.match(/\n  app-updater:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+
+  assert.match(appService, /STACKARR_DATABASE_MODE: \$\{STACKARR_DATABASE_MODE:-app-default\}/);
+  assert.match(updaterService, /STACKARR_DATABASE_MODE: \$\{STACKARR_DATABASE_MODE:-app-default\}/);
+  assert.match(databaseSource, /STACKARR_DATABASE_MODE\?\.trim\(\)\.toLowerCase\(\) === 'postgres'/);
+  assert.match(wizardSource, /YOUTARR_OUTPUT_ROOT: `\$\{state\.mediaRoot\}\/Videos\/YouTube`/);
+  assert.doesNotMatch(wizardSource, /YOUTARR_OUTPUT_ROOT: `\$\{state\.mediaRoot\}\/YouTube`/);
 });
