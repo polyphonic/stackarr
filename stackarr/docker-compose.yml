@@ -565,6 +565,12 @@ services:
       homepage.name: Tracearr
       homepage.description: Media-server monitoring
       homepage.href: http://127.0.0.1:${TRACEARR_PORT:-3000}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(4000)}).then(async r=>{const h=await r.json();process.exit(r.ok&&h.status==='ok'?0:1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
     restart: unless-stopped
 
   redis:

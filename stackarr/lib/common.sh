@@ -404,7 +404,23 @@ for key, value in config.items():
     eval_host_runtime_config_exports "$exports"
 }
 
+load_postgres_runtime_config_in_container() {
+    stackarr_runtime_is_container || return 1
+    [[ -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+
+    local exports
+    if ! exports="$(node "$ROOT_DIR/scripts/runtime-config-export.cjs" 2>/dev/null)"; then
+        return 1
+    fi
+    [[ -n "$exports" ]] || return 1
+    eval "$exports"
+}
+
 load_postgres_runtime_config() {
+    if stackarr_runtime_is_container; then
+        load_postgres_runtime_config_in_container
+        return $?
+    fi
     load_postgres_runtime_config_through_app || \
         load_postgres_runtime_config_through_database || \
         load_postgres_runtime_config_from_host
@@ -621,9 +637,14 @@ load_env() {
     # Host commands cannot resolve the Compose-only `database` hostname. Read
     # PostgreSQL-backed settings through the running Stackarr controller first.
     if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]]; then
-        # Retain the last generated Compose values when PostgreSQL is
-        # temporarily unavailable; never replace them with stale SQLite state.
-        load_postgres_runtime_config || true
+        if ! load_postgres_runtime_config; then
+            # Host startup may still need to start the existing database first.
+            # Containers already have database access: never use inherited
+            # credentials to reconcile roles or recreate services after a failed read.
+            if stackarr_runtime_is_container; then
+                fail "Unable to load authoritative PostgreSQL runtime settings; refusing inherited credentials"
+            fi
+        fi
     else
         load_sqlite_runtime_config
     fi

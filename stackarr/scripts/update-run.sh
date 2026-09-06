@@ -9,6 +9,11 @@ action="${1:-services}"
 
 print_header "Stackarr Update"
 load_env
+# Unlike startup, updates must not proceed until the current settings can be
+# read. A running process or generated Compose file may predate a rotation.
+if database_mode_is_postgres && ! load_postgres_runtime_config; then
+    fail "Unable to load authoritative PostgreSQL runtime settings; update cancelled"
+fi
 write_compose_env_file
 # The controller update does not read media libraries. Requiring every media
 # mount here would prevent the isolated updater from ever starting because it

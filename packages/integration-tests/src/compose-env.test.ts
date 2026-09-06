@@ -817,3 +817,99 @@ test('PostgreSQL mode reaches the controller and cannot silently fall back to SQ
   assert.match(wizardSource, /YOUTARR_OUTPUT_ROOT: `\$\{state\.mediaRoot\}\/Videos\/YouTube`/);
   assert.doesNotMatch(wizardSource, /YOUTARR_OUTPUT_ROOT: `\$\{state\.mediaRoot\}\/YouTube`/);
 });
+
+for (const available of [true, false]) {
+  test(`container runtime ${available ? 'replaces inherited credentials from PostgreSQL' : 'refuses stale credentials when PostgreSQL is unavailable'}`, async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'stackarr-container-credentials-'));
+    const binDir = path.join(root, 'bin');
+    try {
+      await mkdir(binDir);
+      await writeFile(
+        path.join(binDir, 'psql'),
+        available
+          ? '#!/bin/sh\ncat >/dev/null\nprintf \'%s\\n\' \'{"TRACEARR_POSTGRES_PASSWORD":"current-password","TRACEARR_DATABASE_URL":"postgres://tracearr:current-password@database:5432/tracearr"}\'\n'
+          : '#!/bin/sh\nexit 1\n'
+      );
+      await chmod(path.join(binDir, 'psql'), 0o755);
+      const run = () =>
+        execFile(
+          'bash',
+          [
+            '-c',
+            'source "$1"; stackarr_runtime_is_container() { return 0; }; load_env; printf "%s\\n%s\\n" "$TRACEARR_POSTGRES_PASSWORD" "$TRACEARR_DATABASE_URL"',
+            'bash',
+            commonScript
+          ],
+          {
+            cwd: repoRoot,
+            env: {
+              PATH: `${binDir}:${process.env.PATH}`,
+              HOME: process.env.HOME,
+              APP_ROOT: root,
+              CONFIG_ROOT: path.join(root, 'config'),
+              STATE_ROOT: path.join(root, 'state'),
+              STACKARR_DATABASE_FILE: path.join(root, 'missing.db'),
+              STACKARR_COMPOSE_ENV_FILE: path.join(root, 'missing.env'),
+              STACKARR_DATABASE_MODE: 'postgres',
+              STACKARR_DATABASE_URL: 'postgres://stackarr:bootstrap@database:5432/stackarr-main',
+              TRACEARR_POSTGRES_PASSWORD: 'stale-password',
+              TRACEARR_DATABASE_URL: 'postgres://tracearr:stale-password@database:5432/tracearr'
+            }
+          }
+        );
+      if (available) {
+        assert.equal(
+          (await run()).stdout,
+          'current-password\npostgres://tracearr:current-password@database:5432/tracearr\n'
+        );
+      } else {
+        await assert.rejects(run, (error: unknown) => {
+          const failure = error as { stderr: string; stdout: string };
+          assert.match(failure.stderr, /Unable to load authoritative PostgreSQL runtime settings/);
+          assert.doesNotMatch(failure.stdout + failure.stderr, /stale-password|bootstrap/);
+          return true;
+        });
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('host updates stop before recreating services when authoritative settings are unavailable', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-update-credentials-'));
+  const binDir = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+  try {
+    await mkdir(binDir);
+    await writeFile(
+      path.join(binDir, 'docker'),
+      '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$STACKARR_TEST_DOCKER_LOG"\nexit 1\n'
+    );
+    await writeFile(path.join(binDir, 'psql'), '#!/bin/sh\nexit 1\n');
+    await chmod(path.join(binDir, 'docker'), 0o755);
+    await chmod(path.join(binDir, 'psql'), 0o755);
+    await assert.rejects(
+      () =>
+        execFile('bash', [path.join(repoRoot, 'stackarr/scripts/update-run.sh'), 'services'], {
+          cwd: repoRoot,
+          env: {
+            PATH: `${binDir}:${process.env.PATH}`,
+            HOME: process.env.HOME,
+            APP_ROOT: root,
+            CONFIG_ROOT: path.join(root, 'config'),
+            STATE_ROOT: path.join(root, 'state'),
+            STACKARR_DATABASE_FILE: path.join(root, 'missing.db'),
+            STACKARR_COMPOSE_ENV_FILE: path.join(root, 'missing.env'),
+            STACKARR_DATABASE_MODE: 'postgres',
+            STACKARR_DATABASE_URL: 'postgres://stackarr:bootstrap@database:5432/stackarr-main',
+            STACKARR_TEST_DOCKER_LOG: dockerLog
+          }
+        }),
+      /Unable to load authoritative PostgreSQL runtime settings; update cancelled/
+    );
+    assert.doesNotMatch(await readFile(dockerLog, 'utf8'), /\b(?:up|pull|run)\b/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
