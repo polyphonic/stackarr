@@ -24,7 +24,7 @@
     "@sanity/client": "7.26.2",
     "@sanity/icons": "3.7.4",
     "@sanity/vision": "5.26.0",
-    "sanity": "5.26.0",
+    "sanity": "6.9.2",
     "server-only": "0.0.1",
     "styled-components": "6.4.2"
   },
