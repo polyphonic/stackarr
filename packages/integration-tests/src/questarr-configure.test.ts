@@ -39,14 +39,45 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
         ])
       );
     } else if (requestPath === '/api/v1/appprofile') {
-      response.end(JSON.stringify([{ id: 2, name: 'Interactive only', enableRss: false, enableAutomaticSearch: false, enableInteractiveSearch: true, minimumSeeders: 1 }]));
+      response.end(
+        JSON.stringify([
+          {
+            id: 2,
+            name: 'Interactive only',
+            enableRss: false,
+            enableAutomaticSearch: false,
+            enableInteractiveSearch: true,
+            minimumSeeders: 1
+          }
+        ])
+      );
     } else if (requestPath === '/api/v1/indexer') {
       response.end(
         JSON.stringify([
-          { id: 7, name: 'Internet Archive (Games)', enable: true, appProfileId: 1, tags: [2, 3], fields: [{ name: 'baseSettings.queryLimit', value: null }, { name: 'baseSettings.limitsUnit', value: 1 }] },
+          {
+            id: 7,
+            name: 'Internet Archive (Games)',
+            enable: true,
+            appProfileId: 1,
+            tags: [2, 3],
+            fields: [
+              { name: 'baseSettings.queryLimit', value: null },
+              { name: 'baseSettings.limitsUnit', value: 1 }
+            ]
+          },
           { id: 8, name: 'Unapproved Games', enable: true, tags: [2] },
           { id: 6, name: '1337x', enable: true, tags: [1] },
-          { id: 5, name: 'Internet Archive', enable: false, appProfileId: 1, tags: [2], fields: [{ name: 'baseSettings.queryLimit', value: null }, { name: 'baseSettings.limitsUnit', value: 1 }] }
+          {
+            id: 5,
+            name: 'Internet Archive',
+            enable: false,
+            appProfileId: 1,
+            tags: [2],
+            fields: [
+              { name: 'baseSettings.queryLimit', value: null },
+              { name: 'baseSettings.limitsUnit', value: 1 }
+            ]
+          }
         ])
       );
     } else if (/^\/api\/v1\/indexer\/(5|7)\?forceSave=true$/.test(requestPath) && request.method === 'PUT') {

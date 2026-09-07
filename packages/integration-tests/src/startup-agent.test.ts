@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -180,7 +180,9 @@ test('concurrent runtime staging is serialized and leaves one complete canonical
     assert.equal(second.stdout.trim(), managedBin);
     assert.match(await readFile(managedBin, 'utf8'), /ROOT_DIR=/);
     assert.deepEqual(
-      (await readdir(managedParent)).filter((entry) => entry.includes('.tmp.') || entry.includes('.previous.') || entry.endsWith('.install.lock')),
+      (await readdir(managedParent)).filter(
+        (entry) => entry.includes('.tmp.') || entry.includes('.previous.') || entry.endsWith('.install.lock')
+      ),
       []
     );
   } finally {

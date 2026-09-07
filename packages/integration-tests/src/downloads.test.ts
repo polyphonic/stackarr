@@ -99,7 +99,10 @@ test('Transmission service status uses authenticated RPC session negotiation', a
     assert.ok('response' in result);
     assert.deepEqual(result.response, { version: '4.0.6', rpcVersion: 17 });
     assert.equal(seen.length, 2);
-    assert.deepEqual(seen.map((request) => request.method), ['session-get', 'session-get']);
+    assert.deepEqual(
+      seen.map((request) => request.method),
+      ['session-get', 'session-get']
+    );
     assert.equal(seen[0].auth, `Basic ${Buffer.from('stackarr:secret').toString('base64')}`);
     assert.equal(seen[1].session, 'status-session');
   } finally {

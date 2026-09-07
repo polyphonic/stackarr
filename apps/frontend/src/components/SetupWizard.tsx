@@ -72,6 +72,7 @@ type SetupState = {
   enableRecyclarr: boolean;
   enableFlaresolverr: boolean;
   enableTidarr: boolean;
+  enableTdarr: boolean;
   enableMaintainerr: boolean;
   enableCleanuparr: boolean;
   enableAgregarr: boolean;
@@ -131,6 +132,7 @@ const defaults: SetupState = {
   enableRecyclarr: true,
   enableFlaresolverr: true,
   enableTidarr: true,
+  enableTdarr: false,
   enableMaintainerr: false,
   enableCleanuparr: false,
   enableAgregarr: false,
@@ -258,6 +260,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_RECYCLARR: String(videoAutomationEnabled && state.enableRecyclarr),
       ENABLE_FLARESOLVERR: String(arrEnabled && state.enableFlaresolverr),
       ENABLE_TIDARR: String(state.enableTidarr),
+      ENABLE_TDARR: String(state.enableTdarr),
       ENABLE_MAINTAINERR: String(effectiveEnableMaintainerr),
       ENABLE_CLEANUPARR: String(effectiveEnableCleanuparr),
       ENABLE_AGREGARR: String(effectiveEnableAgregarr),
@@ -1254,6 +1257,12 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               label="Tidarr"
               description="Tidal helper for music workflows that need it."
               onChange={(value) => update('enableTidarr', value)}
+            />
+            <ServiceChoice
+              checked={state.enableTdarr}
+              label="Tdarr Transcoding"
+              description="Media health checks and transcoding. Includes an internal worker that starts paused."
+              onChange={(value) => update('enableTdarr', value)}
             />
             <ServiceChoice
               checked={effectiveEnableMaintainerr}

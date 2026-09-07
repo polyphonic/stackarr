@@ -66,6 +66,7 @@ import {
   getStalledDownloadsAction,
   getStreamripConfigAction,
   getSystemStatusAction,
+  getTdarrStatusAction,
   getTelemetryStatusAction,
   getWantedMoviesAction,
   getYoutarrHealthAction,
@@ -79,6 +80,8 @@ import {
   listServiceConfigsAction,
   listServicesAction,
   listStreamripJobsAction,
+  listTdarrLibrariesAction,
+  listTdarrNodesAction,
   type McpProfile,
   manageDockerResourceAction,
   manageNativeAppAction,
@@ -86,6 +89,7 @@ import {
   monitorMovieAction,
   monitorSeriesAction,
   pauseDownloadAction,
+  pauseTdarrNodeAction,
   prepareLidarrStreamripAlbumAction,
   previewTelemetryPayloadAction,
   queueYoutarrDownloadAction,
@@ -300,6 +304,7 @@ const tools: ToolDef[] = [
             'immich',
             'romm',
             'questarr',
+            'tdarr',
             'youtarr',
             'recyclarr',
             'flaresolverr',
@@ -322,6 +327,7 @@ const tools: ToolDef[] = [
       enableRecyclarr: z.boolean().optional(),
       enableFlaresolverr: z.boolean().optional(),
       enableTidarr: z.boolean().optional(),
+      enableTdarr: z.boolean().optional(),
       enableMaintainerr: z.boolean().optional(),
       enableTracearr: z.boolean().optional(),
       maintainerrCleanupPresets: z.array(z.enum(['watched-movies', 'abandoned-shows', 'stale-requests'])).optional(),
@@ -600,6 +606,30 @@ const tools: ToolDef[] = [
       limit: z.number().int().min(1).max(100).optional()
     },
     handler: reconcileQuestarrRommImportsAction
+  },
+  {
+    name: 'stackarr_get_tdarr_status',
+    description: 'Read Tdarr health and version.',
+    shape: empty,
+    handler: getTdarrStatusAction
+  },
+  {
+    name: 'stackarr_list_tdarr_libraries',
+    description: 'List Tdarr libraries and processing settings.',
+    shape: { limit: z.number().int().min(1).max(100).optional() },
+    handler: listTdarrLibrariesAction
+  },
+  {
+    name: 'stackarr_list_tdarr_nodes',
+    description: 'List Tdarr worker nodes and paused state without credentials.',
+    shape: { limit: z.number().int().min(1).max(100).optional() },
+    handler: listTdarrNodesAction
+  },
+  {
+    name: 'stackarr_pause_tdarr_node',
+    description: 'Pause new work on one connected Tdarr node. Existing work may finish.',
+    shape: { nodeId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/) },
+    handler: pauseTdarrNodeAction
   },
   {
     name: 'stackarr_get_youtarr_health',
@@ -898,6 +928,7 @@ const tools: ToolDef[] = [
             'immich',
             'romm',
             'questarr',
+            'tdarr',
             'youtarr',
             'seerr',
             'transmission',

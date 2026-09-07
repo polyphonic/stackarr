@@ -19,6 +19,48 @@ function sqliteTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return env;
 }
 
+test('installed runtime paths take precedence over a legacy checkout database', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-installed-paths-'));
+  const appRoot = path.join(root, 'installed');
+  const legacyDatabase = path.join(root, 'checkout/stackarr.db');
+  const composeEnvFile = path.join(appRoot, 'state/compose/.env');
+  try {
+    await mkdir(path.dirname(legacyDatabase), { recursive: true });
+    await writeFile(legacyDatabase, 'legacy fixture');
+    await mkdir(path.dirname(composeEnvFile), { recursive: true });
+    await writeFile(
+      composeEnvFile,
+      `APP_ROOT="${appRoot}"\nCONFIG_ROOT="${appRoot}/config"\nSTACKARR_DATABASE_DIR="${path.dirname(legacyDatabase)}"\n`
+    );
+    const { stdout } = await execFile(
+      'bash',
+      [
+        '-c',
+        'source "$1"; load_sqlite_runtime_config() { :; }; load_browser_link_runtime_settings() { :; }; load_env; printf "%s\\n" "$STACKARR_DATABASE_FILE" "$STACKARR_DATABASE_DIR"',
+        'bash',
+        commonScript
+      ],
+      {
+        cwd: repoRoot,
+        env: sqliteTestEnv({
+          APP_ROOT: '',
+          CONFIG_ROOT: '',
+          STACKARR_DATABASE_FILE: '',
+          STACKARR_DATABASE_DIR: '',
+          STACKARR_LEGACY_DATABASE_FILE: legacyDatabase,
+          STACKARR_COMPOSE_ENV_FILE: composeEnvFile
+        })
+      }
+    );
+    assert.deepEqual(stdout.trim().split('\n'), [
+      path.join(appRoot, 'config/stackarr.db'),
+      path.join(appRoot, 'config')
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('compose env generation preserves runtime roots and the release image', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-compose-env-test-'));
   const composeEnvFile = path.join(root, 'stackarr.env');

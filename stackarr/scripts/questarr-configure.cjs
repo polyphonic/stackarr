@@ -142,7 +142,9 @@ async function ensureGameIndexer(apiKey) {
       body: JSON.stringify(
         archivePolicy({
           ...gameIndexer,
-          tags: [...new Set([...(Array.isArray(gameIndexer.tags) ? gameIndexer.tags : []), gamesTag.id, approvedTag.id])]
+          tags: [
+            ...new Set([...(Array.isArray(gameIndexer.tags) ? gameIndexer.tags : []), gamesTag.id, approvedTag.id])
+          ]
         })
       )
     });

@@ -27,6 +27,7 @@ services:
     environment:
       STACKARR_REPO_ROOT: /app
       STACKARR_DATABASE_FILE: /stackarr-config/stackarr.db
+      STACKARR_DATABASE_DIR: ${STACKARR_DATABASE_DIR:-${CONFIG_ROOT:-./.stackarr/config}}
       STACKARR_DATABASE_MODE: ${STACKARR_DATABASE_MODE:-app-default}
       STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
       STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
@@ -87,6 +88,7 @@ services:
       STACKARR_WEB_PORT: ${STACKARR_WEB_PORT:-7777}
       STACKARR_REPO_ROOT: /app
       STACKARR_DATABASE_FILE: /stackarr-config/stackarr.db
+      STACKARR_DATABASE_DIR: ${STACKARR_DATABASE_DIR:-${CONFIG_ROOT:-./.stackarr/config}}
       STACKARR_DATABASE_MODE: ${STACKARR_DATABASE_MODE:-app-default}
       STACKARR_DATABASE_URL: ${STACKARR_DATABASE_URL:-}
       STACKARR_LOG_DATABASE_URL: ${STACKARR_LOG_DATABASE_URL:-}
@@ -422,6 +424,59 @@ services:
       homepage.description: Plex watchlist automation
       homepage.icon: https://raw.githubusercontent.com/jamcalli/Pulsarr/master/assets/icons/pulsarr.svg
       homepage.href: http://127.0.0.1:${PULSARR_PORT:-3003}
+    restart: unless-stopped
+
+  tdarr:
+    profiles: ['tdarr']
+    container_name: tdarr
+    image: ${TDARR_IMAGE:-ghcr.io/haveagitgat/tdarr:latest}
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TIMEZONE:-Etc/UTC}
+      UMASK_SET: "002"
+      serverIP: 0.0.0.0
+      serverPort: "8266"
+      webUIPort: "8265"
+      serverURL: http://127.0.0.1:8266
+      internalNode: ${TDARR_INTERNAL_NODE:-true}
+      inContainer: "true"
+      nodeName: ${TDARR_NODE_NAME:-stackarr-node}
+      nodeType: mapped
+      ffmpegVersion: "7"
+      auth: ${TDARR_AUTH:-true}
+      seededApiKey: ${TDARR_API_KEY:-}
+      apiKey: ${TDARR_API_KEY:-}
+      openBrowser: "false"
+      startPaused: ${TDARR_START_PAUSED:-true}
+      transcodecpuWorkers: "1"
+      transcodegpuWorkers: "0"
+      healthcheckcpuWorkers: "1"
+      healthcheckgpuWorkers: "0"
+      maxLogSizeMB: "10"
+    volumes:
+      - "${CONFIG_ROOT:-./.stackarr/config}/tdarr/server:/app/server"
+      - "${CONFIG_ROOT:-./.stackarr/config}/tdarr/configs:/app/configs"
+      - "${CONFIG_ROOT:-./.stackarr/config}/tdarr/logs:/app/logs"
+      - "${TDARR_MEDIA_ROOT:-${MEDIA_ROOT:-./.stackarr/media}}:/media"
+      - "${TDARR_CACHE_ROOT:-./.stackarr/cache/tdarr}:/temp"
+    ports:
+      - "${TDARR_BIND_IP:-127.0.0.1}:${TDARR_WEB_PORT:-8265}:8265"
+      - "${TDARR_BIND_IP:-127.0.0.1}:${TDARR_SERVER_PORT:-8266}:8266"
+    labels:
+      org.opencontainers.image.title: Tdarr
+      org.opencontainers.image.description: Media transcoding and health checks with an internal worker.
+      org.opencontainers.image.source: https://github.com/HaveAGitGat/Tdarr
+      org.opencontainers.image.documentation: https://docs.tdarr.io/
+      homepage.name: Tdarr
+      homepage.description: Media transcoding and health checks
+      homepage.href: http://127.0.0.1:${TDARR_WEB_PORT:-8265}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8266/api/v2/status',{headers:{'x-api-key':process.env.apiKey||''}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
 
   maintainerr:

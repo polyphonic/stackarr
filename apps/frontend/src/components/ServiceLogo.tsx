@@ -20,6 +20,7 @@ const logoPaths: Record<string, string> = {
   cloudflare: '/logos/cloudflare.svg',
   seerr: '/logos/overseerr.svg',
   pulsarr: '/logos/pulsarr.svg',
+  tdarr: '/logos/tdarr.png',
   maintainerr: '/logos/maintainerr.svg',
   cleanuparr: '/logos/cleanuparr.svg',
   agregarr: '/logos/agregarr.svg',

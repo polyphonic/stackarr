@@ -158,6 +158,9 @@ cloudflare_service_url() {
         pulsarr|requests)
             printf 'http://127.0.0.1:%s\n' "${PULSARR_PORT:-3003}"
             ;;
+        tdarr)
+            printf 'http://127.0.0.1:%s\n' "${TDARR_WEB_PORT:-8265}"
+            ;;
         maintainerr|cleanup)
             printf 'http://127.0.0.1:%s\n' "${MAINTAINERR_PORT:-6246}"
             ;;
@@ -368,6 +371,7 @@ ingress = config.get("ingress") if isinstance(config, dict) else []
 ports = {
     str(os.environ.get("STACKARR_WEB_PORT") or "7777"): "app",
     str(os.environ.get("PULSARR_PORT") or "3003"): "pulsarr",
+    str(os.environ.get("TDARR_WEB_PORT") or "8265"): "tdarr",
     str(os.environ.get("MAINTAINERR_PORT") or "6246"): "maintainerr",
     str(os.environ.get("TRACEARR_PORT") or "3000"): "tracearr",
     str(os.environ.get("BOOKORBIT_WEB_PORT") or "42873"): "bookorbit",

@@ -1,0 +1,47 @@
+---
+title: Tdarr
+description: Managed media transcoding and health checks with a paused internal worker.
+---
+
+Tdarr is an optional app in **Apps → Add Tdarr** and the setup wizard. Saving starts its managed container. Stackarr uses the current `ghcr.io/haveagitgat/tdarr:latest` image for AMD64 and ARM64, with an image override in advanced settings.
+
+The local dashboard is [http://127.0.0.1:8265](http://127.0.0.1:8265). The API uses port 8266. Both bind to loopback by default. Portless provides `https://tdarr.stack` with the default host suffix. Cloudflare routing is opt-in through Remote access; expose the web UI, not the node API port.
+
+## Storage and processing
+
+- The configured media folder mounts at `/media`.
+- The transcode cache mounts at `/temp` and defaults to `APP_ROOT/cache/tdarr`.
+- Server state, its embedded SQLite database, node configuration, and logs live in `CONFIG_ROOT/tdarr`.
+- Configuration backups include Tdarr's persisted state. Temporary transcodes are outside configuration backups.
+
+Tdarr does not support Stackarr's shared PostgreSQL backend. It retains its upstream SQLite backend in either Stackarr database mode.
+
+An internal CPU worker is included and starts paused. Choose library subfolders, processing rules, and a schedule in Tdarr before resuming it. Stackarr does not automatically scan or transcode existing media, change Arr ownership, or import downloads. External nodes must use the same media and cache mappings and the managed API key.
+
+GPU devices are not added by default. Docker Desktop on macOS does not expose Apple VideoToolbox to Linux containers; this integration uses CPU processing. Hardware acceleration on a supported Linux host requires an explicit runtime device configuration. See [upstream hardware instructions](https://docs.tdarr.io/docs/installation/docker/hardware-transcoding/).
+
+## Authentication and tools
+
+Authentication is enabled by default. Stackarr generates a `tapi_` API key and shares it with the internal node. `stackarr tdarr configure` creates the first account using Stackarr's shared username and password, verifies login, and preserves any existing account. API keys are redacted from settings responses and omitted from generated Compose environment files.
+
+The service exposes these bounded MCP actions when Tdarr is enabled and selected:
+
+- `stackarr_get_tdarr_status`
+- `stackarr_list_tdarr_libraries`
+- `stackarr_list_tdarr_nodes`
+- `stackarr_pause_tdarr_node`
+
+The pause action stops a node accepting new work; an active job may finish. Resume workers through Tdarr after reviewing library processing settings.
+
+```sh
+stackarr tdarr status
+stackarr tdarr enable
+stackarr tdarr apply
+stackarr tdarr configure
+stackarr tdarr disable
+stackarr tdarr apply
+```
+
+Disabling and applying removes the container and retains its configuration. Dashboard saves also apply enabled/disabled state. Use `stackarr portless apply` on the host to refresh friendly routes after adding an app when the dashboard reports a host action.
+
+See the official [Docker setup](https://docs.tdarr.io/docs/installation/docker/run-compose/), [authentication](https://docs.tdarr.io/docs/other/authentication/), and current **Tools → API Docs** inside Tdarr. The bundled upstream logo is used for the app card.

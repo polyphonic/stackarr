@@ -25,6 +25,7 @@ export * from './actions/services';
 export * from './actions/setup';
 export * from './actions/stack';
 export * from './actions/streamrip';
+export * from './actions/tdarr';
 export * from './actions/telemetry';
 export * from './actions/youtarr';
 export * from './clients/serviceConfig';

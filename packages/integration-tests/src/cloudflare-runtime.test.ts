@@ -100,7 +100,9 @@ test('managed cloudflared install verifies the official release digest before us
     } else {
       await writeFile(assetFile, await readFile(payload));
     }
-    const digest = createHash('sha256').update(await readFile(assetFile)).digest('hex');
+    const digest = createHash('sha256')
+      .update(await readFile(assetFile))
+      .digest('hex');
     await writeFile(
       releaseFile,
       JSON.stringify({

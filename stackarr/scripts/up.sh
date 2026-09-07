@@ -9,6 +9,10 @@ print_header "Stackarr Up"
 load_env
 wait_for_stackarr_storage
 write_compose_env_file
+if optional_service_enabled tdarr; then
+    ensure_dir "$CONFIG_ROOT/tdarr"
+    ensure_dir "$TDARR_CACHE_ROOT"
+fi
 if optional_service_enabled youtarr; then
     ensure_dir "$YOUTARR_OUTPUT_ROOT"
     ensure_dir "$YOUTARR_CONFIG_ROOT"
@@ -54,6 +58,7 @@ else
     warn "Seerr request presets were not applied because STACKARR_CONFIGURE_SEERR is false"
 fi
 "$ROOT_DIR/scripts/bookorbit.sh" credentials apply --wait || true
+if optional_service_enabled tdarr; then "$ROOT_DIR/scripts/tdarr.sh" configure; fi
 ok "Stackarr services are starting"
 warn "Run 'bin/stackarr configure' after first boot or after image resets"
 ok "Repo-managed naming and download presets were re-applied"

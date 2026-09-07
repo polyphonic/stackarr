@@ -43,7 +43,7 @@ runtime_service_enabled() {
 
 validate_runtime_service() {
     case "$1" in
-        app|database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|maintainerr|cleanuparr|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
+        app|database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|tdarr|maintainerr|cleanuparr|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
             return 0
             ;;
         *)
@@ -62,7 +62,16 @@ apply_service_runtime() {
     load_env
     write_compose_env_file
     ensure_docker_runtime
-    ensure_database_if_required
+    # A single-app change must not restart the controller's own database.
+    # Reconcile roles in place when it is already running; only start it when
+    # absent/stopped or when database settings are the requested change.
+    if database_required; then
+        if [[ " $* " != *" database "* ]] && [[ "$(docker inspect database --format '{{.State.Running}}' 2>/dev/null || true)" == "true" ]]; then
+            reconcile_running_shared_database
+        else
+            ensure_database_if_required
+        fi
+    fi
 
     local profile_args=()
     local service profile
@@ -104,6 +113,10 @@ apply_service_runtime() {
         fi
 
         case "$service" in
+            tdarr)
+                ensure_dir "$CONFIG_ROOT/tdarr"
+                ensure_dir "$TDARR_CACHE_ROOT"
+                ;;
             romm|immich|immich-ml|tracearr)
                 stackarr_compose "${profile_args[@]}" up -d redis
                 ;;
@@ -128,7 +141,8 @@ apply_service_runtime() {
             continue
         fi
 
-        stackarr_compose "${profile_args[@]}" up -d --force-recreate --no-deps "$service"
+        stackarr_compose "${profile_args[@]}" up -d --wait --wait-timeout 180 --force-recreate --no-deps "$service"
+        if [[ "$service" == tdarr ]]; then "$ROOT_DIR/scripts/tdarr.sh" configure; fi
         ok "$service container settings applied"
     done
 }

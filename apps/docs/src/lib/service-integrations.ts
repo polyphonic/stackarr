@@ -57,6 +57,22 @@ const serviceIntegrationDefinitions = [
       'Stackarr can enable Lidarr alongside movies, TV, and books, then keep its links, credentials, download routing, backups, and companion music workflow settings in the same setup flow.'
   },
   {
+    slug: 'tdarr',
+    name: 'Tdarr',
+    logo: 'tdarr',
+    logoExtension: 'png',
+    category: 'Media transcoding',
+    role: 'Media health checks and transcoding workers',
+    hero: 'Tdarr checks media health and applies library-specific transcoding rules through connected workers.',
+    whatItDoes: [
+      'Checks media files for errors.',
+      'Runs configurable processing flows on selected libraries.',
+      'Coordinates workers sharing media and temporary transcode storage.'
+    ],
+    stackarr:
+      'Stackarr manages the server and a paused internal CPU worker, generates its API key, configures first-run login, backs up its embedded SQLite state, and provides private browser links and bounded MCP controls.'
+  },
+  {
     slug: 'tidarr',
     name: 'Tidarr',
     logo: 'tidal',
