@@ -5,6 +5,7 @@
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "nucleo-glass": "^1.4.0",
+    "react-aria-components": "^1.21.1",
     "react-hot-toast": "^2.6.0"
   },
   "devDependencies": {
@@ -20,8 +21,8 @@
     "./toast": "./src/toast.tsx"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "private": true,
   "scripts": {
