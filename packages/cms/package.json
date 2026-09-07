@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@sanity/client": "8.2.0",
-    "@sanity/icons": "3.7.4",
+    "@sanity/icons": "5.2.1",
     "@sanity/vision": "5.26.0",
     "sanity": "6.9.2",
     "server-only": "0.0.1",
