@@ -2,7 +2,7 @@
   "name": "@stackarr/ui",
   "version": "0.3.0-alpha.19",
   "dependencies": {
-    "@heroui/react": "^3.2.2",
+    "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "nucleo-glass": "^1.4.0",
     "react-hot-toast": "^2.6.0"
