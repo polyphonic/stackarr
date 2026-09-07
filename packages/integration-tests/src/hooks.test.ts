@@ -41,6 +41,118 @@ test('Transmission unsafe hook rejects torrent names with Windows separators', a
   );
 });
 
+test('Transmission hook routes unfinished torrents into their incomplete label folder', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-incomplete-'));
+
+  try {
+    const fixture = await transmissionHookFixture(root, {
+      id: 42,
+      percentDone: 0.5,
+      labels: ['tv-sonarr'],
+      downloadDir: '/downloads/complete/tv-sonarr'
+    });
+
+    await execFile('sh', [transmissionHook], { env: fixture.env });
+
+    assert.equal(
+      await readFile(fixture.log, 'utf8'),
+      `127.0.0.1:9091 --auth stackarr:secret --torrent 42 --move ${path.join(root, 'downloads/incomplete/tv-sonarr')}\n`
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Transmission hook routes finished torrents into their complete label folder', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-complete-'));
+
+  try {
+    const fixture = await transmissionHookFixture(root, {
+      id: 42,
+      percentDone: 1,
+      labels: ['radarr'],
+      downloadDir: '/downloads/incomplete/radarr'
+    });
+
+    await execFile('sh', [transmissionHook], { env: fixture.env });
+
+    assert.equal(
+      await readFile(fixture.log, 'utf8'),
+      `127.0.0.1:9091 --auth stackarr:secret --torrent 42 --move ${path.join(root, 'downloads/complete/radarr')}\n`
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Transmission hook ignores unsafe labels when choosing a routing folder', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-label-'));
+
+  try {
+    const fixture = await transmissionHookFixture(root, {
+      id: 42,
+      percentDone: 0.25,
+      labels: ['../outside'],
+      downloadDir: '/downloads/complete'
+    });
+
+    await execFile('sh', [transmissionHook], { env: fixture.env });
+
+    assert.equal(
+      await readFile(fixture.log, 'utf8'),
+      `127.0.0.1:9091 --auth stackarr:secret --torrent 42 --move ${path.join(root, 'downloads/incomplete')}\n`
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+async function transmissionHookFixture(
+  root: string,
+  torrent: { id: number; percentDone: number; labels: string[]; downloadDir: string }
+) {
+  const bin = path.join(root, 'bin');
+  const log = path.join(root, 'transmission-remote.log');
+  await mkdir(bin, { recursive: true });
+  await writeFile(log, '');
+  await writeFile(
+    path.join(bin, 'curl'),
+    `#!/bin/sh
+case " $* " in
+  *" -D - "*) printf 'HTTP/1.1 409 Conflict\\nX-Transmission-Session-Id: test-session\\n' ;;
+  *) printf '%s' "$STACKARR_TEST_TORRENT_JSON" ;;
+esac
+`,
+    { mode: 0o755 }
+  );
+  await writeFile(
+    path.join(bin, 'transmission-remote'),
+    `#!/bin/sh
+printf '%s\\n' "$*" >> "$STACKARR_TEST_TRANSMISSION_LOG"
+`,
+    { mode: 0o755 }
+  );
+
+  return {
+    log,
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      USER: 'stackarr',
+      PASS: 'secret',
+      TR_TORRENT_DIR: root,
+      TR_TORRENT_NAME: 'Safe release',
+      TR_TORRENT_ID: String(torrent.id),
+      STACKARR_DOWNLOADS_ROOT: path.join(root, 'downloads'),
+      STACKARR_TEST_TORRENT_JSON: JSON.stringify({
+        arguments: { torrents: [torrent] },
+        result: 'success'
+      }),
+      STACKARR_TEST_TRANSMISSION_LOG: log
+    }
+  };
+}
+
 test('Radarr post-import hook copies Plex extras and updates then scrapes through the TMM API', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-radarr-post-import-'));
   const source = path.join(root, 'downloads', 'Movie.Release');

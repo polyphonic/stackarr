@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import type { ServiceConfigModel } from '@stackarr/core';
+import { valuesFromConfig } from '../../../apps/frontend/src/lib/serviceConfigDraft';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -24,4 +26,34 @@ test('app cards keep Open top-right and reserve a stable footer action row', asy
   const footer = component.slice(footerActions);
   assert.ok(openAction > 0 && openAction < footerActions);
   assert.ok(footer.indexOf('styles.pinButton') < footer.indexOf('<ServiceSettingsModal'));
+});
+
+test('Add Maintainerr enables it in the saved draft while Settings preserves disabled values', () => {
+  const config = {
+    service: { name: 'maintainerr', mode: 'disabled' },
+    groups: [
+      {
+        title: 'Maintainerr',
+        fields: [
+          {
+            id: 'enableMaintainerr',
+            type: 'checkbox',
+            source: { source: 'env', key: 'ENABLE_MAINTAINERR' },
+            value: false
+          },
+          {
+            id: 'maintainerrGithubToken',
+            type: 'password',
+            source: { source: 'env', key: 'MAINTAINERR_GITHUB_TOKEN' },
+            secret: true,
+            value: 'redacted'
+          }
+        ]
+      }
+    ]
+  } as ServiceConfigModel;
+  assert.equal(valuesFromConfig(config, true).enableMaintainerr, true);
+  assert.equal(valuesFromConfig(config).enableMaintainerr, false);
+  assert.equal(valuesFromConfig(config, true).maintainerrGithubToken, '');
+  assert.equal(config.groups[0].fields[0].value, false);
 });

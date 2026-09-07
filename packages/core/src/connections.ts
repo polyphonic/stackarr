@@ -105,6 +105,14 @@ export function getConnections(): StackarrConnection[] {
       managedFields: ['Proxy URL', 'Timeout', 'Prowlarr tags']
     },
     {
+      name: 'Tdarr',
+      target: 'tdarr',
+      kind: 'api',
+      status: flag(env.ENABLE_TDARR, false) ? 'configured' : 'optional',
+      description: 'Authenticated media health and transcoding controls. Uses its embedded SQLite database.',
+      managedFields: ['API key', 'Media folder', 'Transcode cache', 'Paused internal worker']
+    },
+    {
       name: 'Tidarr',
       target: 'tidarr',
       kind: 'api',
@@ -299,6 +307,14 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
         urlField('Base URL', 'http://flaresolverr:8191'),
         { name: 'timeoutSeconds', label: 'Timeout Seconds', type: 'text', placeholder: '60' }
       ]
+    },
+    {
+      implementation: 'Tdarr',
+      name: 'Tdarr',
+      target: 'tdarr',
+      kind: 'api',
+      description: 'Read libraries and worker state or pause a worker through the authenticated API.',
+      fields: [urlField('API URL', 'http://tdarr:8266'), { name: 'apiKey', label: 'API Key', type: 'password' }]
     },
     {
       implementation: 'Tidarr',
@@ -518,6 +534,7 @@ export function getConnectionSchemas(): StackarrConnectionSchema[] {
             'immich',
             'romm',
             'questarr',
+            'tdarr',
             'youtarr',
             'maintainerr',
             'tracearr'

@@ -663,6 +663,34 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPassword('pulsarrPostgresPassword', 'Database Password', 'PULSARR_POSTGRES_PASSWORD')
     ])
   ],
+  tdarr: [
+    group('Tdarr', [
+      envCheckbox('enableTdarr', 'Enable Tdarr', 'ENABLE_TDARR'),
+      envText('tdarrUrl', 'Local URL', 'TDARR_URL'),
+      envText('tdarrApiUrl', 'API URL', 'TDARR_API_URL'),
+      envPath(
+        'tdarrMediaRoot',
+        'Media Folder',
+        'TDARR_MEDIA_ROOT',
+        'Mounted at /media in Tdarr. Library processing stays user-controlled.'
+      ),
+      envPath(
+        'tdarrCacheRoot',
+        'Transcode Cache',
+        'TDARR_CACHE_ROOT',
+        'Mounted at /temp. Temporary transcodes are excluded from backups.'
+      ),
+      envCheckbox('tdarrInternalNode', 'Run Internal Worker', 'TDARR_INTERNAL_NODE'),
+      envCheckbox('tdarrStartPaused', 'Start Worker Paused', 'TDARR_START_PAUSED'),
+      envText('tdarrNodeName', 'Worker Name', 'TDARR_NODE_NAME'),
+      envCheckbox('tdarrAuth', 'Require Authentication', 'TDARR_AUTH'),
+      envPassword('tdarrApiKey', 'API Key', 'TDARR_API_KEY'),
+      envText('tdarrBindIp', 'Bind IP', 'TDARR_BIND_IP'),
+      envNumber('tdarrWebPort', 'Web Port', 'TDARR_WEB_PORT'),
+      envNumber('tdarrServerPort', 'Server Port', 'TDARR_SERVER_PORT'),
+      envText('tdarrImage', 'Docker Image', 'TDARR_IMAGE')
+    ])
+  ],
   maintainerr: [
     group('Cleanup Planner', [
       envCheckbox('enableMaintainerr', 'Enable Maintainerr', 'ENABLE_MAINTAINERR'),
@@ -1387,6 +1415,7 @@ function settingsPatchFromEnv(env: StackarrEnv): StackarrSettingsPatch {
     ['enableTidarr', 'ENABLE_TIDARR'],
     ['enableSeerr', 'ENABLE_SEERR'],
     ['enablePulsarr', 'ENABLE_PULSARR'],
+    ['enableTdarr', 'ENABLE_TDARR'],
     ['enableMaintainerr', 'ENABLE_MAINTAINERR'],
     ['enableTracearr', 'ENABLE_TRACEARR']
   ];

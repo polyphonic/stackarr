@@ -4,6 +4,7 @@ import type { ServiceConfigField, ServiceConfigModel } from '@stackarr/core';
 import { Button, Description, Input, Label, Modal, Switch, TextArea, TextField } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { valuesFromConfig } from '../lib/serviceConfigDraft';
 import { compareServicesByDisplayName } from '../lib/serviceOrdering';
 import { stackarrFetch } from './clientApi';
 import { icons } from './icons';
@@ -109,7 +110,7 @@ export function ServiceDirectory({
     const response = await stackarrFetch('/api/v1/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'StackConfigure', confirmed: true })
+      body: JSON.stringify({ name: 'StackStart', confirmed: true })
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -250,18 +251,22 @@ function ServiceSettingsModal({
   requirementMet: boolean;
   onSaved: (config: ServiceConfigModel, runtimeApplyQueued: boolean) => void;
 }) {
-  const [draft, setDraft] = useState<DraftValues>(() => valuesFromConfig(config));
+  const [draft, setDraft] = useState<DraftValues>(() => valuesFromConfig(config, isAvailable));
   const [currentPassword, setCurrentPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const setModalState = useCallback((nextOpen: boolean) => {
-    setModalOpen(nextOpen);
-    if (!nextOpen) {
-      setCurrentPassword('');
-      setError('');
-    }
-  }, []);
+  const setModalState = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) setDraft(valuesFromConfig(config, isAvailable));
+      setModalOpen(nextOpen);
+      if (!nextOpen) {
+        setCurrentPassword('');
+        setError('');
+      }
+    },
+    [config, isAvailable]
+  );
   const openModal = useCallback(() => setModalState(true), [setModalState]);
   const closeModal = useCallback(() => setModalState(false), [setModalState]);
   const commonGroups = filterConfigGroups(
@@ -277,8 +282,8 @@ function ServiceSettingsModal({
   );
 
   useEffect(() => {
-    setDraft(valuesFromConfig(config));
-  }, [config]);
+    setDraft(valuesFromConfig(config, isAvailable));
+  }, [config, isAvailable]);
 
   useEffect(() => {
     if (requestedOpen && requirementMet) {
@@ -714,22 +719,6 @@ function conditionMatches(condition: NonNullable<ServiceConfigField['enabledWhen
     return truthy(current) === condition.value;
   }
   return current === condition.value;
-}
-
-function valuesFromConfig(config: ServiceConfigModel): DraftValues {
-  const values: DraftValues = {};
-
-  for (const group of config.groups) {
-    for (const field of group.fields) {
-      values[field.id] = field.secret
-        ? ''
-        : field.type === 'json'
-          ? JSON.stringify(field.value ?? {}, null, 2)
-          : field.value;
-    }
-  }
-
-  return values;
 }
 
 function normalizeDraft(config: ServiceConfigModel, draft: DraftValues): { values: DraftValues; error?: string } {

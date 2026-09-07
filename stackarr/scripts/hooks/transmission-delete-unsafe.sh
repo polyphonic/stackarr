@@ -36,6 +36,58 @@ remove_torrent_if_possible() {
     transmission-remote 127.0.0.1:9091 --auth "$USER:$PASS" --torrent "$torrent_id" --remove >/dev/null 2>&1 || true
 }
 
+route_torrent_if_possible() {
+    [ -n "${torrent_id:-}" ] || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    command -v transmission-remote >/dev/null 2>&1 || return 0
+    [ -n "${USER:-}" ] || return 0
+    [ -n "${PASS:-}" ] || return 0
+
+    downloads_root="${STACKARR_DOWNLOADS_ROOT:-/downloads}"
+    rpc_url="${STACKARR_TRANSMISSION_RPC_URL:-http://127.0.0.1:9091/transmission/rpc}"
+    session_id="$(curl -sS -D - -o /dev/null -u "$USER:$PASS" "$rpc_url" \
+        | tr -d '\r' \
+        | awk '/X-Transmission-Session-Id/ {print $2}')"
+
+    [ -n "$session_id" ] || return 0
+
+    torrent_json="$(curl -fsS -u "$USER:$PASS" \
+        -H "X-Transmission-Session-Id: $session_id" \
+        -H 'Content-Type: application/json' \
+        --data-binary "{\"method\":\"torrent-get\",\"arguments\":{\"ids\":[$torrent_id],\"fields\":[\"id\",\"percentDone\",\"labels\",\"downloadDir\"]}}" \
+        "$rpc_url")" || return 0
+
+    found_id="$(printf '%s' "$torrent_json" | jq -r '.arguments.torrents[0].id // empty')"
+    [ -n "$found_id" ] || return 0
+
+    is_complete="$(printf '%s' "$torrent_json" | jq -r '(.arguments.torrents[0].percentDone // 0) >= 1')"
+    current_dir="$(printf '%s' "$torrent_json" | jq -r '.arguments.torrents[0].downloadDir // empty')"
+    label="$(printf '%s' "$torrent_json" | jq -r '.arguments.torrents[0].labels[0] // empty')"
+
+    case "$label" in
+        ''|*[!A-Za-z0-9._-]*) label="" ;;
+    esac
+
+    if [ "$is_complete" = true ]; then
+        target_dir="${TRANSMISSION_DOWNLOAD_DIR:-$downloads_root/complete}"
+    else
+        target_dir="${TRANSMISSION_INCOMPLETE_DIR:-$downloads_root/incomplete}"
+    fi
+
+    [ -z "$label" ] || target_dir="$target_dir/$label"
+    [ "$current_dir" = "$target_dir" ] && return 0
+
+    mkdir -p "$target_dir"
+    if transmission-remote 127.0.0.1:9091 --auth "$USER:$PASS" \
+        --torrent "$torrent_id" --move "$target_dir" >/dev/null 2>&1; then
+        log "moved torrent $torrent_id from $current_dir to $target_dir"
+    else
+        log "failed to move torrent $torrent_id from $current_dir to $target_dir"
+        return 1
+    fi
+}
+
 delete_if_unsafe() {
     path="$1"
     [ -f "$path" ] || return 0
@@ -84,3 +136,5 @@ if [ "$unsafe_found" = true ]; then
     remove_torrent_if_possible
     exit 1
 fi
+
+route_torrent_if_possible

@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFile = promisify(execFileCallback);
+const appDataDirectory =
+  process.platform === 'darwin' ? 'Library/Application Support/Stackarr' : '.local/share/stackarr';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const cloudflareScript = path.join(repoRoot, 'stackarr/scripts/cloudflare.sh');
 
@@ -23,7 +25,7 @@ test('Cloudflare start uses only the Stackarr-managed app-data binary', async ()
   const appRoot = path.join(root, 'app');
   const stateRoot = path.join(appRoot, 'state');
   const binDir = path.join(root, 'test-bin');
-  const managedCloudflared = path.join(home, 'Library/Application Support/Stackarr/bin/cloudflared');
+  const managedCloudflared = path.join(home, appDataDirectory, 'bin/cloudflared');
   const launchctlLog = path.join(root, 'launchctl.log');
 
   try {
@@ -54,6 +56,8 @@ esac
       cwd: repoRoot,
       env: {
         ...process.env,
+        XDG_DATA_HOME: '',
+        APP_ROOT_DEFAULT_OVERRIDE: '',
         PATH: `${binDir}:/usr/bin:/bin`,
         HOME: home,
         APP_ROOT: appRoot,
@@ -100,7 +104,9 @@ test('managed cloudflared install verifies the official release digest before us
     } else {
       await writeFile(assetFile, await readFile(payload));
     }
-    const digest = createHash('sha256').update(await readFile(assetFile)).digest('hex');
+    const digest = createHash('sha256')
+      .update(await readFile(assetFile))
+      .digest('hex');
     await writeFile(
       releaseFile,
       JSON.stringify({
@@ -118,6 +124,8 @@ test('managed cloudflared install verifies the official release digest before us
       cwd: repoRoot,
       env: {
         ...process.env,
+        XDG_DATA_HOME: '',
+        APP_ROOT_DEFAULT_OVERRIDE: '',
         HOME: home,
         APP_ROOT: appRoot,
         CONFIG_ROOT: path.join(appRoot, 'config'),
@@ -129,7 +137,7 @@ test('managed cloudflared install verifies the official release digest before us
       }
     });
 
-    const installed = await readFile(path.join(home, 'Library/Application Support/Stackarr/bin/cloudflared'), 'utf8');
+    const installed = await readFile(path.join(home, appDataDirectory, 'bin/cloudflared'), 'utf8');
     assert.match(installed, /cloudflared version test/);
   } finally {
     await rm(root, { recursive: true, force: true });

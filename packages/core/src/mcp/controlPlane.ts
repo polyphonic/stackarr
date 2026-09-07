@@ -164,6 +164,7 @@ export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequir
     if (name.includes('_pulsarr_')) return { allOf: ['pulsarr'] };
     if (name.includes('_agregarr_')) return { allOf: ['agregarr'] };
     if (name.includes('_questarr_')) return { allOf: ['questarr'] };
+    if (name.includes('_tdarr_')) return { allOf: ['tdarr'] };
     if (name.includes('_youtarr_')) return { allOf: ['youtarr'] };
     return { anyOf: nativeAppServices };
   }

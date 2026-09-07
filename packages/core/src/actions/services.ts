@@ -36,7 +36,10 @@ export async function getServiceStatusAction({ service }: { service: string }) {
   const apiKey = serviceApiKey(service);
   let endpoint = baseUrl;
   let options: JsonRequestOptions = { timeoutMs: 5000 };
-  if (['sonarr', 'sonarr4k', 'radarr', 'radarr4k'].includes(service) && apiKey) {
+  if (service === 'tdarr') {
+    endpoint = `${baseUrl}/api/v2/status`;
+    options = { ...options, headers: apiKey ? { 'x-api-key': apiKey } : undefined };
+  } else if (['sonarr', 'sonarr4k', 'radarr', 'radarr4k'].includes(service) && apiKey) {
     endpoint = `${baseUrl}/api/v3/system/status?apikey=${encodeURIComponent(apiKey)}`;
   } else if (['prowlarr', 'lidarr'].includes(service) && apiKey) {
     endpoint = `${baseUrl}/api/v1/system/status?apikey=${encodeURIComponent(apiKey)}`;

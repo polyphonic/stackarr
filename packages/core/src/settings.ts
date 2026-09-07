@@ -69,6 +69,7 @@ export type StackarrSettings = {
     enableTidarr: boolean;
     enableSeerr: boolean;
     enablePulsarr: boolean;
+    enableTdarr: boolean;
     enableMaintainerr: boolean;
     enableCleanuparr: boolean;
     enableAgregarr: boolean;
@@ -161,6 +162,7 @@ export const defaultSettings: StackarrSettings = {
     enableTidarr: true,
     enableSeerr: true,
     enablePulsarr: true,
+    enableTdarr: false,
     enableMaintainerr: false,
     enableCleanuparr: false,
     enableAgregarr: false,
@@ -262,6 +264,7 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableTidarr: envFlag(env.ENABLE_TIDARR, defaultSettings.services.enableTidarr),
       enableSeerr: envFlag(env.ENABLE_SEERR, defaultSettings.services.enableSeerr),
       enablePulsarr: envFlag(env.ENABLE_PULSARR, defaultSettings.services.enablePulsarr),
+      enableTdarr: envFlag(env.ENABLE_TDARR, defaultSettings.services.enableTdarr),
       enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr),
       enableCleanuparr: envFlag(env.ENABLE_CLEANUPARR, defaultSettings.services.enableCleanuparr),
       enableAgregarr: envFlag(env.ENABLE_AGREGARR, defaultSettings.services.enableAgregarr),

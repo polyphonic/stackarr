@@ -16,6 +16,7 @@ const defaults: Record<string, number> = {
   lidarr: 8686,
   seerr: 5055,
   pulsarr: 3003,
+  tdarr: 8266,
   maintainerr: 6246,
   cleanuparr: 11011,
   agregarr: 7171,
@@ -43,6 +44,7 @@ const containerDefaults: Record<string, number> = {
   immich: 2283,
   romm: 8080,
   questarr: 5000,
+  tdarr: 8266,
   youtarr: 3011
 };
 
@@ -58,7 +60,8 @@ export function serviceBaseUrl(service: string) {
 export function maybeServiceBaseUrl(service: string) {
   const env = readEnv();
   const prefix = service.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-  const configured = env[`${prefix}_URL`] ?? env[`${prefix}_BASE_URL`];
+  const configured =
+    (service === 'tdarr' ? env.TDARR_API_URL : undefined) ?? env[`${prefix}_URL`] ?? env[`${prefix}_BASE_URL`];
   const stackarrRuntime = process.env.STACKARR_RUNTIME?.trim() || env.STACKARR_RUNTIME?.trim();
   const summary = getServices().find((item) => item.name === service);
   const dockerPort = containerPort(service, env, summary);

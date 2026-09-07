@@ -895,7 +895,7 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.match(directory, /group\.title === 'Metadata Providers'/);
   assert.match(directory, /Container update queued for/);
   assert.match(script, /write_compose_env_file/);
-  assert.match(script, /up -d --force-recreate --no-deps "\$service"/);
+  assert.match(script, /up -d --wait --wait-timeout 180 --force-recreate --no-deps "\$service"/);
   assert.match(script, /app\|database\|transmission/);
 });
 

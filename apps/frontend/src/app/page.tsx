@@ -3,9 +3,9 @@ import {
   getServices,
   getStackMetrics,
   getSystemStatus,
-  readSettings,
   listServiceFavoritesAction,
   readEnv,
+  readSettings,
   readTasks
 } from '@stackarr/core';
 import { PageBody, Toolbar } from '../components/AppFrame';

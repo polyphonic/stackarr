@@ -54,6 +54,7 @@ export type MediaServerSetupInput = {
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
+    | 'tdarr'
     | 'maintainerr'
     | 'cleanuparr'
     | 'agregarr'
@@ -73,6 +74,7 @@ export type MediaServerSetupInput = {
   enableRecyclarr?: boolean;
   enableFlaresolverr?: boolean;
   enableTidarr?: boolean;
+  enableTdarr?: boolean;
   enableMaintainerr?: boolean;
   enableCleanuparr?: boolean;
   enableAgregarr?: boolean;
@@ -137,6 +139,7 @@ type ResolvedMediaServerSetupInput = Required<
     | 'recyclarr'
     | 'flaresolverr'
     | 'tidarr'
+    | 'tdarr'
     | 'maintainerr'
     | 'cleanuparr'
     | 'agregarr'
@@ -173,6 +176,7 @@ export const opinionatedSetupDefaults = {
   enableRecyclarr: true,
   enableFlaresolverr: true,
   enableTidarr: true,
+  enableTdarr: false,
   enableMaintainerr: false,
   enableCleanuparr: false,
   enableAgregarr: false,
@@ -503,6 +507,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableRecyclarr: input.enabledServices.includes('recyclarr'),
         enableFlaresolverr: input.enabledServices.includes('flaresolverr'),
         enableTidarr: input.enabledServices.includes('tidarr'),
+        enableTdarr: input.enabledServices.includes('tdarr'),
         enableMaintainerr: input.enabledServices.includes('maintainerr'),
         enableCleanuparr: input.enabledServices.includes('cleanuparr'),
         enableAgregarr: input.enabledServices.includes('agregarr'),
@@ -665,6 +670,7 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
       enableTidarr: merged.enableTidarr,
       enableSeerr: merged.enableSeerr,
       enablePulsarr: merged.enablePulsarr,
+      enableTdarr: merged.enableTdarr,
       enableMaintainerr: merged.enableMaintainerr,
       enableCleanuparr: merged.enableCleanuparr,
       enableAgregarr: merged.enableAgregarr,
@@ -767,6 +773,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_RECYCLARR: String(input.enableRecyclarr),
     ENABLE_FLARESOLVERR: String(input.enableFlaresolverr),
     ENABLE_TIDARR: String(input.enableTidarr),
+    ENABLE_TDARR: String(input.enableTdarr),
     ENABLE_MAINTAINERR: String(input.enableMaintainerr),
     ENABLE_CLEANUPARR: String(input.enableCleanuparr),
     ENABLE_AGREGARR: String(input.enableAgregarr),

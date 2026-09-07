@@ -320,6 +320,42 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Dry-run by default: scan and import only registered completed Questarr downloads into RomM.'
   },
   {
+    name: 'stackarr_get_tdarr_status',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read Tdarr health and version.'
+  },
+  {
+    name: 'stackarr_list_tdarr_libraries',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List bounded Tdarr library summaries.'
+  },
+  {
+    name: 'stackarr_list_tdarr_nodes',
+    category: 'apps',
+    scopes: ['apps:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'List worker names and pause states without secrets.'
+  },
+  {
+    name: 'stackarr_pause_tdarr_node',
+    category: 'apps',
+    scopes: ['apps:write'],
+    risk: 'write',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description: 'Pause new work on one connected Tdarr node.'
+  },
+  {
     name: 'stackarr_get_youtarr_health',
     category: 'apps',
     scopes: ['apps:read'],

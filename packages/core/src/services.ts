@@ -130,6 +130,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'Pulsarr',
     description: 'Plex watchlist monitor that sends movies and shows to the Arr stack.'
   },
+  tdarr: {
+    displayName: 'Tdarr',
+    description: 'Media transcoding and health checks with a managed, initially paused worker.'
+  },
   maintainerr: {
     displayName: 'Maintainerr',
     description: 'Plex/Jellyfin library cleanup planner and collection manager.'
@@ -377,6 +381,12 @@ export function getServices(): ServiceSummary[] {
         notes: ['Plex watchlist automation and Arr routing managed by Pulsarr.']
       }
     ),
+    service('tdarr', 'media', optionalMode(env.ENABLE_TDARR), Number(env.TDARR_WEB_PORT ?? 8265), settings, {
+      notes: [
+        'Uses its own embedded database in config/tdarr; PostgreSQL is not supported.',
+        'Media is mounted at /media and the transcode cache at /temp. Workers start paused.'
+      ]
+    }),
     service(
       'maintainerr',
       'support',

@@ -74,6 +74,20 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_SEERR: 'false',
   STACKARR_CONFIGURE_SEERR: 'false',
   ENABLE_PULSARR: 'true',
+  ENABLE_TDARR: 'false',
+  TDARR_URL: 'http://127.0.0.1:8265',
+  TDARR_API_URL: 'http://127.0.0.1:8266',
+  TDARR_IMAGE: 'ghcr.io/haveagitgat/tdarr:latest',
+  TDARR_BIND_IP: '127.0.0.1',
+  TDARR_WEB_PORT: '8265',
+  TDARR_SERVER_PORT: '8266',
+  TDARR_API_KEY: '',
+  TDARR_AUTH: 'true',
+  TDARR_INTERNAL_NODE: 'true',
+  TDARR_START_PAUSED: 'true',
+  TDARR_NODE_NAME: 'stackarr-node',
+  TDARR_CACHE_ROOT: '',
+  TDARR_MEDIA_ROOT: '',
   ENABLE_MAINTAINERR: 'false',
   ENABLE_CLEANUPARR: 'false',
   ENABLE_AGREGARR: 'false',
@@ -599,6 +613,9 @@ export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): Stack
   dropDeprecatedCloudflareHostnameKeys(merged);
   normalizeRommDatabaseDefaults(merged);
   applyYoutarrSecretDefaults(merged);
+  merged.TDARR_CACHE_ROOT ||= `${merged.APP_ROOT}/cache/tdarr`;
+  merged.TDARR_MEDIA_ROOT ||= merged.MEDIA_ROOT;
+  if (flagValue(merged.ENABLE_TDARR)) merged.TDARR_API_KEY ||= `tapi_${nodeCrypto.randomBytes(24).toString('hex')}`;
   applyAppDependencyRules(merged);
   return merged;
 }
@@ -690,6 +707,9 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyRommSecretDefaults(merged);
   applyQuestarrSecretDefaults(merged);
   applyYoutarrSecretDefaults(merged);
+  merged.TDARR_CACHE_ROOT ||= `${merged.APP_ROOT}/cache/tdarr`;
+  merged.TDARR_MEDIA_ROOT ||= merged.MEDIA_ROOT;
+  if (flagValue(merged.ENABLE_TDARR)) merged.TDARR_API_KEY ||= `tapi_${nodeCrypto.randomBytes(24).toString('hex')}`;
 
   return merged;
 }

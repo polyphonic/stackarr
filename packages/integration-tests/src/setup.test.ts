@@ -698,10 +698,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /DATABASE_PROVIDER: \$\{CLEANUPARR_DATABASE_PROVIDER:-sqlite\}/);
   assert.match(compose, /POSTGRES_HOST: \$\{CLEANUPARR_POSTGRES_HOST:-database\}/);
   assert.match(compose, /POSTGRES_DB: \$\{CLEANUPARR_POSTGRES_DATABASE:-cleanuparr\}/);
-  assert.match(
-    compose,
-    /cleanuparr:[\s\S]*depends_on:[\s\S]*database:[\s\S]*condition: service_healthy/
-  );
+  assert.match(compose, /cleanuparr:[\s\S]*depends_on:[\s\S]*database:[\s\S]*condition: service_healthy/);
   assert.match(databaseInit, /ENABLE_CLEANUPARR/);
   assert.match(databaseInit, /CLEANUPARR_POSTGRES_DATABASE/);
   assert.match(databaseInit, /ensure_app_database "\$\{CLEANUPARR_POSTGRES_DATABASE:-cleanuparr\}"/);

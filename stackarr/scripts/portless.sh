@@ -213,6 +213,9 @@ register_aliases() {
         register pulsarr "${PULSARR_PORT:-3003}"
     fi
 
+    if truthy "${ENABLE_TDARR:-false}"; then
+        register tdarr "${TDARR_WEB_PORT:-8265}"
+    fi
     if truthy "${ENABLE_MAINTAINERR:-false}"; then
         register maintainerr "${MAINTAINERR_PORT:-6246}"
     fi
@@ -284,6 +287,7 @@ const stackarrAliases = new Set([
   'tidarr',
   'seerr',
   'pulsarr',
+  'tdarr',
   'maintainerr',
   'cleanuparr',
   'agregarr',
