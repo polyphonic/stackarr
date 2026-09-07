@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFile = promisify(execFileCallback);
+const appDataDirectory =
+  process.platform === 'darwin' ? 'Library/Application Support/Stackarr' : '.local/share/stackarr';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const pluginsScript = path.join(repoRoot, 'stackarr/scripts/plugins.sh');
 
@@ -16,7 +18,7 @@ test('plugin exports use the canonical app-data runtime instead of the checkout'
   const home = path.join(root, 'home');
   const externalAppRoot = path.join(root, 'external-app-root');
   const destination = path.join(root, 'plugin');
-  const managedRoot = path.join(home, 'Library/Application Support/Stackarr/state/host-runtime');
+  const managedRoot = path.join(home, appDataDirectory, 'state/host-runtime');
   const managedBin = path.join(managedRoot, 'bin/stackarr');
 
   try {
@@ -27,6 +29,8 @@ test('plugin exports use the canonical app-data runtime instead of the checkout'
         cwd: repoRoot,
         env: {
           ...process.env,
+          XDG_DATA_HOME: '',
+          APP_ROOT_DEFAULT_OVERRIDE: '',
           HOME: home,
           APP_ROOT: externalAppRoot,
           STATE_ROOT: path.join(externalAppRoot, 'state'),

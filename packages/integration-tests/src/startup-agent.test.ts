@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFile = promisify(execFileCallback);
+const appDataDirectory =
+  process.platform === 'darwin' ? 'Library/Application Support/Stackarr' : '.local/share/stackarr';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const commonScript = path.join(repoRoot, 'stackarr/lib/common.sh');
 const startupInstaller = path.join(repoRoot, 'stackarr/scripts/startup-install.sh');
@@ -42,6 +44,8 @@ printf '%s' "$attempts" > "$STACKARR_TEST_ATTEMPTS"
         cwd: repoRoot,
         env: {
           ...process.env,
+          XDG_DATA_HOME: '',
+          APP_ROOT_DEFAULT_OVERRIDE: '',
           PATH: `${binDir}:${process.env.PATH}`,
           STACKARR_TEST_ATTEMPTS: attemptsFile,
           DOCKER_CONTEXT: ''
@@ -81,6 +85,8 @@ exit 0
       cwd: repoRoot,
       env: {
         ...process.env,
+        XDG_DATA_HOME: '',
+        APP_ROOT_DEFAULT_OVERRIDE: '',
         PATH: `${binDir}:${process.env.PATH}`,
         HOME: home,
         APP_ROOT: appRoot,
@@ -98,7 +104,7 @@ exit 0
     const plist = await readFile(path.join(home, 'Library/LaunchAgents/com.stackarr.stack.plist'), 'utf8');
     const launchctlCalls = await readFile(launchctlLog, 'utf8');
 
-    const managedRuntimeBin = path.join(home, 'Library/Application Support/Stackarr/state/host-runtime/bin/stackarr');
+    const managedRuntimeBin = path.join(home, appDataDirectory, 'state/host-runtime/bin/stackarr');
     assert.match(plist, new RegExp(`<string>${managedRuntimeBin.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}</string>`));
     assert.doesNotMatch(plist, new RegExp(repoRoot.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')));
     assert.match(await readFile(managedRuntimeBin, 'utf8'), /ROOT_DIR=/);
@@ -148,6 +154,8 @@ recover_database_startup_failures`,
         cwd: repoRoot,
         env: {
           ...process.env,
+          XDG_DATA_HOME: '',
+          APP_ROOT_DEFAULT_OVERRIDE: '',
           STACKARR_TEST_RESTART_LOG: restartLog
         }
       }
@@ -163,14 +171,14 @@ recover_database_startup_failures`,
 test('concurrent runtime staging is serialized and leaves one complete canonical install', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-runtime-lock-test-'));
   const home = path.join(root, 'home');
-  const managedParent = path.join(home, 'Library/Application Support/Stackarr/state');
+  const managedParent = path.join(home, appDataDirectory, 'state');
   const managedBin = path.join(managedParent, 'host-runtime/bin/stackarr');
   const commonScript = path.join(repoRoot, 'stackarr/lib/common.sh');
   const command = 'source "$1"; install_managed_host_runtime';
 
   try {
     await mkdir(home, { recursive: true });
-    const env = { ...process.env, HOME: home };
+    const env = { ...process.env, XDG_DATA_HOME: '', APP_ROOT_DEFAULT_OVERRIDE: '', HOME: home };
     const [first, second] = await Promise.all([
       execFile('bash', ['-c', command, 'runtime-stage', commonScript], { cwd: repoRoot, env }),
       execFile('bash', ['-c', command, 'runtime-stage', commonScript], { cwd: repoRoot, env })
