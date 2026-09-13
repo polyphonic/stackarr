@@ -24,6 +24,6 @@ Edit encrypted values with dotenvx, then run `pnpm --filter @stackarr/docs env:e
 
 ## Publishing content
 
-Blog pages, feeds, the sitemap, and the blog portion of `llms.txt` are generated at request time. Sanity queries use the published perspective, the origin API, and `cache: 'no-store'`. Publishing, updating, or unpublishing an article therefore does not require a build or a deploy hook. Keep CDN rules from overriding these routes' dynamic cache policy.
+Blog pages, feeds, the sitemap, and the blog portion of `llms.txt` are generated at request time. Sanity queries use the published perspective and origin API inside `force-dynamic` routes; feeds and Markdown also send `Cache-Control: no-store`. Publishing, updating, or unpublishing an article therefore does not require a build or a deploy hook. Keep CDN rules from overriding these routes' dynamic cache policy.
 
 Validate a version URL before routing the public domain: homepage, docs navigation, blog, a published article, `/sitemap.xml`, feeds, and discovery routes. Compare the article list against Sanity. Retain the previous host until the custom domain serves the verified Worker.
