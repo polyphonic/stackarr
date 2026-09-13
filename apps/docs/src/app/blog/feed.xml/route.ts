@@ -1,7 +1,7 @@
 import { getRecentBlogPosts } from '@stackarr/cms';
 import { absoluteUrl, siteDescription, siteName } from '~/lib/site';
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 function xml(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -35,7 +35,7 @@ export async function GET() {
 
   return new Response(body, {
     headers: {
-      'Cache-Control': 'public, max-age=0, s-maxage=3600',
+      'Cache-Control': 'no-store',
       'Content-Type': 'application/rss+xml; charset=utf-8'
     }
   });
