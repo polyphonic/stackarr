@@ -1,11 +1,11 @@
 import './globals.css';
 import './blog.css';
 
-import { GoogleTagManager } from '@next/third-parties/google';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { googleTagManagerId, siteDescription, siteName, siteUrl } from '~/lib/site';
 import { AnalyticsTracker } from './analytics-tracker';
+import { GoogleTagManager } from './GoogleTagManager';
 import { WebMCPProvider } from './WebMCPProvider';
 
 const themeInitScript = `

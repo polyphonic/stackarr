@@ -17,8 +17,8 @@ const discoveryLinkHeader = [
   '</auth.md>; rel="authorization"; type="text/markdown"'
 ].join(', ');
 
-/** @type {import('next').NextConfig} */
-const config = {
+/** @satisfies {import('next').NextConfig} */
+export const config = {
   output: 'standalone',
   outputFileTracingRoot: workspaceRoot,
   reactStrictMode: true,

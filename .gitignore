@@ -30,3 +30,10 @@ stackarr/config/*.secret
 stackarr/state/
 stackarr/agregarr-placeholder-guard.cjs
 tmp/
+
+# Local deployment credentials and Worker artifacts
+.env.keys
+.dev.vars*
+.wrangler/
+apps/docs/.source-cloudflare/
+.vinext/
