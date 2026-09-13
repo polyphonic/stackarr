@@ -13,7 +13,7 @@ export function getSanityClient() {
         ...config,
         apiVersion: sanityApiVersion,
         perspective: 'published',
-        useCdn: true
+        useCdn: false
       })
     : null;
   return client;
@@ -24,7 +24,7 @@ export async function safeSanityFetch<T>(query: string, params: Record<string, u
   if (!sanityClient) return fallback;
 
   try {
-    return await sanityClient.fetch<T>(query, params);
+    return await sanityClient.fetch<T>(query, params, { cache: 'no-store' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown Sanity fetch error';
     console.warn(`Stackarr CMS fetch failed: ${message}`);
