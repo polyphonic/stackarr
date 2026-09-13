@@ -13,7 +13,7 @@ export function getSanityClient() {
         ...config,
         apiVersion: sanityApiVersion,
         perspective: 'published',
-        useCdn: true
+        useCdn: false
       })
     : null;
   return client;
