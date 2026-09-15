@@ -11,7 +11,7 @@ const editorialConfig = JSON.parse(
 const CATEGORY_SLUGS = new Set(editorialConfig.categories.map((category) => category.slug));
 const FIRST_PERSON_EXPERIENCE_RE = /\b(?:i|i['’](?:d|m|ve)|me|mine|my|our|ours|us|we|we['’](?:d|re|ve))\b/i;
 const HOMELAB_SIGNAL_RE =
-  /\b(?:arr\s+stack|backup|cloudflare|container|docker|home\s+server|homelab|immich|jellyfin|media\s+server|mcp|nas|network|plex|private\s+cloud|radarr|remote\s+access|romm|self-host(?:ed|ing)|smart\s+home|sonarr|storage|tunnel|virtuali[sz]ation)\b/gi;
+  /\b(?:arr\s+stack|backup|cloudflare|container|docker|home\s+assistant|home\s+server|homelab|immich|jellyfin|media\s+server|mcp|nas|network|plex|private\s+cloud|radarr|remote\s+access|romm|self-host(?:ed|ing)|smart\s+home|sonarr|storage|tailnet|tailscale|tunnel|virtuali[sz]ation)\b/gi;
 const OFF_NICHE_RE = /\b(?:celebrity|fashion|horoscope|makeup|political\s+campaign|stock\s+tip|weight\s+loss)\b/i;
 const HTTPS_URL_RE = /^https:\/\/[^\s]+$/;
 const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
