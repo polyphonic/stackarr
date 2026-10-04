@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stackarr",
+  "main": "vinext/server/app-router-entry",
+  "compatibility_date": "2026-09-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": { "binding": "ASSETS", "not_found_handling": "none" },
+  "observability": { "enabled": true }
+}

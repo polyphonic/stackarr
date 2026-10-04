@@ -4,7 +4,7 @@ import { textHeaders } from '~/lib/discovery';
 import { source } from '~/lib/fumadocs';
 import { absoluteUrl } from '~/lib/site';
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 const docsIndex = llms(source).index();
 
@@ -27,6 +27,6 @@ ${posts.map((post) => `- [${post.title}](${absoluteUrl(`/blog/${post.slug}`)}): 
 `;
 
   return new Response(`${docsIndex.trim()}${blogSection}`, {
-    headers: textHeaders('text/plain; charset=utf-8')
+    headers: textHeaders('text/plain; charset=utf-8', { 'Cache-Control': 'no-store' })
   });
 }

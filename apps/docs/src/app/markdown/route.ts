@@ -1,7 +1,13 @@
 import { getBlogPostBySlug, getRecentBlogPosts } from '@stackarr/cms';
 import { blogIndexToMarkdown, blogPostToMarkdown } from '@stackarr/cms/markdown';
-import { markdownResponse } from '~/lib/discovery';
+import { markdownResponse as cachedMarkdownResponse } from '~/lib/discovery';
 import { absoluteUrl, githubUrl, siteDescription, siteName } from '~/lib/site';
+
+export const dynamic = 'force-dynamic';
+
+function markdownResponse(markdown: string, init?: ResponseInit) {
+  return cachedMarkdownResponse(markdown, { ...init, headers: { 'Cache-Control': 'no-store' } });
+}
 
 const BLOG_POST_PATH_RE = /^\/blog\/([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const services = [
