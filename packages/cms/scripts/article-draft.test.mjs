@@ -87,6 +87,36 @@ Review the route after application upgrades or network changes. Retest the denie
   }
 };
 
+const tailnetGuidance = `Tailscale Serve gives an enrolled device a private HTTPS address for Home Assistant. The tailnet admits devices under an explicit policy, so the dashboard remains unavailable to devices that have not joined. Keep the Home Assistant sign-in enabled because tailnet membership is an additional boundary rather than a substitute for application authentication. Check the result from one enrolled device and one device outside the tailnet before treating the route as ready.`;
+
+const homeAssistantTailscaleDraft = {
+  ...validDraft,
+  title: 'Use Tailscale Serve for Private Home Assistant Access',
+  slug: 'use-tailscale-serve-private-home-assistant-access',
+  excerpt:
+    'Use Tailscale Serve for a private Home Assistant dashboard, then verify the allowed tailnet path and denied path.',
+  categorySlug: 'smart-home',
+  tags: ['Home Assistant', 'Tailscale', 'tailnet security'],
+  referencedServices: [],
+  productConnection: { relevant: false },
+  contentKind: 'tutorial',
+  inlineImages: [
+    {
+      key: 'allowed-path',
+      imagePath: '/tmp/allowed-path.png',
+      alt: 'An enrolled Tailscale device opening a private Home Assistant dashboard.',
+      caption: 'The allowed path stays inside the tailnet.'
+    },
+    {
+      key: 'denied-path',
+      imagePath: '/tmp/denied-path.png',
+      alt: 'A device outside the tailnet unable to open Home Assistant.',
+      caption: 'The denied path confirms the dashboard remains private.'
+    }
+  ],
+  contentMarkdown: `## Private Home Assistant access\n\n${tailnetGuidance}\n\n${tailnetGuidance}\n\n## Prerequisites before you start\n\n${tailnetGuidance}\n\n- An enrolled Tailscale device.\n- Administrator access to Home Assistant.\n\n## Install Tailscale\n\n1. Install Tailscale on the Home Assistant host.\n2. Enroll the host in the tailnet.\n3. Confirm the intended device is enrolled.\n4. Keep the Home Assistant login enabled.\n\n${tailnetGuidance}\n\n## Configure Serve\n\n${tailnetGuidance}\n\n{{image:allowed-path}}\n\n## Verify the private path\n\n${tailnetGuidance}\n\n{{image:denied-path}}\n\n## Troubleshoot the denied path\n\n${tailnetGuidance}\n\n## Rollback safely\n\n${tailnetGuidance}\n\n${tailnetGuidance}\n\n${tailnetGuidance}`
+};
+
 const actionableDraft = {
   ...validDraft,
   contentKind: 'tutorial',
@@ -129,6 +159,12 @@ test('accepts a sourced homelab explainer with bounded product relevance', () =>
   const result = validateArticleDraft(validDraft, {
     repoRoot: new URL('../../..', import.meta.url).pathname
   });
+
+  assert.equal(result.valid, true, result.errors.join('\n'));
+});
+
+test('accepts a Home Assistant Tailscale Serve tutorial with homelab-specific vocabulary', () => {
+  const result = validateArticleDraft(homeAssistantTailscaleDraft);
 
   assert.equal(result.valid, true, result.errors.join('\n'));
 });
