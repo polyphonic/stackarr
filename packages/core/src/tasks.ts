@@ -23,7 +23,23 @@ export type StackarrTask = {
 
 let migratedTaskFile = false;
 let reconciledInterruptedTasks = false;
-const controllerStartedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
+// Written by the container entrypoint, not by each short-lived MCP/CLI process.
+// Docker exec does not inherit the entrypoint's environment, so use its local marker there.
+const controllerStartMarkerPath = '/tmp/stackarr-controller-started-at';
+
+function controllerStartedAt(): string | undefined {
+  let marker = process.env.STACKARR_CONTROLLER_STARTED_AT;
+  if (!marker) {
+    try {
+      marker = fs.readFileSync(controllerStartMarkerPath, 'utf8').trim();
+    } catch {
+      return undefined; // No authoritative boot marker: do not fail live tasks.
+    }
+  }
+  return /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(marker) && Number.isFinite(Date.parse(marker))
+    ? marker
+    : undefined;
+}
 const taskHandoffMarkers: Partial<Record<CommandName, string>> = {
   SecurityApply: 'STACKARR_TASK_HANDOFF_STARTED',
   UpdateStackarr: 'STACKARR_UPDATE_HANDOFF_STARTED'
@@ -196,11 +212,10 @@ function migrateTaskFileToDatabase() {
 }
 
 function reconcileControllerRestart(tasks: StackarrTask[]): StackarrTask[] {
+  const startedAt = process.env.STACKARR_RUNTIME === 'docker' ? controllerStartedAt() : undefined;
   const afterRestart =
-    reconciledInterruptedTasks || process.env.STACKARR_RUNTIME !== 'docker'
-      ? tasks
-      : interruptedTasksAfterControllerRestart(tasks, controllerStartedAt);
-  reconciledInterruptedTasks = true;
+    reconciledInterruptedTasks || !startedAt ? tasks : interruptedTasksAfterControllerRestart(tasks, startedAt);
+  if (startedAt) reconciledInterruptedTasks = true;
   const reconciled = expireStaleTaskHandoffs(afterRestart);
   for (let index = 0; index < tasks.length; index += 1) {
     const before = tasks[index];

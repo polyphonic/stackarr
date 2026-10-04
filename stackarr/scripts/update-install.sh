@@ -88,6 +88,15 @@ if [[ "$ACTION" == "uninstall" ]]; then
     exit 0
 fi
 
+# The controller scheduler owns weekly updates when it is enabled. Keeping a
+# host LaunchAgent as well races two updates against the same Compose project.
+if stackarr_web_enabled && flag_enabled "${STACKARR_SCHEDULER_ENABLED:-true}"; then
+    unload_agent
+    rm -f "$PLIST_PATH"
+    $QUIET || ok "Controller scheduler owns update automation; removed duplicate host agent"
+    exit 0
+fi
+
 [[ "${UPDATE_TIME:-04:30}" =~ ^([01][0-9]|2[0-3]):([0-5][0-9])$ ]] || fail "UPDATE_TIME must be HH:MM"
 WEEKDAY="$(parse_update_weekday "${UPDATE_WEEKDAY:-Sun}")" || fail "UPDATE_WEEKDAY must be a weekday name or number"
 HOUR="${UPDATE_TIME%%:*}"

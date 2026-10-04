@@ -469,7 +469,7 @@ env_file = sys.argv[1]
 include = re.compile(
     r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
-    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
+    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
@@ -1172,6 +1172,24 @@ load_env() {
     : "${MAINTAINERR_PORT:=6246}"
     : "${AGREGARR_BIND_IP:=127.0.0.1}"
     : "${AGREGARR_PORT:=7171}"
+    : "${ENABLE_MOSQUITTO:=false}"
+    : "${ENABLE_HOMEASSISTANT:=false}"
+    : "${ENABLE_FRIGATE:=false}"
+    : "${MOSQUITTO_IMAGE:=eclipse-mosquitto:2}"
+    : "${MOSQUITTO_CONFIG_ROOT:=$CONFIG_ROOT/mosquitto}"
+    : "${MOSQUITTO_FRIGATE_USERNAME:=frigate}"
+    : "${MOSQUITTO_HOMEASSISTANT_USERNAME:=homeassistant}"
+    : "${HOMEASSISTANT_IMAGE:=ghcr.io/home-assistant/home-assistant:stable}"
+    : "${HOMEASSISTANT_BIND_IP:=127.0.0.1}"
+    : "${HOMEASSISTANT_PORT:=8123}"
+    : "${HOMEASSISTANT_URL:=http://127.0.0.1:$HOMEASSISTANT_PORT}"
+    : "${HOMEASSISTANT_CONFIG_ROOT:=$CONFIG_ROOT/homeassistant}"
+    : "${FRIGATE_IMAGE:=ghcr.io/blakeblackshear/frigate:0.18.0}"
+    : "${FRIGATE_BIND_IP:=127.0.0.1}"
+    : "${FRIGATE_PORT:=8971}"
+    : "${FRIGATE_URL:=http://127.0.0.1:$FRIGATE_PORT}"
+    : "${FRIGATE_CONFIG_ROOT:=$CONFIG_ROOT/frigate}"
+    : "${FRIGATE_MEDIA_ROOT:=$APP_ROOT/media/Frigate}"
     : "${MAINTAINERR_BASE_PATH:=}"
     : "${MAINTAINERR_GITHUB_TOKEN:=}"
     : "${MAINTAINERR_CLEANUP_PRESETS:=}"
@@ -1251,6 +1269,9 @@ load_env() {
     export ENABLE_TDARR TDARR_URL TDARR_API_URL TDARR_IMAGE TDARR_BIND_IP TDARR_WEB_PORT TDARR_SERVER_PORT TDARR_API_KEY TDARR_AUTH TDARR_INTERNAL_NODE TDARR_START_PAUSED TDARR_NODE_NAME TDARR_CACHE_ROOT TDARR_MEDIA_ROOT
     export ENABLE_MAINTAINERR MAINTAINERR_URL MAINTAINERR_IMAGE MAINTAINERR_BIND_IP MAINTAINERR_PORT MAINTAINERR_BASE_PATH MAINTAINERR_GITHUB_TOKEN MAINTAINERR_CLEANUP_PRESETS MAINTAINERR_PLEX_SERVER_URL MAINTAINERR_JELLYFIN_SERVER_URL MAINTAINERR_QBITTORRENT_URL
     export ENABLE_CLEANUPARR CLEANUPARR_URL CLEANUPARR_IMAGE CLEANUPARR_BIND_IP CLEANUPARR_PORT CLEANUPARR_AUTO_CONFIGURE CLEANUPARR_MALWARE_CRON CLEANUPARR_DATABASE_PROVIDER CLEANUPARR_POSTGRES_HOST CLEANUPARR_POSTGRES_PORT CLEANUPARR_POSTGRES_DATABASE CLEANUPARR_POSTGRES_USER CLEANUPARR_POSTGRES_PASSWORD CLAMAV_IMAGE CLAMAV_DATA_ROOT
+    export ENABLE_MOSQUITTO MOSQUITTO_IMAGE MOSQUITTO_CONFIG_ROOT MOSQUITTO_FRIGATE_USERNAME MOSQUITTO_FRIGATE_PASSWORD MOSQUITTO_HOMEASSISTANT_USERNAME MOSQUITTO_HOMEASSISTANT_PASSWORD
+    export ENABLE_HOMEASSISTANT HOMEASSISTANT_IMAGE HOMEASSISTANT_BIND_IP HOMEASSISTANT_PORT HOMEASSISTANT_URL HOMEASSISTANT_CONFIG_ROOT
+    export ENABLE_FRIGATE FRIGATE_IMAGE FRIGATE_BIND_IP FRIGATE_PORT FRIGATE_URL FRIGATE_CONFIG_ROOT FRIGATE_MEDIA_ROOT
     export ENABLE_AGREGARR AGREGARR_URL AGREGARR_API_KEY AGREGARR_IMAGE AGREGARR_BIND_IP AGREGARR_PORT AGREGARR_PLACEHOLDER_FOLDER
     export IMMICH_URL IMMICH_API_KEY IMMICH_SERVER_IMAGE IMMICH_MACHINE_LEARNING_IMAGE IMMICH_BIND_IP IMMICH_WEB_PORT IMMICH_CONTAINER_PORT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION IMMICH_VERSION IMMICH_DB_USERNAME IMMICH_DB_PASSWORD IMMICH_DB_DATABASE_NAME IMMICH_DB_VECTOR_EXTENSION
     export GAMES_ROOT ROMM_URL ROMM_API_KEY ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED ROMM_TGDB_API_ENABLED ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON
@@ -1283,7 +1304,7 @@ target = Path(sys.argv[1])
 include = re.compile(
     r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
-    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
+    r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
     r"TRANSMISSION_.*|QBITTORRENT_.*|RECYCLARR_.*|FLARESOLVERR_.*|"
     r"BACKUP_.*|UPDATE_.*|DOWNLOAD_.*|CLOUDFLARE_.*|CLOUDFLARED_.*)$"
@@ -1506,7 +1527,7 @@ selected_torrent_client() {
 }
 
 stackarr_runtime_is_container() {
-    [[ "${STACKARR_RUNTIME:-}" == "docker" && -f "/.dockerenv" ]]
+    [[ ( "${STACKARR_RUNTIME:-}" == "docker" || "${STACKARR_RUNTIME:-}" == "docker-updater" ) && -f "/.dockerenv" ]]
 }
 
 service_default_port() {
@@ -1879,6 +1900,20 @@ recover_database_startup_failures() {
             stackarr_compose restart "$service"
         fi
     done < <(database_backed_servarr_services)
+
+    # Docker daemon restarts do not honor Compose's service_healthy ordering.
+    # Cleanuparr can stay running after a fatal PostgreSQL startup exception;
+    # restart only that confirmed failure, never a merely unhealthy instance.
+    if flag_enabled "${ENABLE_CLEANUPARR:-false}" &&
+        [[ "$(lowercase "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}")" == "postgres" ]] &&
+        stackarr_compose ps --services --status running 2>/dev/null | grep -qx cleanuparr &&
+        ! http_url_is_reachable "${CLEANUPARR_URL:-http://127.0.0.1:${CLEANUPARR_PORT:-11011}}/api/health"; then
+        recent_logs="$(stackarr_compose logs --since=30m --tail=250 cleanuparr 2>&1 || true)"
+        if [[ "$recent_logs" == *"57P03"* ]] && [[ "$recent_logs" == *"database system is starting up"* ]]; then
+            warn "cleanuparr is stuck after starting before the database was ready; restarting it"
+            stackarr_compose restart cleanuparr
+        fi
+    fi
 }
 
 optional_service_enabled() {
@@ -1945,6 +1980,15 @@ optional_service_enabled() {
         cleanuparr)
             flag_enabled "$ENABLE_CLEANUPARR"
             ;;
+        mosquitto)
+            flag_enabled "$ENABLE_MOSQUITTO" || flag_enabled "$ENABLE_HOMEASSISTANT" || flag_enabled "$ENABLE_FRIGATE"
+            ;;
+        homeassistant)
+            flag_enabled "$ENABLE_HOMEASSISTANT"
+            ;;
+        frigate)
+            flag_enabled "$ENABLE_FRIGATE" && optional_service_enabled mosquitto
+            ;;
         agregarr)
             flag_enabled "$ENABLE_AGREGARR"
             ;;
@@ -1985,7 +2029,7 @@ compose_profile_args() {
         [[ -n "$profile" ]] || continue
         printf -- '--profile\n%s\n' "$profile"
     done < <(selected_media_server_profiles)
-    for profile in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm questarr youtarr tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr tdarr maintainerr cleanuparr agregarr tracearr; do
+    for profile in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm questarr youtarr tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr tdarr maintainerr cleanuparr mosquitto homeassistant frigate agregarr tracearr; do
         if optional_service_enabled "$profile"; then
             printf -- '--profile\n%s\n' "$profile"
         fi
@@ -2002,7 +2046,7 @@ remove_inactive_torrent_client_container() {
 remove_disabled_optional_containers() {
     local service
 
-    for service in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm questarr youtarr tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr tdarr maintainerr cleanuparr agregarr tracearr; do
+    for service in movies tv radarr4k sonarr4k bazarr lidarr bookorbit immich romm questarr youtarr tinymediamanager recyclarr flaresolverr tidarr seerr pulsarr tdarr maintainerr cleanuparr mosquitto homeassistant frigate agregarr tracearr; do
         if ! optional_service_enabled "$service"; then
             stackarr_compose --profile "$service" rm -f -s "$service" >/dev/null 2>&1 || true
         fi

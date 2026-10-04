@@ -80,16 +80,18 @@ export function databaseExists() {
 }
 
 export function readJsonSetting<T>(key: string, fallback: T): T {
-  if (!databaseExists()) {
-    return fallback;
-  }
-
   let row: { value?: string } | undefined;
 
   if (postgresConfigured('main')) {
     row = readPostgresSetting(key);
-  } else if (fs.existsSync(appDatabasePath)) {
-    row = readSqliteSetting(key);
+  } else {
+    if (!databaseExists()) {
+      return fallback;
+    }
+
+    if (fs.existsSync(appDatabasePath)) {
+      row = readSqliteSetting(key);
+    }
   }
 
   if (!row?.value) {
@@ -620,14 +622,14 @@ function migratePostgres(target: StackarrDatabaseTarget) {
 
 function readPostgresSetting(key: string): { value?: string } | undefined {
   if (!migratePostgres('main')) {
-    return undefined;
+    throw new Error('Postgres settings store is unavailable.');
   }
 
   try {
     const value = runPsql(`select value from app_settings where key = ${sqlLiteral(key)};`);
     return value ? { value } : undefined;
   } catch {
-    return undefined;
+    throw new Error(`Postgres setting read failed for ${key}.`);
   }
 }
 

@@ -71,13 +71,8 @@ cat > "$PLIST_PATH" <<EOF
   </dict>
   <key>RunAtLoad</key>
   <true/>
-  <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
-  <key>ThrottleInterval</key>
-  <integer>30</integer>
+  <!-- A failed one-shot reconciliation must not rerun every 30 seconds and
+       repeatedly recreate containers while another apply is in progress. -->
   <key>StandardOutPath</key>
   <string>$LOG_ROOT/launchd/start-stack.out.log</string>
   <key>StandardErrorPath</key>

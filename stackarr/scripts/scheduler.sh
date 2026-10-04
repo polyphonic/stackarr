@@ -115,28 +115,55 @@ due_daily_or_weekly() {
 run_with_lock() {
     local job="$1"
     local stamp="$2"
-    shift 2
-    local lock
-
+    local lock result
     lock="$(job_lock_dir "$job")"
-    ensure_dir "$STATE_ROOT/scheduler"
+    ensure_dir "$lock"
 
-    if ! mkdir "$lock" 2>/dev/null; then
-        log_scheduler "$job already running"
+    # The lock directory is persistent (including legacy empty .lock directories).
+    # flock is held by the supervisor across the whole job and stamp write. Unlike
+    # PID checks, kernel locks work across host/container PID namespaces and cannot
+    # mistake a recycled PID for the original owner.
+    if python3 - "$lock/active" "$ROOT_DIR/scripts/scheduler.sh" "$job" "$stamp" <<'PY'
+import fcntl
+import subprocess
+import sys
+
+with open(sys.argv[1], "a+") as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(f"[stackarr-scheduler] {sys.argv[3]} already running", flush=True)
+        sys.exit(0)
+    # Inherit the same open file description so a surviving job keeps the lock
+    # even if its scheduler/supervisor is killed during a controller restart.
+    child = subprocess.Popen(
+        ["bash", sys.argv[2], "--locked-job", sys.argv[3], sys.argv[4]],
+        pass_fds=(lock.fileno(),),
+    )
+    sys.exit(child.wait())
+PY
+    then
         return 0
-    fi
-    trap 'rm -rf "$lock"' RETURN
-
-    log_scheduler "running $job"
-    if "$@"; then
-        log_scheduler "$job completed"
     else
-        log_scheduler "$job failed"
+        result=$?
     fi
-    mark_ran "$job" "$stamp"
+    log_scheduler "$job lock supervisor failed ($result)"
+    return "$result"
+}
 
-    rm -rf "$lock"
-    trap - RETURN
+run_locked_job() {
+    local job="$1" stamp="$2"
+    load_env || return 1
+    # Recheck under the lock: both host and container schedulers may have seen
+    # the same due stamp before either acquired it.
+    already_ran "$job" "$stamp" && return 0
+    log_scheduler "running $job"
+    case "$job" in
+        backup) if run_backup_job; then log_scheduler "$job completed"; else log_scheduler "$job failed"; fi ;;
+        update) if run_update_job; then log_scheduler "$job completed"; else log_scheduler "$job failed"; fi ;;
+        *) return 2 ;;
+    esac
+    mark_ran "$job" "$stamp"
 }
 
 run_backup_job() {
@@ -144,21 +171,23 @@ run_backup_job() {
 }
 
 run_update_job() {
-    local task_id output_file exit_code
-    output_file="$(mktemp)"
+    local task_id exit_code log_exit
+    local -a statuses
     task_id="$(STACKARR_DATABASE_FILE="$STACKARR_DATABASE_FILE" node "$ROOT_DIR/scripts/task-log.cjs" create --command Update --label "Update apps")"
 
+    # Persist each line as it arrives; a controller restart must not discard the
+    # entire buffered update log. Keep pipeline statuses separate from set -e.
     set +e
-    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" update services >"$output_file" 2>&1
-    exit_code="$?"
-    set -e
-
-    if [[ -s "$output_file" ]]; then
+    STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" update services 2>&1 |
         while IFS= read -r line || [[ -n "$line" ]]; do
-            STACKARR_DATABASE_FILE="$STACKARR_DATABASE_FILE" node "$ROOT_DIR/scripts/task-log.cjs" append "$task_id" "$line"$'\n'
-        done <"$output_file"
-    fi
-    rm -f "$output_file"
+            # Keep each CLI argument bounded even for a command with no newlines.
+            if (( ${#line} > 8192 )); then line="${line:0:8192} [line truncated]"; fi
+            STACKARR_DATABASE_FILE="$STACKARR_DATABASE_FILE" node "$ROOT_DIR/scripts/task-log.cjs" append "$task_id" "$line"$'\n' || exit 1
+        done
+    statuses=("${PIPESTATUS[@]}")
+    exit_code=${statuses[0]} log_exit=${statuses[1]}
+    set -e
+    if (( log_exit != 0 && exit_code == 0 )); then exit_code=1; fi
 
     if [[ "$exit_code" -eq 0 ]]; then
         STACKARR_DATABASE_FILE="$STACKARR_DATABASE_FILE" node "$ROOT_DIR/scripts/task-log.cjs" update "$task_id" --status completed --exit-code 0 --ended-now
@@ -184,6 +213,12 @@ run_questarr_romm_import() {
     STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" questarr romm-import run --yes || log_scheduler "Questarr RomM import failed"
 }
 
+if [[ "${1:-}" == "--locked-job" ]]; then
+    [[ $# -eq 3 ]] || exit 2
+    run_locked_job "$2" "$3"
+    exit $?
+fi
+
 log_scheduler "started"
 
 while true; do
@@ -193,16 +228,17 @@ while true; do
 
         if flag_enabled "${ENABLE_BACKUP:-true}"; then
             if backup_stamp="$(due_daily_or_weekly backup "${BACKUP_SCHEDULE:-weekly}" "${BACKUP_TIME:-02:00}" "${BACKUP_WEEKDAY:-Sun}")"; then
-                run_with_lock backup "$backup_stamp" run_backup_job
+                run_with_lock backup "$backup_stamp"
             fi
         fi
 
         if flag_enabled "${ENABLE_SCHEDULED_UPDATES:-false}"; then
             if update_stamp="$(due_daily_or_weekly update weekly "${UPDATE_TIME:-04:30}" "${UPDATE_WEEKDAY:-Sun}")"; then
-                run_with_lock update "$update_stamp" run_update_job
+                run_with_lock update "$update_stamp"
             fi
         fi
 
+        if [[ "${1:-}" == "--run-once" ]]; then exit 0; fi
         run_agent_routines
 
         if flag_enabled "${QUESTARR_ROMM_IMPORT_ENABLED:-false}"; then

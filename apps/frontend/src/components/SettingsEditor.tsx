@@ -14,6 +14,7 @@ import { applyStackarrDocumentTheme } from '@stackarr/ui/theme-provider';
 import { toast } from '@stackarr/ui/toast';
 import type React from 'react';
 import { useId, useState } from 'react';
+import { CloudflareEmailAllowlist } from './CloudflareEmailAllowlist';
 import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
 import { PathInput } from './PathPicker';
 import styles from './SettingsEditor.module.css';
@@ -218,12 +219,14 @@ const securityServices: SecurityServiceTarget[] = [
 ];
 const cloudflareServiceOptions = [
   'pulsarr',
+  'tdarr',
   'maintainerr',
   'tracearr',
   'bookorbit',
   'immich',
   'romm',
   'questarr',
+  'youtarr',
   'stackarr',
   'seerr',
   'transmission',
@@ -1254,10 +1257,12 @@ export function SettingsEditor({ section, env, settings }: Props) {
                 checked={envBool('CLOUDFLARE_ACCESS_ENABLED', false)}
                 onChange={(value) => updateEnvBool('CLOUDFLARE_ACCESS_ENABLED', value)}
               />
-              <Text
-                label="Allowed Emails"
-                value={envValue('CLOUDFLARE_ACCESS_ALLOWED_EMAILS')}
-                onChange={(value) => updateEnv('CLOUDFLARE_ACCESS_ALLOWED_EMAILS', value)}
+              <CloudflareEmailAllowlist
+                initialEmails={envValue('CLOUDFLARE_ACCESS_ALLOWED_EMAILS')}
+                onPublished={(emails) => {
+                  updateEnv('CLOUDFLARE_ACCESS_ALLOWED_EMAILS', emails.join(','));
+                  updateEnvBool('CLOUDFLARE_ACCESS_ENABLED', true);
+                }}
               />
               <Text
                 label="Session Duration"
@@ -1832,6 +1837,7 @@ function Password({
   const id = useId();
   const [visible, setVisible] = useState(false);
   const savedPreview = isMiddleTruncatedSecret(value) ? value : '';
+  const editableValue = savedPreview ? '' : value;
 
   return (
     <div className={styles.field}>
@@ -1842,6 +1848,7 @@ function Password({
           aria-invalid={Boolean(error)}
           autoComplete={autoComplete}
           maxLength={isPortablePasswordEnvKey(label) ? portablePasswordMaximumLength : undefined}
+          placeholder={savedPreview || undefined}
           spellCheck={false}
           title={
             isPortablePasswordEnvKey(label)
@@ -1849,7 +1856,7 @@ function Password({
               : undefined
           }
           type={visible ? 'text' : 'password'}
-          value={value}
+          value={editableValue}
           onChange={(event) => onChange(event.target.value)}
         />
         <span className={styles.passwordToggleWrap} title={`${visible ? 'Hide' : 'Show'} ${label}`}>

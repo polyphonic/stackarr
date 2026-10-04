@@ -186,17 +186,16 @@ reconcile_servarr_series_season_folders() {
         warn "$label series could not be read for season-folder reconciliation"
         return 1
     }
-    result="$(python3 - "$desired" "$current" <<'PY'
+    result="$(printf '%s' "$current" | python3 -c '
 import json
 import sys
 
 desired = sys.argv[1].lower() == "true"
-series = json.loads(sys.argv[2])
+series = json.load(sys.stdin)
 series_ids = [item["id"] for item in series if bool(item.get("seasonFolder")) != desired]
 print(len(series_ids))
 print(json.dumps({"seriesIds": series_ids, "seasonFolder": desired}, separators=(",", ":")))
-PY
-)"
+' "$desired")"
     count="$(printf '%s\n' "$result" | sed -n '1p')"
     payload="$(printf '%s\n' "$result" | sed -n '2p')"
 
@@ -234,21 +233,20 @@ reconcile_request_manager_season_folders() {
         warn "$label Sonarr defaults could not be read"
         return 1
     }
-    updates="$(python3 - "$field" "$desired" "$current" <<'PY'
+    updates="$(printf '%s' "$current" | python3 -c '
 import json
 import sys
 
 field = sys.argv[1]
 desired = sys.argv[2].lower() == "true"
-payload = json.loads(sys.argv[3])
+payload = json.load(sys.stdin)
 items = payload if isinstance(payload, list) else payload.get("instances", [])
 for item in items:
     if bool(item.get(field)) == desired:
         continue
     item[field] = desired
-    print(f"{item['id']}\t{json.dumps(item, separators=(',', ':'))}")
-PY
-)"
+    print(str(item["id"]) + "\t" + json.dumps(item, separators=(",", ":")))
+' "$field" "$desired")"
 
     if [[ -z "$updates" ]]; then
         ok "$label Sonarr defaults already follow the season-folder policy"

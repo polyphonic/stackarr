@@ -37,9 +37,12 @@ export function AppHealthSummary({
     return () => controller.abort();
   }, []);
 
-  const problemChecks =
-    summary?.checks.filter((check) => check.status === 'issues' || check.status === 'unavailable') ?? [];
-  const hasHealthIssues = problemChecks.length > 0;
+  // Unsupported authentication is neither an outage nor a verified green check.
+  const visibleChecks =
+    summary?.checks.filter(
+      (check) => check.status === 'issues' || check.status === 'unavailable' || check.status === 'unsupported'
+    ) ?? [];
+  const hasHealthNotices = visibleChecks.length > 0;
 
   return (
     <div className={styles.stack}>
@@ -55,49 +58,76 @@ export function AppHealthSummary({
           <span>Stackarr could not complete the app health scan.</span>
         </div>
       )}
-      {hasHealthIssues && (
+      {hasHealthNotices && (
         <div className={styles.healthGroups}>
-          {problemChecks.map((check) => (
-            <section className={styles.healthGroup} key={check.service} aria-label={`${check.displayName} health`}>
-              <div className={styles.healthHeader}>
-                <ServiceLogo name={check.service} size={34} />
-                <div>
-                  <strong>{check.displayName}</strong>
-                  <small>
-                    {check.status === 'unavailable' ? 'Health endpoint unavailable' : 'Application-reported issues'}
-                  </small>
-                </div>
-                <Badge tone={check.status === 'unavailable' ? 'bad' : 'warn'}>
-                  {check.status === 'unavailable'
-                    ? 'offline'
-                    : `${check.issues.length} ${check.issues.length === 1 ? 'issue' : 'issues'}`}
-                </Badge>
-              </div>
-              <div className={styles.issueList}>
-                {check.issues.slice(0, 3).map((issue) => (
-                  <div className={styles.issue} key={`${issue.source}:${issue.message}`}>
-                    <span
-                      className={issue.severity === 'error' ? styles.errorDot : styles.warningDot}
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <strong>{issue.source}</strong>
-                      <p>{issue.message}</p>
-                    </div>
+          {visibleChecks.map((check) => {
+            const authFailed = check.authentication === 'failed';
+            const authUnverified =
+              check.status === 'unsupported' &&
+              (check.authentication === 'notConfigured' || check.authentication === 'unsupported');
+            return (
+              <section className={styles.healthGroup} key={check.service} aria-label={`${check.displayName} health`}>
+                <div className={styles.healthHeader}>
+                  <ServiceLogo name={check.service} size={34} />
+                  <div>
+                    <strong>{check.displayName}</strong>
+                    <small>
+                      {check.status === 'unavailable'
+                        ? 'Health endpoint unavailable'
+                        : authFailed
+                          ? 'Authentication failed'
+                          : authUnverified
+                            ? 'Reachable; authentication unverified'
+                            : 'Application-reported issues'}
+                    </small>
                   </div>
-                ))}
-                {check.issues.length > 3 && (
-                  <small className={styles.more}>+{check.issues.length - 3} more issues</small>
+                  <Badge tone={check.status === 'unavailable' || authFailed ? 'bad' : 'warn'}>
+                    {check.status === 'unavailable'
+                      ? 'offline'
+                      : authFailed
+                        ? 'auth failed'
+                        : authUnverified
+                          ? 'unverified'
+                          : check.status === 'unsupported'
+                            ? 'unsupported'
+                            : `${check.issues.length} ${check.issues.length === 1 ? 'issue' : 'issues'}`}
+                  </Badge>
+                </div>
+                {authUnverified && (
+                  <p className={styles.unverifiedNote}>
+                    {check.authentication === 'notConfigured'
+                      ? 'No supported authentication credential is configured for this health check.'
+                      : 'This health check cannot verify authentication.'}
+                  </p>
                 )}
-              </div>
-              <a className={styles.configureLink} href={`/stack/services?app=${encodeURIComponent(check.service)}`}>
-                Review {check.displayName} settings ›
-              </a>
-            </section>
-          ))}
+                {check.issues.length > 0 && (
+                  <div className={styles.issueList}>
+                    {check.issues.slice(0, 3).map((issue) => (
+                      <div className={styles.issue} key={`${issue.source}:${issue.message}`}>
+                        <span
+                          className={issue.severity === 'error' ? styles.errorDot : styles.warningDot}
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <strong>{issue.source}</strong>
+                          <p>{issue.message}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {check.issues.length > 3 && (
+                      <small className={styles.more}>+{check.issues.length - 3} more issues</small>
+                    )}
+                  </div>
+                )}
+                <a className={styles.configureLink} href={`/stack/services?app=${encodeURIComponent(check.service)}`}>
+                  Review {check.displayName} settings ›
+                </a>
+              </section>
+            );
+          })}
         </div>
       )}
-      {hasOtherIssues ? children : summary && !hasHealthIssues ? emptyState : null}
+      {hasOtherIssues ? children : summary && !hasHealthNotices ? emptyState : null}
     </div>
   );
 }

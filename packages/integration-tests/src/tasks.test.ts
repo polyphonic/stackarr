@@ -74,6 +74,57 @@ test('controller restart fails only orphaned queued and running tasks', async ()
   assert.equal(result[4]?.status, 'completed');
 });
 
+test('a fresh MCP reader preserves another process’s live task until the controller actually restarts', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-controller-task-test-'));
+  const database = path.join(root, 'stackarr.db');
+  const taskStarted = new Date(Date.now() - 120_000).toISOString();
+  const controllerBoot = new Date(Date.now() - 180_000).toISOString();
+  const restartedBoot = new Date(Date.now() - 60_000).toISOString();
+  const runReader = async (script: string, marker: string) => {
+    const { stdout } = await execFile(process.execPath, ['--import', tsxLoader, '--input-type=module', '-e', script], {
+      cwd: repoRoot,
+      env: sqliteTestEnv({
+        STACKARR_RUNTIME: 'docker',
+        STACKARR_CONTROLLER_STARTED_AT: marker,
+        STACKARR_DATABASE_FILE: database
+      })
+    });
+    return JSON.parse(stdout);
+  };
+
+  try {
+    const owner = (await runReader(
+      `
+      const { createQueuedTask, updateTask } = await import('./packages/core/src/tasks.ts');
+      const task = createQueuedTask('Backup', 'Back up Stackarr');
+      updateTask(task.id, { status: 'running', queuedAt: '${taskStarted}', startedAt: '${taskStarted}' });
+      console.log(JSON.stringify(task.id));
+    `,
+      controllerBoot
+    )) as string;
+    const live = (await runReader(
+      `
+      const { readTasks } = await import('./packages/core/src/tasks.ts');
+      console.log(JSON.stringify(readTasks().find(task => task.id === '${owner}')));
+    `,
+      controllerBoot
+    )) as { status: string };
+    assert.equal(live.status, 'running', 'a new MCP process must not mistake its own start for a controller restart');
+
+    const orphan = (await runReader(
+      `
+      const { readTasks } = await import('./packages/core/src/tasks.ts');
+      console.log(JSON.stringify(readTasks().find(task => task.id === '${owner}')));
+    `,
+      restartedBoot
+    )) as { status: string; error?: string };
+    assert.equal(orphan.status, 'failed');
+    assert.equal(orphan.error, 'Task was interrupted by a Stackarr controller restart.');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('stale maintenance handoffs fail instead of remaining active forever', async () => {
   const { expireStaleTaskHandoffs } = await import('../../core/src/tasks.ts');
   const tasks = [

@@ -52,7 +52,9 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
     env.MEDIA_ROOT ?? '',
     env.MUSIC_ROOT ?? '',
     env.DOWNLOADS_ROOT ?? '',
-    env.BACKUP_ROOT ?? ''
+    env.BACKUP_ROOT ?? '',
+    env.CONFIG_ROOT ?? '',
+    env.STATE_ROOT ?? ''
   ]);
   const tasks = readTasks();
   const backupStatus = getBackupStatus(env, tasks);

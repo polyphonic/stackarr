@@ -1,0 +1,145 @@
+.panel {
+  display: grid;
+  gap: 14px;
+  max-width: 900px;
+  padding: 2px 0 22px;
+}
+
+.header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.header > div {
+  max-width: 70ch;
+}
+
+.header h3 {
+  margin: 0;
+  color: var(--textColor);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.header p,
+.externalRoutes p {
+  margin: 4px 0 0;
+  color: var(--mutedTextColor);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.header button {
+  min-width: 96px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--purple-700);
+  border-radius: 12px;
+  background: var(--purple-600);
+  color: var(--accent-foreground);
+}
+
+.header button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.status {
+  min-height: 20px;
+  color: var(--mutedTextColor);
+  font-size: 13px;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--borderColor);
+  border-bottom: 1px solid var(--borderColor);
+}
+
+.summary div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.summary dt {
+  color: var(--mutedTextColor);
+  font-size: 12px;
+}
+
+.summary dd {
+  margin: 0;
+  color: var(--textColor);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.externalRoutes {
+  display: grid;
+  gap: 8px;
+}
+
+.externalRoutes strong {
+  color: var(--textColor);
+  font-size: 13px;
+}
+
+.externalRoutes ul {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--borderColor);
+  border-radius: 12px;
+  background: var(--borderColor);
+  list-style: none;
+}
+
+.externalRoutes li {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(220px, 1.2fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--inputBackground);
+}
+
+.externalRoutes span {
+  color: var(--textColor);
+}
+
+.externalRoutes code,
+.externalRoutes small {
+  color: var(--mutedTextColor);
+  font-size: 12px;
+}
+
+.externalRoutes code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .header {
+    display: grid;
+    gap: 12px;
+  }
+
+  .externalRoutes li {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}

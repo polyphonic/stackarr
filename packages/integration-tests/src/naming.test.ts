@@ -45,7 +45,7 @@ test('naming policy reconciles existing Sonarr series through the bulk editor AP
     if (request.method === 'GET' && request.url === '/api/v3/series') {
       response.end(
         JSON.stringify([
-          { id: 11, title: 'Needs Policy', seasonFolder: false },
+          { id: 11, title: 'Needs Policy', seasonFolder: false, overview: 'x'.repeat(200_000) },
           { id: 12, title: 'Already Correct', seasonFolder: true },
           { id: 13, title: 'Also Needs Policy', seasonFolder: false }
         ])

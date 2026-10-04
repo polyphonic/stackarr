@@ -46,6 +46,8 @@ import {
 import { type ComponentType, type SVGProps, useId } from 'react';
 
 export { Button } from '@heroui/react/button';
+export { Chip } from '@heroui/react/chip';
+export { CloseButton } from '@heroui/react/close-button';
 export { Description } from '@heroui/react/description';
 export { Dropdown } from '@heroui/react/dropdown';
 export { Input } from '@heroui/react/input';

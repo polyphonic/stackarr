@@ -109,8 +109,8 @@ exit 0
     assert.doesNotMatch(plist, new RegExp(repoRoot.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')));
     assert.match(await readFile(managedRuntimeBin, 'utf8'), /ROOT_DIR=/);
     assert.match(plist, /<key>STACKARR_RUN_SOURCE<\/key>\s*<string>startup<\/string>/);
-    assert.match(plist, /<key>SuccessfulExit<\/key>\s*<false\/>/);
-    assert.match(plist, /<key>ThrottleInterval<\/key>\s*<integer>30<\/integer>/);
+    assert.match(plist, /<key>RunAtLoad<\/key>\s*<true\/>/);
+    assert.doesNotMatch(plist, /<key>KeepAlive<\/key>|<key>ThrottleInterval<\/key>/);
     assert.doesNotMatch(plist, /AssociatedBundleIdentifiers/);
     assert.ok(
       launchctlCalls.indexOf('enable gui/') < launchctlCalls.indexOf('bootstrap gui/'),

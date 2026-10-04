@@ -101,6 +101,7 @@ async function runFixtureBackup(mode: 'full' | 'lite', envOverrides: NodeJS.Proc
   await mkdir(path.join(configRoot, 'romm/config'), { recursive: true });
   await mkdir(path.join(configRoot, 'romm/assets/covers'), { recursive: true });
   await mkdir(path.join(configRoot, 'cleanuparr'), { recursive: true });
+  await mkdir(path.join(configRoot, 'mosquitto/data'), { recursive: true });
   await mkdir(path.join(configRoot, 'sonarr/repair-backups'), { recursive: true });
   await mkdir(path.join(configRoot, 'sonarr4k/restore-safety-20260513-024349'), { recursive: true });
   await mkdir(path.join(stateRoot, 'torrent-archive'), { recursive: true });
@@ -148,6 +149,10 @@ async function runFixtureBackup(mode: 'full' | 'lite', envOverrides: NodeJS.Proc
   await writeFile(path.join(configRoot, 'romm/assets/covers/custom.png'), 'custom RomM cover');
   await writeDatabaseFixture(path.join(configRoot, 'cleanuparr/cleanuparr.db'), 'cleanuparr fixture db');
   await writeFile(path.join(configRoot, 'cleanuparr/events.db'), 'malformed rebuildable event log');
+  await writeFile(
+    path.join(configRoot, 'mosquitto/data/mosquitto.db'),
+    Buffer.from([0x00, 0x01, 0x02, 0x7f, 0x4d, 0x51, 0x54, 0x54])
+  );
   await writeDatabaseFixture(path.join(configRoot, 'sonarr/repair-backups/sonarr.db'), 'manual repair backup');
   await writeDatabaseFixture(
     path.join(configRoot, 'sonarr4k/restore-safety-20260513-024349/sonarr.db'),
@@ -308,6 +313,11 @@ test('lite backups exclude rebuildable service assets', async (t) => {
     assert.match(fixture.listing, /\/config\/romm\/assets\/covers\/custom\.png\n/);
     assert.match(fixture.listing, /\/state\/questarr-romm-import\.json\n/);
     assert.match(fixture.listing, /\/config\/cleanuparr\/cleanuparr\.db\n/);
+    assert.match(fixture.listing, /\/config\/mosquitto\/data\/mosquitto\.db\n/);
+    assert.deepEqual(
+      Buffer.from(await fixture.readArchiveEntry('/config/mosquitto/data/mosquitto.db'), 'binary'),
+      Buffer.from([0x00, 0x01, 0x02, 0x7f, 0x4d, 0x51, 0x54, 0x54])
+    );
     assert.doesNotMatch(fixture.listing, /\/config\/cleanuparr\/events\.db\n/);
     assert.doesNotMatch(fixture.listing, /\/config\/lidarr\/MediaCover\//);
     assert.doesNotMatch(fixture.listing, /\/config\/lidarr\/Backups\//);
@@ -676,6 +686,97 @@ test('full backups keep durable state and skip rebuildable service artifacts', a
   }
 });
 
+test('rsync partial transfer fails closed with its original status and diagnostics', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-rsync-partial-test-'));
+  const source = await readFile(backupScript, 'utf8');
+  const functions = source.slice(
+    source.indexOf('rsync_errors_are_transient() {'),
+    source.indexOf('lite_config_path_excluded() {')
+  );
+  assert.match(functions, /rsync_copy_tree\(\)/);
+  try {
+    const rsync = path.join(root, 'rsync');
+    await writeFile(rsync, '#!/bin/sh\necho "rsync: No file descriptors available (24)" >&2\nexit 23\n');
+    await chmod(rsync, 0o755);
+    const { stdout, stderr } = await execFile(
+      'bash',
+      [
+        '-c',
+        `
+      set -Eeuo pipefail
+      warn() { printf 'WARNING %s\\n' "$*"; }
+      ${functions}
+      if rsync_copy_tree "$1/" "$2/"; then
+        printf 'UNEXPECTED_SUCCESS\\n'
+        exit 99
+      else
+        status=$?
+      fi
+      printf 'STATUS=%s\\n' "$status"
+    `,
+        'bash',
+        root,
+        path.join(root, 'destination')
+      ],
+      { env: { ...process.env, PATH: `${root}:${process.env.PATH ?? ''}` } }
+    );
+    assert.match(stdout, /STATUS=23/);
+    assert.doesNotMatch(stdout, /UNEXPECTED_SUCCESS|Backup copy skipped transient/);
+    assert.match(stderr, /No file descriptors available/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Plex critical copy retries transient ENOMEM but never accepts a persistent partial tree', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-plex-partial-test-'));
+  const source = await readFile(backupScript, 'utf8');
+  const functions = source.slice(
+    source.indexOf('rsync_errors_are_transient() {'),
+    source.indexOf('lite_config_path_excluded() {')
+  );
+  const fakeRsync = path.join(root, 'rsync');
+  const countFile = path.join(root, 'count');
+  const script = `set -Eeuo pipefail
+    warn() { :; }
+    ${functions}
+    PLEX_CONFIG_PATH="$1"
+    if rsync_copy_tree "$1/" "$2/"; then echo SUCCESS; else echo "STATUS=$?"; fi
+  `;
+  try {
+    await writeFile(
+      fakeRsync,
+      `#!/bin/sh
+count=$(cat "$COUNT_FILE" 2>/dev/null || printf 0)
+count=$((count + 1))
+printf '%s' "$count" > "$COUNT_FILE"
+case "$*" in *--bwlimit=65536*) ;; *) echo 'missing Plex rate limit' >&2; exit 91;; esac
+if [ "$FAIL_ALWAYS" = 1 ] || [ "$count" -lt 3 ]; then
+  echo 'rsync: read thumbnail: Out of memory (12)' >&2
+  exit 23
+fi
+exit 0
+`
+    );
+    await chmod(fakeRsync, 0o755);
+    const env = { ...process.env, PATH: `${root}:${process.env.PATH ?? ''}`, COUNT_FILE: countFile };
+    const recovered = await execFile('bash', ['-c', script, 'bash', root, path.join(root, 'dst')], {
+      env: { ...env, FAIL_ALWAYS: '0' }
+    });
+    assert.match(recovered.stdout, /SUCCESS/);
+    assert.equal(await readFile(countFile, 'utf8'), '3');
+    await writeFile(countFile, '0');
+    const failed = await execFile('bash', ['-c', script, 'bash', root, path.join(root, 'dst')], {
+      env: { ...env, FAIL_ALWAYS: '1' }
+    });
+    assert.match(failed.stdout, /STATUS=23/);
+    assert.match(failed.stderr, /Out of memory \(12\)/);
+    assert.equal(await readFile(countFile, 'utf8'), '3');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('backup fails instead of archiving an unreadable SQLite database', async (t) => {
   if (!(await commandExists('sqlite3'))) {
     t.skip('sqlite3 is required for SQLite snapshot validation');
@@ -690,7 +791,7 @@ test('backup fails instead of archiving an unreadable SQLite database', async (t
   const backupRoot = path.join(appRoot, 'backups');
 
   await mkdir(path.join(configRoot, 'pulsarr/db'), { recursive: true });
-  await writeFile(path.join(configRoot, 'pulsarr/db/pulsarr.db'), 'not a sqlite database');
+  await writeFile(path.join(configRoot, 'pulsarr/db/pulsarr.db'), Buffer.from('SQLite format 3\0corrupt fixture'));
   const stackarrDatabaseFile = path.join(configRoot, 'stackarr.db');
   writeRuntimeConfigDatabase(stackarrDatabaseFile, { ENABLE_BACKUP: 'true' });
 

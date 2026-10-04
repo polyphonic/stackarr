@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { requestJson, ServiceApiError, withQuery } from '../clients/http';
 import { prowlarrGet } from '../clients/prowlarr';
 import { seerrGet } from '../clients/seerr';
@@ -6,6 +9,10 @@ import { type ArrInstance, maybeServiceBaseUrl, selectedDownloader, serviceApiKe
 import { readEnv } from '../env';
 import { redactSecrets } from '../safety/redaction';
 import { getServices } from '../services';
+import { readTasks } from '../tasks';
+import { listBackupsAction } from './backups';
+import { type DockerContainerOverview, getDockerContainerOverviewAction } from './containers';
+import { getDownloadQueueAction } from './downloads';
 import { getMediaSearchReconciliationStatusAction } from './mediaReconciliation';
 import { getPlexServerStatusAction } from './plex';
 import { getServiceStatusAction } from './services';
@@ -174,27 +181,18 @@ export async function testSeerrToArrAction() {
   }
 }
 export const testPlexIdentityAction = () => getPlexServerStatusAction();
-export const getCommonIssuesAction = () => {
-  const env = readEnv();
-  const issues = [
-    { id: 'missing-api-key', title: 'Missing API key', fix: 'Save the service API key in Stackarr configuration.' },
-    { id: 'wrong-base-url', title: 'Wrong service base URL', fix: 'Set SERVICE_URL to the reachable address.' }
-  ];
-
-  if (/^(1|true|yes|on)$/i.test(env.ENABLE_4K_SERVARR ?? '')) {
-    issues.push({
-      id: 'seerr-sonarr4k',
-      title: 'Seerr cannot reach Sonarr 4K',
-      fix: 'Verify Seerr service settings point Sonarr 4K to http://sonarr4k:8989 inside Docker or the configured host URL from Seerr network.'
-    });
-  }
-
-  return issues;
-};
+export async function getCommonIssuesAction() {
+  const report = await getHealthReportAction();
+  return {
+    checkedAt: report.checkedAt,
+    issues: report.findings,
+    note: 'Current unresolved observations, not a static troubleshooting catalog. Read-only; no fixes applied.'
+  };
+}
 export const applySafeFixAction = (input: { fixId: 'refresh-status-cache' | 'none' }) => ({
   fixId: input.fixId,
-  applied: input.fixId === 'refresh-status-cache',
-  note: 'Only enumerated no-downtime safe fixes are allowed.'
+  applied: false,
+  note: 'No safe automated fix is implemented for this ID. Nothing was changed; inspect the health report before a scoped repair.'
 });
 /**
  * Application health endpoints are the safe, credential-scoped way to check
@@ -229,6 +227,179 @@ export const validateSqliteDbAction = (input: { path: string }) => ({
   note: 'SQLite validation pending.'
 });
 
+export type HealthFinding = {
+  source: 'application' | 'task' | 'downloader' | 'container' | 'backup';
+  service: string;
+  status: 'warning' | 'error';
+  message: string;
+};
+
+/** Only Stackarr's Compose project is authoritative; never match unrelated same-named containers. */
+export function containerHealthFindings(
+  services: ReturnType<typeof getServices>,
+  overview: DockerContainerOverview,
+  composeProject = 'stackarr'
+): HealthFinding[] {
+  if (!overview.dockerAvailable) {
+    return [
+      {
+        source: 'container',
+        service: 'docker',
+        status: 'error',
+        message: 'Docker inventory unavailable; expected containers could not be checked.'
+      }
+    ];
+  }
+  return services
+    .filter((service) => service.mode === 'docker' && service.dockerService)
+    .flatMap((service) => {
+      const containers = overview.containers.filter(
+        (container) => container.composeProject === composeProject && container.composeService === service.dockerService
+      );
+      if (!containers.length)
+        return [
+          {
+            source: 'container' as const,
+            service: service.name,
+            status: 'error' as const,
+            message: 'Enabled Docker container is absent.'
+          }
+        ];
+      return containers.flatMap((container): HealthFinding[] => {
+        const findings: HealthFinding[] = [];
+        if (!container.running)
+          findings.push({
+            source: 'container',
+            service: service.name,
+            status: 'error',
+            message: 'Enabled Docker container is not running.'
+          });
+        if (/\(unhealthy\)/i.test(container.status))
+          findings.push({
+            source: 'container',
+            service: service.name,
+            status: 'error',
+            message: 'Docker healthcheck is unhealthy.'
+          });
+        if (container.restartPolicy === 'no' || !container.restartPolicy)
+          findings.push({
+            source: 'container',
+            service: service.name,
+            status: 'warning',
+            message: 'Docker restart policy is not configured.'
+          });
+        return findings;
+      });
+    });
+}
+
+/** Bounded, secret-safe overview; login checks create only ephemeral service sessions. */
+export async function getHealthReportAction() {
+  const checkedAt = new Date().toISOString();
+  const services = getServices();
+  const [apps, docker, downloaderResult, backupResult] = await Promise.all([
+    getAppHealthSummaryAction().catch(() => null),
+    getDockerContainerOverviewAction(),
+    getDownloadQueueAction({ downloader: selectedDownloader() }).then(
+      () => true,
+      () => false
+    ),
+    listBackupsAction()
+      .then(async ({ root, backups }) => {
+        const archives = backups.filter((name) => /\.(?:tar\.gz|tgz)(?:\.enc)?$|\.zip$/i.test(name));
+        const stats = await Promise.all(
+          archives.map(async (name) => {
+            try {
+              const stat = await fs.stat(path.join(root, name));
+              return stat.isFile() ? stat.mtimeMs : 0;
+            } catch {
+              return 0;
+            }
+          })
+        );
+        return stats.length ? Math.max(...stats) : 0;
+      })
+      .catch(() => null)
+  ]);
+  const findings: HealthFinding[] = [];
+  if (!apps)
+    findings.push({
+      source: 'application',
+      service: 'stackarr',
+      status: 'error',
+      message: 'Application health inventory could not be completed.'
+    });
+  else
+    for (const check of apps.checks) {
+      if (check.status === 'healthy' || check.status === 'unsupported') continue;
+      findings.push({
+        source: 'application',
+        service: check.service,
+        status: check.status === 'unavailable' ? 'error' : 'warning',
+        message: check.issues.length
+          ? check.issues
+              .map((issue) => safeMessage(issue.message))
+              .join('; ')
+              .slice(0, 400)
+          : `Application health is ${check.status}.`
+      });
+    }
+  findings.push(...containerHealthFindings(services, docker, readEnv().STACKARR_COMPOSE_PROJECT_NAME || 'stackarr'));
+  const tasks = readTasks().filter(
+    (task) => !task.reviewedAt && (task.status === 'failed' || task.status === 'blocked')
+  );
+  for (const task of tasks.slice(-20))
+    findings.push({
+      source: 'task',
+      service: 'stackarr',
+      status: 'error',
+      message: `Unreviewed ${task.status} task: ${safeMessage(task.commandLabel)} (${task.id}).`
+    });
+  if (!downloaderResult)
+    findings.push({
+      source: 'downloader',
+      service: selectedDownloader(),
+      status: 'error',
+      message: 'Authenticated selected-downloader queue request failed.'
+    });
+  if (backupResult === null)
+    findings.push({
+      source: 'backup',
+      service: 'stackarr',
+      status: 'warning',
+      message: 'Backup archive metadata could not be checked.'
+    });
+  else if (!backupResult)
+    findings.push({ source: 'backup', service: 'stackarr', status: 'warning', message: 'No backup archive found.' });
+  else if (Date.now() - backupResult > 8 * 24 * 60 * 60 * 1000)
+    findings.push({
+      source: 'backup',
+      service: 'stackarr',
+      status: 'warning',
+      message: 'Newest backup archive is older than eight days.'
+    });
+  return {
+    checkedAt,
+    status: findings.length ? ('issues' as const) : ('healthy' as const),
+    findings,
+    checks: {
+      applications: apps?.checks.length ?? 0,
+      authenticationUnverified:
+        apps?.checks
+          .filter((check) => check.authentication === 'notConfigured' || check.authentication === 'unsupported')
+          .map((check) => check.service) ?? [],
+      dockerAvailable: docker.dockerAvailable,
+      downloader: selectedDownloader(),
+      unreviewedFailedOrBlockedTasks: tasks.length,
+      newestBackupAt: backupResult ? new Date(backupResult).toISOString() : null
+    },
+    scope: {
+      portlessHost: 'unsupported: host Portless routing is not checked from the Stackarr container',
+      note: 'No service configuration was changed. Authenticated probes may create short-lived login sessions; no host routing or filesystem integrity check was performed.'
+    }
+  };
+}
+
 export type AppHealthIssue = {
   severity: 'warning' | 'error';
   source: string;
@@ -240,6 +411,9 @@ export type AppHealthCheck = {
   displayName: string;
   status: 'healthy' | 'issues' | 'unavailable' | 'unsupported';
   issues: AppHealthIssue[];
+  /** HTTP availability and credential verification are deliberately separate. */
+  availability?: 'reachable' | 'unavailable' | 'unknown';
+  authentication?: 'verified' | 'failed' | 'notConfigured' | 'unsupported';
 };
 
 export type AppHealthSummary = {
@@ -281,10 +455,152 @@ const healthChecks: Record<string, HealthCheckSpec> = {
   agregarr: { path: '/api/v1/status' },
   bazarr: { path: '/api/system/status', credential: 'api-key' },
   flaresolverr: { path: '/v1', method: 'POST', body: { cmd: 'sessions.list' } },
-  // Cleanuparr protects this endpoint outside its own container. A 401 still
-  // proves that the application is running and its HTTP middleware is ready.
-  cleanuparr: { path: '/api/health', reachableStatuses: [401] }
+  // Login-backed services are handled separately; their public/challenged routes are not auth checks.
+  cleanuparr: { path: '/api/health' },
+  homeassistant: { path: '/api/' },
+  frigate: { path: '/api/version' }
 };
+
+function authCheck(
+  service: string,
+  displayName: string,
+  authentication: AppHealthCheck['authentication'],
+  availability: AppHealthCheck['availability'],
+  message?: string
+): AppHealthCheck {
+  return {
+    service,
+    displayName,
+    availability,
+    authentication,
+    status: authentication === 'verified' ? 'healthy' : authentication === 'failed' ? 'issues' : 'unsupported',
+    issues: message && authentication === 'failed' ? [{ severity: 'error', source: 'Authentication', message }] : []
+  };
+}
+
+/** Never use the unauthenticated Frigate port. A fresh session cookie is kept only in memory. */
+async function verifyFrigate(baseUrl: string, username: string, password: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const login = await fetch(`${baseUrl}/api/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ user: username, password }),
+      signal: controller.signal
+    });
+    if (!login.ok) return false;
+    const cookie = login.headers.get('set-cookie')?.split(';', 1)[0];
+    if (!cookie || !/^[a-zA-Z0-9_-]+=[^;]+$/.test(cookie)) return false;
+    const profile = await fetch(`${baseUrl}/api/profile`, {
+      headers: { cookie, accept: 'application/json' },
+      signal: controller.signal
+    });
+    if (!profile.ok) return false;
+    const identity: unknown = await profile.json();
+    return Boolean(
+      identity &&
+        typeof identity === 'object' &&
+        (identity as Record<string, unknown>).username === username &&
+        (identity as Record<string, unknown>).role === 'admin'
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Bound login attempts from frequently refreshed dashboards to avoid lockouts.
+const loginCache = new Map<string, { fingerprint: string; expires: number; result: AppHealthCheck }>();
+
+async function checkLoginBackedHealth(service: string, displayName: string, baseUrl: string): Promise<AppHealthCheck> {
+  const env = readEnv();
+  const username = env.USERNAME?.trim();
+  const password = env.PASSWORD;
+  // A caller may supply a transient HA token; Stackarr does not mint or persist one.
+  const key =
+    service === 'homeassistant' ? serviceApiKey(service) || process.env.HOMEASSISTANT_TOKEN?.trim() : undefined;
+  // An unauthenticated request is an availability probe, never evidence of a valid credential.
+  try {
+    await requestJson<unknown>(`${baseUrl}${healthChecks[service].path}`, { timeoutMs: 8_000 });
+  } catch (error) {
+    if (!(error instanceof ServiceApiError && [401, 403].includes(error.status ?? 0))) {
+      return {
+        ...unavailable(service, displayName, 'HTTP endpoint is unavailable.'),
+        availability: 'unavailable',
+        authentication: 'unsupported'
+      };
+    }
+  }
+  if (service === 'homeassistant') {
+    if (!key) return authCheck(service, displayName, 'notConfigured', 'reachable');
+    try {
+      const result = await requestJson<unknown>(`${baseUrl}/api/`, {
+        headers: { authorization: `Bearer ${key}` },
+        timeoutMs: 8_000
+      });
+      // Home Assistant's authenticated API root returns { message: 'API running.' }.
+      if (!result || typeof result !== 'object' || (result as Record<string, unknown>).message !== 'API running.')
+        return authCheck(
+          service,
+          displayName,
+          'failed',
+          'reachable',
+          'Authenticated API returned an unexpected response.'
+        );
+      return authCheck(service, displayName, 'verified', 'reachable');
+    } catch {
+      return authCheck(service, displayName, 'failed', 'reachable', 'Authenticated Home Assistant API request failed.');
+    }
+  }
+  if (!username || !password) return authCheck(service, displayName, 'notConfigured', 'reachable');
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify([baseUrl, username, password]))
+    .digest('hex');
+  const cached = loginCache.get(service);
+  if (cached?.fingerprint === fingerprint && cached.expires > Date.now()) return cached.result;
+  try {
+    let result: AppHealthCheck;
+    if (service === 'frigate') {
+      const valid = await verifyFrigate(baseUrl, username, password);
+      result = authCheck(
+        service,
+        displayName,
+        valid ? 'verified' : 'failed',
+        'reachable',
+        'Frigate login or admin profile verification failed.'
+      );
+    } else {
+      const login = await requestJson<Record<string, unknown>>(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        body: { username, password },
+        timeoutMs: 8_000
+      });
+      if (login.requiresTwoFactor) return authCheck(service, displayName, 'unsupported', 'reachable');
+      const tokens =
+        login.tokens && typeof login.tokens === 'object' ? (login.tokens as Record<string, unknown>) : login;
+      const token = tokens.accessToken;
+      if (typeof token !== 'string' || !token) throw new Error('Invalid login response');
+      // A login response alone is insufficient: verify the protected application route.
+      await requestJson<unknown>(`${baseUrl}/api/health`, {
+        headers: { authorization: `Bearer ${token}` },
+        timeoutMs: 8_000
+      });
+      result = authCheck(service, displayName, 'verified', 'reachable');
+    }
+    loginCache.set(service, { fingerprint, expires: Date.now() + 60_000, result });
+    return result;
+  } catch {
+    const result = authCheck(
+      service,
+      displayName,
+      'failed',
+      'reachable',
+      `${displayName} authenticated health check failed.`
+    );
+    loginCache.set(service, { fingerprint, expires: Date.now() + 60_000, result });
+    return result;
+  }
+}
 
 export async function getAppHealthSummaryAction(): Promise<AppHealthSummary> {
   const services = getServices()
@@ -329,6 +645,8 @@ async function checkAppHealth(service: string, displayName: string): Promise<App
   if (!spec) return { service, displayName, status: 'unsupported', issues: [] };
   const baseUrl = maybeServiceBaseUrl(service);
   if (!baseUrl) return unavailable(service, displayName, 'HTTP endpoint is not configured.');
+  if (service === 'cleanuparr' || service === 'frigate' || service === 'homeassistant')
+    return checkLoginBackedHealth(service, displayName, baseUrl.replace(/\/$/, ''));
   const key = serviceApiKey(service);
   if (spec.credential && spec.credential !== 'optional-bearer' && !key) {
     return unavailable(service, displayName, 'API credential is not configured.');
@@ -349,10 +667,22 @@ async function checkAppHealth(service: string, displayName: string): Promise<App
       service,
       spec.issueArray ? normalizeIssueArray(response, key) : normalizeGenericHealth(response, key)
     );
+
     return { service, displayName, status: issues.length ? 'issues' : 'healthy', issues };
   } catch (error) {
     if (error instanceof ServiceApiError && spec.reachableStatuses?.includes(error.status ?? 0)) {
-      return { service, displayName, status: 'healthy', issues: [] };
+      return {
+        service,
+        displayName,
+        status: 'issues',
+        issues: [
+          {
+            severity: 'warning',
+            source: 'Authentication',
+            message: `HTTP ${error.status} confirms reachability only; authenticated application health was not verified.`
+          }
+        ]
+      };
     }
     return unavailable(service, displayName, safeMessage(error instanceof Error ? error.message : String(error), key));
   }

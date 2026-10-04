@@ -1329,6 +1329,15 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     description: 'Test Plex identity.'
   },
   {
+    name: 'stackarr_get_health_report',
+    category: 'health',
+    scopes: ['health:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read current Stackarr reliability findings with explicit unsupported host scope.'
+  },
+  {
     name: 'stackarr_get_common_issues',
     category: 'health',
     scopes: ['health:read'],

@@ -206,7 +206,9 @@ test('App health summary groups Arr issues and isolates unavailable apps', async
     ]);
     assert.equal(byService.radarr.status, 'healthy');
     assert.equal(byService.sonarr.status, 'unavailable');
-    assert.equal(byService.cleanuparr.status, 'healthy');
+    assert.equal(byService.cleanuparr.status, 'unsupported');
+    assert.equal(byService.cleanuparr.availability, 'reachable');
+    assert.equal(byService.cleanuparr.authentication, 'notConfigured');
     assert.ok(summary.issueCount >= 2);
     assert.doesNotMatch(stdout, /prowlarr-secret|radarr-secret|sonarr-secret|lidarr-secret/);
     assert.doesNotMatch(stdout, /http:\/\/127\.0\.0\.1/);
