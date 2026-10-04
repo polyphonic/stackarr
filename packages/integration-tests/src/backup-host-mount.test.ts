@@ -38,9 +38,18 @@ test('external mount bridge accepts only fresh matching host mount-table replies
   const mock = path.join(fixture, 'bridge.sh');
   try {
     await mkdir(dir, { recursive: true });
-    // Replace only the host platform probe and OS mount-table command.
+    // Simulate the host platform and mount table, retaining real request-file timestamps.
     const source = await readFile(bridge, 'utf8');
-    await writeFile(mock, source.replace('"$(uname -s)"', '"Darwin"').replace('"$(/sbin/mount)"', '"${MOCK_MOUNT:-}"'));
+    await writeFile(
+      mock,
+      source
+        .replace('"$(uname -s)"', '"Darwin"')
+        .replace('"$(/sbin/mount)"', '"${MOCK_MOUNT:-}"')
+        .replace(
+          'stat -f %m "$request"',
+          process.platform === 'darwin' ? 'stat -f %m "$request"' : 'stat -c %Y "$request"'
+        )
+    );
     await chmod(mock, 0o700);
     const respond = (mount: string) => {
       execFileSync('/bin/bash', [mock, 'respond', state, root], { env: { ...process.env, MOCK_MOUNT: mount } });
