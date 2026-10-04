@@ -15,12 +15,17 @@ test('managed app updates cannot pull or recreate the Stackarr controller', asyn
 
   assert.match(update, /app\|app-updater\|database\|database-init\|image-cleanup/);
   assert.match(update, /pull --quiet "\$\{services\[@\]\}"/);
-  assert.match(update, /up -d --no-deps --remove-orphans "\$\{PULLED_MANAGED_SERVICES\[@\]\}"/);
+  assert.match(update, /up -d --no-deps "\$\{PULLED_MANAGED_SERVICES\[@\]\}"/);
+  assert.doesNotMatch(update, /up -d --no-deps --remove-orphans/);
   assert.match(update, /Managed services updated; the Stackarr controller was left running/);
   assert.doesNotMatch(update, /ensure_docker_runtime\nensure_database_if_required/);
 
   const compose = await source('stackarr/docker-compose.yml');
-  assert.match(compose, /docker image prune -a -f >\/dev\/null/);
+  assert.ok(compose.includes("required_get('/containers/json?all=1')"));
+  assert.ok(compose.includes("api('DELETE', '/images/'"));
+  assert.doesNotMatch(compose, /\/images\/prune/);
+  assert.match(compose, /Reclaimed bytes:/);
+  assert.match(compose, /Deleted image:/);
   assert.match(compose, /RECYCLARR_IMAGE:-ghcr\.io\/recyclarr\/recyclarr:8/);
   assert.doesNotMatch(compose, /RECYCLARR_IMAGE:-ghcr\.io\/recyclarr\/recyclarr:latest/);
 });
@@ -29,14 +34,18 @@ test('managed app updates prune dangling and unused images after old containers 
   const update = await source('stackarr/scripts/update-run.sh');
   const compose = await source('stackarr/docker-compose.yml');
 
-  const recreation = update.indexOf('up -d --no-deps --remove-orphans');
+  const recreation = update.indexOf('up -d --no-deps "${PULLED_MANAGED_SERVICES[@]}"');
   const cleanup = update.indexOf('run --rm image-cleanup');
   const reconciliation = update.indexOf('"$ROOT_DIR/scripts/naming.sh" apply');
 
   assert.ok(recreation >= 0, 'managed services should be recreated with old containers removed');
   assert.ok(cleanup > recreation, 'image cleanup should run only after service recreation');
   assert.ok(cleanup < reconciliation, 'image cleanup should run before post-update reconciliation');
-  assert.match(compose, /docker image prune -a -f >\/dev\/null/);
+  assert.ok(compose.includes("required_get('/containers/json?all=1')"));
+  assert.ok(compose.includes("api('DELETE', '/images/'"));
+  assert.doesNotMatch(compose, /\/images\/prune/);
+  assert.match(compose, /Reclaimed bytes:/);
+  assert.match(compose, /Deleted image:/);
 });
 
 test('image-declared service volumes have stable Compose names', async () => {
@@ -89,4 +98,40 @@ test('dashboard exposes separate managed app and controller update commands', as
   assert.match(commands, /label: 'Update Stackarr',[\s\S]*?args: \['update', 'app'\]/);
   assert.match(page, /name="UpdateStackarr"/);
   assert.match(scheduler, /update services/);
+  const updateInstaller = await source('stackarr/scripts/update-install.sh');
+  assert.match(
+    updateInstaller,
+    /if stackarr_web_enabled && flag_enabled "\$\{STACKARR_SCHEDULER_ENABLED:-true\}"; then[\s\S]*?unload_agent[\s\S]*?rm -f "\$PLIST_PATH"/
+  );
+});
+
+test('startup is one-shot and refuses reconciliation when installed PostgreSQL settings are unavailable', async () => {
+  const installer = await source('stackarr/scripts/startup-install.sh');
+  const up = await source('stackarr/scripts/up.sh');
+  const launch = await source('stackarr/scripts/start-stack.sh');
+
+  assert.match(installer, /<key>RunAtLoad<\/key>\s*<true\/>/);
+  assert.doesNotMatch(installer, /<key>KeepAlive<\/key>/);
+  for (const startup of [up, launch]) {
+    const guard = startup.indexOf(
+      'load_postgres_runtime_config || fail "Unable to load authoritative PostgreSQL runtime settings; startup cancelled"'
+    );
+    assert.ok(guard >= 0);
+    assert.ok(guard < startup.indexOf('ensure_database_if_required'));
+    assert.ok(guard < startup.indexOf('remove_disabled_optional_containers'));
+  }
+  assert.match(launch, /wait_for_docker_runtime/);
+});
+
+test('partial managed pulls leave failed services unchanged and report failure after reconciling successful pulls', async () => {
+  const update = await source('stackarr/scripts/update-run.sh');
+  assert.match(update, /MANAGED_PULL_PARTIAL=true/);
+  assert.match(
+    update,
+    /if \[\[ "\$MANAGED_PULL_PARTIAL" == true \]\]; then\s+fail "Managed services partially updated:/
+  );
+  assert.ok(
+    update.indexOf('up -d --no-deps "${PULLED_MANAGED_SERVICES[@]}"') <
+      update.indexOf('if [[ "$MANAGED_PULL_PARTIAL" == true ]]')
+  );
 });

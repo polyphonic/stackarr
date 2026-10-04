@@ -13,11 +13,16 @@ LOG_FILE="$LOG_ROOT/launchd/start-stack.log"
     echo "$(date '+%Y-%m-%d %H:%M:%S') starting Stackarr stack"
     wait_for_stackarr_storage
     write_compose_env_file
-    ensure_docker_runtime
-    ensure_database_if_required
+    wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
     if start_existing_database_for_runtime_config && load_postgres_runtime_config_through_database; then
         write_compose_env_file
     fi
+    # Never use bootstrap flags to reconcile an installed PostgreSQL stack.
+    if database_mode_is_postgres && docker inspect database >/dev/null 2>&1; then
+        load_postgres_runtime_config || fail "Unable to load authoritative PostgreSQL runtime settings; startup cancelled"
+        write_compose_env_file
+    fi
+    ensure_database_if_required
 
     if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] && load_postgres_runtime_config; then
         write_compose_env_file

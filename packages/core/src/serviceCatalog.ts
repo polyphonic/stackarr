@@ -751,6 +751,54 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       'Cleanuparr provides risky-extension and content-ID blocking. It is not antivirus; ClamAV gates secure Questarr-to-RomM imports.'
     )
   ],
+  mosquitto: [
+    group(
+      'MQTT Broker',
+      [
+        envCheckbox('enableMosquitto', 'Enable MQTT broker', 'ENABLE_MOSQUITTO'),
+        envPath('mosquittoConfigRoot', 'Configuration Root', 'MOSQUITTO_CONFIG_ROOT'),
+        envText('mosquittoImage', 'Docker Image', 'MOSQUITTO_IMAGE'),
+        envText('mosquittoFrigateUsername', 'Frigate Client Username', 'MOSQUITTO_FRIGATE_USERNAME'),
+        envPassword('mosquittoFrigatePassword', 'Frigate Client Password', 'MOSQUITTO_FRIGATE_PASSWORD'),
+        envText('mosquittoHomeAssistantUsername', 'Home Assistant Client Username', 'MOSQUITTO_HOMEASSISTANT_USERNAME'),
+        envPassword(
+          'mosquittoHomeAssistantPassword',
+          'Home Assistant Client Password',
+          'MOSQUITTO_HOMEASSISTANT_PASSWORD'
+        )
+      ],
+      'MQTT has no host port. Stackarr generates separate authenticated Frigate and Home Assistant credentials during setup.'
+    )
+  ],
+  homeassistant: [
+    group(
+      'Home Assistant',
+      [
+        envCheckbox('enableHomeAssistant', 'Enable Home Assistant', 'ENABLE_HOMEASSISTANT'),
+        envText('homeAssistantUrl', 'Local URL', 'HOMEASSISTANT_URL'),
+        envText('homeAssistantBindIp', 'Bind IP', 'HOMEASSISTANT_BIND_IP'),
+        envNumber('homeAssistantPort', 'Web Port', 'HOMEASSISTANT_PORT'),
+        envPath('homeAssistantConfigRoot', 'Configuration Root', 'HOMEASSISTANT_CONFIG_ROOT'),
+        envText('homeAssistantImage', 'Docker Image', 'HOMEASSISTANT_IMAGE')
+      ],
+      'Bridge networking only. Manage LAN discovery and reverse-proxy configuration explicitly in Home Assistant.'
+    )
+  ],
+  frigate: [
+    group(
+      'Frigate',
+      [
+        envCheckbox('enableFrigate', 'Enable Frigate', 'ENABLE_FRIGATE'),
+        envText('frigateUrl', 'Local URL', 'FRIGATE_URL'),
+        envText('frigateBindIp', 'Bind IP', 'FRIGATE_BIND_IP'),
+        envNumber('frigatePort', 'Web Port', 'FRIGATE_PORT'),
+        envPath('frigateConfigRoot', 'Configuration Root', 'FRIGATE_CONFIG_ROOT'),
+        envPath('frigateMediaRoot', 'Recording Root', 'FRIGATE_MEDIA_ROOT'),
+        envText('frigateImage', 'Docker Image', 'FRIGATE_IMAGE')
+      ],
+      'Frigate requires managed MQTT. Its initial config has no cameras and disables object detection.'
+    )
+  ],
   agregarr: [
     group(
       'Plex Collections',

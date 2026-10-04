@@ -931,7 +931,7 @@ test('security credential apply leaves the Stackarr controller running', async (
   );
   assert.match(script, /sync_servarr_runtime_api_keys/);
   assert.match(
-    script,
+    script.replace(/security_stage "[^"]*" /g, ''),
     /stop_security_services\s+ensure_database_roles\s+recreate_security_services\s+sync_servarr_runtime_api_keys \|\| credential_sync_failed=true\s+write_compose_env_file/
   );
   assert.match(script, /stop "\$\{services\[@\]\}"/);
@@ -1008,6 +1008,14 @@ test('saved secret fields expose only a middle-truncated preview', async () => {
   assert.equal(safe.TRACEARR_CLAIM_CODE, 'a...c');
   assert.match(directory, /placeholder=\{savedPreview\}/);
   assert.doesNotMatch(directory, /placeholder=\{saved \? 'Saved'/);
+});
+
+test('settings password inputs keep saved masks out of editable values', async () => {
+  const settingsEditor = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SettingsEditor.tsx'), 'utf8');
+
+  assert.match(settingsEditor, /const editableValue = savedPreview \? '' : value;/);
+  assert.match(settingsEditor, /placeholder=\{savedPreview \|\| undefined\}/);
+  assert.match(settingsEditor, /value=\{editableValue\}/);
 });
 
 test('saving an unchanged secret preview preserves the original credential', async () => {

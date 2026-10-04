@@ -9,6 +9,10 @@ action="${1:-services}"
 
 print_header "Stackarr Update"
 load_env
+# A host calendar job may fire before the Docker socket exists at login.
+if [[ "${STACKARR_RUN_SOURCE:-}" == "scheduled" ]]; then
+    wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
+fi
 # Unlike startup, updates must not proceed until the current settings can be
 # read. A running process or generated Compose file may predate a rotation.
 if database_mode_is_postgres && ! load_postgres_runtime_config; then
@@ -49,7 +53,8 @@ finish_update_task() {
 }
 
 enabled_managed_services() {
-    local service
+    local service configured
+    configured="$(stackarr_compose "${profile_args[@]}" config --services)" || return 1
     while IFS= read -r service; do
         case "$service" in
             app|app-updater|database|database-init|image-cleanup)
@@ -58,10 +63,11 @@ enabled_managed_services() {
                 printf '%s\n' "$service"
                 ;;
         esac
-    done < <(stackarr_compose "${profile_args[@]}" config --services)
+    done <<< "$configured"
 }
 
 PULLED_MANAGED_SERVICES=()
+MANAGED_PULL_PARTIAL=false
 
 pull_managed_services() {
     local -a services=("$@")
@@ -103,17 +109,20 @@ pull_managed_services() {
         fail "Could not pull any managed service images"
     fi
     if [[ "${#PULLED_MANAGED_SERVICES[@]}" -lt "${#services[@]}" ]]; then
+        MANAGED_PULL_PARTIAL=true
         warn "Updating ${#PULLED_MANAGED_SERVICES[@]} of ${#services[@]} services whose image pulls succeeded"
     fi
 }
 
 update_managed_services() {
     local -a services=()
-    local service
+    local service service_list
+    local image_cleanup_failed=false
 
+    service_list="$(enabled_managed_services)" || fail "Unable to enumerate managed services; update cancelled"
     while IFS= read -r service; do
         [[ -n "$service" ]] && services+=("$service")
-    done < <(enabled_managed_services)
+    done <<< "$service_list"
 
     if [[ "${#services[@]}" -eq 0 ]]; then
         warn "No managed app services are enabled"
@@ -124,18 +133,28 @@ update_managed_services() {
     pull_managed_services "${services[@]}"
 
     "$ROOT_DIR/scripts/naming.sh" prestart || true
-    stackarr_compose "${profile_args[@]}" up -d --no-deps --remove-orphans "${PULLED_MANAGED_SERVICES[@]}"
+    # A scoped update must never prune services excluded by a stale profile
+    # snapshot (including the controller that owns this task).
+    stackarr_compose "${profile_args[@]}" up -d --no-deps "${PULLED_MANAGED_SERVICES[@]}"
     remove_database_init_sidecar
     remove_inactive_torrent_client_container
     if stackarr_compose --profile maintenance run --rm image-cleanup; then
         ok "Unused Docker images cleaned"
     else
-        warn "Unused Docker image cleanup failed; run 'docker image prune -a -f' manually if disk usage grows"
+        image_cleanup_failed=true
+        warn "Unused Docker image cleanup failed; the update will be reported as failed after reconciliation"
+        update_task_note "Unused Docker image cleanup failed"
     fi
     "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
     "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
     "$ROOT_DIR/scripts/requests.sh" apply --wait || true
 
+    if [[ "$MANAGED_PULL_PARTIAL" == true ]]; then
+        fail "Managed services partially updated: ${#PULLED_MANAGED_SERVICES[@]} of ${#services[@]} images pulled; failed services were left unchanged"
+    fi
+    if [[ "$image_cleanup_failed" == true ]]; then
+        fail "Managed services were updated, but unused Docker image cleanup failed"
+    fi
     ok "Managed services updated; the Stackarr controller was left running"
 }
 

@@ -156,6 +156,89 @@ test('Transmission queue and write operations call the expected RPC methods', as
   }
 });
 
+test('timed-out Transmission removal verifies absence by exact ID without repeating the write', async (t) => {
+  const { removeDownloadAction } = await core();
+  await writeRuntimeConfig({ TRANSMISSION_URL: 'http://127.0.0.1:1' });
+  const calls: { method: string; args: Record<string, unknown>; signal?: AbortSignal }[] = [];
+  const deadlines: number[] = [];
+  t.mock.method(AbortSignal, 'timeout', (milliseconds: number) => {
+    deadlines.push(milliseconds);
+    return deadlines.length === 1
+      ? AbortSignal.abort(new DOMException('Deadline exceeded', 'TimeoutError'))
+      : new AbortController().signal;
+  });
+  t.mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+    const payload = JSON.parse(String(init?.body));
+    calls.push({ method: payload.method, args: payload.arguments, signal: init?.signal ?? undefined });
+    if (payload.method === 'torrent-remove') throw new DOMException('Deadline exceeded', 'TimeoutError');
+    return new Response(JSON.stringify({ result: 'success', arguments: { torrents: [] } }));
+  });
+
+  const result = await removeDownloadAction({ downloader: 'transmission', id: '42', deleteData: false });
+  assert.equal(result.removed, true);
+  assert.equal(result.verifiedAfterTimeout, true);
+  assert.deepEqual(deadlines, [8_000, 5_000]);
+  assert.deepEqual(
+    calls.map(({ method, args }) => ({ method, args })),
+    [
+      { method: 'torrent-remove', args: { ids: [42], 'delete-local-data': false } },
+      { method: 'torrent-get', args: { ids: [42], fields: ['id', 'hashString'] } }
+    ]
+  );
+  assert.ok(calls.every((call) => call.signal));
+});
+
+test('timed-out Transmission removal remains uncertain when torrent is present or read-back fails', async (t) => {
+  const { removeDownloadAction } = await core();
+  await writeRuntimeConfig({ TRANSMISSION_URL: 'http://127.0.0.1:1' });
+  const methods: string[] = [];
+  let readback: 'present' | 'failure' | 'malformed' = 'present';
+  t.mock.method(AbortSignal, 'timeout', () =>
+    methods.length === 0
+      ? AbortSignal.abort(new DOMException('Deadline exceeded', 'TimeoutError'))
+      : new AbortController().signal
+  );
+  t.mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+    const payload = JSON.parse(String(init?.body));
+    methods.push(payload.method);
+    if (payload.method === 'torrent-remove') throw new DOMException('Deadline exceeded', 'TimeoutError');
+    assert.deepEqual(payload.arguments, { ids: ['exact-hash'], fields: ['id', 'hashString'] });
+    if (readback === 'failure') throw new Error('readback unavailable');
+    return new Response(
+      JSON.stringify(
+        readback === 'malformed'
+          ? { result: 'success' }
+          : { result: 'success', arguments: { torrents: [{ id: 17, hashString: 'exact-hash' }] } }
+      )
+    );
+  });
+
+  for (const scenario of ['present', 'failure', 'malformed'] as const) {
+    readback = scenario;
+    methods.length = 0;
+    await assert.rejects(
+      removeDownloadAction({ downloader: 'transmission', id: 'exact-hash', deleteData: false }),
+      /outcome is uncertain.*Do not retry removal automatically/
+    );
+    assert.deepEqual(methods, ['torrent-remove', 'torrent-get']);
+  }
+});
+
+test('explicit Transmission removal failure is not converted into a timeout or retried', async (t) => {
+  const { removeDownloadAction } = await core();
+  await writeRuntimeConfig({ TRANSMISSION_URL: 'http://127.0.0.1:1' });
+  const methods: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: string, init?: RequestInit) => {
+    methods.push(JSON.parse(String(init?.body)).method);
+    return new Response(JSON.stringify({ result: 'invalid argument' }));
+  });
+  await assert.rejects(
+    removeDownloadAction({ downloader: 'transmission', id: '42', deleteData: false }),
+    /Transmission RPC torrent-remove failed: invalid argument/
+  );
+  assert.deepEqual(methods, ['torrent-remove']);
+});
+
 test('qBittorrent add torrent URL logs in and posts form data', async () => {
   const calls: { url?: string; body?: string; cookie?: string }[] = [];
   const server = await startServer(async (request, response) => {

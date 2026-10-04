@@ -84,9 +84,7 @@ export function StorageOverview({ metrics }: { metrics: StackMetrics }) {
               <strong>{disk.label}</strong>
               <span>
                 {disk.usedPercent === null
-                  ? disk.mountPoint
-                    ? 'Mounted · Capacity unavailable'
-                    : 'Not mounted'
+                  ? 'Capacity unavailable · Verify host mount'
                   : `${formatBytes((disk.totalSpace ?? 0) - (disk.freeSpace ?? 0))} of ${formatBytes(
                       disk.totalSpace ?? 0
                     )} used · ${formatBytes(disk.freeSpace ?? 0)} available${

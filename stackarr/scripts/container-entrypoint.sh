@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Container-local marker shared by the server, MCP, CLI, and docker-exec readers.
+# Never derive restart time from a reader's own process uptime.
+export STACKARR_CONTROLLER_STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+printf '%s\n' "$STACKARR_CONTROLLER_STARTED_AT" > /tmp/stackarr-controller-started-at
 SCHEDULER_PID=""
 SERVER_PID=""
 MCP_HTTP_PID=""

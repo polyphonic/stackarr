@@ -26,3 +26,5 @@ stackarr/config/notifications.json
 **/*cloudflare*token*
 **/*tunnel*token*
 **/*api-token*
+# Reviewed source code, not credential data.
+!stackarr/scripts/cleanuparr-credentials.py

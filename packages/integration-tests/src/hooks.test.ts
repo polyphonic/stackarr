@@ -41,7 +41,7 @@ test('Transmission unsafe hook rejects torrent names with Windows separators', a
   );
 });
 
-test('Transmission hook routes unfinished torrents into their incomplete label folder', async () => {
+test('Transmission added callback never routes unfinished torrents', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-incomplete-'));
 
   try {
@@ -52,18 +52,15 @@ test('Transmission hook routes unfinished torrents into their incomplete label f
       downloadDir: '/downloads/complete/tv-sonarr'
     });
 
-    await execFile('sh', [transmissionHook], { env: fixture.env });
-
-    assert.equal(
-      await readFile(fixture.log, 'utf8'),
-      `127.0.0.1:9091 --auth stackarr:secret --torrent 42 --move ${path.join(root, 'downloads/incomplete/tv-sonarr')}\n`
-    );
+    await execFile('sh', [transmissionHook], { env: { ...fixture.env, TR_TORRENT_EVENT: 'added' } });
+    assert.equal(await readFile(fixture.log, 'utf8'), '');
+    await assert.rejects(access(path.join(root, 'downloads/incomplete/tv-sonarr')));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('Transmission hook routes finished torrents into their complete label folder', async () => {
+test('Transmission done callback never moves completed torrents', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-complete-'));
 
   try {
@@ -74,33 +71,84 @@ test('Transmission hook routes finished torrents into their complete label folde
       downloadDir: '/downloads/incomplete/radarr'
     });
 
-    await execFile('sh', [transmissionHook], { env: fixture.env });
-
-    assert.equal(
-      await readFile(fixture.log, 'utf8'),
-      `127.0.0.1:9091 --auth stackarr:secret --torrent 42 --move ${path.join(root, 'downloads/complete/radarr')}\n`
-    );
+    await execFile('sh', [transmissionHook], { env: { ...fixture.env, TR_TORRENT_EVENT: 'done' } });
+    assert.equal(await readFile(fixture.log, 'utf8'), '');
+    await assert.rejects(access(path.join(root, 'downloads/complete/radarr')));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('Transmission hook ignores unsafe labels when choosing a routing folder', async () => {
+test('Transmission callback does not infer a physical move from a different logical downloadDir', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-label-'));
 
   try {
     const fixture = await transmissionHookFixture(root, {
       id: 42,
       percentDone: 0.25,
-      labels: ['../outside'],
-      downloadDir: '/downloads/complete'
+      labels: ['radarr'],
+      downloadDir: '/downloads/complete/radarr'
     });
 
-    await execFile('sh', [transmissionHook], { env: fixture.env });
+    const staged = path.join(root, 'staged-physical', 'Safe release');
+    await mkdir(path.dirname(staged), { recursive: true });
+    await writeFile(staged, 'staged bytes');
+    await execFile('sh', [transmissionHook], { env: { ...fixture.env, TR_TORRENT_EVENT: 'added' } });
+    assert.equal(await readFile(fixture.log, 'utf8'), '');
+    assert.equal(await readFile(staged, 'utf8'), 'staged bytes');
+    await assert.rejects(access(path.join(root, 'downloads/incomplete/radarr')));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
+test('Transmission unsafe name removal is bounded and never deletes local data', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-unsafe-name-'));
+  try {
+    const fixture = await transmissionHookFixture(root, {
+      id: 42,
+      percentDone: 0,
+      labels: [],
+      downloadDir: '/downloads'
+    });
+    await assert.rejects(
+      execFile('sh', [transmissionHook], {
+        env: { ...fixture.env, TR_TORRENT_NAME: 'Bad\\Release', TR_TORRENT_EVENT: 'added' }
+      }),
+      (error: unknown) => (error as { code?: number }).code === 1
+    );
     assert.equal(
       await readFile(fixture.log, 'utf8'),
-      `127.0.0.1:9091 --auth stackarr:secret --torrent 42 --move ${path.join(root, 'downloads/incomplete')}\n`
+      'curl --max-time 5\ncurl --max-time 5 torrent-remove delete-local-data:false\n'
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Transmission unsafe payload is filtered without moving safe staged bytes', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-transmission-unsafe-payload-'));
+  try {
+    const fixture = await transmissionHookFixture(root, {
+      id: 42,
+      percentDone: 1,
+      labels: [],
+      downloadDir: '/downloads'
+    });
+    const release = path.join(root, 'Safe release');
+    await mkdir(release);
+    await writeFile(path.join(release, 'movie.mkv'), 'safe bytes');
+    await writeFile(path.join(release, 'malware.exe'), 'unsafe bytes');
+    await assert.rejects(
+      execFile('sh', [transmissionHook], {
+        env: { ...fixture.env, TR_TORRENT_EVENT: 'done' }
+      })
+    );
+    assert.equal(await readFile(path.join(release, 'movie.mkv'), 'utf8'), 'safe bytes');
+    await assert.rejects(access(path.join(release, 'malware.exe')));
+    assert.equal(
+      await readFile(fixture.log, 'utf8'),
+      'curl --max-time 5\ncurl --max-time 5 torrent-remove delete-local-data:false\n'
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -118,6 +166,14 @@ async function transmissionHookFixture(
   await writeFile(
     path.join(bin, 'curl'),
     `#!/bin/sh
+printf 'curl' >> "$STACKARR_TEST_TRANSMISSION_LOG"
+for arg do
+  case "$arg" in
+    --max-time|5) printf ' %s' "$arg" >> "$STACKARR_TEST_TRANSMISSION_LOG" ;;
+    *'"method":"torrent-remove"'*) printf ' torrent-remove delete-local-data:false' >> "$STACKARR_TEST_TRANSMISSION_LOG" ;;
+  esac
+done
+printf '\\n' >> "$STACKARR_TEST_TRANSMISSION_LOG"
 case " $* " in
   *" -D - "*) printf 'HTTP/1.1 409 Conflict\\nX-Transmission-Session-Id: test-session\\n' ;;
   *) printf '%s' "$STACKARR_TEST_TORRENT_JSON" ;;

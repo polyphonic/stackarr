@@ -36,6 +36,7 @@ import {
   getDownloadQueueAction,
   getEnabledMcpServiceNames,
   getEpisodeDownloadProvenanceAction,
+  getHealthReportAction,
   getIndexerStatusAction,
   getLidarrLibraryStatusAction,
   getMcpConnectionKit,
@@ -292,7 +293,7 @@ const tools: ToolDef[] = [
       plexInstallMode: z.enum(['disabled', 'existing', 'docker']).optional(),
       plexToken: z.string().optional(),
       jellyfinInstallMode: z.enum(['disabled', 'existing', 'docker']).optional(),
-      enabledMediaTypes: z.array(z.enum(['movies', 'tv', 'music', 'books', 'photos', 'games'])).optional(),
+      enabledMediaTypes: z.array(z.enum(['movies', 'tv', 'music', 'books', 'photos', 'games', 'home'])).optional(),
       requestManagers: z.array(z.enum(['seerr', 'pulsarr'])).optional(),
       enabledServices: z
         .array(
@@ -310,6 +311,9 @@ const tools: ToolDef[] = [
             'flaresolverr',
             'tidarr',
             'maintainerr',
+            'homeassistant',
+            'frigate',
+            'mosquitto',
             'tracearr'
           ])
         )
@@ -329,6 +333,9 @@ const tools: ToolDef[] = [
       enableTidarr: z.boolean().optional(),
       enableTdarr: z.boolean().optional(),
       enableMaintainerr: z.boolean().optional(),
+      enableHomeAssistant: z.boolean().optional(),
+      enableFrigate: z.boolean().optional(),
+      enableMosquitto: z.boolean().optional(),
       enableTracearr: z.boolean().optional(),
       maintainerrCleanupPresets: z.array(z.enum(['watched-movies', 'abandoned-shows', 'stale-requests'])).optional(),
       movieProfilePreset: z.enum(['lite', 'balanced']).optional(),
@@ -1468,6 +1475,13 @@ const tools: ToolDef[] = [
     description: 'Test Plex identity.',
     shape: empty,
     handler: testPlexIdentityAction
+  },
+  {
+    name: 'stackarr_get_health_report',
+    description:
+      'Read live application, task, downloader, container, and backup reliability findings; host Portless is unsupported in-container.',
+    shape: empty,
+    handler: getHealthReportAction
   },
   {
     name: 'stackarr_get_common_issues',

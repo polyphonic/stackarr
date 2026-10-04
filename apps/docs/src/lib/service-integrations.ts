@@ -253,6 +253,21 @@ const serviceIntegrationDefinitions = [
       'Stackarr can run Cleanuparr privately, connect the selected torrent client and enabled Arr apps, install a media-safe executable blocklist, surface its service link, and include its durable configuration in backups.'
   },
   {
+    slug: 'home-security',
+    name: 'Home Assistant and Frigate',
+    logo: 'homeassistant',
+    category: 'Home automation',
+    role: 'Private automation, cameras, and MQTT',
+    hero: 'Home Assistant and Frigate combine local automation with private camera recording and events.',
+    whatItDoes: [
+      'Runs an authenticated MQTT broker shared only by Home Assistant and Frigate.',
+      'Keeps Home Assistant and Frigate web interfaces on loopback-only ports by default.',
+      'Starts Frigate with no cameras or active object detection so camera hardware remains an explicit user choice.'
+    ],
+    stackarr:
+      'Stackarr manages all three services as optional Compose profiles, private generated MQTT client credentials, dashboard cards, settings, and Portless aliases without exposing MQTT, RTSP, ONVIF, go2rtc, or Cloudflare routes.'
+  },
+  {
     slug: 'agregarr',
     name: 'Agregarr',
     logo: 'agregarr',

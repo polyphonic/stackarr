@@ -1,6 +1,7 @@
 import { readEnv, readJsonPreset, readSettings, redactEnv } from '@stackarr/core';
 import { notFound, redirect } from 'next/navigation';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
+import { CloudflareSyncPanel } from '../../../components/CloudflareSyncPanel';
 import { SettingsEditor } from '../../../components/SettingsEditor';
 import { SubNav } from '../../../components/SubNav';
 import { Panel, Table } from '../../../components/ui';
@@ -91,7 +92,23 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
         )}
         {section === 'connect' && (
           <Panel title="Cloudflare and Public Access">
-            <SettingsEditor section={section} env={safeEnv} settings={settings} />
+            <CloudflareSyncPanel />
+            <SettingsEditor
+              key={[
+                Boolean(env.CLOUDFLARE_API_TOKEN),
+                env.CLOUDFLARE_ACCOUNT_ID,
+                env.CLOUDFLARE_ZONE_ID,
+                env.CLOUDFLARED_TUNNEL_NAME,
+                env.CLOUDFLARED_TUNNEL_ID,
+                env.CLOUDFLARE_TUNNEL_ROUTES,
+                env.CLOUDFLARE_ACCESS_ENABLED,
+                env.CLOUDFLARE_ACCESS_ALLOWED_EMAILS,
+                env.CLOUDFLARE_ACCESS_SESSION_DURATION
+              ].join(':')}
+              section={section}
+              env={safeEnv}
+              settings={settings}
+            />
             <p>
               Only explicit Stackarr integrations are shown here: API sync, config writes, webhook events, and public
               URL publishing.
