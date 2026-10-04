@@ -1,0 +1,27 @@
+---
+title: Home Assistant, Frigate, and MQTT
+---
+
+Stackarr can run Home Assistant, Frigate, and an internal Mosquitto broker as optional private services. They stay in the same Compose project and dashboard service directory.
+
+- Home Assistant binds only to `127.0.0.1:8123` and receives the Portless alias `https://home.stack` after `stackarr portless apply`.
+- Frigate binds only to `127.0.0.1:8971` and receives `https://frigate.stack`.
+- Mosquitto has no host port. Stackarr generates different private MQTT credentials for Frigate and Home Assistant during setup.
+- No Cloudflare route, RTSP, ONVIF, go2rtc, MQTT, or Frigate internal API port is exposed by default.
+
+Frigate uses the current 0.18 schema with `cameras: {}`, `detectors: {}`, detection disabled, three days of continuous retention, and seven days of motion retention. Add cameras and any deliberately selected hardware acceleration in Frigate after it is running.
+
+## Home Assistant proxy configuration
+
+Home Assistant 2026.9 migrates HTTP configuration from YAML into `.storage/http`. A YAML `http:` block is only a migration source and can be automatically reverted unless the pending HTTP configuration is explicitly promoted. If you add a proxy, configure it through the supported Home Assistant websocket API (`http/config/configure`), verify it, then promote it with `http/config/promote`. Do not rely on YAML alone after migration.
+
+The direct loopback UI works without a proxy. Portless is a reverse proxy: configure its exact Docker-side source address and explicitly promote the verified HTTP configuration before using the Home Assistant alias.
+
+## Enable
+
+Select **Home Assistant** and/or **Frigate** during setup, or set their service toggles in Settings. Enabling Frigate automatically enables the MQTT dependency. Then apply only the selected services:
+
+```bash
+stackarr service apply mosquitto homeassistant frigate
+stackarr portless apply
+```

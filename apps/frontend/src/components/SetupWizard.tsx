@@ -75,6 +75,8 @@ type SetupState = {
   enableTdarr: boolean;
   enableMaintainerr: boolean;
   enableCleanuparr: boolean;
+  enableHomeAssistant: boolean;
+  enableFrigate: boolean;
   enableAgregarr: boolean;
   enableTracearr: boolean;
   maintainerrCleanupPresets: string[];
@@ -135,6 +137,8 @@ const defaults: SetupState = {
   enableTdarr: false,
   enableMaintainerr: false,
   enableCleanuparr: false,
+  enableHomeAssistant: false,
+  enableFrigate: false,
   enableAgregarr: false,
   enableTracearr: false,
   maintainerrCleanupPresets: [],
@@ -263,6 +267,9 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ENABLE_TDARR: String(state.enableTdarr),
       ENABLE_MAINTAINERR: String(effectiveEnableMaintainerr),
       ENABLE_CLEANUPARR: String(effectiveEnableCleanuparr),
+      ENABLE_HOMEASSISTANT: String(state.enableHomeAssistant),
+      ENABLE_FRIGATE: String(state.enableFrigate),
+      ENABLE_MOSQUITTO: String(state.enableHomeAssistant || state.enableFrigate),
       ENABLE_AGREGARR: String(effectiveEnableAgregarr),
       ENABLE_TRACEARR: String(effectiveEnableTracearr),
       MAINTAINERR_BIND_IP: '127.0.0.1',
@@ -481,6 +488,8 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       ],
       ['Maintainerr', effectiveEnableMaintainerr ? 'Enabled without cleanup rules' : 'Disabled'],
       ['Cleanuparr', effectiveEnableCleanuparr ? 'Enabled with Stackarr media-malware blocklist' : 'Disabled'],
+      ['Home Assistant', state.enableHomeAssistant ? 'Enabled' : 'Disabled'],
+      ['Frigate', state.enableFrigate ? 'Enabled, detection off' : 'Disabled'],
       [
         'Agregarr',
         effectiveEnableAgregarr ? 'Enabled; Plex, Arr apps, and Coming Soon configured automatically' : 'Disabled'
@@ -1291,6 +1300,18 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               label="Tracearr Monitoring"
               description="Real-time Plex, Jellyfin, and Emby monitoring. Stackarr starts it and wires the selected server when credentials are available."
               onChange={(value) => update('enableTracearr', value)}
+            />
+            <ServiceChoice
+              checked={state.enableHomeAssistant}
+              label="Home Assistant"
+              description="Private home automation dashboard with an internal MQTT broker."
+              onChange={(value) => update('enableHomeAssistant', value)}
+            />
+            <ServiceChoice
+              checked={state.enableFrigate}
+              label="Frigate"
+              description="Private camera recording. Starts without cameras and with object detection disabled."
+              onChange={(value) => update('enableFrigate', value)}
             />
             {state.enableMaintainerr && (
               <div className={styles.cleanupPresetChoices}>

@@ -72,6 +72,9 @@ export type StackarrSettings = {
     enableTdarr: boolean;
     enableMaintainerr: boolean;
     enableCleanuparr: boolean;
+    enableMosquitto: boolean;
+    enableHomeAssistant: boolean;
+    enableFrigate: boolean;
     enableAgregarr: boolean;
     enableTracearr: boolean;
   };
@@ -165,6 +168,9 @@ export const defaultSettings: StackarrSettings = {
     enableTdarr: false,
     enableMaintainerr: false,
     enableCleanuparr: false,
+    enableMosquitto: false,
+    enableHomeAssistant: false,
+    enableFrigate: false,
     enableAgregarr: false,
     enableTracearr: false
   },
@@ -267,6 +273,9 @@ function settingsFromEnv(env: StackarrEnv): StackarrSettingsPatch {
       enableTdarr: envFlag(env.ENABLE_TDARR, defaultSettings.services.enableTdarr),
       enableMaintainerr: envFlag(env.ENABLE_MAINTAINERR, defaultSettings.services.enableMaintainerr),
       enableCleanuparr: envFlag(env.ENABLE_CLEANUPARR, defaultSettings.services.enableCleanuparr),
+      enableMosquitto: envFlag(env.ENABLE_MOSQUITTO, defaultSettings.services.enableMosquitto),
+      enableHomeAssistant: envFlag(env.ENABLE_HOMEASSISTANT, defaultSettings.services.enableHomeAssistant),
+      enableFrigate: envFlag(env.ENABLE_FRIGATE, defaultSettings.services.enableFrigate),
       enableAgregarr: envFlag(env.ENABLE_AGREGARR, defaultSettings.services.enableAgregarr),
       enableTracearr: envFlag(env.ENABLE_TRACEARR, defaultSettings.services.enableTracearr)
     },

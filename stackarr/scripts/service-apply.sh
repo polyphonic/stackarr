@@ -43,7 +43,7 @@ runtime_service_enabled() {
 
 validate_runtime_service() {
     case "$1" in
-        app|database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|tdarr|maintainerr|cleanuparr|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
+        app|database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|tdarr|maintainerr|cleanuparr|mosquitto|homeassistant|frigate|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
             return 0
             ;;
         *)
@@ -133,6 +133,13 @@ apply_service_runtime() {
                 ensure_dir "$YOUTARR_JOBS_ROOT"
                 ensure_dir "$YOUTARR_IMAGES_ROOT"
                 stackarr_compose "${profile_args[@]}" up -d --wait youtarr-db
+                ;;
+            homeassistant|frigate)
+                ensure_dir "$MOSQUITTO_CONFIG_ROOT"
+                ensure_dir "$HOMEASSISTANT_CONFIG_ROOT"
+                ensure_dir "$FRIGATE_CONFIG_ROOT"
+                ensure_dir "$FRIGATE_MEDIA_ROOT"
+                stackarr_compose "${profile_args[@]}" up -d --wait mosquitto
                 ;;
         esac
 

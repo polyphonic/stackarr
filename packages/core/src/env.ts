@@ -90,6 +90,9 @@ export const managedEnvDefaults: StackarrEnv = {
   TDARR_MEDIA_ROOT: '',
   ENABLE_MAINTAINERR: 'false',
   ENABLE_CLEANUPARR: 'false',
+  ENABLE_MOSQUITTO: 'false',
+  ENABLE_HOMEASSISTANT: 'false',
+  ENABLE_FRIGATE: 'false',
   ENABLE_AGREGARR: 'false',
   ENABLE_TRACEARR: 'false',
   ENABLE_BACKUP: 'true',
@@ -162,6 +165,23 @@ export const managedEnvDefaults: StackarrEnv = {
   CLEANUPARR_POSTGRES_DATABASE: 'cleanuparr',
   CLEANUPARR_POSTGRES_USER: 'cleanuparr',
   CLEANUPARR_POSTGRES_PASSWORD: '',
+  MOSQUITTO_IMAGE: 'eclipse-mosquitto:2',
+  MOSQUITTO_CONFIG_ROOT: `${defaultConfigRoot}/mosquitto`,
+  MOSQUITTO_FRIGATE_USERNAME: 'frigate',
+  MOSQUITTO_FRIGATE_PASSWORD: '',
+  MOSQUITTO_HOMEASSISTANT_USERNAME: 'homeassistant',
+  MOSQUITTO_HOMEASSISTANT_PASSWORD: '',
+  HOMEASSISTANT_IMAGE: 'ghcr.io/home-assistant/home-assistant:stable',
+  HOMEASSISTANT_BIND_IP: '127.0.0.1',
+  HOMEASSISTANT_PORT: '8123',
+  HOMEASSISTANT_URL: 'http://127.0.0.1:8123',
+  HOMEASSISTANT_CONFIG_ROOT: `${defaultConfigRoot}/homeassistant`,
+  FRIGATE_IMAGE: 'ghcr.io/blakeblackshear/frigate:0.18.0',
+  FRIGATE_BIND_IP: '127.0.0.1',
+  FRIGATE_PORT: '8971',
+  FRIGATE_URL: 'http://127.0.0.1:8971',
+  FRIGATE_CONFIG_ROOT: `${defaultConfigRoot}/frigate`,
+  FRIGATE_MEDIA_ROOT: `${defaultAppRoot}/media/Frigate`,
   AGREGARR_BIND_IP: '127.0.0.1',
   AGREGARR_PORT: '7171',
   AGREGARR_URL: 'http://127.0.0.1:7171',
@@ -529,6 +549,12 @@ export function readEnv(): StackarrEnv {
 
 export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
   const merged = mergeEditableEnv(readEnv(), next);
+  if (merged.ENABLE_FRIGATE === 'true' || merged.ENABLE_HOMEASSISTANT === 'true') merged.ENABLE_MOSQUITTO = 'true';
+  if (merged.ENABLE_MOSQUITTO === 'true') {
+    for (const key of ['MOSQUITTO_FRIGATE_PASSWORD', 'MOSQUITTO_HOMEASSISTANT_PASSWORD']) {
+      if (!merged[key]) merged[key] = nodeCrypto.randomBytes(24).toString('hex');
+    }
+  }
   writeJsonSetting(runtimeConfigKey, merged);
   return merged;
 }

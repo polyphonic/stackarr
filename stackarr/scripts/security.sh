@@ -31,6 +31,7 @@ run_security_task_logger() {
 
 update_security_task_note() {
     local message="$1"
+    [[ -n "${STACKARR_UPDATE_TASK_ID:-}" ]] || return 0
     run_security_task_logger append "$STACKARR_UPDATE_TASK_ID" "$message"$'\n'
 }
 
@@ -532,6 +533,20 @@ sync_servarr_runtime_api_keys() {
     [[ "$failed" == "false" ]]
 }
 
+security_stage() {
+    SECURITY_CURRENT_STAGE="$1"
+    shift
+    if [[ -n "${STACKARR_UPDATE_TASK_ID:-}" ]]; then
+        update_security_task_note "$SECURITY_CURRENT_STAGE" || true
+    fi
+    "$@"
+    local stage_exit_code=$?
+    if [[ "$stage_exit_code" -ne 0 && -n "${STACKARR_UPDATE_TASK_ID:-}" ]]; then
+        update_security_task_note "Stage failed: $SECURITY_CURRENT_STAGE (exit $stage_exit_code)" || true
+    fi
+    return "$stage_exit_code"
+}
+
 apply_security() {
     local credential_sync_failed=false
 
@@ -543,21 +558,21 @@ apply_security() {
     write_compose_env_file
     ensure_docker_runtime
 
-    stop_security_services
-    ensure_database_roles
-    recreate_security_services
+    security_stage "Stopping credential-dependent services" stop_security_services
+    security_stage "Reconciling database credentials" ensure_database_roles
+    security_stage "Starting credential-dependent services" recreate_security_services
     sync_servarr_runtime_api_keys || credential_sync_failed=true
     write_compose_env_file
-    sync_pulsarr_admin_identity || credential_sync_failed=true
-    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
-    apply_servarr_auth || true
+    security_stage "Updating Pulsarr account" sync_pulsarr_admin_identity || credential_sync_failed=true
+    security_stage "Reconciling downloader connections" "$ROOT_DIR/scripts/downloads.sh" apply --wait || credential_sync_failed=true
+    security_stage "Updating Arr accounts" apply_servarr_auth || credential_sync_failed=true
     CONFIG_ROOT="$CONFIG_ROOT" PROWLARR_URL="$PROWLARR_URL" \
         node "$ROOT_DIR/scripts/reconcile-prowlarr-applications.cjs" || credential_sync_failed=true
-    configure_bazarr_auth || true
+    security_stage "Updating Bazarr account" configure_bazarr_auth || credential_sync_failed=true
     "$ROOT_DIR/scripts/bookorbit.sh" credentials apply --wait || true
 
     if optional_service_enabled cleanuparr; then
-        python3 "$ROOT_DIR/scripts/cleanuparr-credentials.py" || credential_sync_failed=true
+        security_stage "Updating Cleanuparr account" python3 "$ROOT_DIR/scripts/cleanuparr-credentials.py" || credential_sync_failed=true
         CLEANUPARR_URL="http://cleanuparr:${CLEANUPARR_PORT:-11011}" \
             python3 "$ROOT_DIR/scripts/cleanuparr-configure.py" || credential_sync_failed=true
     fi
@@ -598,7 +613,7 @@ apply_security_worker() {
         local exit_code="$?"
         if [[ "$worker_task_finished" != true && -n "${STACKARR_UPDATE_TASK_ID:-}" ]]; then
             set +e
-            update_security_task_note "Security apply stopped before verification completed"
+            update_security_task_note "Security apply failed. Last stage reached: ${SECURITY_CURRENT_STAGE:-initialization}. Check earlier stage failures. Existing successful stages remain applied."
             finish_security_task failed "${exit_code:-1}"
         fi
     }

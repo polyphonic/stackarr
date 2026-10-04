@@ -68,6 +68,18 @@ const transmissionFields = [
   'errorString'
 ];
 
+// Leave room inside the MCP's 35-second deadline for a separate, read-only
+// confirmation request. Never retry a timed-out destructive RPC.
+const transmissionRemoveTimeoutMs = 8_000;
+const transmissionRemoveReadbackTimeoutMs = 5_000;
+
+class TransmissionRpcTimeoutError extends Error {
+  constructor(method: string) {
+    super(`Transmission RPC ${method} timed out.`);
+    this.name = 'TransmissionRpcTimeoutError';
+  }
+}
+
 export async function getTransmissionSessionStatus() {
   const response = await transmissionRpc<{ version?: string; 'rpc-version'?: number }>('session-get');
   return {
@@ -134,10 +146,42 @@ export async function removeDownloadAction(input: {
   requireDeleteDataConfirmation(input);
   const downloader = client(input);
   if (downloader === 'transmission') {
-    await transmissionRpc('torrent-remove', {
-      ids: [transmissionId(input.id)],
-      'delete-local-data': Boolean(input.deleteData)
-    });
+    const id = transmissionId(input.id);
+    try {
+      await transmissionRpc(
+        'torrent-remove',
+        { ids: [id], 'delete-local-data': Boolean(input.deleteData) },
+        transmissionRemoveTimeoutMs
+      );
+    } catch (error) {
+      if (!(error instanceof TransmissionRpcTimeoutError)) throw error;
+
+      // A timed-out write may already have taken effect. Query only the exact
+      // torrent ID/hash; an incomplete or failed read cannot prove removal.
+      try {
+        const response = await transmissionRpc<{ torrents: Pick<TransmissionTorrent, 'id' | 'hashString'>[] }>(
+          'torrent-get',
+          { ids: [id], fields: ['id', 'hashString'] },
+          transmissionRemoveReadbackTimeoutMs
+        );
+        if (!Array.isArray(response.arguments?.torrents)) throw new Error('Missing torrents in read-back.');
+        if (response.arguments.torrents.length === 0) {
+          return {
+            downloader,
+            accepted: true,
+            id: input.id,
+            deleteData: Boolean(input.deleteData),
+            removed: true,
+            verifiedAfterTimeout: true
+          };
+        }
+      } catch {
+        // A read-back error (including its own deadline) leaves the write uncertain.
+      }
+      throw new Error(
+        `Transmission removal for ${input.id} timed out; outcome is uncertain. Do not retry removal automatically; check the exact torrent before taking further action.`
+      );
+    }
   } else {
     await qbittorrentPost('torrents/delete', { hashes: input.id, deleteFiles: Boolean(input.deleteData) });
   }
@@ -217,30 +261,39 @@ async function getQbittorrentTorrents(): Promise<DownloadItem[]> {
 
 async function transmissionRpc<T = unknown>(
   method: string,
-  args: Record<string, unknown> = {}
+  args: Record<string, unknown> = {},
+  timeoutMs = 8_000
 ): Promise<TransmissionRpcResponse<T>> {
   const url = transmissionRpcUrl();
   const headers = transmissionHeaders();
   const body = JSON.stringify({ method, arguments: args });
-  let response = await fetch(url, { method: 'POST', headers, body });
+  // One deadline covers the 409 session negotiation, retry, and response body.
+  const signal = AbortSignal.timeout(timeoutMs);
+  try {
+    let response = await fetch(url, { method: 'POST', headers, body, signal });
 
-  if (response.status === 409) {
-    const sessionId = response.headers.get('x-transmission-session-id');
-    if (!sessionId)
-      throw new Error('Transmission requested a session retry without providing X-Transmission-Session-Id.');
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { ...headers, 'x-transmission-session-id': sessionId },
-      body
-    });
-  }
+    if (response.status === 409) {
+      const sessionId = response.headers.get('x-transmission-session-id');
+      if (!sessionId)
+        throw new Error('Transmission requested a session retry without providing X-Transmission-Session-Id.');
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { ...headers, 'x-transmission-session-id': sessionId },
+        body,
+        signal
+      });
+    }
 
-  const text = await response.text();
-  const data = text ? (JSON.parse(text) as TransmissionRpcResponse<T>) : { result: 'empty response' };
-  if (!response.ok || data.result !== 'success') {
-    throw new Error(`Transmission RPC ${method} failed: ${data.result || `HTTP ${response.status}`}`);
+    const text = await response.text();
+    const data = text ? (JSON.parse(text) as TransmissionRpcResponse<T>) : { result: 'empty response' };
+    if (!response.ok || data.result !== 'success') {
+      throw new Error(`Transmission RPC ${method} failed: ${data.result || `HTTP ${response.status}`}`);
+    }
+    return data;
+  } catch (error) {
+    if (signal?.aborted) throw new TransmissionRpcTimeoutError(method);
+    throw error;
   }
-  return data;
 }
 
 function transmissionHeaders() {

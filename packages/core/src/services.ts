@@ -142,6 +142,18 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
     displayName: 'Cleanuparr',
     description: 'Download queue cleaner and malware-like file blocker for Arr-managed media.'
   },
+  mosquitto: {
+    displayName: 'MQTT',
+    description: 'Private MQTT broker shared by Home Assistant and Frigate.'
+  },
+  homeassistant: {
+    displayName: 'Home Assistant',
+    description: 'Local home automation dashboard and integration hub.'
+  },
+  frigate: {
+    displayName: 'Frigate',
+    description: 'Private camera recording and event service for Home Assistant.'
+  },
   agregarr: {
     displayName: 'Agregarr',
     description:
@@ -244,6 +256,7 @@ export function getServices(): ServiceSummary[] {
     flag(env.ENABLE_IMMICH, false) || flag(env.ENABLE_ROMM, false) || flag(env.ENABLE_TRACEARR, false)
       ? 'docker'
       : 'disabled';
+  const homeSecurityEnabled = flag(env.ENABLE_HOMEASSISTANT, false) || flag(env.ENABLE_FRIGATE, false);
 
   return [
     service('stackarr', 'stack', 'docker', Number(env.STACKARR_WEB_PORT ?? 7777), settings, {
@@ -409,6 +422,46 @@ export function getServices(): ServiceSummary[] {
         notes: [
           'Stackarr connects the active torrent client and Arr instances, then enables a media-safe executable/script blocklist on a five-second schedule.',
           'Cleanuparr is loopback-only by default and stores only its own configuration under the Stackarr app root.'
+        ]
+      }
+    ),
+    service(
+      'mosquitto',
+      'support',
+      optionalMode(homeSecurityEnabled ? 'true' : env.ENABLE_MOSQUITTO),
+      undefined,
+      settings,
+      {
+        localUrl: undefined,
+        browserUrl: undefined,
+        experience: 'infrastructure',
+        notes: ['Authenticated MQTT broker used only on the internal Compose network by Home Assistant and Frigate.']
+      }
+    ),
+    service(
+      'homeassistant',
+      'support',
+      optionalMode(env.ENABLE_HOMEASSISTANT),
+      Number(env.HOMEASSISTANT_PORT ?? 8123),
+      settings,
+      {
+        configPath: env.HOMEASSISTANT_CONFIG_ROOT,
+        notes: [
+          'Runs in bridge networking with a loopback-only UI. LAN discovery, host networking, and device passthrough are opt-in manual extensions.'
+        ]
+      }
+    ),
+    service(
+      'frigate',
+      'media',
+      dependentMode(env.ENABLE_FRIGATE, flag(env.ENABLE_MOSQUITTO, false)),
+      Number(env.FRIGATE_PORT ?? 8971),
+      settings,
+      {
+        configPath: env.FRIGATE_MEDIA_ROOT,
+        requirement: requirement(flag(env.ENABLE_MOSQUITTO, false), 'Frigate needs the managed MQTT broker.'),
+        notes: [
+          'Starts without cameras or detectors enabled. Add cameras and optional hardware acceleration in Frigate after setup.'
         ]
       }
     ),
@@ -627,6 +680,7 @@ export function serviceNameFromRouteSlug(slug: string) {
     .replace(/^-+|-+$/g, '');
   const aliases: Record<string, string> = {
     app: 'stackarr',
+    home: 'homeassistant',
     tinymm: 'tinymediamanager',
     radarr4k: 'radarr4k',
     sonarr4k: 'sonarr4k',
@@ -656,6 +710,10 @@ function browserPath(name: string) {
 }
 
 function hostnameLabel(name: string) {
+  if (name === 'homeassistant') {
+    return 'home';
+  }
+
   if (name === 'stackarr') {
     return 'app';
   }

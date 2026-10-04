@@ -1,0 +1,86 @@
+.editor {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.label {
+  padding-top: 11px;
+  color: var(--mutedTextColor);
+}
+
+.control {
+  display: grid;
+  gap: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 28px;
+}
+
+.chips :global(.chip) {
+  max-width: 100%;
+}
+
+.chips :global(.chip__label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chips :global(.close-button) {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.addRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.addRow input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 12px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+
+.addRow input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.addRow input:disabled {
+  opacity: 0.62;
+}
+
+.control small {
+  color: var(--mutedTextColor);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.control small.success {
+  color: var(--success);
+}
+
+@media (max-width: 760px) {
+  .editor,
+  .addRow {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .label {
+    padding-top: 0;
+  }
+}

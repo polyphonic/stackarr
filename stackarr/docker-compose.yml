@@ -4,11 +4,115 @@ services:
   image-cleanup:
     profiles:
       - maintenance
-    image: docker:29-cli
+    image: python:3.12-alpine
     command:
-      - sh
-      - -lc
-      - docker image prune -a -f >/dev/null
+      - python3
+      - -c
+      - |
+        import http.client
+        import json
+        import socket
+        from urllib.parse import quote
+
+        class DockerConnection(http.client.HTTPConnection):
+            def connect(self):
+                self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.sock.settimeout(self.timeout)
+                self.sock.connect('/var/run/docker.sock')
+
+        def api(method, path):
+            connection = DockerConnection('localhost', timeout=120)
+            try:
+                connection.request(method, path)
+                response = connection.getresponse()
+                data = response.read()
+                return response.status, json.loads(data) if data else None
+            finally:
+                connection.close()
+
+        def required_get(path):
+            status, value = api('GET', path)
+            if status != 200:
+                raise RuntimeError(f'Docker GET {path} failed (HTTP {status})')
+            return value
+
+        def referenced_ids():
+            # ImageID is the immutable image identity; Image is often a tag.
+            containers = required_get('/containers/json?all=1')
+            if any(not container.get('ImageID') for container in containers):
+                raise RuntimeError('Container without ImageID; refusing image cleanup')
+            return {container['ImageID'] for container in containers}
+
+        def inspect(image_id):
+            status, image = api('GET', '/images/' + quote(image_id, safe='') + '/json')
+            if status == 404:
+                return None
+            if status != 200:
+                raise RuntimeError(f'Docker image inspect failed (HTTP {status})')
+            return image
+
+        def remove(reference):
+            status, result = api('DELETE', '/images/' + quote(reference, safe=''))
+            if status not in (200, 404, 409):
+                raise RuntimeError(f'Docker image deletion failed (HTTP {status})')
+            return status, result
+
+        images = required_get('/images/json?all=1')
+        initial_refs = referenced_ids()
+        seen = set()
+        for summary in images:
+            image_id = summary['Id']
+            if image_id in seen or image_id in initial_refs:
+                continue
+            seen.add(image_id)
+            original = inspect(image_id)
+            if original is None:
+                continue
+            expected_tags = set(original.get('RepoTags') or []) - {'<none>:<none>'}
+            if image_id in referenced_ids():
+                continue
+            current = inspect(image_id)
+            if current is None or current.get('Id') != image_id or set(current.get('RepoTags') or []) - {'<none>:<none>'} != expected_tags:
+                continue
+            status, result = remove(image_id)
+            deleted_by_us = any(item.get('Deleted') == image_id for item in result or []) if status == 200 else False
+            if status == 409:
+                # Docker refuses non-forced ID deletion for multi-tag images.
+                # Remove only the tags observed on this exact unused image.
+                if image_id in referenced_ids():
+                    continue
+                if not expected_tags:
+                    raise RuntimeError(f'Unused image deletion conflicted: {image_id}')
+                for tag in sorted(expected_tags):
+                    if image_id in referenced_ids():
+                        break
+                    current = inspect(image_id)
+                    if current is None:
+                        break
+                    current_tags = set(current.get('RepoTags') or []) - {'<none>:<none>'}
+                    if current.get('Id') != image_id or current_tags != expected_tags:
+                        break
+                    tag_status, tag_result = remove(tag)
+                    if tag_status == 409:
+                        if image_id in referenced_ids():
+                            break
+                        raise RuntimeError(f'Unused image tag deletion conflicted: {tag}')
+                    if tag_status == 404:
+                        break
+                    expected_tags.remove(tag)
+                    deleted_by_us |= any(item.get('Deleted') == image_id for item in tag_result or [])
+                if image_id not in referenced_ids():
+                    current = inspect(image_id)
+                    if current is not None and current.get('Id') == image_id and not expected_tags and not (set(current.get('RepoTags') or []) - {'<none>:<none>'}):
+                        status, result = remove(image_id)
+                        deleted_by_us |= any(item.get('Deleted') == image_id for item in result or []) if status == 200 else False
+                        if status == 409 and image_id not in referenced_ids():
+                            raise RuntimeError(f'Unused image deletion conflicted: {image_id}')
+            if deleted_by_us and inspect(image_id) is None:
+                print('Deleted image:', image_id)
+        # The image DELETE endpoint has no byte count. Do not invent one from
+        # virtual image sizes (layers may be shared with retained images).
+        print('Reclaimed bytes: unavailable (Docker image DELETE API does not report bytes)')
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     restart: "no"
@@ -43,6 +147,8 @@ services:
       - "${CONFIG_ROOT:-./.stackarr/config}:${CONFIG_ROOT:-/stackarr-host-config}"
       - "${STATE_ROOT:-./.stackarr/state}:${STATE_ROOT:-/stackarr-runtime-state}"
       - "${LOG_ROOT:-./.stackarr/logs}:${LOG_ROOT:-/stackarr-logs}"
+      # Security Apply reconciles downloader directories from the maintenance worker.
+      - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:${DOWNLOADS_ROOT:-/stackarr-downloads}"
     restart: "no"
 
   database:
@@ -536,8 +642,151 @@ services:
       database:
         condition: service_healthy
         required: false
+    healthcheck:
+      # A login challenge proves liveness, not credential correctness.
+      test: ["CMD-SHELL", "code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:11011/api/health); test \"$$code\" = 200 || test \"$$code\" = 401"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     security_opt:
       - no-new-privileges:true
+
+  mosquitto:
+    profiles: ['mosquitto', 'homeassistant', 'frigate']
+    container_name: mosquitto
+    image: ${MOSQUITTO_IMAGE:-eclipse-mosquitto:2}
+    mem_limit: 64m
+    cpus: 0.25
+    networks:
+      default:
+        aliases: [mqtt]
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log
+        if [ ! -s /mosquitto/config/passwd ]; then
+          test -n "$${MOSQUITTO_FRIGATE_PASSWORD}" && test -n "$${MOSQUITTO_HOMEASSISTANT_PASSWORD}"
+          mosquitto_passwd -b -c /mosquitto/config/passwd "$${MOSQUITTO_FRIGATE_USERNAME}" "$${MOSQUITTO_FRIGATE_PASSWORD}"
+          mosquitto_passwd -b /mosquitto/config/passwd "$${MOSQUITTO_HOMEASSISTANT_USERNAME}" "$${MOSQUITTO_HOMEASSISTANT_PASSWORD}"
+          chmod 0600 /mosquitto/config/passwd
+        fi
+        chown -R mosquitto:mosquitto /mosquitto
+        if [ ! -s /mosquitto/config/mosquitto.conf ]; then
+        cat > /mosquitto/config/mosquitto.conf <<'EOF'
+        listener 1883
+        allow_anonymous false
+        password_file /mosquitto/config/passwd
+        persistence true
+        persistence_location /mosquitto/data/
+        log_dest stdout
+        EOF
+        fi
+        exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
+    environment:
+      MOSQUITTO_FRIGATE_USERNAME: ${MOSQUITTO_FRIGATE_USERNAME:-frigate}
+      MOSQUITTO_FRIGATE_PASSWORD: ${MOSQUITTO_FRIGATE_PASSWORD:-}
+      MOSQUITTO_HOMEASSISTANT_USERNAME: ${MOSQUITTO_HOMEASSISTANT_USERNAME:-homeassistant}
+      MOSQUITTO_HOMEASSISTANT_PASSWORD: ${MOSQUITTO_HOMEASSISTANT_PASSWORD:-}
+    volumes:
+      - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/config:/mosquitto/config"
+      - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/data:/mosquitto/data"
+      - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/log:/mosquitto/log"
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$MOSQUITTO_HOMEASSISTANT_USERNAME\" -P \"$$MOSQUITTO_HOMEASSISTANT_PASSWORD\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null"]
+      interval: 15s
+      timeout: 8s
+      retries: 5
+    restart: unless-stopped
+
+  homeassistant:
+    profiles: ['homeassistant']
+    container_name: homeassistant
+    image: ${HOMEASSISTANT_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}
+    mem_limit: 1g
+    cpus: 1.5
+    environment:
+      TZ: ${TIMEZONE:-Etc/UTC}
+    volumes:
+      - "${HOMEASSISTANT_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/homeassistant}:/config"
+    ports:
+      - "${HOMEASSISTANT_BIND_IP:-127.0.0.1}:${HOMEASSISTANT_PORT:-8123}:8123"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/', timeout=5)\""]
+      interval: 30s
+      timeout: 8s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+
+  frigate:
+    profiles: ['frigate']
+    container_name: frigate
+    image: ${FRIGATE_IMAGE:-ghcr.io/blakeblackshear/frigate:0.18.0}
+    shm_size: 128mb
+    mem_limit: 1536m
+    cpus: 2
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        if [ ! -s /config/config.yml ]; then
+          cat > /config/config.yml <<'EOF'
+        tls:
+          enabled: false
+        auth:
+          enabled: true
+        mqtt:
+          host: mosquitto
+          port: 1883
+          user: '{FRIGATE_MQTT_USER}'
+          password: '{FRIGATE_MQTT_PASSWORD}'
+        detectors: {}
+        detect:
+          enabled: false
+        record:
+          enabled: true
+          continuous:
+            days: 3
+          motion:
+            days: 7
+        cameras: {}
+        EOF
+        fi
+        exec /init
+    environment:
+      TZ: ${TIMEZONE:-Etc/UTC}
+      FRIGATE_MQTT_USER: ${MOSQUITTO_FRIGATE_USERNAME:-frigate}
+      FRIGATE_MQTT_PASSWORD: ${MOSQUITTO_FRIGATE_PASSWORD:-}
+    env_file:
+      - path: "${FRIGATE_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/frigate}/frigate.env"
+        required: false
+    volumes:
+      - "${FRIGATE_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/frigate}:/config"
+      - "${FRIGATE_MEDIA_ROOT:-${APP_ROOT:-./.stackarr}/media/Frigate}:/media/frigate"
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 268435456
+    ports:
+      - "${FRIGATE_BIND_IP:-127.0.0.1}:${FRIGATE_PORT:-8971}:8971"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5000/api/version >/dev/null"]
+      interval: 30s
+      timeout: 8s
+      retries: 10
+      start_period: 90s
+    stop_grace_period: 30s
+    restart: unless-stopped
 
   agregarr:
     profiles:

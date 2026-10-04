@@ -10,7 +10,14 @@ export async function GET(request: NextRequest) {
   }
 
   const env = readEnv();
-  const roots = [env.MEDIA_ROOT, env.MUSIC_ROOT, env.DOWNLOADS_ROOT, env.BACKUP_ROOT].filter(Boolean) as string[];
+  const roots = [
+    env.MEDIA_ROOT,
+    env.MUSIC_ROOT,
+    env.DOWNLOADS_ROOT,
+    env.BACKUP_ROOT,
+    env.CONFIG_ROOT,
+    env.STATE_ROOT
+  ].filter(Boolean) as string[];
 
   return json(getStackMetrics(roots).disks);
 }

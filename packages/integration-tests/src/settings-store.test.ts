@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const stackarrDbScript = path.join(repoRoot, 'stackarr/scripts/stackarr-db.cjs');
 const commonScript = path.join(repoRoot, 'stackarr/lib/common.sh');
+const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
 
 test('default database resolver uses the packaged data directory when present', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-settings-store-test-'));
@@ -170,6 +171,40 @@ test('runtime config reads do not promote SQLite bootstrap rows into Postgres', 
   }
 });
 
+test('runtime config reads fail closed when Postgres becomes unavailable', async () => {
+  const fixture = await createFakePostgresFixture('stackarr.runtimeConfig', undefined, { failSettingRead: true });
+
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+          const { readEnv } = await import('./packages/core/src/env.ts');
+          try {
+            readEnv();
+            console.log('returned defaults');
+          } catch {
+            console.log('failed closed');
+          }
+        `
+      ],
+      { cwd: repoRoot, env: process.env }
+    );
+    const log = await readFile(fixture.psqlLog, 'utf8');
+
+    assert.equal(stdout.trim(), 'failed closed');
+    assert.match(log, /select value from app_settings where key = 'stackarr\.runtimeConfig'/);
+    assert.doesNotMatch(log, /insert into app_settings/);
+  } finally {
+    fixture.restoreEnv();
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 function writeSqliteSetting(databaseFile: string, key: string, value: string) {
   const db = new DatabaseSync(databaseFile);
   try {
@@ -196,7 +231,11 @@ function readSqliteSetting(databaseFile: string, key: string) {
   }
 }
 
-async function createFakePostgresFixture(settingKey: string, postgresValue?: unknown) {
+async function createFakePostgresFixture(
+  settingKey: string,
+  postgresValue?: unknown,
+  options: { failSettingRead?: boolean } = {}
+) {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-settings-store-test-'));
   const binDir = path.join(root, 'bin');
   const psqlLog = path.join(root, 'psql.log');
@@ -212,6 +251,9 @@ async function createFakePostgresFixture(settingKey: string, postgresValue?: unk
 const fs = require('node:fs');
 const input = fs.readFileSync(0, 'utf8');
 fs.appendFileSync(process.env.FAKE_PSQL_LOG, input + '\\n---\\n');
+if (${JSON.stringify(options.failSettingRead === true)} && input.includes("select value from app_settings where key = '${settingKey.replace(/'/g, "''")}'")) {
+  process.exit(2);
+}
 if (${JSON.stringify(hasPostgresValue)} && input.includes("select value from app_settings where key = '${settingKey.replace(/'/g, "''")}'")) {
   process.stdout.write(${JSON.stringify(JSON.stringify(postgresValue))});
 }

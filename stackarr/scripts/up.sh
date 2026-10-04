@@ -30,6 +30,12 @@ if start_existing_database_for_runtime_config && load_postgres_runtime_config_th
     write_compose_env_file
 fi
 
+# An installed PostgreSQL stack must never reconcile from bootstrap flags if
+# the authoritative settings cannot be read during a controller restart.
+if database_mode_is_postgres && docker inspect database >/dev/null 2>&1; then
+    load_postgres_runtime_config || fail "Unable to load authoritative PostgreSQL runtime settings; startup cancelled"
+    write_compose_env_file
+fi
 ensure_database_if_required
 
 # The controller may have been unavailable while load_env ran. Once the

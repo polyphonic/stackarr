@@ -141,18 +141,12 @@ stop_active_backup_children() {
 task_ensure_dir() {
     local label="$1"
     local target="$2"
-    local error_file message
-
-    error_file="$(mktemp)"
-    if mkdir -p "$target" 2>"$error_file"; then
-        rm -f "$error_file"
+    if mkdir -p "$target"; then
         return 0
     fi
 
-    message="$(cat "$error_file" 2>/dev/null || true)"
-    rm -f "$error_file"
-    backup_task_append "$(date '+%Y-%m-%d %H:%M:%S') could not access $label: $message"
-    fail "Could not access $label: $message"
+    backup_task_append "$(date '+%Y-%m-%d %H:%M:%S') could not access $label"
+    fail "Could not access $label: $target"
 }
 
 backup_task_start
@@ -168,6 +162,38 @@ if [[ "$(lowercase "${ENABLE_BACKUP:-true}")" =~ ^(0|false|no|off|disabled)$ ]];
     exit 0
 fi
 
+backup_device() {
+    stat -c %d "$1" 2>/dev/null || stat -f %d "$1"
+}
+
+verify_external_backup_mount() {
+    local root="$1" volumes_root="${2:-/Volumes}" volume remainder volume_device parent_device root_device
+    case "$root" in
+        "$volumes_root"/*) ;;
+        *) return 0 ;;
+    esac
+
+    # The container bind device alone cannot attest that the host still has
+    # this volume mounted. Require a new host mount-table response for each run.
+    if [[ "$(uname -s)" != Darwin ]]; then
+        [[ -d "$root" && "$(realpath "$root")" == "$root" ]] ||
+            fail "External backup root is missing or not canonical: $root"
+        "$ROOT_DIR/scripts/backup-mount-bridge.sh" verify "$STATE_ROOT" "$root" ||
+            fail "External backup root requires fresh host mount verification: $root"
+        return 0
+    fi
+
+    remainder="${root#"$volumes_root"/}"
+    volume="$volumes_root/${remainder%%/*}"
+    [[ -d "$volume" && -d "$root" ]] || fail "External backup volume is unavailable: $volume"
+    parent_device="$(backup_device "$volumes_root")" || fail "Cannot inspect external backup volume parent"
+    volume_device="$(backup_device "$volume")" || fail "Cannot inspect external backup volume"
+    root_device="$(backup_device "$root")" || fail "Cannot inspect external backup root"
+    [[ -n "$volume_device" && "$volume_device" != "$parent_device" && "$root_device" == "$volume_device" ]] ||
+        fail "External backup volume is not mounted on the host: $volume"
+}
+
+verify_external_backup_mount "$BACKUP_ROOT"
 task_ensure_dir "backup root" "$BACKUP_ROOT"
 task_ensure_dir "log root" "$LOG_ROOT"
 
@@ -177,9 +203,14 @@ fi
 
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
 task_ensure_dir "backup staging root" "$BACKUP_STAGING_ROOT"
+[[ "$(backup_device "$BACKUP_STAGING_ROOT")" == "$(backup_device "$BACKUP_ROOT")" ]] ||
+    fail "Backup staging and archive roots must be on the same filesystem"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 TMP_DIR="$(mktemp -d "$BACKUP_STAGING_ROOT/stackarr-backup.XXXXXX")"
+# Keep command diagnostics, retention lists, and child-process temporary files
+# on the same backup filesystem as copies, snapshots, dumps, and the archive.
+export TMPDIR="$TMP_DIR"
 BACKUP_NAME="stackarr-backup-$STAMP"
 STAGING="$TMP_DIR/$BACKUP_NAME"
 LOG_FILE="$LOG_ROOT/backup.log"
@@ -366,19 +397,46 @@ with_progress_heartbeat() {
     return "$status"
 }
 
+is_sqlite_database() {
+    local database_file="$1"
+
+    [[ -f "$database_file" ]] || return 1
+    head -c 16 "$database_file" | cmp -s - <(printf 'SQLite format 3\000')
+}
+
+# A SQLite busy timeout only bounds lock waits, not repeated backup restarts.
+# Bound the complete operation as well, including integrity checks.
+bounded_sqlite() {
+    node - "$@" <<'NODE'
+const { spawnSync } = require('node:child_process');
+const result = spawnSync('sqlite3', process.argv.slice(2), {
+    encoding: 'utf8', timeout: 300000, killSignal: 'SIGKILL', maxBuffer: 16 * 1024 * 1024
+});
+if (result.stdout) process.stdout.write(result.stdout);
+if (result.stderr) process.stderr.write(result.stderr);
+if (result.error) {
+    console.error(result.error.code === 'ETIMEDOUT' ? 'SQLite snapshot/check exceeded five-minute limit' : 'SQLite snapshot/check could not run');
+    process.exit(result.error.code === 'ETIMEDOUT' ? 124 : 1);
+}
+process.exit(result.status ?? 1);
+NODE
+}
+
 snapshot_db() {
     local src="$1"
     local dst="$2"
     if command -v sqlite3 >/dev/null 2>&1; then
         local error_file quick_check
         error_file="$(mktemp)"
-        if sqlite3 "$src" ".timeout 5000" ".backup '$dst'" >/dev/null 2>"$error_file"; then
-            if quick_check="$(sqlite3 "$dst" ".timeout 5000" "PRAGMA quick_check;" 2>>"$error_file")" && [[ "$quick_check" == "ok" ]]; then
+        # Pin a read transaction before .backup so changes to a live source do
+        # not continually restart the copy. Never modify the source database.
+        if bounded_sqlite -readonly "$src" ".bail on" ".timeout 5000" "BEGIN; SELECT count(*) FROM sqlite_master;" ".backup '$dst'" "ROLLBACK;" >/dev/null 2>"$error_file"; then
+            if quick_check="$(bounded_sqlite -readonly "$dst" ".timeout 5000" "PRAGMA quick_check;" 2>>"$error_file")" && [[ "$quick_check" == "ok" ]]; then
                 rm -f "$error_file"
                 rm -f "${dst}-wal" "${dst}-shm" "${dst}-journal"
                 return 0
             fi
-            if grep -Eq 'unknown tokenizer|no such collation sequence' "$error_file" && sqlite3 "$dst" ".timeout 5000" "SELECT count(*) FROM sqlite_master;" >/dev/null 2>>"$error_file"; then
+            if grep -Eq 'unknown tokenizer|no such collation sequence' "$error_file" && bounded_sqlite -readonly "$dst" ".timeout 5000" "SELECT count(*) FROM sqlite_master;" >/dev/null 2>>"$error_file"; then
                 warn "SQLite quick_check skipped for extension-backed database: $src"
                 rm -f "$error_file"
                 rm -f "${dst}-wal" "${dst}-shm" "${dst}-journal"
@@ -736,15 +794,17 @@ allowed = [
     re.compile(r"^rsync warning: some files vanished before they could be transferred"),
 ]
 
+saw_transient = False
 for line in error_file.read_text(errors="replace").splitlines():
     stripped = line.strip()
     if not stripped:
         continue
     if any(pattern.search(stripped) for pattern in allowed):
+        saw_transient = True
         continue
     raise SystemExit(1)
 
-raise SystemExit(0)
+raise SystemExit(0 if saw_transient else 1)
 PY
 }
 
@@ -752,16 +812,41 @@ rsync_copy_tree() {
     local src="$1"
     local dst="$2"
     shift 2
-    local error_file code
+    local error_file code attempt
 
     error_file="$(mktemp)"
-    if rsync -a "$@" "$src" "$dst" 2>"$error_file"; then
-        rm -f "$error_file"
-        return 0
-    fi
+    for attempt in 1 2 3; do
+        if [[ -n "${PLEX_CONFIG_PATH:-}" && "$src" == "$PLEX_CONFIG_PATH/" ]]; then
+            # Bound the Docker-to-macOS Plex bind read rate. This avoids a
+            # burst of thumbnail reads overwhelming the virtual filesystem.
+            if rsync -a --bwlimit=65536 "$@" "$src" "$dst" 2>"$error_file"; then
+                rm -f "$error_file"
+                return 0
+            else
+                code=$?
+            fi
+        elif rsync -a "$@" "$src" "$dst" 2>"$error_file"; then
+            rm -f "$error_file"
+            return 0
+        else
+            code=$?
+        fi
 
-    code=$?
-    if [[ "$code" =~ ^(23|24)$ ]] && rsync_errors_are_transient "$error_file"; then
+        # macOS Docker bind reads can fail intermittently with ENOMEM/EMFILE.
+        # Reconcile the entire tree rather than accepting a partial transfer:
+        # rsync resumes already-copied files, but every critical file must be
+        # readable on a clean final pass before the archive is created.
+        if [[ "$code" -eq 23 && "$attempt" -lt 3 ]]; then
+            warn "Backup copy partially failed under $src; retrying ($attempt/3)"
+            sleep "$attempt"
+            continue
+        fi
+        break
+    done
+
+    # Code 23 means a partial transfer, not merely vanished files. Only code
+    # 24 with exclusively known transient diagnostics may be tolerated.
+    if [[ "$code" -eq 24 ]] && rsync_errors_are_transient "$error_file"; then
         warn "Backup copy skipped transient files under $src"
         rm -f "$error_file"
         return 0
@@ -832,6 +917,9 @@ snapshot_tree_dbs() {
             continue
         fi
         if non_sqlite_snapshot_path "$rel"; then
+            continue
+        fi
+        if ! is_sqlite_database "$db"; then
             continue
         fi
 

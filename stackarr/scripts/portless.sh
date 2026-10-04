@@ -224,6 +224,14 @@ register_aliases() {
         register cleanuparr "${CLEANUPARR_PORT:-11011}"
     fi
 
+    if truthy "${ENABLE_HOMEASSISTANT:-false}"; then
+        register home "${HOMEASSISTANT_PORT:-8123}"
+    fi
+
+    if truthy "${ENABLE_FRIGATE:-false}"; then
+        register frigate "${FRIGATE_PORT:-8971}"
+    fi
+
     if truthy "${ENABLE_AGREGARR:-false}"; then
         register agregarr "${AGREGARR_PORT:-7171}"
     fi
@@ -290,6 +298,8 @@ const stackarrAliases = new Set([
   'tdarr',
   'maintainerr',
   'cleanuparr',
+  'home',
+  'frigate',
   'agregarr',
   'tracearr',
   'plex',

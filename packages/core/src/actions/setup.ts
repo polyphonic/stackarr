@@ -40,7 +40,7 @@ export type MediaServerSetupInput = {
   plexInstallMode?: InstallMode;
   plexToken?: string;
   jellyfinInstallMode?: InstallMode;
-  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>;
+  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games' | 'home'>;
   requestManagers?: Array<'seerr' | 'pulsarr'>;
   enabledServices?: Array<
     | 'bazarr'
@@ -57,6 +57,9 @@ export type MediaServerSetupInput = {
     | 'tdarr'
     | 'maintainerr'
     | 'cleanuparr'
+    | 'mosquitto'
+    | 'homeassistant'
+    | 'frigate'
     | 'agregarr'
     | 'tracearr'
   >;
@@ -77,6 +80,9 @@ export type MediaServerSetupInput = {
   enableTdarr?: boolean;
   enableMaintainerr?: boolean;
   enableCleanuparr?: boolean;
+  enableMosquitto?: boolean;
+  enableHomeAssistant?: boolean;
+  enableFrigate?: boolean;
   enableAgregarr?: boolean;
   enableTracearr?: boolean;
   maintainerrCleanupPresets?: MaintainerrCleanupPreset[];
@@ -125,7 +131,7 @@ type ResolvedMediaServerSetupInput = Required<
   Omit<MediaServerSetupInput, 'confirmSetup' | 'dryRun' | 'enabledMediaTypes' | 'requestManagers' | 'enabledServices'>
 > & {
   namingScheme: string;
-  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>;
+  enabledMediaTypes?: Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games' | 'home'>;
   requestManagers?: Array<'seerr' | 'pulsarr'>;
   enabledServices?: Array<
     | 'bazarr'
@@ -142,6 +148,9 @@ type ResolvedMediaServerSetupInput = Required<
     | 'tdarr'
     | 'maintainerr'
     | 'cleanuparr'
+    | 'mosquitto'
+    | 'homeassistant'
+    | 'frigate'
     | 'agregarr'
     | 'tracearr'
   >;
@@ -161,7 +170,9 @@ export const opinionatedSetupDefaults = {
   plexInstallMode: 'docker' as InstallMode,
   plexToken: '',
   jellyfinInstallMode: 'disabled' as InstallMode,
-  enabledMediaTypes: ['movies', 'tv', 'music'] as Array<'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games'>,
+  enabledMediaTypes: ['movies', 'tv', 'music'] as Array<
+    'movies' | 'tv' | 'music' | 'books' | 'photos' | 'games' | 'home'
+  >,
   enableMovies: true,
   enableTvShows: true,
   enable4kServarr: false,
@@ -179,6 +190,9 @@ export const opinionatedSetupDefaults = {
   enableTdarr: false,
   enableMaintainerr: false,
   enableCleanuparr: false,
+  enableMosquitto: false,
+  enableHomeAssistant: false,
+  enableFrigate: false,
   enableAgregarr: false,
   enableTracearr: false,
   maintainerrCleanupPresets: [] as MaintainerrCleanupPreset[],
@@ -320,7 +334,7 @@ export function getMediaServerSetupProfileAction() {
         id: 'enabledMediaTypes',
         prompt: 'Which libraries should Stackarr set up?',
         type: 'multi-choice',
-        choices: ['movies', 'tv', 'music', 'books', 'photos', 'games'],
+        choices: ['movies', 'tv', 'music', 'books', 'photos', 'games', 'home'],
         default: ['movies', 'tv', 'music']
       },
       {
@@ -368,6 +382,9 @@ export function getMediaServerSetupProfileAction() {
           'youtarr',
           'maintainerr',
           'cleanuparr',
+          'mosquitto',
+          'homeassistant',
+          'frigate',
           'agregarr',
           'tracearr'
         ],
@@ -485,7 +502,9 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableLidarr: input.enabledMediaTypes.includes('music'),
         enableBookOrbit: input.enabledMediaTypes.includes('books'),
         enableImmich: input.enabledMediaTypes.includes('photos'),
-        enableRomm: input.enabledMediaTypes.includes('games')
+        enableRomm: input.enabledMediaTypes.includes('games'),
+        enableHomeAssistant: input.enabledMediaTypes.includes('home'),
+        enableMosquitto: input.enabledMediaTypes.includes('home')
       }
     : {};
   const requestManagerPatch = input.requestManagers
@@ -510,6 +529,12 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
         enableTdarr: input.enabledServices.includes('tdarr'),
         enableMaintainerr: input.enabledServices.includes('maintainerr'),
         enableCleanuparr: input.enabledServices.includes('cleanuparr'),
+        enableHomeAssistant: input.enabledServices.includes('homeassistant'),
+        enableFrigate: input.enabledServices.includes('frigate'),
+        enableMosquitto:
+          input.enabledServices.includes('mosquitto') ||
+          input.enabledServices.includes('homeassistant') ||
+          input.enabledServices.includes('frigate'),
         enableAgregarr: input.enabledServices.includes('agregarr'),
         enableTracearr: input.enabledServices.includes('tracearr')
       }
@@ -776,6 +801,15 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     ENABLE_TDARR: String(input.enableTdarr),
     ENABLE_MAINTAINERR: String(input.enableMaintainerr),
     ENABLE_CLEANUPARR: String(input.enableCleanuparr),
+    ENABLE_MOSQUITTO: String(input.enableMosquitto || input.enableHomeAssistant || input.enableFrigate),
+    ENABLE_HOMEASSISTANT: String(input.enableHomeAssistant),
+    ENABLE_FRIGATE: String(input.enableFrigate),
+    HOMEASSISTANT_BIND_IP: '127.0.0.1',
+    HOMEASSISTANT_PORT: '8123',
+    HOMEASSISTANT_URL: 'http://127.0.0.1:8123',
+    FRIGATE_BIND_IP: '127.0.0.1',
+    FRIGATE_PORT: '8971',
+    FRIGATE_URL: 'http://127.0.0.1:8971',
     ENABLE_AGREGARR: String(input.enableAgregarr),
     ENABLE_TRACEARR: String(input.enableTracearr),
     MAINTAINERR_BIND_IP: '127.0.0.1',
@@ -1051,6 +1085,12 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
   if (input.enableBookOrbit) {
     if (!env.BOOKORBIT_JWT_SECRET) env.BOOKORBIT_JWT_SECRET = nodeCrypto.randomBytes(32).toString('hex');
     if (!env.BOOKORBIT_SETUP_TOKEN) env.BOOKORBIT_SETUP_TOKEN = accountPassword;
+  }
+
+  if (input.enableMosquitto || input.enableHomeAssistant || input.enableFrigate) {
+    if (!env.MOSQUITTO_FRIGATE_PASSWORD) env.MOSQUITTO_FRIGATE_PASSWORD = nodeCrypto.randomBytes(24).toString('hex');
+    if (!env.MOSQUITTO_HOMEASSISTANT_PASSWORD)
+      env.MOSQUITTO_HOMEASSISTANT_PASSWORD = nodeCrypto.randomBytes(24).toString('hex');
   }
 
   return env;
