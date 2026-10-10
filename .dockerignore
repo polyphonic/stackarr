@@ -28,3 +28,4 @@ stackarr/config/notifications.json
 **/*api-token*
 # Reviewed source code, not credential data.
 !stackarr/scripts/cleanuparr-credentials.py
+!stackarr/scripts/homeassistant-configure.cjs

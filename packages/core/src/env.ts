@@ -175,6 +175,7 @@ export const managedEnvDefaults: StackarrEnv = {
   HOMEASSISTANT_BIND_IP: '127.0.0.1',
   HOMEASSISTANT_PORT: '8123',
   HOMEASSISTANT_URL: 'http://127.0.0.1:8123',
+  HOMEASSISTANT_TOKEN: '',
   HOMEASSISTANT_CONFIG_ROOT: `${defaultConfigRoot}/homeassistant`,
   FRIGATE_IMAGE: 'ghcr.io/blakeblackshear/frigate:0.18.0',
   FRIGATE_BIND_IP: '127.0.0.1',

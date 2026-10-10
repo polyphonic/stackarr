@@ -24,4 +24,19 @@ test('dashboard app health route stays protected and renders grouped issues afte
   assert.match(settingsEditor, /Disk Warning Threshold %/);
   assert.match(dashboardPage, /diskWarningThresholdPercent=\{settings\.ui\.diskWarningThresholdPercent\}/);
   assert.match(dashboard, /usedPercent \?\? 0\) >= diskWarningThresholdPercent/);
+  const attention = summary.slice(summary.indexOf('const visibleChecks'), summary.indexOf('const hasHealthNotices'));
+  assert.match(attention, /check\.status === 'issues'/);
+  assert.match(attention, /check\.status === 'unavailable'/);
+  assert.match(attention, /check\.issues\.length > 0/);
+  assert.doesNotMatch(attention, /check\.status === 'unsupported'/);
+  assert.match(summary, /Health-check coverage/);
+  assert.match(summary, /Reachable; authentication not verified/);
+  // Share one request; coverage must be outside the actionable panel.
+  assert.equal(dashboard.match(/useAppHealthSummary\(\)/g)?.length, 1);
+  const attentionPanel = dashboard.slice(
+    dashboard.indexOf('title="Needs Attention"'),
+    dashboard.indexOf('title="Active Work"')
+  );
+  assert.doesNotMatch(attentionPanel, /<HealthCheckCoverage/);
+  assert.match(dashboard, /<HealthCheckCoverage summary=\{health\.summary\}/);
 });

@@ -776,12 +776,13 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       [
         envCheckbox('enableHomeAssistant', 'Enable Home Assistant', 'ENABLE_HOMEASSISTANT'),
         envText('homeAssistantUrl', 'Local URL', 'HOMEASSISTANT_URL'),
+        envPassword('homeAssistantToken', 'Health Access Token', 'HOMEASSISTANT_TOKEN'),
         envText('homeAssistantBindIp', 'Bind IP', 'HOMEASSISTANT_BIND_IP'),
         envNumber('homeAssistantPort', 'Web Port', 'HOMEASSISTANT_PORT'),
         envPath('homeAssistantConfigRoot', 'Configuration Root', 'HOMEASSISTANT_CONFIG_ROOT'),
         envText('homeAssistantImage', 'Docker Image', 'HOMEASSISTANT_IMAGE')
       ],
-      'Bridge networking only. Manage LAN discovery and reverse-proxy configuration explicitly in Home Assistant.'
+      'Health checks use a reusable Home Assistant token. Stackarr creates one during configuration when local password login is available; otherwise finish onboarding/MFA and add a token manually. Tokens inherit the issuing user’s privileges and are not read-only. Bridge networking only; manage LAN discovery and reverse-proxy configuration explicitly in Home Assistant.'
     )
   ],
   frigate: [

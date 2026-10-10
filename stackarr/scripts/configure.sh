@@ -22,6 +22,13 @@ esac
 load_env
 ensure_docker_runtime
 ensure_dir "$STATE_ROOT"
+# This stays ahead of configure.done so onboarding can be completed later without
+# forcing unrelated Arr/Seerr configuration. A missing HA login is a manual gate.
+if optional_service_enabled homeassistant; then
+    HOMEASSISTANT_URL="$(service_url homeassistant "$HOMEASSISTANT_URL" "${HOMEASSISTANT_PORT:-8123}")" \
+        STACKARR_DATABASE_FILE="$(default_stackarr_database_file)" \
+        node "$ROOT_DIR/scripts/homeassistant-configure.cjs" || warn "Home Assistant health token is not configured; finish HA onboarding/MFA or enter a token in service settings, then re-run configure"
+fi
 DONE_FILE="$STATE_ROOT/configure.done"
 TORRENT_ARCHIVE_HOOK_SOURCE="$ROOT_DIR/scripts/hooks/archive-torrent.sh"
 TORRENT_ARCHIVE_HOOK_DEST="$CONFIG_ROOT/hooks/archive-torrent.sh"

@@ -52,6 +52,25 @@ export async function getServiceStatusAction({ service }: { service: string }) {
     // JSON scalar while retaining strict JSON behavior for all other probes.
     endpoint = `${baseUrl}/api/heartbeat`;
     options = { ...options, allowTextResponse: true };
+  } else {
+    // Keep existing native status payloads above, but never interpret an HTML
+    // homepage as a JSON API. Share the dashboard's scoped, sanitized probes.
+    // Lazy loading avoids the health module's diagnostic-alias import cycle.
+    const { checkAppHealth } = await import('./health');
+    const check = await checkAppHealth(service, summary.displayName);
+    return {
+      ...summary,
+      baseUrl,
+      reachable: check.availability === 'reachable' || check.status === 'healthy' || check.status === 'issues',
+      healthy: check.status === 'healthy',
+      healthStatus: check.status,
+      scope: check.scope,
+      authentication: check.authentication,
+      availability: check.availability,
+      unsupported: check.status === 'unsupported',
+      issues: check.issues,
+      ...(check.issues.length ? { error: check.issues.map((issue) => issue.message).join('; ') } : {})
+    };
   }
   try {
     const response = await requestJson(endpoint, options);
