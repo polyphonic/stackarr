@@ -359,6 +359,41 @@ test('Service credentials fall back to authoritative local Arr and Plex configur
   }
 });
 
+test('Linux controller reads a mounted binary Plex plist without persisting the token', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-plex-binary-'));
+  const preferencesPath = path.join(root, 'preferences.plist');
+  try {
+    await execFile('python3', [
+      '-c',
+      'import plistlib,sys; plistlib.dump({"PlexOnlineToken":"fixture-binary-plex"},open(sys.argv[1],"wb"),fmt=plistlib.FMT_BINARY)',
+      preferencesPath
+    ]);
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        tsxLoader,
+        '--input-type=module',
+        '-e',
+        `
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      const { writeEnvConfig, readEnv } = await import('./packages/core/src/env.ts');
+      const { serviceApiKey } = await import('./packages/core/src/clients/serviceConfig.ts');
+      writeEnvConfig({ PLEX_PREFS_PATH: ${JSON.stringify(preferencesPath)}, PLEX_TOKEN: '' });
+      console.log(JSON.stringify({ matched: serviceApiKey('plex') === 'fixture-binary-plex', persisted: Boolean(readEnv().PLEX_TOKEN) }));
+    `
+      ],
+      {
+        cwd: repoRoot,
+        env: { ...process.env, STACKARR_DATABASE_URL: '', STACKARR_DATABASE_FILE: path.join(root, 'state.db') }
+      }
+    );
+    assert.deepEqual(JSON.parse(stdout), { matched: true, persisted: false });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('Prowlarr application reconciliation repairs stale local Arr API keys', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-prowlarr-credentials-test-'));
   const configRoot = path.join(root, 'config');

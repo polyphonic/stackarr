@@ -150,6 +150,11 @@ apply_service_runtime() {
 
         stackarr_compose "${profile_args[@]}" up -d --wait --wait-timeout 180 --force-recreate --no-deps "$service"
         if [[ "$service" == tdarr ]]; then "$ROOT_DIR/scripts/tdarr.sh" configure; fi
+        if [[ "$service" == homeassistant ]]; then
+            HOMEASSISTANT_URL="$(service_url homeassistant "$HOMEASSISTANT_URL" "${HOMEASSISTANT_PORT:-8123}")" \
+                STACKARR_DATABASE_FILE="$(default_stackarr_database_file)" \
+                node "$ROOT_DIR/scripts/homeassistant-configure.cjs" || warn "Home Assistant health token is not configured; finish HA onboarding/MFA or enter a token in service settings, then re-apply homeassistant"
+        fi
         ok "$service container settings applied"
     done
 }

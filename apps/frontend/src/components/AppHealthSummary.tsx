@@ -8,15 +8,7 @@ import { stackarrFetch } from './clientApi';
 import { ServiceLogo } from './ServiceLogo';
 import { Badge } from './ui';
 
-export function AppHealthSummary({
-  children,
-  emptyState,
-  hasOtherIssues
-}: {
-  children: ReactNode;
-  emptyState: ReactNode;
-  hasOtherIssues: boolean;
-}) {
+export function useAppHealthSummary() {
   const [summary, setSummary] = useState<AppHealthSummaryData | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -37,10 +29,26 @@ export function AppHealthSummary({
     return () => controller.abort();
   }, []);
 
+  return { summary, loadFailed };
+}
+
+export function AppHealthSummary({
+  children,
+  emptyState,
+  hasOtherIssues,
+  summary,
+  loadFailed
+}: {
+  children: ReactNode;
+  emptyState: ReactNode;
+  hasOtherIssues: boolean;
+  summary: AppHealthSummaryData | null;
+  loadFailed: boolean;
+}) {
   // Unsupported authentication is neither an outage nor a verified green check.
   const visibleChecks =
     summary?.checks.filter(
-      (check) => check.status === 'issues' || check.status === 'unavailable' || check.status === 'unsupported'
+      (check) => check.status === 'issues' || check.status === 'unavailable' || check.issues.length > 0
     ) ?? [];
   const hasHealthNotices = visibleChecks.length > 0;
 
@@ -62,9 +70,7 @@ export function AppHealthSummary({
         <div className={styles.healthGroups}>
           {visibleChecks.map((check) => {
             const authFailed = check.authentication === 'failed';
-            const authUnverified =
-              check.status === 'unsupported' &&
-              (check.authentication === 'notConfigured' || check.authentication === 'unsupported');
+
             return (
               <section className={styles.healthGroup} key={check.service} aria-label={`${check.displayName} health`}>
                 <div className={styles.healthHeader}>
@@ -76,9 +82,7 @@ export function AppHealthSummary({
                         ? 'Health endpoint unavailable'
                         : authFailed
                           ? 'Authentication failed'
-                          : authUnverified
-                            ? 'Reachable; authentication unverified'
-                            : 'Application-reported issues'}
+                          : 'Application-reported issues'}
                     </small>
                   </div>
                   <Badge tone={check.status === 'unavailable' || authFailed ? 'bad' : 'warn'}>
@@ -86,20 +90,10 @@ export function AppHealthSummary({
                       ? 'offline'
                       : authFailed
                         ? 'auth failed'
-                        : authUnverified
-                          ? 'unverified'
-                          : check.status === 'unsupported'
-                            ? 'unsupported'
-                            : `${check.issues.length} ${check.issues.length === 1 ? 'issue' : 'issues'}`}
+                        : `${check.issues.length} ${check.issues.length === 1 ? 'issue' : 'issues'}`}
                   </Badge>
                 </div>
-                {authUnverified && (
-                  <p className={styles.unverifiedNote}>
-                    {check.authentication === 'notConfigured'
-                      ? 'No supported authentication credential is configured for this health check.'
-                      : 'This health check cannot verify authentication.'}
-                  </p>
-                )}
+
                 {check.issues.length > 0 && (
                   <div className={styles.issueList}>
                     {check.issues.slice(0, 3).map((issue) => (
@@ -129,5 +123,44 @@ export function AppHealthSummary({
       )}
       {hasOtherIssues ? children : summary && !hasHealthNotices ? emptyState : null}
     </div>
+  );
+}
+
+/** Informational coverage is deliberately outside the Needs Attention panel. */
+export function HealthCheckCoverage({ summary }: { summary: AppHealthSummaryData | null }) {
+  if (!summary) return null;
+
+  return (
+    <details className={styles.coverage}>
+      <summary>Health-check coverage · {summary.checks.length} apps</summary>
+      <p>
+        Checks report only what Stackarr could verify. A runtime or availability check does not verify every app feature
+        or credential.
+      </p>
+      <div className={styles.coverageList}>
+        {summary.checks.map((check) => (
+          <div className={styles.coverageItem} key={check.service}>
+            <strong>{check.displayName}</strong>
+            <span>
+              {check.status === 'unsupported'
+                ? check.availability === 'reachable'
+                  ? 'Reachable; authentication not verified'
+                  : 'Health check not available'
+                : check.status === 'unavailable'
+                  ? 'Health check failed'
+                  : check.status === 'issues'
+                    ? 'Issues reported'
+                    : check.scope === 'cli'
+                      ? 'CLI readiness check passed'
+                      : check.scope === 'container'
+                        ? 'Container and CLI checks passed'
+                        : check.authentication === 'verified'
+                          ? 'Authenticated check passed'
+                          : 'Application check passed'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }

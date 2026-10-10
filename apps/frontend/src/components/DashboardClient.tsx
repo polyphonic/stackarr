@@ -4,7 +4,7 @@ import type { getSystemStatus, HomelabPerformance, ServiceSummary, StackarrTask,
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { compareServicesByDisplayName } from '../lib/serviceOrdering';
-import { AppHealthSummary } from './AppHealthSummary';
+import { AppHealthSummary, HealthCheckCoverage, useAppHealthSummary } from './AppHealthSummary';
 import styles from './DashboardClient.module.css';
 import { DashboardOverview, StorageOverview } from './DashboardOverview';
 import { icons } from './icons';
@@ -33,6 +33,7 @@ export function DashboardClient({
   diskWarningThresholdPercent: number;
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const health = useAppHealthSummary();
   const liveTasks = useLiveTasks(tasks, { limit: 8 });
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const visibleServices = services
@@ -112,13 +113,15 @@ export function DashboardClient({
           action={<Link href="/system/status">System details</Link>}
         >
           <AppHealthSummary
+            summary={health.summary}
+            loadFailed={health.loadFailed}
             hasOtherIssues={needsAttention.length > 0}
             emptyState={
               <div className={styles.allClear}>
                 <span aria-hidden="true">✓</span>
                 <div>
                   <strong>Nothing needs you right now</strong>
-                  <small>Stackarr checked app health, setup gaps, and recent work.</small>
+                  <small>No issues reported by available checks, setup review, or recent work.</small>
                 </div>
               </div>
             }
@@ -169,6 +172,8 @@ export function DashboardClient({
           )}
         </Panel>
       </div>
+
+      <HealthCheckCoverage summary={health.summary} />
 
       <section className={styles.appsSection} aria-labelledby="your-apps-title">
         <div className={styles.sectionHeading}>

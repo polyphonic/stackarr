@@ -151,14 +151,25 @@ function readPlexToken(preferencesPath: string | undefined) {
   const fromContents = decodeXml(attributeMatch?.[1] ?? attributeMatch?.[2] ?? plistMatch?.[1]);
   if (fromContents) return fromContents;
 
-  // macOS commonly stores this preferences file as a binary plist. Use the
-  // platform parser when available rather than duplicating the secret in env.
-  if (process.platform !== 'darwin') return undefined;
+  // A native macOS Plex plist may be mounted into the Linux controller.
+  // Parse it locally without duplicating the credential in runtime settings.
+  if (!contents?.startsWith('bplist')) return undefined;
   try {
+    const command = process.platform === 'darwin' ? '/usr/bin/plutil' : 'python3';
+    const args =
+      process.platform === 'darwin'
+        ? ['-extract', 'PlexOnlineToken', 'raw', '-o', '-', preferencesPath]
+        : [
+            '-c',
+            'import plistlib,sys; p=plistlib.load(open(sys.argv[1], "rb")); t=p.get("PlexOnlineToken", ""); print(t if isinstance(t,str) else "")',
+            preferencesPath
+          ];
     return (
-      execFileSync('/usr/bin/plutil', ['-extract', 'PlexOnlineToken', 'raw', '-o', '-', preferencesPath], {
+      execFileSync(command, args, {
         encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore']
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 3_000,
+        maxBuffer: 64 * 1024
       }).trim() || undefined
     );
   } catch {

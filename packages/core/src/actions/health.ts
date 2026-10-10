@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -12,9 +13,10 @@ import { getServices } from '../services';
 import { readTasks } from '../tasks';
 import { listBackupsAction } from './backups';
 import { type DockerContainerOverview, getDockerContainerOverviewAction } from './containers';
-import { getDownloadQueueAction } from './downloads';
+import { getDownloadQueueAction, getTransmissionSessionStatus } from './downloads';
 import { getMediaSearchReconciliationStatusAction } from './mediaReconciliation';
-import { getPlexServerStatusAction } from './plex';
+import { getPlexLibrariesAction, getPlexServerStatusAction } from './plex';
+import { questarrRequest } from './questarr';
 import { getServiceStatusAction } from './services';
 
 export const diagnoseServiceAction = (input: { service: string }) => getServiceStatusAction(input);
@@ -414,6 +416,8 @@ export type AppHealthCheck = {
   /** HTTP availability and credential verification are deliberately separate. */
   availability?: 'reachable' | 'unavailable' | 'unknown';
   authentication?: 'verified' | 'failed' | 'notConfigured' | 'unsupported';
+  /** What was actually proved; availability must not be presented as runtime or auth health. */
+  scope?: 'authenticated' | 'application' | 'availability' | 'cli' | 'container';
 };
 
 export type AppHealthSummary = {
@@ -461,6 +465,156 @@ const healthChecks: Record<string, HealthCheckSpec> = {
   frigate: { path: '/api/version' }
 };
 
+/** Explicit registry for every app/helper. New services must select a real probe, never inherit healthy. */
+export const appHealthProbes = {
+  agregarr: 'http',
+  bazarr: 'http',
+  bookorbit: 'http',
+  cleanuparr: 'login',
+  flaresolverr: 'http',
+  frigate: 'login',
+  homeassistant: 'login',
+  immich: 'http',
+  jellyfin: 'http',
+  lidarr: 'http',
+  maintainerr: 'http',
+  plex: 'plex',
+  prowlarr: 'http',
+  pulsarr: 'http',
+  qbittorrent: 'downloader',
+  questarr: 'questarr',
+  radarr: 'http',
+  radarr4k: 'http',
+  recyclarr: 'container',
+  romm: 'http',
+  seerr: 'http',
+  sonarr: 'http',
+  sonarr4k: 'http',
+  streamrip: 'cli',
+  tdarr: 'http',
+  tidarr: 'availability',
+  tinymediamanager: 'availability',
+  tracearr: 'http',
+  transmission: 'downloader',
+  youtarr: 'http'
+} as const satisfies Record<string, string>;
+
+function probeFailure(service: string, displayName: string, scope: AppHealthCheck['scope']): AppHealthCheck {
+  // Native clients may include response bodies or credentials in errors. Never echo them.
+  return { ...unavailable(service, displayName, `${displayName} ${scope} probe failed.`), scope };
+}
+
+async function checkSpecialHealth(service: string, displayName: string, kind: string): Promise<AppHealthCheck> {
+  let scope: AppHealthCheck['scope'] =
+    kind === 'container'
+      ? 'container'
+      : kind === 'cli'
+        ? 'cli'
+        : kind === 'availability'
+          ? 'availability'
+          : 'authenticated';
+  try {
+    if (kind === 'plex') {
+      if (!serviceApiKey('plex'))
+        return {
+          service,
+          displayName,
+          status: 'unsupported',
+          issues: [],
+          authentication: 'notConfigured',
+          scope: 'availability'
+        };
+      // /identity is public. Use the protected library endpoint to verify the token.
+      const result = await bounded(getPlexLibrariesAction(), 8_000);
+      if (!result || typeof result !== 'object' || !('MediaContainer' in result))
+        throw new Error('Invalid Plex library response');
+    } else if (kind === 'downloader') {
+      const env = readEnv();
+      const username =
+        service === 'transmission'
+          ? env.TRANSMISSION_USERNAME || env.USERNAME
+          : env.QBITTORRENT_USERNAME || env.USERNAME;
+      const password =
+        service === 'transmission'
+          ? env.TRANSMISSION_PASSWORD || env.PASSWORD
+          : env.QBITTORRENT_PASSWORD || env.PASSWORD;
+      if (!username || !password) scope = 'application';
+      if (service === 'transmission') await getTransmissionSessionStatus();
+      else await bounded(getDownloadQueueAction({ downloader: 'qbittorrent' }), 8_000);
+    } else if (kind === 'questarr') {
+      const base = maybeServiceBaseUrl(service);
+      if (!base) return unavailable(service, displayName, 'HTTP endpoint is not configured.');
+      const result = await bounded(questarrRequest<unknown>(`${base}/api/downloads`), 8_000);
+      if (!result || typeof result !== 'object') throw new Error('Invalid Questarr response');
+    } else if (kind === 'cli') {
+      await probeCli(readEnv().STREAMRIP_COMMAND?.trim() || process.env.STREAMRIP_COMMAND?.trim() || 'rip', [
+        '--version'
+      ]);
+    } else if (kind === 'container') {
+      const overview = await getDockerContainerOverviewAction();
+      if (!overview.dockerAvailable) return probeFailure(service, displayName, scope);
+      const project = readEnv().COMPOSE_PROJECT_NAME || process.env.COMPOSE_PROJECT_NAME || 'stackarr';
+      const container = overview.containers.find(
+        (item) => item.composeProject === project && item.composeService === service
+      );
+      if (!container?.running || /\(unhealthy\)/i.test(container.status))
+        return probeFailure(service, displayName, scope);
+      // A running scheduler is not proof that its binary can execute. This never invokes sync.
+      await probeCli('docker', ['exec', container.id, 'recyclarr', '--version']);
+    } else if (kind === 'availability') {
+      const base = maybeServiceBaseUrl(service);
+      if (!base) return unavailable(service, displayName, 'HTTP endpoint is not configured.');
+      const response = await fetch(`${base}/`, { signal: AbortSignal.timeout(8_000), redirect: 'manual' });
+      // Login challenges and redirects prove only that the UI is serving, not application health.
+      if (!response.ok && ![301, 302, 303, 307, 308, 401, 403].includes(response.status))
+        throw new Error('UI unavailable');
+      await response.body?.cancel();
+    }
+    return {
+      service,
+      displayName,
+      status: scope === 'availability' ? 'unsupported' : 'healthy',
+      issues: [],
+      scope,
+      ...(scope === 'authenticated' ? { authentication: 'verified' as const } : {}),
+      availability: 'reachable'
+    };
+  } catch {
+    return probeFailure(service, displayName, scope);
+  }
+}
+
+function bounded<T>(task: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Probe timed out')), ms);
+    task.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function probeCli(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'ignore', shell: false });
+    const timer = setTimeout(() => child.kill('SIGKILL'), 8_000);
+    child.once('error', () => {
+      clearTimeout(timer);
+      reject(new Error('CLI unavailable'));
+    });
+    child.once('close', (code) => {
+      clearTimeout(timer);
+      code === 0 ? resolve() : reject(new Error('CLI exited unsuccessfully'));
+    });
+  });
+}
+
 function authCheck(
   service: string,
   displayName: string,
@@ -473,6 +627,7 @@ function authCheck(
     displayName,
     availability,
     authentication,
+    scope: authentication === 'verified' ? 'authenticated' : 'availability',
     status: authentication === 'verified' ? 'healthy' : authentication === 'failed' ? 'issues' : 'unsupported',
     issues: message && authentication === 'failed' ? [{ severity: 'error', source: 'Authentication', message }] : []
   };
@@ -516,9 +671,11 @@ async function checkLoginBackedHealth(service: string, displayName: string, base
   const env = readEnv();
   const username = env.USERNAME?.trim();
   const password = env.PASSWORD;
-  // A caller may supply a transient HA token; Stackarr does not mint or persist one.
+  // Provisioning owns token creation; health checks only use the saved credential.
   const key =
-    service === 'homeassistant' ? serviceApiKey(service) || process.env.HOMEASSISTANT_TOKEN?.trim() : undefined;
+    service === 'homeassistant'
+      ? env.HOMEASSISTANT_TOKEN?.trim() || serviceApiKey(service) || process.env.HOMEASSISTANT_TOKEN?.trim()
+      : undefined;
   // An unauthenticated request is an availability probe, never evidence of a valid credential.
   try {
     await requestJson<unknown>(`${baseUrl}${healthChecks[service].path}`, { timeoutMs: 8_000 });
@@ -640,7 +797,30 @@ function appendMediaSearchRecoveryIssues(checks: AppHealthCheck[]) {
   }
 }
 
-async function checkAppHealth(service: string, displayName: string): Promise<AppHealthCheck> {
+export async function checkAppHealth(service: string, displayName: string): Promise<AppHealthCheck> {
+  const kind = appHealthProbes[service as keyof typeof appHealthProbes];
+  if (kind && kind !== 'http' && kind !== 'login') {
+    // qBittorrent and Questarr log in via their native clients; throttle bad credentials.
+    if (service === 'qbittorrent' || service === 'questarr') {
+      const env = readEnv();
+      const fingerprint = createHash('sha256')
+        .update(
+          JSON.stringify([
+            maybeServiceBaseUrl(service),
+            env.USERNAME,
+            env.PASSWORD,
+            service === 'qbittorrent' ? env.QBITTORRENT_PASSWORD : undefined
+          ])
+        )
+        .digest('hex');
+      const cached = loginCache.get(service);
+      if (cached?.fingerprint === fingerprint && cached.expires > Date.now()) return cached.result;
+      const result = await checkSpecialHealth(service, displayName, kind);
+      loginCache.set(service, { fingerprint, expires: Date.now() + 60_000, result });
+      return result;
+    }
+    return checkSpecialHealth(service, displayName, kind);
+  }
   const spec = healthChecks[service];
   if (!spec) return { service, displayName, status: 'unsupported', issues: [] };
   const baseUrl = maybeServiceBaseUrl(service);
@@ -668,7 +848,15 @@ async function checkAppHealth(service: string, displayName: string): Promise<App
       spec.issueArray ? normalizeIssueArray(response, key) : normalizeGenericHealth(response, key)
     );
 
-    return { service, displayName, status: issues.length ? 'issues' : 'healthy', issues };
+    return {
+      service,
+      displayName,
+      status: issues.length ? 'issues' : 'healthy',
+      issues,
+      scope: spec.credential && key ? 'authenticated' : 'application',
+      availability: 'reachable',
+      ...(spec.credential && key ? { authentication: 'verified' as const } : {})
+    };
   } catch (error) {
     if (error instanceof ServiceApiError && spec.reachableStatuses?.includes(error.status ?? 0)) {
       return {
