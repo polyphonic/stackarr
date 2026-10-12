@@ -62,6 +62,12 @@ Games/
 
 This is a filesystem symlink/bind-mount arrangement, not a RomM folder-alias or platform-variant mapping. The folders use RomM's official `mac`, `win`, and `linux` platform slugs. When Steam integration is disabled, Stackarr clears all three external roots and Compose falls back to the normal RomM library source rather than mounting an external desktop library.
 
+## Moving a library
+
+**Additional Games Folder (read-only)** makes a second host folder available at `/romm/additional-games` without replacing the active library or Steam mounts. Set `ROMM_ADDITIONAL_GAMES_ROOT` to an existing folder and apply the RomM service. This is a staging mount, not a second automatically indexed library; when unset it mirrors the active library folder.
+
+Keep automatic scans disabled while files are being copied. After verifying the completed copy, update the active library and Steam roots, apply RomM, and then scan. The additional mount never writes to the source folder.
+
 ## Scans after secure imports
 
 Keep **Filesystem Watcher** disabled when using Stackarr's Questarr importer. Supported RomM 5.1 releases can enqueue duplicate watcher scans for the same filesystem events. After ClamAV approves and Stackarr places changed files, Stackarr sends one authenticated Socket.IO Quick Scan scoped to the affected platform `fs_slug`.

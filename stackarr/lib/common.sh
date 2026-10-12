@@ -298,7 +298,7 @@ eval_host_runtime_config_exports() {
     local path_keys=(
         APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT
         BOOKS_ROOT GAMES_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
-        JELLYFIN_CONFIG_PATH ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT
+        JELLYFIN_CONFIG_PATH ROMM_LIBRARY_ROOT ROMM_ADDITIONAL_GAMES_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT
         ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_DB_DATA_LOCATION QUESTARR_DATA_ROOT
         CLAMAV_DATA_ROOT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT
         YOUTARR_IMAGES_ROOT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION
@@ -855,6 +855,8 @@ load_env() {
     : "${ROMM_CONTAINER_PORT:=8080}"
     : "${ROMM_URL:=http://127.0.0.1:${ROMM_WEB_PORT}}"
     : "${ROMM_LIBRARY_ROOT:=$GAMES_ROOT}"
+    : "${ROMM_ADDITIONAL_GAMES_ROOT:=}"
+    export ROMM_ADDITIONAL_GAMES_ROOT
     : "${ROMM_STEAM_LIBRARY_ENABLED:=false}"
     : "${ROMM_STEAM_MAC_LIBRARY_ROOT:=}"
     : "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:=}"
@@ -1856,6 +1858,7 @@ database_backed_servarr_services() {
         flag_enabled "${ENABLE_TV_SHOWS:-false}" && printf '%s\n' "sonarr4k"
     fi
     flag_enabled "${ENABLE_LIDARR:-false}" && printf '%s\n' "lidarr"
+    return 0
 }
 
 servarr_service_url() {
@@ -1884,37 +1887,97 @@ servarr_service_url() {
     esac
 }
 
-recover_database_startup_failures() {
-    local service url recent_logs
+# Recovery must not render Compose, migrate storage, or recreate containers.
+# Reuse the installed project's existing definition for scoped Docker actions.
+recovery_compose() {
+    local project_dir compose_file
+    project_dir="$(stackarr_compose_project_dir)"
+    compose_file="$(stackarr_compose_file)"
+    [[ -f "$compose_file" ]] || return 1
+    docker compose --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" \
+        --project-directory "$project_dir" -f "$compose_file" "$@"
+}
 
-    database_required || return 0
+shared_database_is_ready() {
+    recovery_compose --profile database exec -T database \
+        pg_isready -q -U "${DATABASE_SUPERUSER:-postgres}" -d "${DATABASE_NAME:-postgres}" >/dev/null 2>&1
+}
+
+service_container_started_at() {
+    local container_id
+    container_id="$(recovery_compose ps -q "$1" 2>/dev/null)" || return 1
+    [[ -n "$container_id" ]] || return 1
+    docker inspect --format '{{if .State.Running}}{{.State.StartedAt}}{{end}}' "$container_id" 2>/dev/null
+}
+
+database_startup_failure_logs() {
+    local service="$1" started_at="$2" log_name
+    recovery_compose logs --since="$started_at" --tail=500 "$service" 2>/dev/null || true
+    # Sonarr may intentionally have Docker logging disabled. Its own log still
+    # records the fatal startup, using the service's configured local timezone.
+    [[ "$service" != cleanuparr ]] || return 0
+    log_name="${service%4k}"
+    TZ="${TIMEZONE:-Etc/UTC}" python3 "$ROOT_DIR/scripts/startup-log.py" \
+        "${CONFIG_ROOT:-}/$service/logs/$log_name.txt" "$started_at" 2>/dev/null || true
+}
+
+recover_database_startup_failures() {
+    local service url recent_logs started_at services="" marker database_host_key
+
+    database_required && shared_database_is_ready || return 0
+    if database_mode_is_postgres; then
+        services="$(database_backed_servarr_services)"
+    fi
+    if flag_enabled "${ENABLE_CLEANUPARR:-false}" &&
+        [[ "$(lowercase "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}")" == postgres ]]; then
+        services="${services}"$'\ncleanuparr'
+    fi
 
     while IFS= read -r service; do
         [[ -n "$service" ]] || continue
-        stackarr_compose ps --services --status running 2>/dev/null | grep -qx "$service" || continue
-        url="$(servarr_service_url "$service")" || continue
+        marker="${STACKARR_RECOVERY_STATE_DIR:-}/$service"
+        [[ -z "${STACKARR_RECOVERY_STATE_DIR:-}" || ! -e "$marker" ]] || continue
+        recovery_compose ps --services --status running 2>/dev/null | grep -qx "$service" || continue
+        started_at="$(service_container_started_at "$service")" || continue
+        [[ -n "$started_at" ]] || continue
+        if [[ "$service" == cleanuparr ]]; then
+            url="$(service_url cleanuparr "${CLEANUPARR_URL:-}" "${CLEANUPARR_PORT:-11011}")" || continue
+            url="${url%/}/api/health"
+        else
+            url="$(servarr_service_url "$service")" || continue
+        fi
         http_url_is_reachable "$url" && continue
-
-        recent_logs="$(stackarr_compose logs --tail=250 "$service" 2>&1 || true)"
-        if [[ "$recent_logs" == *"database system is starting up"* ]] && [[ "$recent_logs" == *"Non-recoverable failure"* ]]; then
-            warn "$service is stuck after starting before the database was ready; restarting it"
-            stackarr_compose restart "$service"
+        recent_logs="$(database_startup_failure_logs "$service" "$started_at")"
+        if [[ "$recent_logs" != *"database system is starting up"* ]]; then
+            # Docker DNS and PostgreSQL's listening socket can become ready
+            # after the app has already failed. Only recover a known database
+            # client failure, and require DNS to work from that app first.
+            [[ "$recent_logs" == *"Npgsql.NpgsqlException"* ]] || continue
+            if [[ "$recent_logs" == *"Connection refused"* ]]; then
+                :
+            elif [[ "$recent_logs" == *"Name or service not known"* ||
+                "$recent_logs" == *"Temporary failure in name resolution"* ]]; then
+                [[ "$service" != cleanuparr || "$recent_logs" == *"Unhandled exception."* ]] || continue
+                database_host_key="$(printf '%s_POSTGRES_HOST' "$service" | tr '[:lower:]' '[:upper:]')"
+                recovery_compose exec -T "$service" getent hosts "${!database_host_key:-database}" >/dev/null 2>&1 || continue
+            else
+                continue
+            fi
         fi
-    done < <(database_backed_servarr_services)
-
-    # Docker daemon restarts do not honor Compose's service_healthy ordering.
-    # Cleanuparr can stay running after a fatal PostgreSQL startup exception;
-    # restart only that confirmed failure, never a merely unhealthy instance.
-    if flag_enabled "${ENABLE_CLEANUPARR:-false}" &&
-        [[ "$(lowercase "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}")" == "postgres" ]] &&
-        stackarr_compose ps --services --status running 2>/dev/null | grep -qx cleanuparr &&
-        ! http_url_is_reachable "${CLEANUPARR_URL:-http://127.0.0.1:${CLEANUPARR_PORT:-11011}}/api/health"; then
-        recent_logs="$(stackarr_compose logs --since=30m --tail=250 cleanuparr 2>&1 || true)"
-        if [[ "$recent_logs" == *"57P03"* ]] && [[ "$recent_logs" == *"database system is starting up"* ]]; then
-            warn "cleanuparr is stuck after starting before the database was ready; restarting it"
-            stackarr_compose restart cleanuparr
+        if [[ "$service" != cleanuparr ]]; then
+            [[ "$recent_logs" == *"Non-recoverable failure"* || "$recent_logs" == *"Application startup exception"* || "$recent_logs" == *"|Fatal|"* ]] || continue
         fi
-    fi
+        # Do not revive a service stopped/recreated while its logs were read.
+        [[ "$(service_container_started_at "$service" || true)" == "$started_at" ]] || continue
+        shared_database_is_ready || return 0
+        if [[ -n "${STACKARR_RECOVERY_STATE_DIR:-}" ]]; then
+            # One attempt per service in this controller-start recovery window.
+            # Mark before restarting, so failures cannot create a restart loop.
+            : > "$marker"
+        fi
+        warn "$service is stuck after starting before the database was ready; restarting it"
+        recovery_compose restart "$service" || warn "$service recovery restart failed"
+    done <<< "$services"
 }
 
 optional_service_enabled() {

@@ -321,6 +321,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envNumber('rommContainerPort', 'Container Port', 'ROMM_CONTAINER_PORT'),
       envPath('gamesRoot', 'Games Root', 'GAMES_ROOT'),
       envPath('rommLibraryRoot', 'RomM Library Root', 'ROMM_LIBRARY_ROOT'),
+      envPath(
+        'rommAdditionalGamesRoot',
+        'Additional Games Folder (read-only)',
+        'ROMM_ADDITIONAL_GAMES_ROOT',
+        'Optional staging folder available at /romm/additional-games. It does not change or automatically scan the active library. Leave blank to use the library folder here too.'
+      ),
       envCheckbox(
         'rommSteamLibraryEnabled',
         'Enable Steam desktop libraries',

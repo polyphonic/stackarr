@@ -134,8 +134,11 @@ test('startup recovery restarts an unreachable Servarr process stuck on database
         '-c',
         `source "$1"
 database_required() { return 0; }
+shared_database_is_ready() { return 0; }
+service_container_started_at() { echo "2030-01-01T00:00:00Z"; }
+database_mode_is_postgres() { return 0; }
 http_url_is_reachable() { return 1; }
-stackarr_compose() {
+recovery_compose() {
   case "$1" in
     ps) printf '%s\\n' radarr ;;
     logs) printf '%s\\n' 'FATAL: database system is starting up' 'Non-recoverable failure, waiting for user intervention' ;;
