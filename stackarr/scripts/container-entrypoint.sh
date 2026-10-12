@@ -9,9 +9,13 @@ printf '%s\n' "$STACKARR_CONTROLLER_STARTED_AT" > /tmp/stackarr-controller-start
 SCHEDULER_PID=""
 SERVER_PID=""
 MCP_HTTP_PID=""
+RECOVERY_PID=""
 
 shutdown() {
     trap - INT TERM
+    if [[ -n "$RECOVERY_PID" ]]; then
+        kill "$RECOVERY_PID" 2>/dev/null || true
+    fi
     if [[ -n "$SCHEDULER_PID" ]]; then
         kill "$SCHEDULER_PID" 2>/dev/null || true
     fi
@@ -24,9 +28,13 @@ shutdown() {
     wait "$SCHEDULER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
     wait "$MCP_HTTP_PID" 2>/dev/null || true
+    wait "$RECOVERY_PID" 2>/dev/null || true
 }
 
 trap shutdown INT TERM
+
+"$ROOT_DIR/scripts/startup-recovery.sh" &
+RECOVERY_PID="$!"
 
 case "${STACKARR_SCHEDULER_ENABLED:-true}" in
     0|false|False|FALSE|no|No|NO|off|Off|OFF)
