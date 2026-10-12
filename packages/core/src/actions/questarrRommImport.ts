@@ -710,6 +710,7 @@ async function listRommLibraryRecords() {
 
 async function filesystemPresentRoms(roms: JsonRecord[]) {
   const root = path.resolve(readEnv().QUESTARR_ROMM_LIBRARY_ROOT ?? '/stackarr-romm-library');
+  const steamRoot = process.env.STACKARR_RUNTIME === 'docker' ? path.dirname(root) : root;
   const present: JsonRecord[] = [];
   for (let offset = 0; offset < roms.length; offset += 32) {
     const checks = await Promise.all(
@@ -719,8 +720,12 @@ async function filesystemPresentRoms(roms: JsonRecord[]) {
         const fsName = text(rom.fs_name);
         const relativePath = fullPath ?? (fsPath && fsName ? path.join(fsPath, fsName) : undefined);
         if (!relativePath || path.isAbsolute(relativePath)) return false;
-        const candidate = path.resolve(root, relativePath);
-        if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) return false;
+        // Compose mounts Steam beside the ROM library so a read-only library never needs new mountpoints.
+        const [library, ...segments] = relativePath.split('/');
+        const steamLibrary = library === 'Steam' || library === 'SteamWindows' || library === 'SteamLinux';
+        const mountedRoot = steamLibrary ? path.resolve(steamRoot, library) : root;
+        const candidate = path.resolve(mountedRoot, steamLibrary ? segments.join('/') : relativePath);
+        if (candidate !== mountedRoot && !candidate.startsWith(`${mountedRoot}${path.sep}`)) return false;
         try {
           await stat(candidate);
           return true;
