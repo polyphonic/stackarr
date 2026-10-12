@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.21](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.20...v0.3.0-alpha.21) (2026-10-12)
+
+
+### Fixed
+
+* **runtime:** recover cleanly after Docker engine restarts ([6a3800c](https://github.com/polyphonic/stackarr/commit/6a3800c7f0aaaa7dd02d42c8980cdef8d7ee819d))
+
 ## [0.3.0-alpha.20](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.19...v0.3.0-alpha.20) (2026-10-10)
 
 
