@@ -1143,6 +1143,12 @@ services:
       - romm-root:/romm
       - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"
+      - type: bind
+        source: ${ROMM_ADDITIONAL_GAMES_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}
+        target: /romm/additional-games
+        read_only: true
+        bind:
+          create_host_path: false
       - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/Steam"
       - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamWindows"
       - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamLinux"

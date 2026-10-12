@@ -196,3 +196,44 @@ recovery_compose() {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('additional RomM storage persists without switching the active game library', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-romm-staging-'));
+  try {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        '--import',
+        path.join(repo, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs'),
+        '--input-type=module',
+        '-e',
+        `
+      const { writeEnvConfig, readEnv } = await import('./packages/core/src/env.ts');
+      const { getServiceConfigAction } = await import('./packages/core/src/serviceCatalog.ts');
+      writeEnvConfig({ ROMM_LIBRARY_ROOT: '/games/current', ROMM_ADDITIONAL_GAMES_ROOT: '/games/incoming', ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: 'false' });
+      const config = getServiceConfigAction({ service: 'romm' });
+      const field = config.groups.flatMap(g => g.fields).find(f => f.id === 'rommAdditionalGamesRoot');
+      const env = readEnv();
+      console.log(JSON.stringify({ primary: env.ROMM_LIBRARY_ROOT, additional: env.ROMM_ADDITIONAL_GAMES_ROOT, watcher: env.ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE, field }));
+    `
+      ],
+      {
+        cwd: repo,
+        env: { ...process.env, STACKARR_DATABASE_URL: '', STACKARR_DATABASE_FILE: path.join(root, 'settings.db') }
+      }
+    );
+    const result = JSON.parse(stdout);
+    assert.equal(result.primary, '/games/current');
+    assert.equal(result.additional, '/games/incoming');
+    assert.equal(result.watcher, 'false');
+    assert.equal(result.field.value, '/games/incoming');
+    const { stdout: exported } = await execFile(
+      process.execPath,
+      [path.join(repo, 'stackarr/scripts/runtime-config-export.cjs')],
+      { env: { ...process.env, STACKARR_DATABASE_URL: '', STACKARR_DATABASE_FILE: path.join(root, 'settings.db') } }
+    );
+    assert.match(exported, /ROMM_ADDITIONAL_GAMES_ROOT=.*\/games\/incoming/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
