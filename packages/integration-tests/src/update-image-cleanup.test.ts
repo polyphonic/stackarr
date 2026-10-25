@@ -137,6 +137,9 @@ async function updateHarness(cleanupFails: boolean) {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-update-cleanup-'));
   await mkdir(path.join(root, 'scripts'));
   await mkdir(path.join(root, 'lib'));
+  await mkdir(path.join(root, 'bin'));
+  await writeFile(path.join(root, 'bin/docker'), '#!/bin/sh\nprintf "running|healthy|0|configured\\n"\n');
+  await chmod(path.join(root, 'bin/docker'), 0o755);
   await writeFile(
     path.join(root, 'scripts/update-run.sh'),
     await readFile(path.join(repoRoot, 'stackarr/scripts/update-run.sh'))
@@ -161,6 +164,7 @@ stackarr_compose() {
   printf '%s\\n' "$*" >> "$STACKARR_TEST_ACTIONS"
   case "$*" in
     *'config --services') printf 'app\\nfirst\\n';;
+    *'ps --all -q first') printf 'abcdef\\n';;
     *'run --rm image-cleanup') printf 'Deleted image: sha256:abc123\\nReclaimed bytes: 1234567\\n'; return ${cleanupFails ? 1 : 0};;
   esac
   return 0
@@ -175,7 +179,12 @@ fail() { printf '%s\\n' "$1" >&2; exit 1; }
   const actions = path.join(root, 'actions');
   try {
     const result = await execFile('bash', [path.join(root, 'scripts/update-run.sh'), 'services'], {
-      env: { ...process.env, STACKARR_TEST_ACTIONS: actions }
+      env: {
+        ...process.env,
+        PATH: `${path.join(root, 'bin')}:${process.env.PATH}`,
+        STACKARR_TEST_ACTIONS: actions,
+        STACKARR_UPDATE_HEALTHY_STABILITY_SECONDS: '0'
+      }
     }).then(
       (value) => ({ ...value, failed: false }),
       (error: Error & { stdout: string; stderr: string }) => ({
@@ -190,11 +199,11 @@ fail() { printf '%s\\n' "$1" >&2; exit 1; }
   }
 }
 
-test('cleanup runs after scoped recreation and before reconciliation; output reaches task stream', async () => {
+test('cleanup runs after scoped recreation and reconciliation; output reaches task stream', async () => {
   const result = await updateHarness(false);
   assert.equal(result.failed, false);
   assert.ok(result.actions.indexOf('up -d --no-deps first') < result.actions.indexOf('run --rm image-cleanup'));
-  assert.ok(result.actions.indexOf('run --rm image-cleanup') < result.actions.indexOf('naming.sh apply'));
+  assert.ok(result.actions.indexOf('run --rm image-cleanup') > result.actions.indexOf('requests.sh apply'));
   assert.match(result.stdout, /Deleted image: sha256:abc123/);
   assert.match(result.stdout, /Reclaimed bytes: 1234567/);
   assert.doesNotMatch(result.actions, /volume prune|container prune/);

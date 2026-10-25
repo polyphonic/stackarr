@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { readEnv } from './env';
 import { composePath, composeProjectDir, composeProjectName, repoRoot } from './paths';
 import { getServices } from './services';
@@ -291,6 +293,13 @@ function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
   let usage: FilesystemUsage | null = null;
   try {
     const env = readEnv();
+    const policyFile =
+      process.env.STACKARR_STORAGE_POLICY ?? (env.STATE_ROOT && path.join(env.STATE_ROOT, 'storage-policy.json'));
+    if (policyFile && (process.env.STACKARR_STORAGE_POLICY || fs.existsSync(policyFile))) {
+      usage = readEnrolledHostUsage(diskPath, policyFile);
+      if (usage) virtiofsUsageCache.set(diskPath, { expiresAt: Date.now() + 30_000, usage });
+      return usage; // Never start a Docker probe on an enrolled installation, even if policy vanished.
+    }
     const container = execFileSync(
       'docker',
       [
@@ -323,29 +332,64 @@ function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
     ) as { Image?: string; Mounts?: Array<{ Type: string; Source: string; Destination: string }> };
     const source = resolveHostDiskPath(diskPath, inspected.Mounts ?? []);
     if (!source || !inspected.Image?.startsWith('sha256:')) throw new Error('Host path or running image unavailable');
-    const output = execFileSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--pull=never',
-        '--network',
-        'none',
-        '--entrypoint',
-        'df',
-        '--mount',
-        `type=bind,source=${source},target=/stackarr-storage-probe,readonly`,
-        inspected.Image,
-        '-PTk',
-        '/stackarr-storage-probe'
-      ],
-      { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] }
-    );
+    const probeId = randomUUID();
+    const probeName = `stackarr-storage-probe-${probeId}`;
+    const ownershipLabel = 'io.stackarr.storage-probe';
+    let output: string;
+    try {
+      output = execFileSync(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '--name',
+          probeName,
+          '--label',
+          `${ownershipLabel}=${probeId}`,
+          '--pull=never',
+          '--network',
+          'none',
+          '--entrypoint',
+          'df',
+          '--mount',
+          `type=bind,source=${source},target=/stackarr-storage-probe,readonly`,
+          inspected.Image,
+          '-PTk',
+          '/stackarr-storage-probe'
+        ],
+        { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] }
+      );
+    } finally {
+      // --rm only applies after a container starts. A timeout during CREATE can leave
+      // an unstarted container holding the bind mount; remove only this owned probe.
+      try {
+        const leftover = JSON.parse(
+          execFileSync('docker', ['inspect', '--format', '{{json .}}', probeName], {
+            encoding: 'utf8',
+            timeout: 2500,
+            stdio: ['ignore', 'pipe', 'ignore']
+          })
+        ) as { Id?: string; Name?: string; Config?: { Labels?: Record<string, string> } };
+        if (
+          leftover.Name === `/${probeName}` &&
+          leftover.Config?.Labels?.[ownershipLabel] === probeId &&
+          /^[a-f0-9]{64}$/.test(leftover.Id ?? '')
+        ) {
+          execFileSync('docker', ['rm', '-f', leftover.Id!], {
+            encoding: 'utf8',
+            timeout: 2500,
+            stdio: ['ignore', 'pipe', 'ignore']
+          });
+        }
+      } catch {
+        // The successful --rm path has nothing to inspect, or Docker is unavailable.
+      }
+    }
     usage = parseFilesystemUsage(output, true);
     // A failed bind must not become the VM overlay's capacity. The helper mountpoint
     // is synthetic; report the actual physical host volume instead.
-    if (usage?.type === 'overlay') usage = null;
-    if (usage) usage.mountPoint = externalVolumeRoot(source) ?? '/';
+    if (usage?.type === 'overlay' || usage?.type === 'virtiofs') usage = null;
+    if (usage) usage.mountPoint = hostMountPoint(source);
   } catch {
     usage = null;
   }
@@ -353,6 +397,120 @@ function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
   // Transient Docker/image failures are retried on the next request, not cached as a false missing disk.
   if (usage) virtiofsUsageCache.set(diskPath, { expiresAt: Date.now() + 5 * 60 * 1000, usage });
   return usage;
+}
+
+function readEnrolledHostUsage(diskPath: string, policyFile: string): FilesystemUsage | null {
+  let request = '';
+  let response = '';
+  try {
+    const policy = JSON.parse(fs.readFileSync(policyFile, 'utf8')) as { roots?: Array<{ path: string }> };
+    const state = path.dirname(policyFile);
+    const root = policy.roots
+      ?.filter(
+        (entry) => typeof entry.path === 'string' && (diskPath === entry.path || diskPath.startsWith(`${entry.path}/`))
+      )
+      .sort((a, b) => b.path.length - a.path.length)[0];
+    const selected = root?.path ?? (diskPath === state || diskPath.startsWith(`${state}/`) ? state : null);
+    if (!selected) return null;
+    const bridge = path.join(state, 'storage-bridge');
+    if (!fs.statSync(bridge).isDirectory() || fs.lstatSync(bridge).isSymbolicLink()) return null;
+    const nonce = randomBytes(16).toString('hex');
+    const digest = createHash('sha256').update(fs.readFileSync(policyFile)).digest('hex');
+    const at = Date.now();
+    request = path.join(bridge, `${nonce}.request`);
+    response = path.join(bridge, `${nonce}.response`);
+    fs.writeFileSync(request, JSON.stringify({ nonce, digest, at, operation: 'usage', path: selected }), {
+      flag: 'wx',
+      mode: 0o600
+    });
+    while (Date.now() - at < 3500) {
+      if (fs.existsSync(response)) {
+        const stat = fs.lstatSync(response);
+        if (!stat.isFile() || stat.size > 1024) return null;
+        const reply = JSON.parse(fs.readFileSync(response, 'utf8')) as {
+          nonce?: string;
+          digest?: string;
+          ready?: boolean;
+          at?: number;
+          usage?: {
+            filesystem?: string;
+            totalKilobytes?: number;
+            availableKilobytes?: number;
+            usedPercent?: number;
+            mountPoint?: string;
+          };
+        };
+        const value = reply.usage;
+        if (
+          reply.nonce !== nonce ||
+          reply.digest !== digest ||
+          !reply.ready ||
+          createHash('sha256').update(fs.readFileSync(policyFile)).digest('hex') !== digest ||
+          !reply.at ||
+          reply.at < at ||
+          reply.at > Date.now() ||
+          Date.now() - reply.at > 10000 ||
+          !value ||
+          typeof value.filesystem !== 'string' ||
+          typeof value.mountPoint !== 'string' ||
+          !Number.isSafeInteger(value.totalKilobytes) ||
+          value.totalKilobytes! <= 0 ||
+          !Number.isSafeInteger(value.availableKilobytes) ||
+          value.availableKilobytes! < 0 ||
+          value.availableKilobytes! > value.totalKilobytes! ||
+          !Number.isInteger(value.usedPercent) ||
+          value.usedPercent! < 0 ||
+          value.usedPercent! > 100
+        )
+          return null;
+        return {
+          filesystem: value.filesystem,
+          type: '',
+          totalKilobytes: value.totalKilobytes!,
+          availableKilobytes: value.availableKilobytes!,
+          usedPercent: value.usedPercent!,
+          mountPoint: value.mountPoint,
+          reliable: true
+        };
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  } catch {
+    /* Missing/invalid host proof never becomes a Docker VM capacity. */
+  } finally {
+    if (request) fs.rmSync(request, { force: true });
+    if (response) fs.rmSync(response, { force: true });
+  }
+  return null;
+}
+
+export function hostMountPoint(source: string, stateRoot = readEnv().STATE_ROOT): string {
+  // Docker inspect retains a logical bind source even when the host follows a
+  // symlink onto another disk. The host-owned storage policy records that
+  // physical location; a container-side realpath of the bind cannot recover it.
+  try {
+    if (stateRoot) {
+      const policy = JSON.parse(fs.readFileSync(path.join(stateRoot, 'storage-policy.json'), 'utf8')) as {
+        roots?: Array<{ path: string; realPath: string; mountPoint: string }>;
+      };
+      const root = policy.roots
+        ?.filter(
+          (entry) =>
+            typeof entry.path === 'string' &&
+            typeof entry.realPath === 'string' &&
+            typeof entry.mountPoint === 'string' &&
+            (source === entry.path || source.startsWith(`${entry.path}/`))
+        )
+        .sort((a, b) => b.path.length - a.path.length)[0];
+      if (root) {
+        const physical = `${root.realPath}${source.slice(root.path.length)}`;
+        if (physical === root.mountPoint || physical.startsWith(`${root.mountPoint}/`)) return root.mountPoint;
+      }
+    }
+  } catch {
+    // Older installs have no storage policy. Keep their original path behavior.
+  }
+  return externalVolumeRoot(source) ?? '/';
 }
 
 export function parseFilesystemUsage(output: string, reliable: boolean, mac = false): FilesystemUsage | null {

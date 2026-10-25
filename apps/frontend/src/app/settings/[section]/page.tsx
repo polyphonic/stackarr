@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { CloudflareSyncPanel } from '../../../components/CloudflareSyncPanel';
 import { SettingsEditor } from '../../../components/SettingsEditor';
+import { StorageMove } from '../../../components/StorageMove';
 import { SubNav } from '../../../components/SubNav';
 import { Panel, Table } from '../../../components/ui';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
@@ -76,6 +77,11 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
                 </tr>
               </tbody>
             </Table>
+          </Panel>
+        )}
+        {section === 'mediamanagement' && (
+          <Panel title="Configuration storage">
+            <StorageMove />
           </Panel>
         )}
         {section === 'profiles' && (

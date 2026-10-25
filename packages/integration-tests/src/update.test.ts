@@ -40,7 +40,7 @@ test('managed app updates prune dangling and unused images after old containers 
 
   assert.ok(recreation >= 0, 'managed services should be recreated with old containers removed');
   assert.ok(cleanup > recreation, 'image cleanup should run only after service recreation');
-  assert.ok(cleanup < reconciliation, 'image cleanup should run before post-update reconciliation');
+  assert.ok(cleanup > reconciliation, 'image cleanup should run after post-update reconciliation');
   assert.ok(compose.includes("required_get('/containers/json?all=1')"));
   assert.ok(compose.includes("api('DELETE', '/images/'"));
   assert.doesNotMatch(compose, /\/images\/prune/);

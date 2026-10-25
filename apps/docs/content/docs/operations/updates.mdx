@@ -28,7 +28,14 @@ The app workflow targets managed services explicitly, leaves the Stackarr
 controller and its database running, reapplies integrations, and cleans up
 dangling and unused images. Cleanup runs after Compose has recreated the
 services and removed old containers, so images from the previous containers are
-no longer referenced. The scheduled update job uses this same workflow.
+no longer referenced. Before cleanup, selected containers with Docker health
+checks must remain healthy for 10 seconds. Containers without health checks
+must remain running without a restart for 30 seconds. That observation is not
+proof of application health. Missing, exited, restarting, unhealthy, replaced,
+or timed-out containers fail the update and skip cleanup, preserving old images
+for recovery. The default readiness wait is five minutes. The scheduled update
+job uses this same workflow. Images referenced by running or stopped containers
+are preserved, and no persistent volumes are removed.
 
 Persistent Docker volumes are not pruned automatically. First use
 `stackarr_get_container_overview` to review every unused volume. After confirming

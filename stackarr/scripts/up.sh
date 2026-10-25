@@ -8,6 +8,26 @@ source "$ROOT_DIR/lib/common.sh"
 print_header "Stackarr Up"
 load_env
 wait_for_stackarr_storage
+if [[ "${STACKARR_RUN_SOURCE:-}" == "startup" ]]; then
+    wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
+else
+    ensure_docker_runtime
+fi
+
+if installed_managed_database; then
+    STACKARR_DATABASE_MODE=postgres
+fi
+if start_existing_database_for_runtime_config && load_postgres_runtime_config_through_database; then
+    # Persist only non-secret topology after loading credentials into this process.
+    write_compose_env_file
+fi
+
+# An installed PostgreSQL stack must never reconcile from bootstrap flags if
+# the authoritative settings cannot be read during a controller restart.
+if installed_managed_database; then
+    load_postgres_runtime_config || fail "Unable to load authoritative PostgreSQL runtime settings; startup cancelled"
+    write_compose_env_file
+fi
 write_compose_env_file
 if optional_service_enabled tdarr; then
     ensure_dir "$CONFIG_ROOT/tdarr"
@@ -18,23 +38,6 @@ if optional_service_enabled youtarr; then
     ensure_dir "$YOUTARR_CONFIG_ROOT"
     ensure_dir "$YOUTARR_JOBS_ROOT"
     ensure_dir "$YOUTARR_IMAGES_ROOT"
-fi
-if [[ "${STACKARR_RUN_SOURCE:-}" == "startup" ]]; then
-    wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
-else
-    ensure_docker_runtime
-fi
-
-if start_existing_database_for_runtime_config && load_postgres_runtime_config_through_database; then
-    # Persist only non-secret topology after loading credentials into this process.
-    write_compose_env_file
-fi
-
-# An installed PostgreSQL stack must never reconcile from bootstrap flags if
-# the authoritative settings cannot be read during a controller restart.
-if database_mode_is_postgres && docker inspect database >/dev/null 2>&1; then
-    load_postgres_runtime_config || fail "Unable to load authoritative PostgreSQL runtime settings; startup cancelled"
-    write_compose_env_file
 fi
 ensure_database_if_required
 

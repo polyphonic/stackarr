@@ -5,6 +5,7 @@
     "index",
     "run-setup",
     "storage-paths",
+    "external-storage",
     "media-servers",
     "torrent-client",
     "presets",

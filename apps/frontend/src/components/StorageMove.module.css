@@ -1,0 +1,85 @@
+.move {
+  display: grid;
+  max-width: 900px;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--borderColor);
+}
+.move h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--textColor);
+}
+.move p {
+  margin: 0;
+  color: var(--mutedTextColor);
+  line-height: 1.5;
+  font-size: 13px;
+}
+.paths {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 8px 20px;
+  margin: 0;
+  font-size: 13px;
+}
+.paths dt {
+  color: var(--mutedTextColor);
+}
+.paths dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.move code {
+  color: var(--textColor);
+}
+.move label {
+  color: var(--mutedTextColor);
+  font-size: 13px;
+}
+.move > input {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--borderColor);
+  border-radius: 12px;
+  background: var(--inputBackground);
+  color: var(--textColor);
+}
+.confirm {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  max-width: 780px;
+  line-height: 1.5;
+}
+.confirm input {
+  margin-top: 3px;
+}
+.move button {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--purple-700);
+  border-radius: 12px;
+  background: var(--purple-600);
+  color: var(--accent-foreground);
+}
+.move button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.move :is(input, button):focus-visible {
+  outline: 2px solid var(--purple-600);
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .paths {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .paths dd {
+    margin-bottom: 8px;
+  }
+}

@@ -845,6 +845,8 @@ test('portable runtime snapshot falls back to generated Compose state when Postg
         'ENABLE_YOUTARR="true"',
         'YOUTARR_ADMIN_PASSWORD="youtarr-fallback-password"',
         'STACKARR_VERSION="transient-version"',
+        'STACKARR_STORAGE_POLICY="/old-host/state/storage-policy.json"',
+        'STACKARR_STORAGE_DOCKER="/old-host/bin/docker"',
         ''
       ].join('\n')
     );
@@ -880,6 +882,8 @@ test('portable runtime snapshot falls back to generated Compose state when Postg
     assert.equal(snapshot.runtimeConfig.ENABLE_YOUTARR, 'true');
     assert.equal(snapshot.runtimeConfig.YOUTARR_ADMIN_PASSWORD, 'youtarr-fallback-password');
     assert.equal(snapshot.runtimeConfig.STACKARR_VERSION, undefined);
+    assert.equal(snapshot.runtimeConfig.STACKARR_STORAGE_POLICY, undefined);
+    assert.equal(snapshot.runtimeConfig.STACKARR_STORAGE_DOCKER, undefined);
     assert.equal(audit.source, 'compose-fallback');
     assert.match(stdout, /from compose-fallback/);
   } finally {

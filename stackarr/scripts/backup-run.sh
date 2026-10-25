@@ -294,6 +294,12 @@ FULL_CONFIG_EXCLUDES=("${LITE_CONFIG_EXCLUDES[@]}")
 STATE_EXCLUDES=(
     "compose/.env"
     "backup-encryption.key"
+    "storage-policy.json"
+    "storage-enrollment.json"
+    "storage-migration.json.lock"
+    "storage-migration.json"
+    "storage-bridge/"
+    "compose/storage-override.json"
 )
 FULL_PLEX_EXCLUDES=(
     "Codecs/"
@@ -1006,6 +1012,12 @@ if [[ "$(lowercase "${JELLYFIN_INSTALL_MODE:-disabled}")" == "native" && -d "$JE
 fi
 
 progress 86 "Writing backup manifest"
+# Preserve volume identities as recovery reference, never as an automatically
+# restored policy that could trust the wrong host or replay an interrupted move.
+if [[ -n "${STACKARR_STORAGE_POLICY:-}" ]]; then
+    stackarr_storage_guard
+    copy_file "$STACKARR_STORAGE_POLICY" "$STAGING/stackarr/storage-policy-reference.json"
+fi
 cat > "$STAGING/manifest.txt" <<EOF
 created_at=$(date '+%Y-%m-%d %H:%M:%S %z')
 stackarr_root=$ROOT_DIR
@@ -1027,6 +1039,7 @@ romm_state=database/romm.dump plus config/romm/config and config/romm/assets
 prowlarr_custom_definitions=config/prowlarr/Definitions/Custom
 questarr_romm_import_state=state/questarr-romm-import.json
 portable_runtime_config=stackarr/runtime-config.json
+storage_policy_reference=stackarr/storage-policy-reference.json (re-enroll on the restore host; not auto-applied)
 credential_audit=stackarr/credential-audit.json
 compose_env_restore=regenerated from portable runtime config; generated state/compose/.env is intentionally excluded
 archive_encryption=$BACKUP_ENCRYPTION
@@ -1052,6 +1065,7 @@ else
     ARCHIVE_PATH="$BACKUP_ROOT/$BACKUP_NAME.tar.gz"
 fi
 with_progress_heartbeat 92 "Compressing backup archive" "$ARCHIVE_PATH" create_archive
+stackarr_storage_guard
 progress 97 "Recording backup archive"
 record_backup_archive "$ARCHIVE_PATH"
 progress 98 "Pruning old backup archives"
