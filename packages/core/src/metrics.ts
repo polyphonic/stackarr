@@ -131,7 +131,7 @@ export function diskUsages(paths: string[], probe: typeof diskUsage = diskUsage)
 
   for (const disk of disks) {
     const key = volumeKey(disk);
-    const current = byVolume.get(key);
+    let current = byVolume.get(key);
 
     if (!current) {
       byVolume.set(key, disk);
@@ -139,6 +139,12 @@ export function diskUsages(paths: string[], probe: typeof diskUsage = diskUsage)
     }
 
     current.paths = [...new Set([...current.paths, ...disk.paths])];
+    // An unenrolled sibling (for example backups) can be listed before a
+    // verified config root on the same volume. Keep the proven measurement.
+    if (current.totalSpace === null && disk.totalSpace !== null) {
+      current = { ...disk, paths: current.paths, path: current.path, label: current.label };
+      byVolume.set(key, current);
+    }
     current.path = preferredVolumeLabel(current.path, disk.path);
     current.label = volumeLabel(current.path);
   }
@@ -146,7 +152,7 @@ export function diskUsages(paths: string[], probe: typeof diskUsage = diskUsage)
   return [...byVolume.values()].sort((a, b) => volumeRank(a) - volumeRank(b) || a.path.localeCompare(b.path));
 }
 
-function diskUsage(diskPath: string) {
+function diskUsage(diskPath: string): StackMetrics['disks'][number] {
   try {
     const normalizedPath = fs.existsSync(diskPath) ? fs.realpathSync(diskPath) : diskPath;
     const containerUsage = readFilesystemUsage(diskPath);

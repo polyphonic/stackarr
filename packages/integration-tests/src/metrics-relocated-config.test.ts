@@ -5,6 +5,33 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { diskUsages, hostMountPoint } from '../../core/src/metrics';
 
+test('verified volume capacity wins over an unavailable sibling path in either order', () => {
+  const volume = '/Volumes/Portable';
+  const backup = `${volume}/Backups`;
+  const config = '/opt/stackarr/config';
+  for (const paths of [
+    [backup, config],
+    [config, backup]
+  ]) {
+    const disks = diskUsages(paths, (diskPath) => ({
+      label: volume,
+      path: volume,
+      paths: [diskPath],
+      filesystem: diskPath === config ? '/dev/verified' : null,
+      mountPoint: diskPath === config ? volume : null,
+      freeSpace: diskPath === config ? 600000 : null,
+      totalSpace: diskPath === config ? 1000000 : null,
+      usedPercent: diskPath === config ? 40 : null
+    }));
+    assert.equal(disks.length, 1);
+    assert.equal(disks[0].totalSpace, 1000000);
+    assert.equal(disks[0].freeSpace, 600000);
+    assert.equal(disks[0].filesystem, '/dev/verified');
+    assert.equal(disks[0].mountPoint, volume);
+    assert.deepEqual(disks[0].paths, paths);
+  }
+});
+
 test('dashboard groups a relocated logical config bind under its physical disk', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-relocated-metrics-'));
   const state = path.join(dir, 'state');
