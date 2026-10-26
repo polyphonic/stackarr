@@ -135,7 +135,7 @@ function Sparkline({ label, values }: { label: string; values: number[] }) {
 
 function Bar({ value }: { value: number }) {
   return (
-    <div className={`${styles.bar} ${value >= 90 ? styles.barBad : value >= 75 ? styles.barWarn : styles.barGood}`}>
+    <div className={`${styles.bar} ${value > 95 ? styles.barBad : value > 90 ? styles.barWarn : styles.barGood}`}>
       <span style={{ width: `${Math.min(value, 100)}%` }} />
     </div>
   );

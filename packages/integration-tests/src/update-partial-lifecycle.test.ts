@@ -15,6 +15,9 @@ test('partial image pull updates only successful services, preserves other conta
   try {
     await mkdir(path.join(root, 'scripts'));
     await mkdir(path.join(root, 'lib'));
+    await mkdir(path.join(root, 'bin'));
+    await writeFile(path.join(root, 'bin/docker'), '#!/bin/sh\nprintf "running|healthy|0|configured\\n"\n');
+    await chmod(path.join(root, 'bin/docker'), 0o755);
     await writeFile(
       path.join(root, 'scripts/update-run.sh'),
       await readFile(path.join(repoRoot, 'stackarr/scripts/update-run.sh'), 'utf8')
@@ -37,6 +40,7 @@ stackarr_compose() {
   printf '%s\\n' "$*" >> "$STACKARR_TEST_ACTIONS"
   case "$*" in
     *'config --services') printf 'app\\nfirst\\nsecond\\n';;
+    *'ps --all -q first') printf 'abcdef\\n';;
     *'pull --quiet first') return 0;;
     *'pull --quiet'*) return 1;;
   esac
@@ -52,7 +56,13 @@ fail() { printf '%s\\n' "$1" >&2; exit 1; }
     const actions = path.join(root, 'actions');
     await assert.rejects(
       execFile('bash', [path.join(root, 'scripts/update-run.sh'), 'services'], {
-        env: { ...process.env, STACKARR_TEST_ACTIONS: actions, STACKARR_UPDATE_PULL_ATTEMPTS: '1' }
+        env: {
+          ...process.env,
+          PATH: `${path.join(root, 'bin')}:${process.env.PATH}`,
+          STACKARR_TEST_ACTIONS: actions,
+          STACKARR_UPDATE_PULL_ATTEMPTS: '1',
+          STACKARR_UPDATE_HEALTHY_STABILITY_SECONDS: '0'
+        }
       }),
       /Managed services partially updated: 1 of 2 images pulled/
     );

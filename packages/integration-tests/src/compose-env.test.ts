@@ -176,6 +176,7 @@ test('host runtime reload reads current PostgreSQL settings through the Stackarr
           PATH: `${binDir}:${process.env.PATH}`,
           HOME: process.env.HOME,
           TMPDIR: process.env.TMPDIR,
+          APP_ROOT_DEFAULT_OVERRIDE: path.join(root, 'app'),
           STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
           STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
         }
@@ -308,6 +309,7 @@ test('host runtime reload reads PostgreSQL through the database container socket
           STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
           STACKARR_COMPOSE_PROJECT_DIR: path.join(root, 'compose'),
           STACKARR_COMPOSE_FILE: path.join(repoRoot, 'stackarr/docker-compose.yml'),
+          APP_ROOT_DEFAULT_OVERRIDE: appRoot,
           USERNAME: '',
           RECYCLARR_IMAGE: ''
         }

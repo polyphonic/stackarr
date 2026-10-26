@@ -45,6 +45,10 @@ case "$cmd" in
         shift || true
         exec "$ROOT_DIR/scripts/migrate.sh" "$@"
         ;;
+    storage)
+        shift || true
+        exec /bin/bash "$ROOT_DIR/scripts/storage.sh" "$@"
+        ;;
     telemetry)
         shift || true
         load_env
@@ -300,6 +304,7 @@ Stackarr commands:
   stackarr down
   stackarr configure
   stackarr migrate plan|run
+  stackarr storage status|check|prepare|protect|install|stop|down|migrate|monitor
   stackarr telemetry status|preview|enable|disable|send
   stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job
   stackarr naming apply|prestart

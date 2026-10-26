@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=storage-guard.sh
+source "$ROOT_DIR/lib/storage-guard.sh"
 if [[ -n "${STACKARR_REPO_ROOT:-}" ]]; then
     REPO_ROOT="$STACKARR_REPO_ROOT"
 elif [[ -f "$ROOT_DIR/../package.json" && -d "$ROOT_DIR/../stackarr" ]]; then
@@ -426,6 +428,14 @@ load_postgres_runtime_config() {
         load_postgres_runtime_config_from_host
 }
 
+installed_managed_database() {
+    local project source
+    project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' database 2>/dev/null)" || return 1
+    [[ "$project" == "${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}" ]] || return 1
+    source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Source}}{{end}}{{end}}' database 2>/dev/null)" || return 1
+    [[ "$source" == "${APP_ROOT:-$(default_app_root)}/config/database" ]]
+}
+
 start_existing_database_for_runtime_config() {
     [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] || return 1
     ensure_docker_runtime
@@ -483,6 +493,8 @@ context_only = {
     "STACKARR_COMPOSE_PROJECT_DIR",
     "STACKARR_CONTAINER_NAME",
     "STACKARR_DATABASE_DIR",
+    "STACKARR_STORAGE_POLICY",
+    "STACKARR_STORAGE_DOCKER",
     "STACKARR_DATABASE_FILE",
     "STACKARR_PLEX_HOST",
     "STACKARR_REPO_ROOT",
@@ -629,15 +641,22 @@ database_pgdata_default() {
 }
 
 load_env() {
+    # Check the internal policy before touching a possibly relocated database.
+    stackarr_storage_guard
     : "${STACKARR_REPO_ROOT:=$REPO_ROOT}"
     configure_docker_environment
     # Load installed paths before choosing the database. A source checkout may
     # still contain an old database and must not become the controller's mount.
     load_compose_runtime_env
+    stackarr_storage_guard
     : "${STACKARR_DATABASE_FILE:=$(default_stackarr_database_file)}"
     : "${STACKARR_DATABASE_DIR:=$(dirname "$STACKARR_DATABASE_FILE")}"
     # Host commands cannot resolve the Compose-only `database` hostname. Read
     # PostgreSQL-backed settings through the running Stackarr controller first.
+    # An installed database is authoritative even when bootstrap flags are stale.
+    if ! stackarr_runtime_is_container && installed_managed_database; then
+        STACKARR_DATABASE_MODE=postgres
+    fi
     if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]]; then
         if ! load_postgres_runtime_config; then
             # Host startup may still need to start the existing database first.
@@ -1321,6 +1340,8 @@ context_only = {
     "STACKARR_COMPOSE_PROJECT_DIR",
     "STACKARR_CONTAINER_NAME",
     "STACKARR_DATABASE_FILE",
+    "STACKARR_STORAGE_POLICY",
+    "STACKARR_STORAGE_DOCKER",
     "STACKARR_PLEX_HOST",
     "STACKARR_REPO_ROOT",
     "STACKARR_REVISION",
@@ -2269,6 +2290,7 @@ stackarr_compose_file() {
 }
 
 prepare_compose_runtime_file() {
+    stackarr_storage_guard
     local source_file="$ROOT_DIR/docker-compose.yml"
     local agregarr_guard_source="$ROOT_DIR/scripts/agregarr-placeholder-guard.cjs"
     local project_dir compose_file agregarr_guard_target
@@ -2288,6 +2310,7 @@ prepare_compose_runtime_file() {
         cp "$agregarr_guard_source" "$agregarr_guard_target"
     fi
     chmod 0644 "$agregarr_guard_target"
+    prepare_storage_compose_override "$project_dir" "$source_file"
 }
 
 migrate_legacy_image_volume() {
@@ -2374,11 +2397,15 @@ migrate_legacy_image_volumes() {
 
 stackarr_compose() {
     local project_dir compose_file argument migrate_volumes=false
+    local storage_args=()
 
     configure_docker_environment
     prepare_compose_runtime_file
     project_dir="$(stackarr_compose_project_dir)"
     compose_file="$(stackarr_compose_file)"
+    if [[ -n "${STACKARR_STORAGE_POLICY:-}" ]]; then
+        storage_args=(-f "$project_dir/storage-override.json")
+    fi
 
     for argument in "$@"; do
         if [[ "$argument" == up || "$argument" == create ]]; then
@@ -2394,6 +2421,7 @@ stackarr_compose() {
         --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" \
         --project-directory "$project_dir" \
         -f "$compose_file" \
+        ${storage_args[@]+"${storage_args[@]}"} \
         "$@"
 }
 
@@ -2436,6 +2464,7 @@ wait_for_directories() {
 }
 
 wait_for_stackarr_storage() {
+    stackarr_storage_guard
     local timeout="${STACKARR_STORAGE_WAIT_SECONDS:-180}"
     local required=()
 

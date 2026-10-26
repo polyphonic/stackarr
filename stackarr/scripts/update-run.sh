@@ -114,6 +114,71 @@ pull_managed_services() {
     fi
 }
 
+# Docker health checks are authoritative when present. Without one, observe
+# a restart-free running interval; this is not proof of application health.
+wait_for_managed_readiness() {
+    local -a services=("$@") ids=() stable_since=() restart_counts=()
+    local timeout="${STACKARR_UPDATE_READY_TIMEOUT_SECONDS:-300}"
+    local healthy_stability="${STACKARR_UPDATE_HEALTHY_STABILITY_SECONDS:-10}"
+    local running_stability="${STACKARR_UPDATE_RUNNING_STABILITY_SECONDS:-30}"
+    local start=$SECONDS now service id candidates details status health restarts configured i ready
+    for i in "$timeout" "$healthy_stability" "$running_stability"; do
+        [[ "$i" =~ ^[0-9]+$ ]] || fail "Managed update readiness intervals must be non-negative integers"
+    done
+    (( timeout > 0 && timeout <= 900 && healthy_stability <= timeout && running_stability <= timeout )) || \
+        fail "Managed update readiness intervals must fit within the 1-900 second timeout"
+    for ((i = 0; i < ${#services[@]}; i++)); do
+        ids[i]=""
+        stable_since[i]=-1
+        restart_counts[i]=""
+    done
+    while true; do
+        now=$SECONDS
+        ready=true
+        for ((i = 0; i < ${#services[@]}; i++)); do
+            service="${services[i]}"
+            candidates="$(stackarr_compose "${profile_args[@]}" ps --all -q "$service")" || \
+                fail "Cannot inspect $service; image cleanup skipped"
+            [[ "$candidates" =~ ^[[:xdigit:]]+$ ]] || fail "$service has no unique Compose container; image cleanup skipped"
+            id="$candidates"
+            if [[ -n "${ids[i]}" && "${ids[i]}" != "$id" ]]; then
+                fail "$service container changed during readiness observation; image cleanup skipped"
+            fi
+            ids[i]="$id"
+            details="$(docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.RestartCount}}|{{if .Config.Healthcheck}}configured{{else}}none{{end}}' "$id")" || \
+                fail "Cannot inspect $service container; image cleanup skipped"
+            IFS='|' read -r status health restarts configured <<< "$details"
+            [[ "$restarts" =~ ^[0-9]+$ && ( "$configured" == configured || "$configured" == none ) ]] || \
+                fail "Invalid Docker state for $service; image cleanup skipped"
+            [[ "$status" == running ]] || fail "$service is $status; image cleanup skipped"
+            [[ "$health" != unhealthy ]] || fail "$service is unhealthy; image cleanup skipped"
+            [[ -z "${restart_counts[i]}" || "${restart_counts[i]}" == "$restarts" ]] || \
+                fail "$service restarted during readiness observation; image cleanup skipped"
+            restart_counts[i]="$restarts"
+            if [[ "$configured" == configured ]]; then
+                [[ "$health" == healthy || "$health" == starting ]] || fail "$service health check unavailable ($health); image cleanup skipped"
+                if [[ "$health" == healthy ]]; then
+                    (( stable_since[i] >= 0 )) || stable_since[i]=$now
+                    (( now - stable_since[i] >= healthy_stability )) || ready=false
+                else
+                    stable_since[i]=-1
+                    ready=false
+                fi
+            else
+                [[ "$health" == none ]] || fail "$service has unexpected Docker health state; image cleanup skipped"
+                (( stable_since[i] >= 0 )) || stable_since[i]=$now
+                (( now - stable_since[i] >= running_stability )) || ready=false
+            fi
+        done
+        if [[ "$ready" == true ]]; then
+            ok "Selected services passed Docker health checks or restart-free running observation; services without checks are not application-health verified"
+            return 0
+        fi
+        (( now - start < timeout )) || fail "Managed service readiness timed out; image cleanup skipped"
+        sleep 1
+    done
+}
+
 update_managed_services() {
     local -a services=()
     local service service_list
@@ -138,6 +203,11 @@ update_managed_services() {
     stackarr_compose "${profile_args[@]}" up -d --no-deps "${PULLED_MANAGED_SERVICES[@]}"
     remove_database_init_sidecar
     remove_inactive_torrent_client_container
+    "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
+    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
+    "$ROOT_DIR/scripts/requests.sh" apply --wait || true
+    # Reconciliation may recreate a downloader. Check final replacements.
+    wait_for_managed_readiness "${PULLED_MANAGED_SERVICES[@]}"
     if stackarr_compose --profile maintenance run --rm image-cleanup; then
         ok "Unused Docker images cleaned"
     else
@@ -145,9 +215,6 @@ update_managed_services() {
         warn "Unused Docker image cleanup failed; the update will be reported as failed after reconciliation"
         update_task_note "Unused Docker image cleanup failed"
     fi
-    "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
-    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
-    "$ROOT_DIR/scripts/requests.sh" apply --wait || true
 
     if [[ "$MANAGED_PULL_PARTIAL" == true ]]; then
         fail "Managed services partially updated: ${#PULLED_MANAGED_SERVICES[@]} of ${#services[@]} images pulled; failed services were left unchanged"

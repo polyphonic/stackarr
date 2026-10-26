@@ -176,11 +176,18 @@ test('concurrent runtime staging is serialized and leaves one complete canonical
   const home = path.join(root, 'home');
   const managedParent = path.join(home, appDataDirectory, 'state');
   const managedBin = path.join(managedParent, 'host-runtime/bin/stackarr');
-  const commonScript = path.join(repoRoot, 'stackarr/lib/common.sh');
+  const fixtureSource = path.join(root, 'source');
+  const commonScript = path.join(fixtureSource, 'lib/common.sh');
   const command = 'source "$1"; install_managed_host_runtime';
 
   try {
     await mkdir(home, { recursive: true });
+    // Exercise locking without copying a developer's ignored databases.
+    await mkdir(path.join(fixtureSource, 'lib'), { recursive: true });
+    await mkdir(path.join(fixtureSource, 'bin'));
+    for (const relative of ['lib/common.sh', 'lib/storage-guard.sh', 'bin/stackarr']) {
+      await writeFile(path.join(fixtureSource, relative), await readFile(path.join(repoRoot, 'stackarr', relative)));
+    }
     const env = { ...process.env, XDG_DATA_HOME: '', APP_ROOT_DEFAULT_OVERRIDE: '', HOME: home };
     const [first, second] = await Promise.all([
       execFile('bash', ['-c', command, 'runtime-stage', commonScript], { cwd: repoRoot, env }),

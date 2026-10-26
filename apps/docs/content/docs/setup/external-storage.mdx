@@ -1,0 +1,115 @@
+---
+title: External Drives and Safe Migration
+---
+
+# External Drives and Safe Migration
+
+Stackarr can keep its managed application configuration on a local external disk while keeping its host launcher, recovery journal and storage monitor on the internal disk. This is opt-in. Existing installations keep their current paths and restart behavior until you explicitly prepare storage protection.
+
+## Safety model
+
+A folder existing is not proof that the correct disk is mounted. Protection pins each enrolled path to its real path, filesystem and volume UUID. A replacement disk with the same display name is rejected. Missing, locked, read-only or unsupported volumes block guarded starts and writes instead of treating a placeholder directory as the configured disk.
+
+The supported hosts are macOS and native Linux. Linux/WSL installations require a native Linux filesystem with a stable UUID. Windows drive-letter/DrvFS, network filesystems, FAT and exFAT are not supported for this application-state migration. Do not use synchronized cloud folders for live databases.
+
+Docker is the application runtime, not the host storage interface. The controller relies on the supported host monitor for mount verification. Native Windows migration and Synology DSM lifecycle integration are not currently verified or supported by this workflow. A Linux-based NAS alone does not establish compatibility with the required host tools and service manager.
+
+The host monitor supplies fresh, nonce-bound mount checks to the Docker controller and maintenance worker; host commands also check the physical disk identity. A container's view of a macOS bind mount is not accepted as proof that the host disk is present. If the required monitor response is unavailable, guarded container operations fail closed. `stackarr storage check` is a host identity check, not a substitute for verifying the controller-to-monitor bridge after recreating the controller.
+
+Protection disables Docker's automatic restart policy for this Compose project and verifies the result before marking enrollment ready. An interrupted preparation remains blocked and can be retried. New generated Compose launches retain `restart: "no"`. This prevents a daemon reboot from starting applications before host mount checks run. When an enrolled disk becomes unavailable, the monitor stops the project's containers. It never deletes data, changes another Compose project or automatically starts services after reconnection.
+
+**This reduces accidental writes and destructive scans. It cannot make an unexpected cable pull safe for an open database.** Detection and shutdown take time. Use stable power, reliable cables, verified backups and a filesystem suitable for databases. Do not unplug a live storage disk to test this on production.
+
+## Before migrating
+
+- Install a release containing these storage commands on the host and in the Stackarr controller image. Do not mix an old controller image with new host scripts.
+- Use Node.js 20 or newer and Docker Compose v2 with JSON configuration output. Verify the controller's bundled Compose as well as the host CLI. macOS uses `diskutil` and `ditto`. Linux requires `findmnt` and `rsync` with archive, hard-link, ACL and extended-attribute support.
+- Make and verify an encrypted backup. Keep its decryption key separately available. A copy on the destination SSD does not protect against that SSD failing.
+- Keep `APP_ROOT`, `STATE_ROOT`, host tools and logs internal. The Docker engine's VM location is a separate choice managed by that engine. The automatic migration moves **the complete configured `CONFIG_ROOT` only**.
+- Choose an empty destination beneath the mounted volume. Never target the volume root, an existing data tree, a parent/child of the source, or a symlink to another location.
+- Ensure enough destination space for the complete copy. The original internal tree remains as rollback data, so migration does not immediately reclaim all internal space.
+- Stop native writers, backup jobs and third-party tools that use the config tree. The engine rejects live Docker writers and verifies the copied files, but cannot prove that an arbitrary host process will never open a file later.
+
+## Prepare and enroll
+
+Run these on the Docker host. Commands with `--yes` change the installation, not just a plan:
+
+```bash
+stackarr storage prepare --yes
+stackarr storage install --yes
+stackarr storage protect /Volumes/External/Media --yes
+stackarr storage protect /Volumes/Backup/Stackarr --yes
+stackarr storage check
+```
+
+Use actual existing paths. On Linux, use your mounted paths such as `/mnt/storage/Media`. Enroll every required media/download/backup path, not only application config. For a non-default Compose project, pass its exact name after `prepare --yes`.
+
+The monitor installs as a macOS LaunchAgent or a Linux user systemd service. It pins the installed host runtime, Node and Docker CLI to the operating-system volume, resolving symlinks before validating their volume identity. Homebrew-only or external Node runtimes are rejected for persistent monitor installation. Provide an internal supported Node installation first. Linux user services require an active user manager; arrange login/lingering according to your host policy. macOS LaunchAgents start at user login, not before login.
+
+For a new installation, create application subdirectories only after the intended volume is mounted and enrolled. Do not rely on Docker to create missing host paths on external storage.
+
+## Move from Settings
+
+After host enrollment, recreate the controller through Stackarr so it receives the storage policy and monitor bridge. Open **Settings → Media Management → Move configuration**. Enter an absent destination directory whose parent already exists on the mounted disk, then confirm the downtime and retained-original notice.
+
+This action queues one narrowly defined operation for the internal host monitor. The host validates the destination and reads authoritative settings before stopping the managed containers. It copies and verifies the complete configuration, retains the original, then starts the same generated stack with its captured settings. The web controller does not own the copy process and can safely disappear during the move. Keep the page open; it reconnects and shows the persisted result.
+
+`APP_ROOT` and `STATE_ROOT` may be configured independently. The worker loads the installed runtime paths instead of assuming the state directory is inside the application directory. Missing installation metadata or a state/policy mismatch blocks the move before containers are stopped.
+
+Stop native configuration writers and their retry jobs first. The worker refuses an active native Tdarr node and checks writable host handles after container shutdown. Unmanaged containers holding configuration bind mounts are rejected before downtime, even if they never started. It does not stop native Plex, the Docker engine or another Compose project. A failed or completed request requires host review before another relocation. Never delete the queue, policy or journal just to clear that condition.
+
+## CLI alternative: plan, stop, copy, verify, cut over
+
+Here `SOURCE` means the current configured `CONFIG_ROOT`, not the repository or the whole app directory. Quote paths containing spaces.
+
+```bash
+stackarr storage migrate plan "SOURCE" "/Volumes/External/Stackarr/config"
+stackarr storage down --yes
+stackarr storage migrate run "SOURCE" "/Volumes/External/Stackarr/config" --yes
+stackarr storage check
+stackarr up
+```
+
+`plan` does not copy, stop services or change paths. `storage down --yes` removes only this project's old containers so they cannot retain stale bind mounts. Named volumes remain intact.
+
+The migration validates the target volume, checks free space, copies offline, compares file hashes and topology, and registers the volume policy before cutover. It preserves the source as a rollback tree and replaces the original logical config path with a real symlink to the verified destination. Existing per-service paths and backup source paths continue to resolve through the same logical root. It never deletes the retained source or starts services itself.
+
+The symlink is a compatibility mechanism on supported POSIX hosts, not a portable backup or a promise of native Windows support. Restores on another host must select that host's physical storage and enroll it again. After separately approved original-source removal, APFS/Time Machine snapshots, filesystem snapshots or shared blocks can delay physical space recovery. Measure filesystem free space separately from the directory's allocated size.
+
+On macOS, literal AppleDouble `._*` metadata files are preserved alongside native metadata. Regular `.DS_Store` files are copied and retained but excluded from stable integrity comparisons because Finder can update these folder-view preferences while applications are stopped. Databases, application configuration, permissions, ownership and link topology remain strictly verified. A resumed operation reuses an existing copy only after full content and topology verification, not a size or timestamp check.
+
+After `up`, verify service health, representative library records and settings, then run and verify a new backup. Reboot with the disk connected in a maintenance window and recheck. The source is not safe to remove merely because the copy command completed. Source cleanup requires a separate decision after these checks.
+
+## Interrupted migration and rollback
+
+The internal `state/storage-migration.json` journal records progress. A separate `state/storage-enrollment.json` marker keeps policy-file loss from being mistaken for an unprotected installation. Incomplete migrations block normal startup rather than silently selecting a half-copied tree.
+
+```bash
+stackarr storage down --yes
+stackarr storage migrate rollback --yes
+```
+
+`storage down --yes` is the recovery path when normal `down` is blocked by an incomplete migration or missing disk. It stops and removes only this project's containers without loading the relocated database. It never removes Docker volumes.
+
+Repeat the original `migrate run SOURCE DESTINATION --yes` command to resume an interrupted copy or cutover. Before cutover, rollback restores the original policy and leaves partial destination data untouched. After completed cutover, rollback refuses a destination that has changed since migration. If services have written new state, use a new verified backup or a deliberate reverse migration instead. Do not erase the policy/journal or force-delete directories to bypass a failed safety check.
+
+## Missing disk or unavailable monitor
+
+Use `stackarr storage status` or `stackarr storage check` on the host. Reconnect and unlock the original disk, correct permissions or restart the monitor, then check again. If the host check passes but the dashboard still reports unavailable storage, verify that the installed monitor is running and the controller was recreated with the current policy and bridge mounts. Once storage is healthy, run `stackarr up` explicitly; reconnection alone does not restart services. `stackarr storage stop --yes` remains available without reading the relocated application database.
+
+A renamed/replaced volume requires explicit review and re-enrollment. Recreate the controller and updater containers after policy changes so their read-only policy-file mounts use the new version. Do not blindly edit a UUID to silence a failure. Deleting a storage policy is not a supported way to disable safeguards on an already migrated installation.
+
+## Backups and restores
+
+Backups retain the same logical `CONFIG_ROOT` and copy its contents, not merely the root symlink. Guarded backups check storage before reading and before registering a successful archive or pruning old generations. The existing backup-destination mount guard still applies.
+
+The archive stores a volume-policy reference under `stackarr/storage-policy-reference.json`. It does not automatically restore the old host's active volume policy, enrollment marker, migration journal, migration lock or bridge responses. On a new host, restore to verified storage and enroll that host's volumes deliberately. Keep manual restoration archives separate from scheduled retention.
+
+## What this does not relocate
+
+- Docker Desktop/OrbStack VM disks or Docker named volumes. Use the engine's own supported relocation process. Moving that VM externally affects every container in it.
+- Native Plex or Jellyfin data. Those applications have separate launchers and backup requirements. Their relocation requires an application-specific stopped migration and startup gating; the Stackarr config migration is not that workflow.
+- Media libraries and downloads. Changing those paths can require application-level library/import mappings and hardlink considerations.
+- The internal host tools, recovery state or credentials needed to repair an unavailable stack.
+
+A RAID mirror is not a backup. Live data and its only backup must not share a single failure domain.
