@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0-alpha.22](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.21...v0.3.0-alpha.22) (2026-10-26)
+
+
+### Added
+
+* **archive:** preserve current torrent sources and verified magnet metadata ([36947f0](https://github.com/polyphonic/stackarr/commit/36947f053a4ef259862ba56202c9518aa39b1fec))
+* **archive:** track current torrent sources and capture magnet metadata ([f578080](https://github.com/polyphonic/stackarr/commit/f578080e1ad1644feb0987ec364e7d9306847e70))
+* **storage:** add guarded external config migration ([ea6c951](https://github.com/polyphonic/stackarr/commit/ea6c951c2a2bb0c0b9eeaf2d244e9134007a83f7))
+* **storage:** add guarded external config migration and verified disk metrics ([4fe0e6d](https://github.com/polyphonic/stackarr/commit/4fe0e6df2eee98be1b20e2755e3554a942d34a33))
+
+
+### Fixed
+
+* **archive:** validate effective root on every storage save ([6221c94](https://github.com/polyphonic/stackarr/commit/6221c945f9f8d9d749cbf665330c51312d1b2429))
+* **metrics:** preserve verified capacity when grouping disks ([b39336c](https://github.com/polyphonic/stackarr/commit/b39336c4102e53d18a8d7f46c1cbc8259ec25414))
+* **storage:** guard legacy service and archive mount cutovers ([b209905](https://github.com/polyphonic/stackarr/commit/b2099050056122b06d54c0cd1725c18c5ae0a493))
+* **storage:** resolve independent installation roots before moving ([4fae2f7](https://github.com/polyphonic/stackarr/commit/4fae2f7051e69bc52e105c5f06ba63c6657cac66))
+
+
+### Documentation
+
+* **downloads:** clarify Transmission shared incomplete staging ([0d6be18](https://github.com/polyphonic/stackarr/commit/0d6be18f87fce6fbaf969e92760e710b319422f0))
+* **storage:** explain guarded migration and maintenance safety ([95305f9](https://github.com/polyphonic/stackarr/commit/95305f958060020c0554348c814e629b9b229f1e))
+
 ## [0.3.0-alpha.21](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.20...v0.3.0-alpha.21) (2026-10-12)
 
 
