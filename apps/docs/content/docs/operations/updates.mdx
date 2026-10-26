@@ -25,17 +25,26 @@ docker exec app /app/bin/stackarr update services
 ```
 
 The app workflow targets managed services explicitly, leaves the Stackarr
-controller and its database running, reapplies integrations, and cleans up
-dangling and unused images. Cleanup runs after Compose has recreated the
-services and removed old containers, so images from the previous containers are
-no longer referenced. Before cleanup, selected containers with Docker health
-checks must remain healthy for 10 seconds. Containers without health checks
-must remain running without a restart for 30 seconds. That observation is not
+controller and its database running, and reapplies integrations. Cleanup runs
+only after integration reconciliation, which can recreate a downloader again.
+Before cleanup, selected containers with Docker health checks must remain
+healthy for 10 seconds. Containers without health checks must remain running
+without a restart for 30 seconds. That observation is not
 proof of application health. Missing, exited, restarting, unhealthy, replaced,
 or timed-out containers fail the update and skip cleanup, preserving old images
 for recovery. The default readiness wait is five minutes. The scheduled update
-job uses this same workflow. Images referenced by running or stopped containers
-are preserved, and no persistent volumes are removed.
+job uses this same workflow. A pulled image alone is not a successful update.
+
+Cleanup enumerates exact image IDs and rechecks container references and tag
+sets before non-forced deletion. Images referenced by running **or stopped**
+containers are preserved, including their tags; persistent volumes are not
+pruned. Other unused images, including tagged rollback images with no container
+reference, can be deleted by this user-initiated or scheduled workflow. There
+is no age grace period. Keep a stopped container referencing an image you need
+to retain, or disable managed updates until you have a separate retention plan;
+do not treat a repository digest or tag alone as protection. If readiness fails,
+cleanup is skipped. If cleanup itself fails, the update task reports failure
+even if some services were already replaced.
 
 Persistent Docker volumes are not pruned automatically. First use
 `stackarr_get_container_overview` to review every unused volume. After confirming

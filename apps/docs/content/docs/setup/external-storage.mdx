@@ -8,13 +8,13 @@ Stackarr can keep its managed application configuration on a local external disk
 
 ## Safety model
 
-A folder existing is not proof that the correct disk is mounted. Protection pins each enrolled path to its real path, filesystem and volume UUID. A replacement disk with the same display name is rejected. Missing, locked, read-only or unsupported volumes block guarded actions before configuration databases or generated Compose files are touched.
+A folder existing is not proof that the correct disk is mounted. Protection pins each enrolled path to its real path, filesystem and volume UUID. A replacement disk with the same display name is rejected. Missing, locked, read-only or unsupported volumes block guarded starts and writes instead of treating a placeholder directory as the configured disk.
 
 The supported hosts are macOS and native Linux. Linux/WSL installations require a native Linux filesystem with a stable UUID. Windows drive-letter/DrvFS, network filesystems, FAT and exFAT are not supported for this application-state migration. Do not use synchronized cloud folders for live databases.
 
 Docker is the application runtime, not the host storage interface. The controller relies on the supported host monitor for mount verification. Native Windows migration and Synology DSM lifecycle integration are not currently verified or supported by this workflow. A Linux-based NAS alone does not establish compatibility with the required host tools and service manager.
 
-The host monitor supplies fresh, nonce-bound mount checks to host commands, the Docker controller and the maintenance worker. A container's view of a macOS bind mount is not accepted as proof that the host disk is present. If that monitor is unavailable, guarded operations fail closed.
+The host monitor supplies fresh, nonce-bound mount checks to the Docker controller and maintenance worker; host commands also check the physical disk identity. A container's view of a macOS bind mount is not accepted as proof that the host disk is present. If the required monitor response is unavailable, guarded container operations fail closed. `stackarr storage check` is a host identity check, not a substitute for verifying the controller-to-monitor bridge after recreating the controller.
 
 Protection disables Docker's automatic restart policy for this Compose project and verifies the result before marking enrollment ready. An interrupted preparation remains blocked and can be retried. New generated Compose launches retain `restart: "no"`. This prevents a daemon reboot from starting applications before host mount checks run. When an enrolled disk becomes unavailable, the monitor stops the project's containers. It never deletes data, changes another Compose project or automatically starts services after reconnection.
 
@@ -53,6 +53,8 @@ For a new installation, create application subdirectories only after the intende
 After host enrollment, recreate the controller through Stackarr so it receives the storage policy and monitor bridge. Open **Settings → Media Management → Move configuration**. Enter an absent destination directory whose parent already exists on the mounted disk, then confirm the downtime and retained-original notice.
 
 This action queues one narrowly defined operation for the internal host monitor. The host validates the destination and reads authoritative settings before stopping the managed containers. It copies and verifies the complete configuration, retains the original, then starts the same generated stack with its captured settings. The web controller does not own the copy process and can safely disappear during the move. Keep the page open; it reconnects and shows the persisted result.
+
+`APP_ROOT` and `STATE_ROOT` may be configured independently. The worker loads the installed runtime paths instead of assuming the state directory is inside the application directory. Missing installation metadata or a state/policy mismatch blocks the move before containers are stopped.
 
 Stop native configuration writers and their retry jobs first. The worker refuses an active native Tdarr node and checks writable host handles after container shutdown. Unmanaged containers holding configuration bind mounts are rejected before downtime, even if they never started. It does not stop native Plex, the Docker engine or another Compose project. A failed or completed request requires host review before another relocation. Never delete the queue, policy or journal just to clear that condition.
 
@@ -93,7 +95,7 @@ Repeat the original `migrate run SOURCE DESTINATION --yes` command to resume an 
 
 ## Missing disk or unavailable monitor
 
-Use `stackarr storage status` or `stackarr storage check` on the host. Reconnect and unlock the original disk, correct permissions or restart the monitor, then check again. Once storage is healthy, run `stackarr up` explicitly. `stackarr storage stop --yes` remains available without reading the relocated application database.
+Use `stackarr storage status` or `stackarr storage check` on the host. Reconnect and unlock the original disk, correct permissions or restart the monitor, then check again. If the host check passes but the dashboard still reports unavailable storage, verify that the installed monitor is running and the controller was recreated with the current policy and bridge mounts. Once storage is healthy, run `stackarr up` explicitly; reconnection alone does not restart services. `stackarr storage stop --yes` remains available without reading the relocated application database.
 
 A renamed/replaced volume requires explicit review and re-enrollment. Recreate the controller and updater containers after policy changes so their read-only policy-file mounts use the new version. Do not blindly edit a UUID to silence a failure. Deleting a storage policy is not a supported way to disable safeguards on an already migrated installation.
 

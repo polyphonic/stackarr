@@ -172,28 +172,42 @@ function work(
     status(policyFile, request, 'planning');
     // This supported loader reads authoritative controller/DB runtime values while available.
     // Keep them only in worker memory: never persist credentials in queue or status.
+    const stateRoot = path.dirname(policyFile);
+    const composeEnv = path.join(stateRoot, 'compose/.env');
+    if (!fs.existsSync(composeEnv) || !fs.statSync(composeEnv).isFile())
+      throw new Error('Installed runtime environment is unavailable');
+    // The monitor service carries only a policy path, not installation roots.
+    // Bootstrap from the internal installed Compose env, never the policy's grandparent
+    // or incidental environment inherited by the host worker.
+    const bootstrap = { ...process.env };
+    delete bootstrap.APP_ROOT;
+    delete bootstrap.CONFIG_ROOT;
+    delete bootstrap.STATE_ROOT;
+    delete bootstrap.STACKARR_COMPOSE_PROJECT_DIR;
+    delete bootstrap.STACKARR_COMPOSE_ENV_FILE;
     const env = JSON.parse(
       run(
         '/bin/bash',
         [
           '-c',
-          'source "$1"; load_env >/dev/null; if database_mode_is_postgres; then load_postgres_runtime_config >/dev/null || exit 1; fi; node -e "process.stdout.write(JSON.stringify(process.env))"',
+          'source "$1"; load_compose_runtime_env; [[ -n "${APP_ROOT:-}" && -n "${CONFIG_ROOT:-}" && "${STATE_ROOT:-}" == "$2" ]] || exit 1; load_env >/dev/null; if database_mode_is_postgres; then load_postgres_runtime_config >/dev/null || exit 1; fi; node -e "process.stdout.write(JSON.stringify(process.env))"',
           'storage-move',
-          common
+          common,
+          stateRoot
         ],
         {
-          ...process.env,
-          APP_ROOT: path.dirname(path.dirname(policyFile)),
-          STATE_ROOT: path.dirname(policyFile),
+          ...bootstrap,
+          STACKARR_COMPOSE_ENV_FILE: composeEnv,
           STACKARR_STORAGE_POLICY: policyFile
         }
       )
     );
     if (
+      !env.APP_ROOT ||
+      !path.isAbsolute(env.APP_ROOT) ||
       !env.CONFIG_ROOT ||
       !path.isAbsolute(env.CONFIG_ROOT) ||
-      !env.STATE_ROOT ||
-      !path.isAbsolute(env.STATE_ROOT) ||
+      env.STATE_ROOT !== stateRoot ||
       env.STACKARR_STORAGE_POLICY !== policyFile
     )
       throw new Error('Authoritative runtime is unavailable');
