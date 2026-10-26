@@ -314,6 +314,9 @@ apply_transmission_preset() {
     local settings_file="$CONFIG_ROOT/transmission/settings.json"
     local unsafe_payload_hook_dest="$CONFIG_ROOT/transmission/hooks/transmission-delete-unsafe.sh"
     local payload status
+    # Transmission 4.1.3 exposes incomplete-dir only at session scope. Arr's
+    # category selects the completed directory, not per-torrent staging.
+    # Routing hooks would race active writes and risk displacing the malware hook.
     local desired_incomplete="/downloads/$DOWNLOAD_INCOMPLETE_NAME"
     local desired_complete="/downloads/$DOWNLOAD_COMPLETE_NAME"
     local desired_watch="/downloads/watch"

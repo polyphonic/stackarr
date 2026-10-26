@@ -14,6 +14,21 @@ const transmissionHook = path.join(repoRoot, 'stackarr/scripts/hooks/transmissio
 const archiveTorrentHook = path.join(repoRoot, 'stackarr/scripts/hooks/archive-torrent.sh');
 const postImportMediaHook = path.join(repoRoot, 'stackarr/scripts/hooks/post-import-media.sh');
 
+test('Transmission preset retains shared incomplete staging and the unsafe hook', async () => {
+  const script = await readFile(path.join(repoRoot, 'stackarr/scripts/downloads.sh'), 'utf8');
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  assert.match(script, /local desired_incomplete="\/downloads\/\$DOWNLOAD_INCOMPLETE_NAME"/);
+  assert.match(script, /local desired_complete="\/downloads\/\$DOWNLOAD_COMPLETE_NAME"/);
+  assert.match(script, /"incomplete-dir": sys\.argv\[3\]/);
+  assert.match(script, /"download-dir": sys\.argv\[2\]/);
+  assert.match(script, /"script-torrent-added-filename": "\/config\/hooks\/transmission-delete-unsafe\.sh"/);
+  assert.match(script, /"script-torrent-done-filename": "\/config\/hooks\/transmission-delete-unsafe\.sh"/);
+  assert.match(script, /cp "\$TRANSMISSION_UNSAFE_PAYLOAD_HOOK_SOURCE" "\$unsafe_payload_hook_dest"/);
+  assert.match(compose, /TRANSMISSION_INCOMPLETE_DIR: \/downloads\/\$\{DOWNLOAD_INCOMPLETE_NAME:-incomplete\}/);
+  assert.match(script, /"movieCategory" "\$RADARR_CATEGORY"/);
+  assert.match(script, /"tvCategory" "\$SONARR_CATEGORY"/);
+});
+
 test('Transmission unsafe hook rejects torrent names with Windows separators', async () => {
   await execFile('sh', [transmissionHook], {
     env: {
