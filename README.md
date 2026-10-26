@@ -81,6 +81,7 @@ The dashboard uses Portless app URLs by default, keeps pinned apps in the main n
 
 - [Quick start](https://stackarr.app/docs)
 - [Docker installation](https://stackarr.app/docs/installation)
+- [External storage and safe migration](https://stackarr.app/docs/setup/external-storage)
 - [MCP connections](https://stackarr.app/docs/agent/mcp)
 - [Hermes and OpenClaw](https://stackarr.app/docs/agent/plugins)
 - [Safety and control](https://stackarr.app/docs/agent/safety)

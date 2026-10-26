@@ -8,13 +8,13 @@ Stackarr can keep its managed application configuration on a local external disk
 
 ## Safety model
 
-A folder existing is not proof that the correct disk is mounted. Protection pins each enrolled path to its real path, filesystem and volume UUID. A replacement disk with the same display name is rejected. Missing, locked, read-only or unsupported volumes block guarded actions before configuration databases or generated Compose files are touched.
+A folder existing is not proof that the correct disk is mounted. Protection pins each enrolled path to its real path, filesystem and volume UUID. A replacement disk with the same display name is rejected. Missing, locked, read-only or unsupported volumes block guarded starts and writes instead of treating a placeholder directory as the configured disk.
 
 The supported hosts are macOS and native Linux. Linux/WSL installations require a native Linux filesystem with a stable UUID. Windows drive-letter/DrvFS, network filesystems, FAT and exFAT are not supported for this application-state migration. Do not use synchronized cloud folders for live databases.
 
 Docker is the application runtime, not the host storage interface. The controller relies on the supported host monitor for mount verification. Native Windows migration and Synology DSM lifecycle integration are not currently verified or supported by this workflow. A Linux-based NAS alone does not establish compatibility with the required host tools and service manager.
 
-The host monitor supplies fresh, nonce-bound mount checks to host commands, the Docker controller and the maintenance worker. A container's view of a macOS bind mount is not accepted as proof that the host disk is present. If that monitor is unavailable, guarded operations fail closed.
+The host monitor supplies fresh, nonce-bound mount checks to the Docker controller and maintenance worker; host commands also check the physical disk identity. A container's view of a macOS bind mount is not accepted as proof that the host disk is present. If the required monitor response is unavailable, guarded container operations fail closed. `stackarr storage check` is a host identity check, not a substitute for verifying the controller-to-monitor bridge after recreating the controller.
 
 Protection disables Docker's automatic restart policy for this Compose project and verifies the result before marking enrollment ready. An interrupted preparation remains blocked and can be retried. New generated Compose launches retain `restart: "no"`. This prevents a daemon reboot from starting applications before host mount checks run. When an enrolled disk becomes unavailable, the monitor stops the project's containers. It never deletes data, changes another Compose project or automatically starts services after reconnection.
 
@@ -93,7 +93,7 @@ Repeat the original `migrate run SOURCE DESTINATION --yes` command to resume an 
 
 ## Missing disk or unavailable monitor
 
-Use `stackarr storage status` or `stackarr storage check` on the host. Reconnect and unlock the original disk, correct permissions or restart the monitor, then check again. Once storage is healthy, run `stackarr up` explicitly. `stackarr storage stop --yes` remains available without reading the relocated application database.
+Use `stackarr storage status` or `stackarr storage check` on the host. Reconnect and unlock the original disk, correct permissions or restart the monitor, then check again. If the host check passes but the dashboard still reports unavailable storage, verify that the installed monitor is running and the controller was recreated with the current policy and bridge mounts. Once storage is healthy, run `stackarr up` explicitly; reconnection alone does not restart services. `stackarr storage stop --yes` remains available without reading the relocated application database.
 
 A renamed/replaced volume requires explicit review and re-enrollment. Recreate the controller and updater containers after policy changes so their read-only policy-file mounts use the new version. Do not blindly edit a UUID to silence a failure. Deleting a storage policy is not a supported way to disable safeguards on an already migrated installation.
 
