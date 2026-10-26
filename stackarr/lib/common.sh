@@ -2291,6 +2291,58 @@ stackarr_compose_file() {
     printf '%s/docker-compose.yml\n' "$(stackarr_compose_project_dir)"
 }
 
+# Refuse a Compose bind cutover that would hide populated legacy data behind
+# an empty new path. The storage relocation worker leaves a symlink at the
+# logical old config root; resolve that alias rather than demanding a copy.
+stackarr_verify_legacy_compose_mounts() {
+    require_command node
+    node - "${APP_ROOT:-$(default_app_root)}" "${CONFIG_ROOT:-${APP_ROOT:-$(default_app_root)}/config}" \
+        "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-${APP_ROOT:-$(default_app_root)}/state}/torrent-archive}" <<'NODE' || fail 'Legacy Compose mount preflight failed; inspect and migrate existing data before applying mounts'
+const fs = require('node:fs');
+const path = require('node:path');
+const [app, config, archive] = process.argv.slice(2);
+const names = [
+  'transmission', 'qbittorrent', 'sonarr', 'sonarr4k', 'radarr', 'radarr4k', 'hooks',
+  'database', 'prowlarr', 'bazarr', 'tinymediamanager', 'pulsarr',
+  'maintainerr', 'cleanuparr', 'agregarr', 'tracearr', 'seerr',
+  'plex', 'jellyfin', 'recyclarr', 'lidarr', 'tidarr', 'bookorbit'
+];
+function physical(input) {
+  if (!path.isAbsolute(input)) throw Error('mount root is not absolute');
+  let existing = input;
+  while (!fs.existsSync(existing)) {
+    try { fs.lstatSync(existing); throw Error('dangling mount source'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const parent = path.dirname(existing);
+    if (parent === existing) throw Error('mount root is unavailable');
+    existing = parent;
+  }
+  return path.join(fs.realpathSync(existing), path.relative(existing, input));
+}
+function populated(input) {
+  let stat;
+  try { stat = fs.lstatSync(input); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  // A dangling link or an unreadable directory must fail, not look empty.
+  if (stat.isSymbolicLink()) fs.statSync(input);
+  if (!fs.statSync(input).isDirectory()) throw Error('mount source is not a directory');
+  return fs.readdirSync(input).length > 0;
+}
+function check(oldRoot, newRoot, label) {
+  if (physical(oldRoot) === physical(newRoot)) return;
+  if (populated(oldRoot) && !populated(newRoot))
+    throw Error(`${label}: populated legacy bind would be replaced by an empty target (${oldRoot} -> ${newRoot}); migrate and verify before retrying`);
+}
+try {
+  for (const name of names) check(path.join(app, 'config', name), path.join(config, name), `config/${name}`);
+  check(path.join(app, 'state', 'torrent-archive'), archive, 'torrent-archive');
+} catch (error) {
+  console.error(`Legacy Compose mount check: ${error.message}`);
+  process.exitCode = 1;
+}
+NODE
+}
+
 prepare_compose_runtime_file() {
     stackarr_storage_guard
     stackarr_verify_torrent_archive_root
@@ -2403,6 +2455,18 @@ stackarr_compose() {
     local storage_args=()
 
     configure_docker_environment
+    for argument in "$@"; do
+        if [[ "$argument" == up || "$argument" == create ]]; then
+            migrate_volumes=true
+            break
+        fi
+    done
+    if [[ "$migrate_volumes" == true ]]; then
+        # Read-only Compose commands (including restore's ps probe) must not
+        # mistake a retained archive tree for an attempted bind cutover.
+        stackarr_storage_guard
+        stackarr_verify_legacy_compose_mounts
+    fi
     prepare_compose_runtime_file
     project_dir="$(stackarr_compose_project_dir)"
     compose_file="$(stackarr_compose_file)"
@@ -2410,12 +2474,6 @@ stackarr_compose() {
         storage_args=(-f "$project_dir/storage-override.json")
     fi
 
-    for argument in "$@"; do
-        if [[ "$argument" == up || "$argument" == create ]]; then
-            migrate_volumes=true
-            break
-        fi
-    done
     if [[ "$migrate_volumes" == true ]]; then
         migrate_legacy_image_volumes
     fi
