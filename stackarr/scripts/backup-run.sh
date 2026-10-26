@@ -7,6 +7,10 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 load_env
+# Fail before task logging, directory creation, or copying state into staging.
+BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
+stackarr_storage_guard
+stackarr_verify_torrent_archive_root
 
 BACKUP_ENCRYPTION="$(lowercase "${BACKUP_ENCRYPTION:-keyfile}")"
 BACKUP_ENCRYPTION_KEY_FILE="${BACKUP_ENCRYPTION_KEY_FILE:-$STATE_ROOT/backup-encryption.key}"
@@ -194,6 +198,11 @@ verify_external_backup_mount() {
 }
 
 verify_external_backup_mount "$BACKUP_ROOT"
+# A fresh default staging child does not exist yet; the verified backup root
+# covers it. Independently placed staging must prove its own host mount.
+if [[ "$BACKUP_STAGING_ROOT" != "$BACKUP_ROOT"/* ]]; then
+    verify_external_backup_mount "$BACKUP_STAGING_ROOT"
+fi
 task_ensure_dir "backup root" "$BACKUP_ROOT"
 task_ensure_dir "log root" "$LOG_ROOT"
 
@@ -960,6 +969,13 @@ case "$PLEX_BACKUP_MODE_NORMALIZED" in
 esac
 with_progress_heartbeat 25 "Copying Stackarr state" "$STAGING/state" \
     copy_tree_excluding "$STATE_ROOT/" "$STAGING/state/" "${STATE_EXCLUDES[@]}"
+if [[ "$TORRENT_ARCHIVE_ROOT" != "$STATE_ROOT/torrent-archive" ]]; then
+    # The shared preflight ran before staging or any source copy.
+    [[ -d "$TORRENT_ARCHIVE_ROOT" && ! -L "$TORRENT_ARCHIVE_ROOT" ]] ||
+        fail 'Custom torrent archive root is missing or a symlink'
+    with_progress_heartbeat 27 "Copying custom torrent archive" "$STAGING/torrent-archive" \
+        copy_tree "$TORRENT_ARCHIVE_ROOT/" "$STAGING/torrent-archive/"
+fi
 if [[ -d "$ROOT_DIR/state/streamrip" && "$STATE_ROOT" != "$ROOT_DIR/state" ]]; then
     with_progress_heartbeat 28 "Copying Streamrip state" "$STAGING/state/streamrip" \
         copy_tree "$ROOT_DIR/state/streamrip/" "$STAGING/state/streamrip/"
@@ -1024,6 +1040,7 @@ stackarr_root=$ROOT_DIR
 media_root=$MEDIA_ROOT
 music_root=$MUSIC_ROOT
 downloads_root=$DOWNLOADS_ROOT
+torrent_archive_root=$TORRENT_ARCHIVE_ROOT
 backup_root=$BACKUP_ROOT
 plex_config_path=$PLEX_CONFIG_PATH
 plex_prefs_path=$PLEX_PREFS_PATH

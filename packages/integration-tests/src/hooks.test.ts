@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -13,6 +14,21 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const transmissionHook = path.join(repoRoot, 'stackarr/scripts/hooks/transmission-delete-unsafe.sh');
 const archiveTorrentHook = path.join(repoRoot, 'stackarr/scripts/hooks/archive-torrent.sh');
 const postImportMediaHook = path.join(repoRoot, 'stackarr/scripts/hooks/post-import-media.sh');
+
+test('Transmission preset retains shared incomplete staging and the unsafe hook', async () => {
+  const script = await readFile(path.join(repoRoot, 'stackarr/scripts/downloads.sh'), 'utf8');
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  assert.match(script, /local desired_incomplete="\/downloads\/\$DOWNLOAD_INCOMPLETE_NAME"/);
+  assert.match(script, /local desired_complete="\/downloads\/\$DOWNLOAD_COMPLETE_NAME"/);
+  assert.match(script, /"incomplete-dir": sys\.argv\[3\]/);
+  assert.match(script, /"download-dir": sys\.argv\[2\]/);
+  assert.match(script, /"script-torrent-added-filename": "\/config\/hooks\/transmission-delete-unsafe\.sh"/);
+  assert.match(script, /"script-torrent-done-filename": "\/config\/hooks\/transmission-delete-unsafe\.sh"/);
+  assert.match(script, /cp "\$TRANSMISSION_UNSAFE_PAYLOAD_HOOK_SOURCE" "\$unsafe_payload_hook_dest"/);
+  assert.match(compose, /TRANSMISSION_INCOMPLETE_DIR: \/downloads\/\$\{DOWNLOAD_INCOMPLETE_NAME:-incomplete\}/);
+  assert.match(script, /"movieCategory" "\$RADARR_CATEGORY"/);
+  assert.match(script, /"tvCategory" "\$SONARR_CATEGORY"/);
+});
 
 test('Transmission unsafe hook rejects torrent names with Windows separators', async () => {
   await execFile('sh', [transmissionHook], {
@@ -346,11 +362,12 @@ test('Radarr torrent archive hook preserves the torrent and a safe provenance ma
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-radarr-torrent-archive-'));
   const transmissionState = path.join(root, 'transmission');
   const torrentArchive = path.join(root, 'torrent-archive');
-  const downloadId = '8FA681025431DF62CE2E31ACDEE83FCDA921E05A';
+  const movieTorrent = torrentFixture(['The Invite.mkv']);
+  const downloadId = torrentInfohash(movieTorrent);
 
   try {
     await mkdir(transmissionState, { recursive: true });
-    await writeFile(path.join(transmissionState, `${downloadId}.torrent`), 'torrent fixture');
+    await writeFile(path.join(transmissionState, `${downloadId}.torrent`), movieTorrent);
 
     await execFile('sh', [archiveTorrentHook], {
       env: {
@@ -380,13 +397,16 @@ test('Radarr torrent archive hook preserves the torrent and a safe provenance ma
       torrentArchive,
       'Movies/The Invite (2026)/The Invite 2026 1080p WEB-DL HEVC x265 5.1 BONE'
     );
-    assert.equal(await readFile(`${destination}.torrent`, 'utf8'), 'torrent fixture');
+    assert.deepEqual(await readFile(`${destination}.torrent`), movieTorrent);
     const manifest = JSON.parse(await readFile(`${destination}.provenance.json`, 'utf8'));
     assert.match(manifest.recordedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
     delete manifest.recordedAt;
     assert.deepEqual(manifest, {
       schemaVersion: 1,
+      archiveScope: 'torrent-source',
+      provenanceCoverage: 'first-successful-import',
       service: 'radarr',
+      instance: 'radarr',
       mediaType: 'movie',
       eventType: 'Download',
       title: 'The Invite',
@@ -413,11 +433,17 @@ test('Sonarr torrent archive hook preserves episode provenance without source UR
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-sonarr-torrent-archive-'));
   const qbittorrentState = path.join(root, 'qbittorrent');
   const torrentArchive = path.join(root, 'torrent-archive');
-  const downloadId = 'D14D5C69A153F19D1A4FD1348B6B9844C238D5A0';
+  const episodeTorrent = torrentFixture(['The Test Series S02E03.mkv']);
+  const downloadId = torrentInfohash(episodeTorrent);
 
   try {
     await mkdir(qbittorrentState, { recursive: true });
-    await writeFile(path.join(qbittorrentState, `${downloadId.toLowerCase()}.torrent`), 'episode torrent fixture');
+    await writeFile(path.join(qbittorrentState, `${downloadId.toLowerCase()}.torrent`), episodeTorrent);
+    const naming = path.join(root, 'naming.json');
+    await writeFile(
+      naming,
+      JSON.stringify({ seasonFolderFormat: 'Season {season:00}', specialsFolderFormat: 'Specials' })
+    );
 
     await execFile('sh', [archiveTorrentHook], {
       env: {
@@ -441,7 +467,8 @@ test('Sonarr torrent archive hook preserves episode provenance without source UR
         sonarr_download_url: 'https://example.invalid/private.torrent',
         TRANSMISSION_TORRENT_STATE_DIR: path.join(root, 'transmission'),
         QBITTORRENT_TORRENT_STATE_DIR: qbittorrentState,
-        TORRENT_ARCHIVE_ROOT: torrentArchive
+        TORRENT_ARCHIVE_ROOT: torrentArchive,
+        TORRENT_SONARR_NAMING_CONFIG: naming
       }
     });
 
@@ -449,14 +476,17 @@ test('Sonarr torrent archive hook preserves episode provenance without source UR
       torrentArchive,
       'TV Shows/The Test Series/Season 02/The Test Series S02E03 1080p WEB-DL x265-GROUP'
     );
-    assert.equal(await readFile(`${destination}.torrent`, 'utf8'), 'episode torrent fixture');
+    assert.deepEqual(await readFile(`${destination}.torrent`), episodeTorrent);
     const manifestText = await readFile(`${destination}.provenance.json`, 'utf8');
     const manifest = JSON.parse(manifestText);
     assert.match(manifest.recordedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
     delete manifest.recordedAt;
     assert.deepEqual(manifest, {
       schemaVersion: 1,
+      archiveScope: 'torrent-source',
+      provenanceCoverage: 'first-successful-import',
       service: 'sonarr',
+      instance: 'sonarr',
       mediaType: 'episode',
       eventType: 'Download',
       title: 'The Test Series',
@@ -476,6 +506,193 @@ test('Sonarr torrent archive hook preserves episode provenance without source UR
       torrentFile: 'The Test Series S02E03 1080p WEB-DL x265-GROUP.torrent'
     });
     assert.doesNotMatch(manifestText, /example\.invalid|download_url/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+function bencode(value: unknown): Buffer {
+  if (typeof value === 'number') return Buffer.from(`i${value}e`);
+  if (typeof value === 'string') return bencode(Buffer.from(value));
+  if (Buffer.isBuffer(value)) return Buffer.concat([Buffer.from(`${value.length}:`), value]);
+  if (Array.isArray(value)) return Buffer.concat([Buffer.from('l'), ...value.map(bencode), Buffer.from('e')]);
+  const record = value as Record<string, unknown>;
+  return Buffer.concat([
+    Buffer.from('d'),
+    ...Object.entries(record)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .flatMap(([key, part]) => [bencode(key), bencode(part)]),
+    Buffer.from('e')
+  ]);
+}
+
+function torrentFixture(paths: string[], version: 'v1' | 'v2' | 'hybrid' = 'v1'): Buffer {
+  const files = paths.map((name) => ({ length: 1, path: name.split('/') }));
+  const tree: Record<string, unknown> = {};
+  for (const name of paths) {
+    let cursor = tree;
+    for (const part of name.split('/')) {
+      cursor[part] ??= {};
+      cursor = cursor[part] as Record<string, unknown>;
+    }
+    cursor[''] = { length: 1 };
+  }
+  const info: Record<string, unknown> = { name: 'Test torrent', 'piece length': 16384 };
+  if (version !== 'v2') info.pieces = Buffer.alloc(20, 88);
+  if (version !== 'v2') info.files = files;
+  if (version !== 'v1') {
+    info['meta version'] = 2;
+    info['file tree'] = tree;
+  }
+  return bencode({ announce: 'https://private.invalid/passkey-secret', info });
+}
+
+function torrentInfohash(torrent: Buffer): string {
+  const start = torrent.indexOf(Buffer.from('4:info')) + 6;
+  return createHash('sha1')
+    .update(torrent.subarray(start, torrent.length - 1))
+    .digest('hex')
+    .toUpperCase();
+}
+
+test('torrent classifier covers v1, v2, hybrid, specials and ambiguity without disclosing trackers', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-metainfo-'));
+  const helper = path.join(repoRoot, 'stackarr/scripts/hooks/torrent-seasons.py');
+  try {
+    for (const version of ['v1', 'v2', 'hybrid'] as const) {
+      for (const [files, expected] of [
+        [['Show S02E01.mkv'], 'single 2'],
+        [['Season 02/one.mkv', 'Season 02/two.mp4'], 'single 2'],
+        [['Season 01/one.mkv', 'Season 02/two.mkv'], 'multi'],
+        [['Show S00E01.mkv'], 'single 0'],
+        [['Show.mkv'], 'unknown'],
+        [['Show S01E01.mkv', 'Show.mkv'], 'unknown'],
+        [['Season 01/Show S02E01.mkv'], 'unknown'],
+        [['S01/untitled.mkv'], 'single 1'],
+        [['Show S01/untitled.mkv'], 'single 1'],
+        [['Show Season 1/untitled.mkv'], 'single 1'],
+        [['Show 1x02.mkv'], 'single 1'],
+        [['Show S01E01.mkv', 'unknown.mkv'], 'unknown'],
+        [['S01/Show 2x02.mkv'], 'unknown']
+      ] as const) {
+        const file = path.join(root, 'test.torrent');
+        await writeFile(file, torrentFixture([...files], version));
+        const { stdout } = await execFile('python3', [helper, file]);
+        assert.equal(stdout.trim(), expected);
+        assert.doesNotMatch(stdout, /private|passkey|https/);
+      }
+    }
+    const hybridPad = bencode({
+      info: {
+        name: 'Show',
+        'meta version': 2,
+        files: [
+          { length: 1, path: ['S01', 'episode.mkv'] },
+          { length: 1, path: ['.pad', '0'], attr: 'p' }
+        ],
+        'file tree': { S01: { 'episode.mkv': { '': { length: 1 } } } }
+      }
+    });
+    await writeFile(path.join(root, 'test.torrent'), hybridPad);
+    assert.equal((await execFile('python3', [helper, path.join(root, 'test.torrent')])).stdout.trim(), 'single 1');
+    const malformed = [
+      bencode({ info: { name: 'Show', files: [{ length: 1, path: 42 }] } }),
+      bencode({ info: { name: 'Show', files: [{ length: 1, path: ['S01', 42] }] } })
+    ];
+    for (const payload of malformed) {
+      const file = path.join(root, 'test.torrent');
+      await writeFile(file, payload);
+      const { stdout } = await execFile('python3', [helper, file]);
+      assert.equal(stdout.trim(), 'unknown');
+    }
+    await writeFile(path.join(root, 'test.torrent'), 'not bencode');
+    const { stdout } = await execFile('python3', [helper, path.join(root, 'test.torrent')]);
+    assert.equal(stdout.trim(), 'unknown');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Sonarr archives whole multi-season once at show root and canonicalizes single seasons', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-season-archive-'));
+  const hash = torrentInfohash(torrentFixture(['Show S01E01.mkv', 'Show S02E01.mkv']));
+  const state = path.join(root, 'state');
+  const archive = path.join(root, 'archive');
+  const naming = path.join(root, 'naming.json');
+  try {
+    await mkdir(state);
+    await writeFile(
+      naming,
+      JSON.stringify({ seasonFolderFormat: 'Season {season:00}', specialsFolderFormat: 'Specials' })
+    );
+    const env = {
+      ...process.env,
+      sonarr_eventtype: 'Download',
+      sonarr_download_id: hash,
+      sonarr_download_client: 'Transmission',
+      sonarr_release_title: 'Original.Release',
+      TRANSMISSION_TORRENT_STATE_DIR: state,
+      QBITTORRENT_TORRENT_STATE_DIR: path.join(root, 'missing'),
+      TORRENT_ARCHIVE_ROOT: archive,
+      TORRENT_SONARR_NAMING_CONFIG: naming
+    };
+    let activeHash = hash;
+    const invoke = async (torrent: Buffer, imported: string, release = 'Original.Release') => {
+      activeHash = torrentInfohash(torrent);
+      await writeFile(path.join(state, `${activeHash}.torrent`), torrent);
+      await execFile('sh', [archiveTorrentHook], {
+        env: {
+          ...env,
+          sonarr_download_id: activeHash,
+          sonarr_release_title: release,
+          sonarr_episodefile_path: imported
+        }
+      });
+    };
+    const multi = torrentFixture(['Show S01E01.mkv', 'Show S02E01.mkv']);
+    await invoke(multi, '/tv/Show/Season 1/Show S01E01.mkv');
+    assert.deepEqual(await readFile(path.join(archive, 'TV Shows/Show/Original.Release.torrent')), multi);
+    await assert.rejects(access(path.join(archive, 'TV Shows/Show/Season 1/Original.Release.torrent')));
+    await invoke(multi, '/tv/Show/Season 02/Show S02E01.mkv');
+    const single = torrentFixture(['Show S02E01.mkv', 'Show S02E02.mkv']);
+    activeHash = '1123456789ABCDEF0123456789ABCDEF01234567';
+    await invoke(single, '/tv/Other/Season 2/Other S02E01.mkv', 'Season.Pack');
+    await access(path.join(archive, 'TV Shows/Other/Season 02/Season.Pack.torrent'));
+    activeHash = '2123456789ABCDEF0123456789ABCDEF01234567';
+    await invoke(torrentFixture(['Show S00E01.mkv']), '/tv/Show/Season 0/Show S00E01.mkv', 'Special');
+    await access(path.join(archive, 'TV Shows/Show/Specials/Special.torrent'));
+    activeHash = '3123456789ABCDEF0123456789ABCDEF01234567';
+    await invoke(torrentFixture(['Show S02E01.mkv']), '/tv/Show/Show S02E01.mkv', 'No.Season');
+    await access(path.join(archive, 'TV Shows/Show/No.Season.torrent'));
+    activeHash = '4123456789ABCDEF0123456789ABCDEF01234567';
+    await invoke(torrentFixture(['Show.mkv']), '/tv/Show/Season 2/Show S02E01.mkv', 'Ambiguous');
+    await assert.rejects(access(path.join(archive, 'TV Shows/Show/Season 02/Ambiguous.torrent')));
+    await access(path.join(archive, `_Unresolved/sonarr/${activeHash}.torrent`));
+    activeHash = '5123456789ABCDEF0123456789ABCDEF01234567';
+    await invoke(single, '/tv/Other/Season 2/Other S02E01.mkv', 'Season.Pack');
+    assert.deepEqual(await readFile(path.join(archive, 'TV Shows/Other/Season 02/Season.Pack.torrent')), single);
+    activeHash = '6123456789ABCDEF0123456789ABCDEF01234567';
+    const differentPack = torrentFixture(['Show S02E03.mkv']);
+    await invoke(differentPack, '/tv/Other/Season 2/Other S02E03.mkv', 'Season.Pack');
+    assert.deepEqual(
+      await readFile(path.join(archive, `TV Shows/Other/Season 02/Season.Pack [${activeHash}].torrent`)),
+      differentPack
+    );
+    assert.deepEqual(await readFile(path.join(archive, 'TV Shows/Other/Season 02/Season.Pack.torrent')), single);
+    const missingConfigTorrent = torrentFixture(['Show S03E01.mkv']);
+    activeHash = torrentInfohash(missingConfigTorrent);
+    await writeFile(path.join(state, `${activeHash}.torrent`), missingConfigTorrent);
+    await execFile('sh', [archiveTorrentHook], {
+      env: {
+        ...env,
+        sonarr_download_id: activeHash,
+        sonarr_release_title: 'Missing.Config',
+        sonarr_episodefile_path: '/tv/Show/Season 3/Show S03E01.mkv',
+        TORRENT_SONARR_NAMING_CONFIG: path.join(root, 'missing.json')
+      }
+    });
+    await assert.rejects(access(path.join(archive, 'TV Shows/Show/Season 03/Missing.Config.torrent')));
+    await access(path.join(archive, `_Unresolved/sonarr/${activeHash}.torrent`));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

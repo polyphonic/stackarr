@@ -54,6 +54,7 @@ type SetupState = {
   mediaRoot: string;
   musicRoot: string;
   downloadsRoot: string;
+  torrentArchiveRoot: string;
   backupRoot: string;
   plexInstallMode: string;
   plexToken: string;
@@ -116,6 +117,7 @@ const defaults: SetupState = {
   mediaRoot: '/stackarr/media',
   musicRoot: '/stackarr/media/Music',
   downloadsRoot: '/stackarr/downloads',
+  torrentArchiveRoot: '/stackarr/state/torrent-archive',
   backupRoot: '/stackarr/backups',
   plexInstallMode: 'docker',
   plexToken: '',
@@ -237,6 +239,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       MEDIA_ROOT: state.mediaRoot,
       MUSIC_ROOT: state.musicRoot,
       DOWNLOADS_ROOT: state.downloadsRoot,
+      TORRENT_ARCHIVE_ROOT: state.torrentArchiveRoot,
       BACKUP_ROOT: state.backupRoot,
       ENABLE_BACKUP: String(state.installBackup),
       BACKUP_TIME: '02:00',
@@ -934,6 +937,10 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
             <label>
               Downloads Root
               <PathInput value={state.downloadsRoot} onChange={(value) => update('downloadsRoot', value)} />
+            </label>
+            <label>
+              Torrent Archive Root
+              <PathInput value={state.torrentArchiveRoot} onChange={(value) => update('torrentArchiveRoot', value)} />
             </label>
             <label>
               Backup Root

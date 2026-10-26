@@ -220,6 +220,8 @@ services:
       - "${STATE_ROOT:-./.stackarr/state}:${STATE_ROOT:-/stackarr-runtime-state}"
       - "${LOG_ROOT:-./.stackarr/logs}:${LOG_ROOT:-/stackarr-logs}"
       - "${MEDIA_ROOT:-./.stackarr/media}:${MEDIA_ROOT:-/stackarr-media}:ro"
+      # Configure/restore provision archive directories; backup reads this same bind.
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:${TORRENT_ARCHIVE_ROOT:-/stackarr-torrent-archive}"
       - "${MUSIC_ROOT:-./.stackarr/media/Music}:${MUSIC_ROOT:-/stackarr-music}:ro"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:${DOWNLOADS_ROOT:-/stackarr-downloads}"
       # The secure game importer only reads completed downloads and writes to RomM's library.
@@ -271,7 +273,7 @@ services:
       TRANSMISSION_RPC_HOST_WHITELIST_ENABLED: "false"
       TRANSMISSION_RPC_BIND_ADDRESS: 0.0.0.0
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/transmission:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission:/config"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
       - "${TRANSMISSION_BIND_IP:-127.0.0.1}:9091:9091"
@@ -291,7 +293,7 @@ services:
       WEBUI_PORT: ${QBITTORRENT_WEBUI_PORT:-8081}
       TORRENTING_PORT: ${QBITTORRENT_TORRENT_PORT:-6881}
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent:/config"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
       - "${QBITTORRENT_BIND_IP:-127.0.0.1}:${QBITTORRENT_WEBUI_PORT:-8081}:${QBITTORRENT_WEBUI_PORT:-8081}"
@@ -342,11 +344,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/sonarr:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/sonarr:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -374,11 +376,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/sonarr4k:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/sonarr4k:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -406,11 +408,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/radarr:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/radarr:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -436,11 +438,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/radarr4k:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/radarr4k:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:

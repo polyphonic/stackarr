@@ -21,6 +21,25 @@ For removable disks, use [External Drives and Safe Migration](/docs/setup/extern
 
 Keep downloads outside the media library. This helps hardlink/import behavior for movie and TV libraries and avoids Plex/Jellyfin scanning incomplete files.
 
+### Transmission incomplete paths
+
+Transmission 4.1.3 has one **session-wide** incomplete directory. With the
+Stackarr preset, new unfinished Sonarr and Radarr torrents both stage under
+`/downloads/incomplete`; after completion, their Arr category selects
+`/downloads/complete/tv-sonarr` or `/downloads/complete/radarr` respectively
+(or the configured category names). A category/label or per-torrent
+`download-dir` does **not** override the incomplete directory. Creating
+`incomplete/tv-sonarr` and `incomplete/radarr` alone does not route bytes there.
+
+Do not use an added/done script to move active torrents. It can race piece
+writes, break resume/import, and displace Stackarr's unsafe-payload hook. To
+require distinct incomplete paths, use independently configured Transmission
+instances (one per Arr category), each with its own config, RPC port, incomplete
+and complete directory, and preserved malware hook; this needs a separate
+multi-instance integration. Until then, retain the shared incomplete directory
+and completed category routing. Changing paths is forward-only: inspect active
+torrents before rollout and do not relocate existing torrents automatically.
+
 Lidarr is configured as a music acquisition helper. It can send releases to the selected download client, but completed Lidarr downloads stay in the downloads folder so you can review, retag, convert, and add them to your source music library manually.
 
 

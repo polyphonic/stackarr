@@ -10,11 +10,15 @@ SCHEDULER_PID=""
 SERVER_PID=""
 MCP_HTTP_PID=""
 RECOVERY_PID=""
+ARCHIVE_PID=""
 
 shutdown() {
     trap - INT TERM
     if [[ -n "$RECOVERY_PID" ]]; then
         kill "$RECOVERY_PID" 2>/dev/null || true
+    fi
+    if [[ -n "$ARCHIVE_PID" ]]; then
+        kill "$ARCHIVE_PID" 2>/dev/null || true
     fi
     if [[ -n "$SCHEDULER_PID" ]]; then
         kill "$SCHEDULER_PID" 2>/dev/null || true
@@ -29,12 +33,18 @@ shutdown() {
     wait "$SERVER_PID" 2>/dev/null || true
     wait "$MCP_HTTP_PID" 2>/dev/null || true
     wait "$RECOVERY_PID" 2>/dev/null || true
+    wait "$ARCHIVE_PID" 2>/dev/null || true
 }
 
 trap shutdown INT TERM
 
 "$ROOT_DIR/scripts/startup-recovery.sh" &
 RECOVERY_PID="$!"
+
+case "${STACKARR_ARCHIVE_WORKER_ENABLED:-true}" in
+    0|false|False|FALSE|no|No|NO|off|Off|OFF) ;;
+    *) bash "$ROOT_DIR/scripts/torrent-archive-worker.sh" & ARCHIVE_PID="$!" ;;
+esac
 
 case "${STACKARR_SCHEDULER_ENABLED:-true}" in
     0|false|False|FALSE|no|No|NO|off|Off|OFF)
