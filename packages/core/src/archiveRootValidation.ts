@@ -8,19 +8,21 @@ export function validateTorrentArchiveRoot(
   roots: { config: string; state: string; logs: string; backup: string; staging: string },
   policyFile?: string
 ): string | null {
-  if (requested === undefined || requested === current) return null;
+  // Other storage roots can change even when this field is omitted or unchanged.
+  // Always validate the effective archive against the proposed root set.
+  const effective = requested === undefined ? current || path.join(roots.state, 'torrent-archive') : requested;
   if (
-    typeof requested !== 'string' ||
-    !requested ||
-    !path.isAbsolute(requested) ||
-    /[\0\r\n:]/.test(requested) ||
-    requested.split('/').some((part) => part === '.' || part === '..') ||
-    path.normalize(requested) !== requested ||
-    requested.endsWith('/')
+    typeof effective !== 'string' ||
+    !effective ||
+    !path.isAbsolute(effective) ||
+    /[\0\r\n:]/.test(effective) ||
+    effective.split('/').some((part) => part === '.' || part === '..') ||
+    path.normalize(effective) !== effective ||
+    effective.endsWith('/')
   ) {
     return 'Torrent archive root must be an absolute host path without traversal or Compose separators.';
   }
-  const candidate = requested;
+  const candidate = effective;
   const inside = (child: string, parent: string) => child === parent || child.startsWith(`${parent}/`);
   // Mirror the host guard's projection through existing managed-root ancestors.
   // This is a pre-save check, not a substitute for host mount attestation at apply.

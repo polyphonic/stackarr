@@ -47,6 +47,33 @@ test('archive path save rejects unsafe lexical paths and overlapping storage', (
   assert.match(validate('/Volumes/ExampleStorage/archive') ?? '', /enrolled storage policy/);
 });
 
+test('unchanged and omitted archive fields still validate proposed storage roots', () => {
+  const archive = '/srv/downloads/torrent-archive';
+  const roots = {
+    config: '/srv/stackarr/config',
+    state: '/srv/stackarr/state',
+    logs: '/srv/stackarr/logs',
+    backup: '/srv/backups',
+    staging: '/srv/staging'
+  };
+  for (const requested of [undefined, archive]) {
+    assert.equal(validateTorrentArchiveRoot(requested, archive, roots), null);
+    for (const key of ['config', 'state', 'logs', 'backup', 'staging'] as const) {
+      for (const proposedRoot of [archive, `${archive}/nested`, '/srv']) {
+        assert.match(
+          validateTorrentArchiveRoot(requested, archive, { ...roots, [key]: proposedRoot }) ?? '',
+          new RegExp(`${key} root`)
+        );
+      }
+    }
+  }
+  assert.equal(validateTorrentArchiveRoot(undefined, undefined, roots), null);
+  assert.match(
+    validateTorrentArchiveRoot(undefined, undefined, { ...roots, config: `${roots.state}/torrent-archive` }) ?? '',
+    /config root/
+  );
+});
+
 test('save and host guard agree on managed roots, standard state child and aliases', () => {
   const base = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'stackarr-archive-save-'));
   try {
