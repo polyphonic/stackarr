@@ -9,6 +9,7 @@ const allowed = new Set([
   'MEDIA_ROOT',
   'MUSIC_ROOT',
   'DOWNLOADS_ROOT',
+  'TORRENT_ARCHIVE_ROOT',
   'BACKUP_ROOT',
   'BACKUP_STAGING_ROOT',
   'APP_ROOT',

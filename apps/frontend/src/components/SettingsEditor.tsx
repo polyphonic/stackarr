@@ -398,6 +398,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
     setMessage('');
     const toastId = toast.loading('Saving settings...');
     const storageChanged = storageEnvKeys.some((key) => envValue(key) !== (env[key] ?? ''));
+    const archiveChanged = envValue('TORRENT_ARCHIVE_ROOT') !== (env.TORRENT_ARCHIVE_ROOT ?? '');
     const { response, body } = await saveConfig(
       draftEnv,
       draftSettings,
@@ -415,6 +416,12 @@ export function SettingsEditor({ section, env, settings }: Props) {
           : ' Anonymous usage data is enabled; the first heartbeat will retry automatically.';
       }
       if (storageChanged) {
+        if (archiveChanged) {
+          const warning = `Saved, not applied. Torrent archive migration and other storage mount changes need separate reviewed applies. Migrate and verify existing archives before applying Arr mounts with the host CLI; the controller bind for backup coverage needs its own scoped update.${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
+          setMessage(warning);
+          toast.success(warning, { id: toastId });
+          return;
+        }
         const applyResponse = await stackarrFetch('/api/v1/command', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -430,7 +437,9 @@ export function SettingsEditor({ section, env, settings }: Props) {
         return;
       }
 
-      const nextMessage = `Saved${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
+      const nextMessage = archiveChanged
+        ? `Saved, not applied. Existing torrent archives must be migrated to the new root before a scoped host CLI apply of radarr, radarr4k, sonarr, sonarr4k and lidarr. The controller archive bind/backup coverage also needs an explicit scoped update; no services were restarted.${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`
+        : `Saved${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
       setMessage(nextMessage);
       toast.success(nextMessage, { id: toastId });
     } else {
@@ -749,6 +758,20 @@ export function SettingsEditor({ section, env, settings }: Props) {
             value={envValue('DOWNLOADS_ROOT')}
             onChange={(value) => updateEnv('DOWNLOADS_ROOT', value)}
           />
+          <Path
+            label="Torrent Archive Root"
+            value={envValue('TORRENT_ARCHIVE_ROOT')}
+            onChange={(value) => updateEnv('TORRENT_ARCHIVE_ROOT', value)}
+          />
+          <p>
+            Changing this path only saves configuration. It does not move existing archives or update running mounts.
+            Migrate and verify existing archives first; then, on the authoritative host runtime, run{' '}
+            <code>stackarr service apply radarr sonarr</code> (and separately apply enabled radarr4k, sonarr4k and
+            lidarr). The controller's archive bind must also be updated for custom-root backup coverage with a
+            separately planned <code>stackarr service apply app</code>; this may recreate the controller. Service apply
+            can reconcile the shared database; inspect the plan and health before proceeding. Do not use Start stack as
+            an archive migration.
+          </p>
           <Path
             label="Backup Root"
             value={envValue('BACKUP_ROOT')}

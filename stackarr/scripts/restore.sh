@@ -21,6 +21,8 @@ ADOPT_BACKUP_KEY=false
 DELETE_BACKUP_KEY_AFTER_RESTORE=false
 CONSTRAIN_RUNTIME_ROOTS=false
 RESTORE_APP_ROOT=""
+RESTORE_TORRENT_ARCHIVE_ROOT=""
+RESTORE_ARCHIVE_DESTINATION=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -85,6 +87,11 @@ while [[ $# -gt 0 ]]; do
             [[ $# -gt 0 && -n "$1" ]] || fail "--restore-app-root requires an absolute path"
             RESTORE_APP_ROOT="$1"
             ;;
+        --torrent-archive-root)
+            shift
+            [[ $# -gt 0 && -n "$1" ]] || fail "--torrent-archive-root requires an absolute path"
+            RESTORE_TORRENT_ARCHIVE_ROOT="$1"
+            ;;
         --help|-h)
             cat <<'EOF'
 Usage: stackarr backup restore <archive.tar.gz|archive.tar.gz.enc|archive.tgz|archive.zip> [options]
@@ -111,6 +118,10 @@ Options:
                               Delete the input archive after the restore attempt.
   --constrain-runtime-roots   Remap restored runtime roots under the current app root.
   --restore-app-root <path>   App root to use with --constrain-runtime-roots.
+  --torrent-archive-root <path>
+                              Explicit current-host destination for an archived custom tree.
+                              Otherwise use the current runtime archive root, not the archived source path.
+                              Existing state/torrent-archive is retained; files are merged, never deleted.
 EOF
             exit 0
             ;;
@@ -276,6 +287,30 @@ if [[ -f "$RESTORE_MANIFEST" ]]; then
     [[ -n "$RESTORE_PLEX_BACKUP_MODE" ]] || RESTORE_PLEX_BACKUP_MODE="full"
 fi
 
+# Select the destination from this host before an archived runtime database can
+# replace it. The manifest path is provenance, never an instruction to write there.
+load_env
+if [[ -d "$RESTORE_ROOT/torrent-archive" ]]; then
+    if [[ "$CONSTRAIN_RUNTIME_ROOTS" == true ]]; then
+        APP_ROOT="$TRUSTED_RESTORE_APP_ROOT"
+        CONFIG_ROOT="$APP_ROOT/config"
+        STATE_ROOT="$APP_ROOT/state"
+        LOG_ROOT="$APP_ROOT/logs"
+        BACKUP_ROOT="$APP_ROOT/backups"
+        BACKUP_STAGING_ROOT="$BACKUP_ROOT/.stackarr-staging"
+    fi
+    RESTORE_ARCHIVE_DESTINATION="${RESTORE_TORRENT_ARCHIVE_ROOT:-${TORRENT_ARCHIVE_ROOT:-$STATE_ROOT/torrent-archive}}"
+    if [[ "$CONSTRAIN_RUNTIME_ROOTS" == true && -z "$RESTORE_TORRENT_ARCHIVE_ROOT" ]]; then
+        RESTORE_ARCHIVE_DESTINATION="$STATE_ROOT/torrent-archive"
+    fi
+    TORRENT_ARCHIVE_ROOT="$RESTORE_ARCHIVE_DESTINATION"
+    stackarr_storage_guard
+    stackarr_verify_torrent_archive_root
+    printf 'Custom archive tree: backup source %s -> current destination %s (state tree preserved)\n' \
+        "$(sed -n 's/^torrent_archive_root=//p' "$RESTORE_MANIFEST" 2>/dev/null | head -1)" \
+        "$RESTORE_ARCHIVE_DESTINATION"
+fi
+
 if [[ ! -f "$DB_FILE" || "$FORCE_RUNTIME_CONFIG" == true ]]; then
     RESTORE_RUNTIME_CONFIG=true
 fi
@@ -309,12 +344,13 @@ constrain_runtime_roots() {
     APP_ROOT="$app_root"
     CONFIG_ROOT="$APP_ROOT/config"
     STATE_ROOT="$APP_ROOT/state"
+    TORRENT_ARCHIVE_ROOT="${RESTORE_ARCHIVE_DESTINATION:-$STATE_ROOT/torrent-archive}"
     LOG_ROOT="$APP_ROOT/logs"
     BACKUP_ROOT="$APP_ROOT/backups"
     BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-}"
     PLEX_CONFIG_PATH="$APP_ROOT/plex-native"
     PLEX_PREFS_PATH="$APP_ROOT/plex-preferences/com.plexapp.plexmediaserver.plist"
-    export APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
+    export APP_ROOT CONFIG_ROOT STATE_ROOT TORRENT_ARCHIVE_ROOT LOG_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
 
     local patch_file="$TMP_DIR/constrained-runtime-config.json"
     node - "$patch_file" <<'NODE'
@@ -324,6 +360,7 @@ const keys = [
   'APP_ROOT',
   'CONFIG_ROOT',
   'STATE_ROOT',
+  'TORRENT_ARCHIVE_ROOT',
   'LOG_ROOT',
   'BACKUP_ROOT',
   'BACKUP_STAGING_ROOT',
@@ -342,6 +379,16 @@ NODE
 
 if [[ "$CONSTRAIN_RUNTIME_ROOTS" == true ]]; then
     constrain_runtime_roots "$TRUSTED_RESTORE_APP_ROOT"
+fi
+if [[ -n "$RESTORE_ARCHIVE_DESTINATION" ]]; then
+    TORRENT_ARCHIVE_ROOT="$RESTORE_ARCHIVE_DESTINATION"
+    stackarr_storage_guard
+    stackarr_verify_torrent_archive_root
+    archive_destination_patch="$TMP_DIR/archive-destination.json"
+    node -e 'require("node:fs").writeFileSync(process.argv[1], JSON.stringify({TORRENT_ARCHIVE_ROOT:process.argv[2]}))' \
+        "$archive_destination_patch" "$RESTORE_ARCHIVE_DESTINATION"
+    STACKARR_DATABASE_FILE="$DB_FILE" node "$ROOT_DIR/scripts/runtime-config-write.cjs" "$archive_destination_patch"
+    export TORRENT_ARCHIVE_ROOT
 fi
 write_compose_env_file
 
@@ -585,6 +632,13 @@ restore_youtarr_database() {
 restore_postgres_databases
 restore_tree "$RESTORE_ROOT/config" "$CONFIG_ROOT"
 restore_tree "$RESTORE_ROOT/state" "$STATE_ROOT"
+if [[ -d "$RESTORE_ROOT/torrent-archive" ]]; then
+    TORRENT_ARCHIVE_ROOT="$RESTORE_ARCHIVE_DESTINATION"
+    stackarr_storage_guard
+    stackarr_verify_torrent_archive_root
+    restore_tree "$RESTORE_ROOT/torrent-archive" "$RESTORE_ARCHIVE_DESTINATION"
+    ok "Restored custom archive tree to current runtime destination $RESTORE_ARCHIVE_DESTINATION; retained state/torrent-archive"
+fi
 ok "Restored Stackarr config and state"
 
 if [[ "$ADOPT_BACKUP_KEY" == true && -n "$BACKUP_KEY_FILE" && -f "$BACKUP_KEY_FILE" ]]; then

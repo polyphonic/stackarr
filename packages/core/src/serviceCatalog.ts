@@ -85,6 +85,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('mediaRoot', 'Media Root', 'MEDIA_ROOT'),
       envPath('musicRoot', 'Music Root', 'MUSIC_ROOT'),
       envPath('downloadsRoot', 'Downloads Root', 'DOWNLOADS_ROOT'),
+      envPath(
+        'torrentArchiveRoot',
+        'Torrent Archive Root',
+        'TORRENT_ARCHIVE_ROOT',
+        'Saved torrent metadata from Arr grabs and imports. Move existing archives before switching paths.'
+      ),
       envPath('backupRoot', 'Backup Root', 'BACKUP_ROOT'),
       envPath('booksRoot', 'Books Root', 'BOOKS_ROOT'),
       envPath('immichUploadLocation', 'Pictures Root', 'IMMICH_UPLOAD_LOCATION'),

@@ -35,6 +35,7 @@ export type MediaServerSetupInput = {
   mediaRoot?: string;
   musicRoot?: string;
   downloadsRoot?: string;
+  torrentArchiveRoot?: string;
   backupRoot?: string;
   backupRetentionCount?: number;
   plexInstallMode?: InstallMode;
@@ -164,6 +165,7 @@ export const opinionatedSetupDefaults = {
   mediaRoot: `${setupDefaultAppRoot}/media`,
   musicRoot: `${setupDefaultAppRoot}/media/Music`,
   downloadsRoot: `${setupDefaultAppRoot}/downloads`,
+  torrentArchiveRoot: `${setupDefaultAppRoot}/state/torrent-archive`,
   backupRoot: `${setupDefaultAppRoot}/backups`,
   backupRetentionCount: 52,
   databaseMode: 'app-default' as const,
@@ -286,6 +288,12 @@ export function getMediaServerSetupProfileAction() {
         prompt: 'Where should downloads live?',
         type: 'path',
         default: opinionatedSetupDefaults.downloadsRoot
+      },
+      {
+        id: 'torrentArchiveRoot',
+        prompt: 'Where should saved torrent metadata live?',
+        type: 'path',
+        default: opinionatedSetupDefaults.torrentArchiveRoot
       },
       {
         id: 'backupRetentionCount',
@@ -763,6 +771,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     MEDIA_ROOT: input.mediaRoot,
     MUSIC_ROOT: input.musicRoot,
     DOWNLOADS_ROOT: input.downloadsRoot,
+    TORRENT_ARCHIVE_ROOT: input.torrentArchiveRoot,
     BACKUP_ROOT: input.backupRoot,
     ENABLE_BACKUP: String(input.installBackup),
     BACKUP_SCHEDULE: 'weekly',

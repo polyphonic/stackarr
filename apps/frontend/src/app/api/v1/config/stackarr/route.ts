@@ -1,4 +1,5 @@
 import * as nodeCrypto from 'node:crypto';
+import path from 'node:path';
 import {
   accountUsernameValidationError,
   portablePasswordValidationError,
@@ -12,6 +13,7 @@ import {
   writeJsonPreset,
   writeSettings
 } from '@stackarr/core';
+import { validateTorrentArchiveRoot } from '@stackarr/core/archiveRootValidation';
 import type { NextRequest } from 'next/server';
 import { hasValidStackarrSession, json, requireApiKey, setStackarrSessionCookie } from '../../../../../lib/api';
 import { portlessHostActionIfNeeded } from '../../../../../lib/portlessSetup';
@@ -81,6 +83,27 @@ export async function PUT(request: NextRequest) {
 
   const config = typeof body.config === 'object' && body.config ? body.config : null;
   if (config && typeof config === 'object') {
+    const archiveError = validateTorrentArchiveRoot(
+      (config as StackarrEnv).TORRENT_ARCHIVE_ROOT,
+      currentEnv.TORRENT_ARCHIVE_ROOT,
+      (() => {
+        const incoming = config as StackarrEnv;
+        const app = incoming.APP_ROOT || currentEnv.APP_ROOT || '';
+        const backup = incoming.BACKUP_ROOT || currentEnv.BACKUP_ROOT || path.join(app, 'backups');
+        return {
+          config: incoming.CONFIG_ROOT || currentEnv.CONFIG_ROOT || path.join(app, 'config'),
+          state: incoming.STATE_ROOT || currentEnv.STATE_ROOT || path.join(app, 'state'),
+          logs: incoming.LOG_ROOT || currentEnv.LOG_ROOT || path.join(app, 'logs'),
+          backup,
+          staging:
+            incoming.BACKUP_STAGING_ROOT || currentEnv.BACKUP_STAGING_ROOT || path.join(backup, '.stackarr-staging')
+        };
+      })(),
+      (config as StackarrEnv).STACKARR_STORAGE_POLICY ||
+        currentEnv.STACKARR_STORAGE_POLICY ||
+        path.join((config as StackarrEnv).STATE_ROOT || currentEnv.STATE_ROOT || '', 'storage-policy.json')
+    );
+    if (archiveError) return json({ accepted: false, error: archiveError }, { status: 400 });
     const usernameError = validateConfigUsernames(config as StackarrEnv, currentEnv);
     if (usernameError) {
       return json({ accepted: false, error: usernameError }, { status: 400 });

@@ -14,14 +14,25 @@ case "${1:-}" in
     --force)
         FORCE=true
         ;;
+    --archive-hooks)
+        ARCHIVE_HOOKS_ONLY=true
+        ;;
     *)
-        fail "Usage: stackarr configure [--force]"
+        fail "Usage: stackarr configure [--force|--archive-hooks]"
         ;;
 esac
 
 load_env
+stackarr_storage_guard
+stackarr_verify_torrent_archive_root
+if [[ "${ARCHIVE_HOOKS_ONLY:-false}" == true ]]; then
+    "$ROOT_DIR/scripts/archive-hooks-configure.sh" apply
+    exit 0
+fi
 ensure_docker_runtime
 ensure_dir "$STATE_ROOT"
+ensure_dir "$TORRENT_ARCHIVE_ROOT/Movies"
+ensure_dir "$TORRENT_ARCHIVE_ROOT/TV Shows"
 # This stays ahead of configure.done so onboarding can be completed later without
 # forcing unrelated Arr/Seerr configuration. A missing HA login is a manual gate.
 if optional_service_enabled homeassistant; then
@@ -1940,11 +1951,12 @@ sync_media_hooks() {
     ensure_dir "$CONFIG_ROOT/hooks"
     ensure_dir "$CONFIG_ROOT/transmission/torrents"
     ensure_dir "$CONFIG_ROOT/qbittorrent/qBittorrent/BT_backup"
-    ensure_dir "$STATE_ROOT/torrent-archive/Movies"
-    ensure_dir "$STATE_ROOT/torrent-archive/TV Shows"
+    ensure_dir "$TORRENT_ARCHIVE_ROOT/Movies"
+    ensure_dir "$TORRENT_ARCHIVE_ROOT/TV Shows"
 
     cp "$TORRENT_ARCHIVE_HOOK_SOURCE" "$TORRENT_ARCHIVE_HOOK_DEST"
     chmod 755 "$TORRENT_ARCHIVE_HOOK_DEST"
+    "$ROOT_DIR/scripts/archive-hooks-configure.sh" install
     cp "$POST_IMPORT_HOOK_SOURCE" "$POST_IMPORT_HOOK_DEST"
     chmod 755 "$POST_IMPORT_HOOK_DEST"
 
@@ -2795,14 +2807,16 @@ lidarr_qbittorrent_download_payload() {
 }
 
 radarr_torrent_archive_notification_payload() {
+    local script_path="${1:-/stackarr-hooks/archive-torrent.sh}"
     cat <<EOF
-{"name":"Stackarr Torrent Archive","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":false,"onDownload":true,"onUpgrade":true,"onRename":false,"onMovieAdded":false,"onMovieDelete":false,"onMovieFileDelete":false,"onMovieFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"/stackarr-hooks/archive-torrent.sh"}],"tags":[]}
+{"name":"Stackarr Torrent Archive","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":true,"onDownload":true,"onUpgrade":true,"onRename":false,"onMovieAdded":false,"onMovieDelete":false,"onMovieFileDelete":false,"onMovieFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"$script_path"}],"tags":[]}
 EOF
 }
 
 sonarr_torrent_archive_notification_payload() {
+    local script_path="${1:-/stackarr-hooks/archive-torrent.sh}"
     cat <<EOF
-{"name":"Stackarr Torrent Archive","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":false,"onDownload":true,"onUpgrade":true,"onImportComplete":false,"onRename":false,"onSeriesAdd":false,"onSeriesDelete":false,"onEpisodeFileDelete":false,"onEpisodeFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"/stackarr-hooks/archive-torrent.sh"}],"tags":[]}
+{"name":"Stackarr Torrent Archive","implementation":"CustomScript","configContract":"CustomScriptSettings","onGrab":true,"onDownload":true,"onUpgrade":true,"onImportComplete":false,"onRename":false,"onSeriesAdd":false,"onSeriesDelete":false,"onEpisodeFileDelete":false,"onEpisodeFileDeleteForUpgrade":false,"onHealthIssue":false,"includeHealthWarnings":false,"onHealthRestored":false,"onApplicationUpdate":false,"onManualInteractionRequired":false,"fields":[{"name":"path","value":"$script_path"}],"tags":[]}
 EOF
 }
 
@@ -4212,13 +4226,13 @@ delete_named_service "Sonarr prefer English audio notification removed" "$SONARR
 delete_named_service "Radarr Plex notification removed" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_KEY" "Plex"
 delete_named_service "Sonarr Plex notification removed" "$SONARR_URL/api/v3/notification" "$SONARR_URL/api/v3/notification" "$SONARR_KEY" "Plex"
 if optional_service_enabled radarr4k; then
-    ensure_notification "Radarr 4K torrent archive notification configured" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Torrent Archive" "$(radarr_torrent_archive_notification_payload)"
+    ensure_notification "Radarr 4K torrent archive notification configured" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Torrent Archive" "$(radarr_torrent_archive_notification_payload /stackarr-hooks/archive-torrent-radarr4k.sh)"
     ensure_notification "Radarr 4K post-import metadata notification configured" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Post-Import Metadata" "$(radarr_post_import_notification_payload)"
     delete_named_service "Radarr 4K prefer English audio notification removed" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Stackarr Prefer English Audio"
     delete_named_service "Radarr 4K Plex notification removed" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_URL/api/v3/notification" "$RADARR_4K_KEY" "Plex"
 fi
 if optional_service_enabled sonarr4k; then
-    ensure_notification "Sonarr 4K torrent archive notification configured" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Torrent Archive" "$(sonarr_torrent_archive_notification_payload)"
+    ensure_notification "Sonarr 4K torrent archive notification configured" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Torrent Archive" "$(sonarr_torrent_archive_notification_payload /stackarr-hooks/archive-torrent-4k.sh)"
     ensure_notification "Sonarr 4K post-import metadata notification configured" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Post-Import Metadata" "$(sonarr_post_import_notification_payload)"
     delete_named_service "Sonarr 4K prefer English audio notification removed" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Stackarr Prefer English Audio"
     delete_named_service "Sonarr 4K Plex notification removed" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_URL/api/v3/notification" "$SONARR_4K_KEY" "Plex"
@@ -4481,6 +4495,7 @@ if optional_service_enabled sonarr4k; then
     configure_servarr_auth "Sonarr 4K UI auth configured" "$SONARR_4K_URL/api/v3/config/host" "$SONARR_4K_KEY" "$SONARR4K_PASSWORD"
 fi
 "$ROOT_DIR/scripts/naming.sh" apply --wait || true
+"$ROOT_DIR/scripts/archive-hooks-configure.sh" provision
 "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
 if flag_enabled "${STACKARR_CONFIGURE_SEERR:-false}"; then
     "$ROOT_DIR/scripts/requests.sh" apply --wait || true

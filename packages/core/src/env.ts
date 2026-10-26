@@ -35,6 +35,7 @@ export const managedEnvDefaults: StackarrEnv = {
   MEDIA_ROOT: defaultMediaRoot,
   MUSIC_ROOT: defaultMusicRoot,
   DOWNLOADS_ROOT: defaultDownloadsRoot,
+  TORRENT_ARCHIVE_ROOT: `${defaultStateRoot}/torrent-archive`,
   BACKUP_ROOT: `${defaultAppRoot}/backups`,
   BACKUP_STAGING_ROOT: '',
   APP_ROOT: defaultAppRoot,
@@ -679,6 +680,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
   merged.IMMICH_DB_VECTOR_EXTENSION = merged.IMMICH_DB_VECTOR_EXTENSION || 'pgvector';
   if (!env.DOWNLOADS_ROOT) merged.DOWNLOADS_ROOT = `${appRoot}/downloads`;
+  if (!env.TORRENT_ARCHIVE_ROOT) merged.TORRENT_ARCHIVE_ROOT = `${merged.STATE_ROOT}/torrent-archive`;
   if (!env.BACKUP_ROOT) merged.BACKUP_ROOT = `${appRoot}/backups`;
   if (!env.DATABASE_PGDATA) merged.DATABASE_PGDATA = detectDatabasePgdata(merged.CONFIG_ROOT);
   merged.PUID = merged.PUID || defaultUid();
@@ -1042,6 +1044,7 @@ function isHostPathKey(key: string) {
     'MEDIA_ROOT',
     'MUSIC_ROOT',
     'DOWNLOADS_ROOT',
+    'TORRENT_ARCHIVE_ROOT',
     'BACKUP_ROOT',
     'BACKUP_STAGING_ROOT',
     'BOOKS_ROOT',

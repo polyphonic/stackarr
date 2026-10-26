@@ -288,6 +288,7 @@ const tools: ToolDef[] = [
       mediaRoot: z.string().optional(),
       musicRoot: z.string().optional(),
       downloadsRoot: z.string().optional(),
+      torrentArchiveRoot: z.string().optional(),
       backupRoot: z.string().optional(),
       backupRetentionCount: z.number().int().positive().optional(),
       plexInstallMode: z.enum(['disabled', 'existing', 'docker']).optional(),
