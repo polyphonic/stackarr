@@ -1,6 +1,6 @@
 {
   "name": "@stackarr/db",
-  "version": "0.3.0-alpha.21",
+  "version": "0.3.0-alpha.22",
   "sideEffects": false,
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
