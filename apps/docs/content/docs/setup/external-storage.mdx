@@ -54,6 +54,8 @@ After host enrollment, recreate the controller through Stackarr so it receives t
 
 This action queues one narrowly defined operation for the internal host monitor. The host validates the destination and reads authoritative settings before stopping the managed containers. It copies and verifies the complete configuration, retains the original, then starts the same generated stack with its captured settings. The web controller does not own the copy process and can safely disappear during the move. Keep the page open; it reconnects and shows the persisted result.
 
+`APP_ROOT` and `STATE_ROOT` may be configured independently. The worker loads the installed runtime paths instead of assuming the state directory is inside the application directory. Missing installation metadata or a state/policy mismatch blocks the move before containers are stopped.
+
 Stop native configuration writers and their retry jobs first. The worker refuses an active native Tdarr node and checks writable host handles after container shutdown. Unmanaged containers holding configuration bind mounts are rejected before downtime, even if they never started. It does not stop native Plex, the Docker engine or another Compose project. A failed or completed request requires host review before another relocation. Never delete the queue, policy or journal just to clear that condition.
 
 ## CLI alternative: plan, stop, copy, verify, cut over

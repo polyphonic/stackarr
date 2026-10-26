@@ -14,6 +14,8 @@ function fixture() {
   const source = path.join(root, 'config');
   fs.mkdirSync(source);
   const policy = path.join(root, 'storage-policy.json');
+  fs.mkdirSync(path.join(root, 'compose'));
+  fs.writeFileSync(path.join(root, 'compose/.env'), `APP_ROOT=${root}\nSTATE_ROOT=${root}\nCONFIG_ROOT=${source}\n`);
   fs.writeFileSync(policy, '{}');
   const dir = move.directory(policy);
   fs.mkdirSync(dir);
@@ -54,7 +56,13 @@ test('unmanaged-consumer preflight failure does not stop services', () => {
       run: (_file: string, args: string[], env: Record<string, string>) => {
         commands++;
         assert.ok(args[1].includes('load_env'));
-        return JSON.stringify({ ...env, CONFIG_ROOT: source, STATE_ROOT: root, STACKARR_STORAGE_POLICY: policy });
+        return JSON.stringify({
+          ...env,
+          APP_ROOT: root,
+          CONFIG_ROOT: source,
+          STATE_ROOT: root,
+          STACKARR_STORAGE_POLICY: policy
+        });
       },
       engine: {
         plan: () => {},

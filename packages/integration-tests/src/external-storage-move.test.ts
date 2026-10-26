@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -11,6 +12,11 @@ const id = '123e4567-e89b-42d3-a456-426614174000';
 function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'stackarr-move-'));
   const policy = path.join(root, 'storage-policy.json');
+  mkdirSync(path.join(root, 'compose'));
+  writeFileSync(
+    path.join(root, 'compose/.env'),
+    `APP_ROOT=${root}\nSTATE_ROOT=${root}\nCONFIG_ROOT=${path.join(root, 'config')}\n`
+  );
   writeFileSync(policy, '{}');
   const dir = move.directory(policy);
   mkdirSync(dir);
@@ -97,6 +103,7 @@ test('worker plans while authoritative runtime exists and does not stop on unsaf
         calls.push('load');
         return JSON.stringify({
           ...env,
+          APP_ROOT: root,
           CONFIG_ROOT: path.join(root, 'config'),
           STATE_ROOT: root,
           STACKARR_STORAGE_POLICY: policy
@@ -130,6 +137,7 @@ test('worker runs scoped down, migration and generated guarded Compose restart i
           calls.push('load');
           return JSON.stringify({
             ...env,
+            APP_ROOT: root,
             CONFIG_ROOT: path.join(root, 'config'),
             STATE_ROOT: root,
             STACKARR_STORAGE_POLICY: policy
@@ -175,5 +183,105 @@ test('worker runs scoped down, migration and generated guarded Compose restart i
     assert.equal(JSON.parse(readFileSync(path.join(dir, 'status.json'), 'utf8')).phase, 'completed');
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('worker loads independent installed roots through the real host loader before planning', () => {
+  const { root, policy, dir, request } = fixture();
+  const app = path.join(root, 'separate-app');
+  const config = path.join(app, 'config');
+  mkdirSync(config, { recursive: true });
+  writeFileSync(path.join(root, 'compose/.env'), `APP_ROOT=${app}\nSTATE_ROOT=${root}\nCONFIG_ROOT=${config}\n`);
+  writeFileSync(path.join(dir, 'active.json'), JSON.stringify(request));
+  const previous = { APP_ROOT: process.env.APP_ROOT, CONFIG_ROOT: process.env.CONFIG_ROOT };
+  process.env.APP_ROOT = path.join(root, 'wrong-inherited-app');
+  process.env.CONFIG_ROOT = path.join(root, 'wrong-inherited-config');
+  try {
+    let planned = false;
+    const result = move.work(policy, {
+      guard: () => {},
+      run: (file: string, args: string[], env: NodeJS.ProcessEnv) => {
+        if (file !== '/bin/bash' || !args[1]?.includes('load_env')) assert.fail('must not stop');
+        const fixtureArgs = [...args];
+        fixtureArgs[1] = fixtureArgs[1].replace('source "$1";', 'source "$1"; stackarr_storage_guard() { :; };');
+        return execFileSync(file, fixtureArgs, { env, encoding: 'utf8' });
+      },
+      engine: {
+        plan: (source: string) => {
+          planned = true;
+          assert.equal(source, config);
+          throw Error('preflight fixture ends before downtime');
+        }
+      },
+      writers: () => assert.fail('must not check writers')
+    });
+    assert.equal(result, false);
+    assert.equal(planned, true, 'must plan from the installed configuration before failing preflight');
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'status.json'), 'utf8')).phase, 'failed');
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('worker rejects a different state root in the installed env through the real loader', () => {
+  const { root, policy, dir, request } = fixture();
+  try {
+    writeFileSync(
+      path.join(root, 'compose/.env'),
+      `APP_ROOT=${root}\nSTATE_ROOT=${path.join(root, 'other-state')}\nCONFIG_ROOT=${path.join(root, 'config')}\n`
+    );
+    writeFileSync(path.join(dir, 'active.json'), JSON.stringify(request));
+    assert.equal(
+      move.work(policy, {
+        guard: () => {},
+        run: (file: string, args: string[], env: NodeJS.ProcessEnv) => {
+          if (file !== '/bin/bash' || !args[1]?.includes('load_env')) assert.fail('must not stop');
+          const fixtureArgs = [...args];
+          fixtureArgs[1] = fixtureArgs[1].replace('source "$1";', 'source "$1"; stackarr_storage_guard() { :; };');
+          return execFileSync(file, fixtureArgs, { env, encoding: 'utf8' });
+        },
+        engine: { plan: () => assert.fail('must not plan') }
+      }),
+      false
+    );
+    assert.equal(JSON.parse(readFileSync(path.join(dir, 'status.json'), 'utf8')).phase, 'failed');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('worker refuses missing installation or mismatched authoritative roots before downtime', () => {
+  for (const invalid of ['missing', 'state', 'policy']) {
+    const { root, policy, dir, request } = fixture();
+    try {
+      if (invalid === 'missing') rmSync(path.join(root, 'compose/.env'));
+      writeFileSync(path.join(dir, 'active.json'), JSON.stringify(request));
+      let loaded = false;
+      assert.equal(
+        move.work(policy, {
+          guard: () => {},
+          run: (_file: string, _args: string[], env: Record<string, string>) => {
+            loaded = true;
+            return JSON.stringify({
+              ...env,
+              APP_ROOT: root,
+              CONFIG_ROOT: path.join(root, 'config'),
+              STATE_ROOT: invalid === 'state' ? path.join(root, 'other-state') : root,
+              STACKARR_STORAGE_POLICY: invalid === 'policy' ? path.join(root, 'other-policy.json') : policy
+            });
+          },
+          engine: { plan: () => assert.fail('must not plan') }
+        }),
+        false
+      );
+      assert.equal(loaded, invalid !== 'missing');
+      assert.equal(JSON.parse(readFileSync(path.join(dir, 'status.json'), 'utf8')).phase, 'failed');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   }
 });
