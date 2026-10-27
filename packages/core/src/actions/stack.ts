@@ -1,6 +1,3 @@
-import { execFile } from 'node:child_process';
-import os from 'node:os';
-import { promisify } from 'node:util';
 import { databaseExists } from '../database';
 import {
   controlPlaneBoundaryEnvConfigChanged,
@@ -11,12 +8,11 @@ import {
   type StackarrEnv,
   writeEnvConfig
 } from '../env';
-import { appDatabasePath, repoRoot } from '../paths';
+import { configuredDiskUsages } from '../metrics';
+import { appDatabasePath } from '../paths';
 import { redactSecrets } from '../safety/redaction';
 import { getSystemStatus } from '../services';
 import { queueStackarrCommandAction } from './commands';
-
-const execFileAsync = promisify(execFile);
 
 export function getSystemStatusAction() {
   return getSystemStatus();
@@ -178,32 +174,8 @@ export function addCloudflareAccessEmailAction(
   };
 }
 
-export async function getDiskUsageAction() {
-  const env = readEnv();
-  const roots = [repoRoot, env.MEDIA_ROOT, env.MUSIC_ROOT, env.DOWNLOADS_ROOT, env.BACKUP_ROOT].filter(
-    Boolean
-  ) as string[];
-  const uniqueRoots = [...new Set(roots.map((rootPath) => rootPath.replace(/^~(?=\/)/, os.homedir())))];
-  return Promise.all(
-    uniqueRoots.map(async (rootPath) => {
-      try {
-        const { stdout } = await execFileAsync('df', ['-k', rootPath]);
-        const [, line] = stdout.trim().split(/\r?\n/);
-        const [filesystem, blocks, used, available, capacity, mountedOn] = line.trim().split(/\s+/);
-        return {
-          path: rootPath,
-          filesystem,
-          blocks: Number(blocks),
-          used: Number(used),
-          available: Number(available),
-          capacity,
-          mountedOn
-        };
-      } catch (error) {
-        return { path: rootPath, error: error instanceof Error ? error.message : String(error) };
-      }
-    })
-  );
+export function getDiskUsageAction() {
+  return configuredDiskUsages(readEnv());
 }
 
 function readCloudflareTunnelRoutes(env: StackarrEnv): CloudflareTunnelRoute[] {

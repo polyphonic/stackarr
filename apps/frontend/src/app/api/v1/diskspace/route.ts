@@ -1,4 +1,4 @@
-import { getStackMetrics, readEnv } from '@stackarr/core';
+import { configuredDiskUsages, readEnv } from '@stackarr/core';
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../lib/api';
 
@@ -9,15 +9,5 @@ export async function GET(request: NextRequest) {
     return auth;
   }
 
-  const env = readEnv();
-  const roots = [
-    env.MEDIA_ROOT,
-    env.MUSIC_ROOT,
-    env.DOWNLOADS_ROOT,
-    env.BACKUP_ROOT,
-    env.CONFIG_ROOT,
-    env.STATE_ROOT
-  ].filter(Boolean) as string[];
-
-  return json(getStackMetrics(roots).disks);
+  return json(configuredDiskUsages(readEnv()));
 }

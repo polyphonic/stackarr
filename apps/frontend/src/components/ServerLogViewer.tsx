@@ -105,6 +105,6 @@ function formatDate(value: string) {
 
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KiB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MiB`;
 }
