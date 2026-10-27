@@ -216,7 +216,7 @@ function respond(file, check = checkHost, now = Date.now) {
     }
   }
 }
-async function checkGuest(file, { timeout = 8000, now = Date.now } = {}) {
+async function checkGuestAttempt(file, timeout, now) {
   const dir = bridgeDir(file);
   if (!fs.existsSync(dir) || fs.lstatSync(dir).isSymbolicLink())
     throw new Error('Install the host storage monitor before container actions');
@@ -241,15 +241,24 @@ async function checkGuest(file, { timeout = 8000, now = Date.now } = {}) {
           reply.at <= now() &&
           now() - reply.at <= 10000
         )
-          return;
-        break;
+          return true;
+        // A negative or malformed response must not be retried as a timeout.
+        throw new Error('Host storage proof denied or invalid; action blocked');
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    throw new Error('Host storage proof absent, stale or unavailable; action blocked');
+    return false;
   } finally {
     for (const file of [request, response]) fs.rmSync(file, { force: true });
   }
+}
+async function checkGuest(file, { timeout = 8000, attempts = 2, now = Date.now } = {}) {
+  // Host pressure may delay one response. Each attempt has a fresh nonce and
+  // must pass all existing policy/digest/freshness checks. Denials fail closed.
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (await checkGuestAttempt(file, timeout, now)) return;
+  }
+  throw new Error('Host storage proof absent, stale or unavailable; action blocked');
 }
 function composeOverride(file, source, rendered) {
   const text = fs.readFileSync(source, 'utf8').split(/^volumes:\s*$/m)[0];
