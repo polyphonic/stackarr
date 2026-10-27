@@ -19,6 +19,32 @@ function sqliteTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return env;
 }
 
+test('RomM worker setting survives generated Compose regeneration', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-romm-workers-'));
+  const projectDir = path.join(root, 'compose');
+  try {
+    const env = sqliteTestEnv({
+      APP_ROOT: path.join(root, 'app'),
+      STATE_ROOT: path.join(root, 'state'),
+      CONFIG_ROOT: path.join(root, 'config'),
+      STACKARR_COMPOSE_PROJECT_DIR: projectDir,
+      STACKARR_DATABASE_FILE: path.join(root, 'absent.db'),
+      ROMM_WEB_SERVER_CONCURRENCY: '2'
+    });
+    for (let run = 0; run < 2; run++) {
+      await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
+        cwd: repoRoot, env
+      });
+      const compose = await readFile(path.join(projectDir, 'docker-compose.yml'), 'utf8');
+      const generatedEnv = await readFile(path.join(projectDir, '.env'), 'utf8');
+      assert.match(compose, /WEB_SERVER_CONCURRENCY: "\$\{ROMM_WEB_SERVER_CONCURRENCY:-4\}"/);
+      assert.match(generatedEnv, /^ROMM_WEB_SERVER_CONCURRENCY="2"$/m);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('installed runtime paths take precedence over a legacy checkout database', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-installed-paths-'));
   const appRoot = path.join(root, 'installed');

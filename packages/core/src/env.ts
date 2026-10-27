@@ -247,6 +247,7 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_URL: 'http://127.0.0.1:7583',
   ROMM_BIND_IP: '127.0.0.1',
   ROMM_WEB_PORT: '7583',
+  ROMM_WEB_SERVER_CONCURRENCY: '',
   ROMM_CONTAINER_PORT: '8080',
   ROMM_LIBRARY_ROOT: defaultGamesRoot,
   ROMM_ADDITIONAL_GAMES_ROOT: '',
