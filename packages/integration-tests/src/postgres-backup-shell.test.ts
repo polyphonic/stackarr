@@ -76,10 +76,16 @@ test('disabled run-due never acquires maintenance or contacts either database', 
 test('failed authoritative host settings stop before any backup or target action', async () => {
   const { root, script } = await fixture();
   try {
-    const result = await run(script, ['run'], { ...process.env, TEST_POSTGRES: 'true' });
-    assert.notEqual(result.code, 0);
-    assert.match(result.output, /authoritative/);
-    assert.equal(await readFile(path.join(root, 'steps'), 'utf8'), 'load\n');
+    for (const extra of [
+      { TEST_POSTGRES: 'true' },
+      { TEST_POSTGRES: 'false', STACKARR_DATABASE_URL: 'postgresql://fixture:synthetic@source.invalid/runtime' }
+    ]) {
+      await writeFile(path.join(root, 'steps'), '');
+      const result = await run(script, ['run'], { ...process.env, ...extra });
+      assert.notEqual(result.code, 0);
+      assert.match(result.output, /authoritative/);
+      assert.equal(await readFile(path.join(root, 'steps'), 'utf8'), 'load\n');
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -14,7 +14,7 @@ esac
 
 load_env
 # Only configuration is read from the controller. Status never contacts the target.
-if [[ "$operation" != export ]] && database_mode_is_postgres && ! load_postgres_runtime_config; then
+if [[ "$operation" != export ]] && { database_mode_is_postgres || [[ -n "${STACKARR_DATABASE_URL:-}" ]]; } && ! load_postgres_runtime_config; then
     fail "Unable to load authoritative PostgreSQL runtime settings; backup cancelled"
 fi
 if [[ "$operation" != status ]]; then
