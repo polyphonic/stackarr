@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { diskUsages, parseFilesystemUsage, resolveHostDiskPath } from '../../core/src/metrics';
+import type { StackarrEnv } from '../../core/src/env';
+import { configuredDiskUsages, diskUsages, parseFilesystemUsage, resolveHostDiskPath } from '../../core/src/metrics';
 
 test('external paths are probed at bound subdirectories before grouping under a volume label', () => {
   const seen: string[] = [];
@@ -20,6 +21,44 @@ test('external paths are probed at bound subdirectories before grouping under a 
   assert.deepEqual(seen, ['/Volumes/External/Backups/Stackarr', '/Volumes/External/Media']);
   assert.equal(disks.length, 1);
   assert.deepEqual(disks[0].paths, seen);
+});
+
+test('configured disk report shares host-aware probe, groups volumes and preserves unavailable capacity', () => {
+  const seen: string[] = [];
+  const env = {
+    MEDIA_ROOT: '/Volumes/External/Media',
+    MUSIC_ROOT: '/Volumes/External/Music',
+    DOWNLOADS_ROOT: '/Volumes/External/Downloads',
+    BACKUP_ROOT: '/Volumes/External/Backups',
+    CONFIG_ROOT: '/stackarr-config',
+    STATE_ROOT: '/stackarr-state'
+  } as StackarrEnv;
+  const disks = configuredDiskUsages(env, (paths) =>
+    diskUsages(paths, (diskPath) => {
+      seen.push(diskPath);
+      const internal = diskPath.startsWith('/stackarr-');
+      return {
+        label: internal ? 'Macintosh HD' : '/Volumes/External',
+        path: internal ? '/stackarr-internal' : '/Volumes/External',
+        paths: [diskPath],
+        filesystem: internal ? null : '/dev/disk7',
+        mountPoint: internal ? null : '/Volumes/External',
+        freeSpace: internal ? null : 800 * 1024,
+        totalSpace: internal ? null : 1000 * 1024,
+        usedPercent: internal ? null : 20
+      };
+    })
+  );
+  assert.deepEqual(seen, Object.values(env));
+  assert.equal(disks.length, 2);
+  const external = disks.find((disk) => disk.path === '/Volumes/External');
+  const internal = disks.find((disk) => disk.path === '/stackarr-internal');
+  assert.deepEqual(external?.paths, seen.slice(0, 4));
+  assert.equal(external?.freeSpace, 800 * 1024);
+  assert.equal(external?.totalSpace, 1000 * 1024);
+  assert.deepEqual(internal?.paths, seen.slice(4));
+  assert.equal(internal?.freeSpace, null);
+  assert.equal(internal?.totalSpace, null);
 });
 
 const mounts = [

@@ -56,6 +56,16 @@ Every release should state:
 
 Use Conventional Commit types so Release Please can group notes predictably: `feat` for user-visible capabilities, `fix` for defects, `perf`, `security`, `docs`, `refactor`, `build`, and `ci`. Use `!` or a `BREAKING CHANGE:` footer for an incompatible migration.
 
+## Release handoff and installed-image verification
+
+A source change merged into `production` is not a published container image. A GitHub Release or tag is not proof that both registries finished publishing, and publication is not proof that an installation updated. Before calling a rollout complete, record each independent state:
+
+- Source: merged commit SHA and the release tag's source SHA.
+- Publication: exact version, registry multi-platform manifest digest, and target-platform image digest, verified after the image-publishing job completes.
+- Installation: running container image ID, repository/manifest digest when available, image version and OCI revision; compare the platform image identity and source revision with the published artifact, then verify application health with a fresh protected API request (and Docker health when the image defines a health check).
+
+If any stage is pending or does not match, report it as such instead of treating a merge, release record, image pull, or running container alone as rollout completion. A source-only correction can remain queued for the next approved release; it does not require an immediate publication or local installation.
+
 ## Release checklist
 
 - [ ] The release PR has the intended SemVer alpha version and generated changelog.
