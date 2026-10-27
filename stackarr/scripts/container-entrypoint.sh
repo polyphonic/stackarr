@@ -50,7 +50,7 @@ case "${STACKARR_SCHEDULER_ENABLED:-true}" in
     0|false|False|FALSE|no|No|NO|off|Off|OFF)
         ;;
     *)
-        "$ROOT_DIR/scripts/scheduler.sh" &
+        bash "$ROOT_DIR/scripts/retry-worker.sh" scheduler "$ROOT_DIR/scripts/scheduler.sh" &
         SCHEDULER_PID="$!"
         ;;
 esac
@@ -58,18 +58,12 @@ esac
 node apps/frontend/server.js &
 SERVER_PID="$!"
 
-STACKARR_MCP_HTTP_LISTEN_HOST=127.0.0.1 node packages/mcp/dist/index.js serve-http &
+STACKARR_MCP_HTTP_LISTEN_HOST=127.0.0.1 bash "$ROOT_DIR/scripts/retry-worker.sh" mcp node packages/mcp/dist/index.js serve-http &
 MCP_HTTP_PID="$!"
 
-if [[ -n "$SCHEDULER_PID" && -n "$MCP_HTTP_PID" ]]; then
-    wait -n "$SERVER_PID" "$SCHEDULER_PID" "$MCP_HTTP_PID"
-elif [[ -n "$SCHEDULER_PID" ]]; then
-    wait -n "$SERVER_PID" "$SCHEDULER_PID"
-elif [[ -n "$MCP_HTTP_PID" ]]; then
-    wait -n "$SERVER_PID" "$MCP_HTTP_PID"
-else
-    wait "$SERVER_PID"
-fi
-STATUS="$?"
+# Only the web server is essential to the controller lifecycle. A scheduler
+# failure caused by a transient authoritative read must not take down web/MCP.
+STATUS=0
+wait "$SERVER_PID" || STATUS="$?"
 shutdown
 exit "$STATUS"

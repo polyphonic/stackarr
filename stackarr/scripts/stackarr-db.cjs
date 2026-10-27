@@ -589,7 +589,7 @@ function runPsql(sql, variables = {}, tuplesOnly = true) {
   return execFileSync(
     'psql',
     ['-h', connection.host, '-p', connection.port, '-U', connection.user, '-d', connection.database, ...queryArgs],
-    { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
+    { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 }
   ).trim();
 }
 

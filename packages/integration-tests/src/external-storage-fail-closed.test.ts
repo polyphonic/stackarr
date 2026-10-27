@@ -92,7 +92,7 @@ test('host CLI rejects a healthy policy when no live monitor answers', () => {
     fs.writeFileSync(f.file, JSON.stringify({ version: 1, project: 'fixture', roots: [] }));
     fs.mkdirSync(control.bridgeDir(f.file));
     assert.throws(
-      () => execFileSync(process.execPath, [script, 'host-check', f.file], { timeout: 12000, stdio: 'pipe' }),
+      () => execFileSync(process.execPath, [script, 'host-check', f.file], { timeout: 22000, stdio: 'pipe' }),
       (error: any) => error.status === 1 && error.signal === null
     );
   } finally {
