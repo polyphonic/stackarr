@@ -5,6 +5,7 @@
     "index",
     "general",
     "storage",
+    "postgres-backup",
     "media-management",
     "download-clients",
     "indexers",
