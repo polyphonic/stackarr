@@ -33,6 +33,7 @@ async function run(
       `
 print_header() { :; }
 load_env() { :; }
+maintenance_lock_enter() { :; }
 database_mode_is_postgres() { return 1; }
 write_compose_env_file() { :; }
 wait_for_stackarr_storage() { :; }

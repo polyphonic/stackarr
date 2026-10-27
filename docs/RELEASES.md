@@ -16,9 +16,10 @@ Stackarr is in alpha, so every tester-facing build must be a SemVer prerelease s
 | Alpha channel | `alpha` | Moves to the newest alpha release | Opt-in feedback and early testing |
 | Commit trace | `sha-<40-character Git commit>` | Immutable in normal release flow | Forensics and exact build identification |
 | Stable version | `1.2.3` | Never intentionally overwritten | Production pin |
-| Stable convenience tags | `1.2`, `1`, `latest` | Move only on a stable release | Production update channels |
+| Rolling release stream | `latest` | Moves on each published release, including alpha/beta prereleases | Explicit opt-in to the newest published build |
+| Stable convenience tags | `1.2`, `1` | Move only on a stable release | Stable version channels |
 
-Do not publish `latest` while Stackarr is prerelease. Enable immutable tags in Docker Hub when the plan supports it, protect `v*` tags in GitHub, and never retag a released commit to different content.
+`latest` is **not** a stable channel or an assertion of production readiness. It follows the current published release stream, including prereleases, and is never promoted to a fictitious stable version. Installations default to `polyphonic/stackarr:alpha`; operators who want the full rolling stream can explicitly set `STACKARR_IMAGE=polyphonic/stackarr:latest` (or `ghcr.io/polyphonic/stackarr:latest`) in their managed runtime configuration. Use an exact version or registry-specific `@sha256:<digest>` for reproducible deployments and rollback. The app updater pulls the configured image reference; this policy does not change any installation's image selection by itself. Enable immutable tags in Docker Hub when the plan supports it, protect `v*` tags in GitHub, and never retag a released commit to different content.
 
 Users who report an issue should include the exact version or digest, not only the moving `alpha` tag.
 
@@ -29,7 +30,7 @@ Keep both registries:
 - **Docker Hub** (`polyphonic/stackarr`) remains the primary pull location in installation docs because it is familiar to self-hosters and NAS package managers.
 - **GHCR** (`ghcr.io/polyphonic/stackarr`) is the GitHub-native mirror for repository traceability, permissions, and artifact attestations.
 
-The release workflow builds once from the release tag and publishes the same multi-platform image to both registries. It verifies the exact version tag and immutable `sha-<commit>` tag for Linux AMD64 and Linux ARM64 in **each** registry, then records the tags and each registry's manifest digest in the GitHub Release. A release is incomplete if either registry does not receive both traceable tags.
+The release workflow builds once from the release tag and publishes the same multi-platform image to both registries. It verifies the exact version, `sha-<commit>`, `latest`, and applicable channel tags resolve to the same manifest within **each** registry, with Linux AMD64 and Linux ARM64 present. It records each registry's manifest digest in the GitHub Release. A release is incomplete if either registry does not receive the traceable tags or the rolling tag. Digests can differ between registries; pin the digest from the registry you pull.
 
 ## Platforms
 
@@ -73,6 +74,7 @@ If any stage is pending or does not match, report it as such instead of treating
 - [ ] The GitHub prerelease is marked prerelease and contains upgrade guidance.
 - [ ] `linux/amd64` and `linux/arm64` are present for the exact tag in Docker Hub and GHCR.
 - [ ] The moving `alpha` tag points at the exact alpha-version manifest in both registries.
+- [ ] `latest` points at the exact released manifest in both registries, even for prereleases; it is not labeled stable.
 - [ ] The immutable `sha-<40-character Git commit>` tag resolves to the same multi-platform manifest in both registries.
 - [ ] The release digest, version, host OS, Docker runtime, and architecture are requested in alpha feedback.
 - [ ] The landing-page telemetry collector has its database migration, server-only signing key, and Upstash rate-limit credentials configured before the public telemetry feature is announced.

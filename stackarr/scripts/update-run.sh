@@ -9,6 +9,25 @@ action="${1:-services}"
 
 print_header "Stackarr Update"
 load_env
+if [[ "$action" == app-worker ]]; then
+    # The initiating process holds the lock while handing off to this detached
+    # container. Acquire anew on the shared state mount before any worker work.
+    if ! maintenance_lock_owned; then
+        unset STACKARR_MAINTENANCE_LOCK_FD
+        if python3 "$ROOT_DIR/scripts/maintenance-lock.py" "$STATE_ROOT" --wait 60 -- "$ROOT_DIR/scripts/update-run.sh" "$@"; then
+            exit 0
+        else
+            lock_result=$?
+            if [[ "$lock_result" -eq 75 && -n "${STACKARR_UPDATE_TASK_ID:-}" ]]; then
+                node "$ROOT_DIR/scripts/task-log.cjs" update "$STACKARR_UPDATE_TASK_ID" \
+                    --status failed --exit-code "$lock_result" --ended-now || true
+            fi
+            exit "$lock_result"
+        fi
+    fi
+else
+    maintenance_lock_enter "$ROOT_DIR/scripts/update-run.sh" "$@"
+fi
 # A host calendar job may fire before the Docker socket exists at login.
 if [[ "${STACKARR_RUN_SOURCE:-}" == "scheduled" ]]; then
     wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"

@@ -42,6 +42,7 @@ export * from './metrics';
 export * from './notifications';
 export * from './passwordPolicy';
 export * from './paths';
+export * from './postgresBackup';
 export * from './presets';
 export * from './profilePresets';
 export * from './safety/audit';

@@ -1,6 +1,7 @@
 import * as nodeCrypto from 'node:crypto';
 import * as nodeFs from 'node:fs';
 import { databaseExists, readJsonSetting, writeJsonSetting } from './database';
+import { validatePostgresBackupConfig } from './postgresBackup';
 
 export type InstallMode = 'disabled' | 'native' | 'docker';
 export type TorrentClient = 'transmission' | 'qbittorrent';
@@ -58,6 +59,7 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_BOOKORBIT: 'false',
   ENABLE_IMMICH: 'false',
   ENABLE_ROMM: 'false',
+
   ENABLE_QUESTARR: 'false',
   QUESTARR_ROMM_IMPORT_ENABLED: 'false',
   QUESTARR_ROMM_TRANSFER_MODE: 'hardlink',
@@ -97,6 +99,12 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_AGREGARR: 'false',
   ENABLE_TRACEARR: 'false',
   ENABLE_BACKUP: 'true',
+  STACKARR_PG_BACKUP_ENABLED: 'false',
+  STACKARR_PG_BACKUP_URL: '',
+  STACKARR_PG_BACKUP_SCHEDULE: 'daily',
+  STACKARR_PG_BACKUP_TIME: '03:00',
+  STACKARR_PG_BACKUP_WEEKDAY: 'Sun',
+  STACKARR_PG_BACKUP_TIMEZONE: 'Etc/UTC',
   STACKARR_MOVIE_PROFILE_PRESET: 'lite',
   STACKARR_MOVIE_4K_PROFILE_PRESET: 'lite',
   STACKARR_TV_PROFILE_PRESET: 'lite',
@@ -553,6 +561,10 @@ export function readEnv(): StackarrEnv {
 
 export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
   const merged = mergeEditableEnv(readEnv(), next);
+  validatePostgresBackupConfig(merged);
+  if (merged.ROMM_WEB_SERVER_CONCURRENCY && !/^(?:[1-9]|1[0-6])$/.test(merged.ROMM_WEB_SERVER_CONCURRENCY)) {
+    throw new Error('ROMM_WEB_SERVER_CONCURRENCY must be an integer from 1 to 16 or empty.');
+  }
   if (merged.ENABLE_FRIGATE === 'true' || merged.ENABLE_HOMEASSISTANT === 'true') merged.ENABLE_MOSQUITTO = 'true';
   if (merged.ENABLE_MOSQUITTO === 'true') {
     for (const key of ['MOSQUITTO_FRIGATE_PASSWORD', 'MOSQUITTO_HOMEASSISTANT_PASSWORD']) {
@@ -565,7 +577,16 @@ export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
 
 export function redactEnv(env: StackarrEnv): StackarrEnv {
   return Object.fromEntries(
-    Object.entries(env).map(([key, value]) => [key, isSecretKey(key) && value ? redactSecretValue(value) : value])
+    Object.entries(env).map(([key, value]) => [
+      key,
+      key === 'STACKARR_PG_BACKUP_URL'
+        ? value
+          ? '********'
+          : ''
+        : isSecretKey(key) && value
+          ? redactSecretValue(value)
+          : value
+    ])
   ) as StackarrEnv;
 }
 
@@ -1091,6 +1112,7 @@ export function isSecretKey(key: string): boolean {
 
   return (
     secretKeys.some((fragment) => normalized.includes(fragment)) ||
+    normalized === 'STACKARR_PG_BACKUP_URL' ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
     normalized.endsWith('_DB_URL')

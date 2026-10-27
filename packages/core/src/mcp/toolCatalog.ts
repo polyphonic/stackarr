@@ -1184,6 +1184,25 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     remoteReadyDefault: true,
     description: 'Get one Seerr request status.'
   },
+  ...(['stackarr_test_postgres_backup', 'stackarr_run_postgres_backup'] as const).map((name) => ({
+    name,
+    category: 'backups' as const,
+    scopes: ['backups:write' as const],
+    risk: 'write' as const,
+    enabledForLocalMcp: true,
+    remoteReadyDefault: false,
+    description:
+      name === 'stackarr_test_postgres_backup' ? 'Test PostgreSQL archive target.' : 'Sync PostgreSQL archive backup.'
+  })),
+  {
+    name: 'stackarr_get_postgres_backup_status',
+    category: 'backups',
+    scopes: ['backups:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read cached PostgreSQL archive backup status.'
+  },
   {
     name: 'stackarr_run_backup',
     category: 'backups',

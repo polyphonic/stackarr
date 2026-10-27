@@ -33,7 +33,8 @@ test('RomM worker setting survives generated Compose regeneration', async () => 
     });
     for (let run = 0; run < 2; run++) {
       await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
-        cwd: repoRoot, env
+        cwd: repoRoot,
+        env
       });
       const compose = await readFile(path.join(projectDir, 'docker-compose.yml'), 'utf8');
       const generatedEnv = await readFile(path.join(projectDir, '.env'), 'utf8');
