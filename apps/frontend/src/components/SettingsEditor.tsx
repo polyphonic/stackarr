@@ -1120,6 +1120,11 @@ export function SettingsEditor({ section, env, settings }: Props) {
             onChange={(value) => updateEnv('ROMM_WEB_PORT', value)}
           />
           <Text
+            label="RomM API Workers (blank uses 4)"
+            value={envValue('ROMM_WEB_SERVER_CONCURRENCY')}
+            onChange={(value) => updateEnv('ROMM_WEB_SERVER_CONCURRENCY', value)}
+          />
+          <Text
             label="RomM Library Root"
             value={envValue('ROMM_LIBRARY_ROOT') || envValue('GAMES_ROOT')}
             onChange={(value) => {

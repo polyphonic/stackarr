@@ -1114,6 +1114,7 @@ services:
     image: ${ROMM_IMAGE:-rommapp/romm:latest}
     restart: unless-stopped
     environment:
+      WEB_SERVER_CONCURRENCY: "${ROMM_WEB_SERVER_CONCURRENCY:-4}"
       ROMM_DB_DRIVER: ${ROMM_DB_DRIVER:-postgresql}
       DB_HOST: ${ROMM_DB_HOST:-database}
       DB_PORT: ${ROMM_DB_PORT:-5432}
