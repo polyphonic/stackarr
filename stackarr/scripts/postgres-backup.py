@@ -71,6 +71,19 @@ def target_parameters(raw):
         raise BackupError('Invalid target URL; use a direct PostgreSQL URL with verified TLS.') from None
 
 
+def target_identity(env):
+    raw = env.get('STACKARR_PG_BACKUP_URL')
+    if not raw:
+        return None
+    params = target_parameters(raw)
+    scope = [str(params['host']).lower(), params['port'], params['dbname'], params['user']]
+    return hashlib.sha256(json.dumps(scope, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+
+
+def matching_status(env, status):
+    return status if status.get('targetIdentity') == target_identity(env) else {}
+
+
 def utcnow():
     return datetime.now(timezone.utc)
 
@@ -110,6 +123,7 @@ def due(env, status, now=None):
     now = now or utcnow()
     if env.get('STACKARR_PG_BACKUP_ENABLED') != 'true':
         return False
+    status = matching_status(env, status)
     previous, _ = schedule(env, now)
     try:
         success = datetime.fromisoformat(status.get('lastSuccess') or '1970-01-01T00:00:00+00:00')
@@ -137,7 +151,18 @@ def read_status(root):
         raise BackupError('Unsafe backup status file.')
     try:
         data = json.loads(file.read_text())
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        if data.get('state') == 'running':
+            try:
+                with (root / 'active.lock').open('r') as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return data
+            except FileNotFoundError:
+                pass
+            data.update(state='failed', lastError='Previous PostgreSQL backup stopped before completion.')
+        return data
     except (ValueError, OSError):
         raise BackupError('Could not read local backup status.') from None
 
@@ -505,7 +530,7 @@ def main():
     root = Path(env.get('STATE_ROOT', '')) / 'postgres-backup'
     if not root.is_absolute():
         raise BackupError('STATE_ROOT is required.')
-    status = read_status(root)
+    status = matching_status(env, read_status(root))
     if args.operation == 'status':
         print(json.dumps(status))
         return
@@ -527,6 +552,7 @@ def main():
         signal.alarm(JOB_SECONDS)
         raw = env.get('STACKARR_PG_BACKUP_URL', '')
         target_parameters(raw)
+        status['targetIdentity'] = target_identity(env)
         started = time.monotonic()
         if args.operation in ('run', 'run-due'):
             status.update(state='running', lastAttempt=iso(), lastError=None)

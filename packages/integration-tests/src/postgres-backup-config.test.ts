@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,6 +12,7 @@ import {
   mergeEditableEnv,
   nextPostgresBackupRun,
   postgresBackupPublicConfig,
+  postgresBackupTargetIdentity,
   redactEnv,
   validatePostgresBackupConfig
 } from '@stackarr/core';
@@ -75,6 +77,7 @@ test('cached status never connects and schedule respects local weekday', () => {
       file,
       JSON.stringify({
         state: 'succeeded',
+        targetIdentity: postgresBackupTargetIdentity(env),
         lastAttempt: '2026-01-01T00:01:00Z',
         lastSuccess: '2026-01-01T00:00:00Z',
         coverage: [{ name: 'app', schema: 'public', extensions: ['vector', 'postgis'] }],
@@ -95,8 +98,53 @@ test('cached status never connects and schedule respects local weekday', () => {
     assert.deepEqual(status.coverage, [{ name: 'app', schema: 'public', extensions: ['vector', 'postgis'] }]);
     assert.equal(status.lastError, 'Backup failed; inspect local backup logs.');
     assert.equal(status.nextRun, '2026-01-04T03:00:00.000Z');
+    const changedTarget = getPostgresBackupStatusAction({
+      ...configured,
+      STACKARR_PG_BACKUP_URL: 'postgresql://fixture:synthetic@other.invalid/recovery'
+    });
+    assert.equal(changedTarget.lastSuccess, null);
+    assert.equal(changedTarget.generation, null);
+    assert.deepEqual(changedTarget.coverage, []);
+    fs.writeFileSync(file, JSON.stringify({ state: 'running', targetIdentity: postgresBackupTargetIdentity(env) }));
+    assert.equal(getPostgresBackupStatusAction(configured).state, 'failed');
     assert.equal(nextPostgresBackupRun({ ...configured, STACKARR_PG_BACKUP_ENABLED: 'false' }), null);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('status uses the real local lock and shares target identity with the engine', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-pg-active-'));
+  const state = path.join(root, 'postgres-backup');
+  fs.mkdirSync(state);
+  const child = spawn('python3', [
+    '-u',
+    '-c',
+    'import fcntl,sys,time; f=open(sys.argv[1],"w"); fcntl.flock(f,fcntl.LOCK_EX); print("locked",flush=True); time.sleep(20)',
+    path.join(state, 'active.lock')
+  ]);
+  try {
+    await once(child.stdout, 'data');
+    fs.writeFileSync(
+      path.join(state, 'status.json'),
+      JSON.stringify({ state: 'running', targetIdentity: postgresBackupTargetIdentity(env) })
+    );
+    assert.equal(getPostgresBackupStatusAction({ ...env, STATE_ROOT: root }).state, 'running');
+    child.kill('SIGTERM');
+    await once(child, 'exit');
+    assert.equal(getPostgresBackupStatusAction({ ...env, STATE_ROOT: root }).state, 'failed');
+    const identity = execFileSync(
+      'python3',
+      [
+        '-c',
+        'import os,runpy,sys; print(runpy.run_path(sys.argv[1])["target_identity"](os.environ))',
+        path.resolve(import.meta.dirname, '../../../stackarr/scripts/postgres-backup.py')
+      ],
+      { env: { ...process.env, STACKARR_PG_BACKUP_URL: target }, encoding: 'utf8' }
+    );
+    assert.equal(identity.trim(), postgresBackupTargetIdentity(env));
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

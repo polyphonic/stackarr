@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { StackarrEnv } from './env';
@@ -98,6 +100,22 @@ export function validatePostgresBackupConfig(env: StackarrEnv): void {
   }
 }
 
+export function postgresBackupTargetIdentity(env: StackarrEnv): string | null {
+  if (!env.STACKARR_PG_BACKUP_URL) return null;
+  try {
+    const url = new URL(env.STACKARR_PG_BACKUP_URL);
+    const scope = [
+      url.hostname.replace(/^\[|\]$/g, '').toLowerCase(),
+      Number(url.port || 5432),
+      decodeURIComponent(url.pathname.slice(1)),
+      decodeURIComponent(url.username)
+    ];
+    return createHash('sha256').update(JSON.stringify(scope)).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
 export function postgresBackupPublicConfig(env: StackarrEnv) {
   return Object.fromEntries(
     configKeys.map((key) => [key, key === 'STACKARR_PG_BACKUP_URL' ? (env[key] ? '********' : '') : (env[key] ?? '')])
@@ -168,6 +186,29 @@ export function getPostgresBackupStatusAction(env: StackarrEnv, now = new Date()
       cached = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     /* Missing or malformed cache is an idle status, never a remote probe. */
+  }
+  if (!cached || Array.isArray(cached) || cached.targetIdentity !== postgresBackupTargetIdentity(env)) cached = {};
+  if (cached.state === 'running') {
+    // Probe the local kernel lock, not a PID that may have been reused after restart.
+    const probe = spawnSync(
+      'python3',
+      [
+        '-c',
+        `import fcntl,sys
+try:
+    with open(sys.argv[1], 'r') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    sys.exit(3)
+except FileNotFoundError:
+    pass
+`,
+        path.join(env.STATE_ROOT ?? '', 'postgres-backup', 'active.lock')
+      ],
+      { timeout: 1000, encoding: 'utf8' }
+    );
+    if (probe.status !== 3)
+      cached = { ...cached, state: 'failed', lastError: 'Previous attempt stopped or cannot be verified.' };
   }
   const status = {
     ...empty,

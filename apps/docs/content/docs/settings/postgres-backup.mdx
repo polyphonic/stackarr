@@ -42,7 +42,7 @@ Bulk staging and export stay on the verified `BACKUP_ROOT` filesystem, with no i
 
 ## Status and controls
 
-Settings shows cached last attempt, last successful backup, error, next scheduled slot, generation, archive size and database/schema/extension coverage. An upcoming scheduled slot is not a promise that a retry or maintenance-lock wait completes at that time. Status reads do not contact the target.
+Settings shows cached last attempt, last successful backup, error, next scheduled slot, generation, archive size and database/schema/extension coverage. Success and coverage are bound to the target endpoint, database and role, so switching destinations starts with no verified recovery point and triggers normal catch-up. Local lock checks distinguish an abandoned attempt from an active job after a crash. An upcoming scheduled slot is not a promise that a retry or maintenance-lock wait completes at that time. Status reads do not contact the target.
 
 ```sh
 stackarr postgres-backup status

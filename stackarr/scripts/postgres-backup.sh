@@ -12,14 +12,12 @@ case "$operation" in
     *) fail "Usage: stackarr postgres-backup status|test|run|run-due|export --output PATH" ;;
 esac
 
-if [[ "$operation" == status ]]; then
-    # Cache-only status must not try to contact the controller or database.
-    load_compose_runtime_env
-    : "${APP_ROOT:=$(default_app_root)}"
-    : "${STATE_ROOT:=$APP_ROOT/state}"
-    export STATE_ROOT
-else
-    load_env
+load_env
+# Only configuration is read from the controller. Status never contacts the target.
+if [[ "$operation" != export ]] && database_mode_is_postgres && ! load_postgres_runtime_config; then
+    fail "Unable to load authoritative PostgreSQL runtime settings; backup cancelled"
+fi
+if [[ "$operation" != status ]]; then
     if [[ "$operation" == run-due ]] && ! flag_enabled "${STACKARR_PG_BACKUP_ENABLED:-false}"; then
         exit 0
     fi

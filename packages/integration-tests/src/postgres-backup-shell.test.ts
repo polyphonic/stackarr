@@ -20,6 +20,8 @@ async function fixture() {
 fail() { printf '%s\\n' "$*" >&2; exit 1; }
 load_compose_runtime_env() { printf 'compose\\n' >> "$ROOT_DIR/steps"; }
 load_env() { printf 'load\\n' >> "$ROOT_DIR/steps"; STACKARR_PG_BACKUP_ENABLED="\${TEST_ENABLED:-false}"; export STACKARR_PG_BACKUP_ENABLED; }
+database_mode_is_postgres() { [[ "\${TEST_POSTGRES:-false}" == true ]]; }
+load_postgres_runtime_config() { return 1; }
 flag_enabled() { [[ "$1" == true ]]; }
 maintenance_lock_enter() { printf 'lock\\n' >> "$ROOT_DIR/steps"; }
 verify_backup_mounts() { printf 'mount\\n' >> "$ROOT_DIR/steps"; }
@@ -48,13 +50,13 @@ function run(script: string, args: string[], env: NodeJS.ProcessEnv): Promise<{ 
   });
 }
 
-test('status reads local cache without loading settings or querying Docker', async () => {
+test('status loads current settings but never discovers a source or connects to the target', async () => {
   const { root, script } = await fixture();
   try {
     const result = await run(script, ['status'], { ...process.env, STATE_ROOT: path.join(root, 'state') });
     assert.equal(result.code, 0, result.output);
     assert.equal(JSON.parse(result.output).state, path.join(root, 'state'));
-    assert.equal(await readFile(path.join(root, 'steps'), 'utf8'), 'compose\n');
+    assert.equal(await readFile(path.join(root, 'steps'), 'utf8'), 'load\n');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -65,6 +67,18 @@ test('disabled run-due never acquires maintenance or contacts either database', 
   try {
     const result = await run(script, ['run-due'], { ...process.env, TEST_ENABLED: 'false' });
     assert.equal(result.code, 0, result.output);
+    assert.equal(await readFile(path.join(root, 'steps'), 'utf8'), 'load\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('failed authoritative host settings stop before any backup or target action', async () => {
+  const { root, script } = await fixture();
+  try {
+    const result = await run(script, ['run'], { ...process.env, TEST_POSTGRES: 'true' });
+    assert.notEqual(result.code, 0);
+    assert.match(result.output, /authoritative/);
     assert.equal(await readFile(path.join(root, 'steps'), 'utf8'), 'load\n');
   } finally {
     await rm(root, { recursive: true, force: true });

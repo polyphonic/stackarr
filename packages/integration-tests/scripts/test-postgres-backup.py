@@ -2,6 +2,9 @@
 """Public backup policy and scheduling contracts; no database/network needed."""
 import importlib.util
 from pathlib import Path
+import json
+import fcntl
+import tempfile
 import unittest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
@@ -14,6 +17,23 @@ backup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(backup)
 
 class PolicyTests(unittest.TestCase):
+    def test_success_is_bound_to_target_not_only_schedule(self):
+        env = dict(STACKARR_PG_BACKUP_ENABLED='true', STACKARR_PG_BACKUP_URL='postgresql://fixture:synthetic@backup.example/recovery')
+        now = datetime(2025, 1, 1, 12, tzinfo=timezone.utc)
+        status = dict(lastSuccess=now.isoformat(), targetIdentity=backup.target_identity(env))
+        self.assertFalse(backup.due(env, status, now))
+        self.assertTrue(backup.due(dict(env, STACKARR_PG_BACKUP_URL='postgresql://fixture:synthetic@other.example/recovery'), status, now))
+        self.assertEqual(backup.matching_status(dict(env, STACKARR_PG_BACKUP_URL='postgresql://fixture:synthetic@other.example/recovery'), status), {})
+
+    def test_abandoned_running_cache_is_not_an_active_job(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root/'status.json').write_text(json.dumps({'state': 'running', 'lastAttempt': '2025-01-01T00:00:00+00:00'}))
+            self.assertEqual(backup.read_status(root)['state'], 'failed')
+            with (root/'active.lock').open('w') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.assertEqual(backup.read_status(root)['state'], 'running')
+
     def test_target_url_requires_safe_direct_verified_tls(self):
         result = backup.target_parameters('postgresql://backup:p%40ss@backup.example/recovery?sslmode=require&channel_binding=require')
         self.assertEqual(result['password'], 'p@ss')
