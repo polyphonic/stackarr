@@ -123,7 +123,16 @@ export async function PUT(request: NextRequest) {
       return json({ accepted: false, error: currentPasswordError }, { status: 403 });
     }
 
-    nextEnv = writeEnvConfig(withGeneratedOptionalSecrets(config as StackarrEnv));
+    try {
+      const requested = { ...(config as StackarrEnv) };
+      if (requested.STACKARR_PG_BACKUP_URL === '') delete requested.STACKARR_PG_BACKUP_URL;
+      nextEnv = writeEnvConfig(withGeneratedOptionalSecrets(requested));
+    } catch (error) {
+      return json(
+        { accepted: false, error: error instanceof Error ? error.message : 'Invalid configuration.' },
+        { status: 400 }
+      );
+    }
   }
 
   if (!nextEnv && !existingApiKey) {

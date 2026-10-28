@@ -186,14 +186,22 @@ case "$cmd" in
                 shift || true
                 exec "$ROOT_DIR/scripts/backup-run.sh" "$@"
                 ;;
+            postgres)
+                shift || true
+                exec "$ROOT_DIR/scripts/postgres-backup.sh" "$@"
+                ;;
             restore)
                 shift || true
                 exec "$ROOT_DIR/scripts/restore.sh" "$@"
                 ;;
             *)
-                fail "Usage: stackarr backup install|uninstall|permissions|run|restore <archive>"
+                fail "Usage: stackarr backup install|uninstall|permissions|run|postgres status|test|run|run-due|export --output PATH|restore <archive>"
                 ;;
         esac
+        ;;
+    postgres-backup)
+        shift || true
+        exec "$ROOT_DIR/scripts/postgres-backup.sh" "$@"
         ;;
     mcp)
         shift || true
@@ -323,7 +331,8 @@ Stackarr commands:
   stackarr portless apply|install|status|uninstall
   stackarr cloudflare install|start|stop|status|delete|uninstall
   stackarr startup install|uninstall
-  stackarr backup install|uninstall|permissions|run
+  stackarr backup install|uninstall|permissions|run|postgres status|test|run|run-due|export --output PATH
+  stackarr postgres-backup status|test|run|run-due|export --output PATH
   stackarr backup restore <archive>
   stackarr mcp serve
   stackarr mcp serve-http

@@ -1,0 +1,109 @@
+---
+title: PostgreSQL backup sync
+description: Scheduled native archives of the managed PostgreSQL estate in a dedicated off-site PostgreSQL database.
+---
+
+# PostgreSQL backup sync
+
+This optional feature copies **native backup archives**, not a live, queryable replica. Keep [local encrypted backups](/docs/operations/backups) enabled for SQLite, MariaDB, configuration and service files. Media and downloads need their own backup policy. A PostgreSQL backup alone cannot recover an entire Stackarr installation.
+
+## Setup and scheduling
+
+In **Settings → Media Management → Remote PostgreSQL archives**, enter a direct PostgreSQL URL for a database you supply, save, then use **Test target**. This backup destination is unrelated to Stackarr's portable telemetry and account database. Saving through Settings writes the installation's private authoritative runtime configuration, never a repository `.env` file or shipped default. The URL is masked in settings and API responses, but is not separately field-encrypted in runtime storage. Leave the password field blank on later saves to retain the existing URL. Enable daily (recommended) or weekly sync and choose a time and IANA timezone. The default is disabled, daily at `03:00` in `Etc/UTC`.
+
+The target must be a dedicated database owned by the supplied role, on PostgreSQL 14 or newer. It must be empty apart from `public`, public-scoped default-privilege metadata and the standard `plpgsql` extension, or already carry the matching Stackarr repository marker. Public-scoped default privileges do not apply to the private backup schema. A source-cluster destination, overlapping source database name, unrelated objects, extensions, event triggers, large objects or a different repository owner are rejected. A non-Neon restricted role also needs `EXECUTE` on `pg_control_system()` to prove cluster separation. The single target database stores every source database separately, so a provider's database-count limit does not require one target database per app.
+
+Use a direct endpoint, not a `-pooler` endpoint. TLS always verifies both the certificate chain and hostname, including when the supplied URL says `sslmode=require`. Only `sslmode=require|verify-full` and `channel_binding=prefer|require` URL options are accepted. Do not put the URL in command arguments or logs.
+
+The authoritative managed configuration keys are:
+
+| Key | Default |
+| --- | --- |
+| `STACKARR_PG_BACKUP_ENABLED` | `false` |
+| `STACKARR_PG_BACKUP_URL` | Empty secret |
+| `STACKARR_PG_BACKUP_SCHEDULE` | `daily` (`daily` or `weekly`) |
+| `STACKARR_PG_BACKUP_TIME` | `03:00` |
+| `STACKARR_PG_BACKUP_WEEKDAY` | `Sun` |
+| `STACKARR_PG_BACKUP_TIMEZONE` | `Etc/UTC` |
+
+The existing controller scheduler owns execution. A common maintenance lock prevents overlap with local backups and updates. Restart catches up the most recent missed slot, rather than replaying every missed backup. Failed attempts retry no more than once per hour. A repeated daylight-saving hour runs once; a nonexistent local time is skipped. Choose a timezone/time that fits your maintenance window and leave enough time for existing jobs.
+
+## Coverage and storage model
+
+Each run inventories **every database in the managed PostgreSQL container except `template0`**, including `postgres`, `template1`, connectable custom templates, app main/log databases, all schemas and extension versions. A non-connectable database fails the run instead of being silently omitted. Separate PostgreSQL servers outside that managed container are not discovered.
+
+Source-native `pg_dump -Fc --create` archives preserve data, database properties, schemas, sequences, indexes, constraints, types, functions, extension declarations/configuration data and large objects. `pg_dumpall --globals-only` preserves roles, memberships and tablespace definitions, including password hashes. Tablespace directories, extension binaries, PostgreSQL configuration files and other filesystem state still require local backups and recovery preparation. `template0` is the pristine engine template, not a location for application data.
+
+Compressed archives are streamed with binary COPY into `stackarr_backup_v1`. Publication and retention are one transaction. A failed upload cannot replace the last good point. Current and previous generations are retained, with a versioned manifest, database mapping and SHA-256 checksums. Export verifies every archive before exposing the completed output directory. Native dumps take a consistent snapshot **per database**, not a single transaction across the estate. Concurrent global-role/settings or database-inventory changes abort capture for retry.
+
+This is a full logical backup each time, not incremental replication or an optimized unchanged-data detector. Each successful run writes a full generation and reads it back for integrity verification. Allow capacity for the current, previous and in-flight generation, transaction/WAL overhead, and provider history retention. Full replacement and deletion can amplify hosted storage/history costs. Job duration is capped at two hours, individual native commands at fifteen minutes and target statements at two minutes. Very large estates can need a different backup service or an explicitly reviewed limit change.
+
+Bulk staging and export stay on the verified `BACKUP_ROOT` filesystem, with no internal-disk fallback when an external mount is unavailable. Local staging is private but not independently encrypted. The remote archives are protected by verified TLS, database permissions and the provider's storage protection, **not Stackarr end-to-end archive encryption**. Treat the target and exports as highly sensitive because they contain application data and role password hashes.
+
+## Status and controls
+
+Settings shows cached last attempt, last successful backup, error, next scheduled slot, generation, archive size and database/schema/extension coverage. Success and coverage are bound to the target endpoint, database and role, so switching destinations starts with no verified recovery point and triggers normal catch-up. Local lock checks distinguish an abandoned attempt from an active job after a crash. An upcoming scheduled slot is not a promise that a retry or maintenance-lock wait completes at that time. Status reads do not contact the target.
+
+```sh
+stackarr postgres-backup status
+stackarr postgres-backup test
+stackarr postgres-backup run
+stackarr postgres-backup export --output /absolute/backup-root/recovery-current
+stackarr postgres-backup export --output /absolute/backup-root/recovery-previous --previous
+```
+
+The export path must be a **new directory below the configured backup root**. Export does not require the source PostgreSQL server to be running. The authenticated `GET /api/v1/postgres-backup` endpoint returns public configuration and cached status. `POST /api/v1/command` with `{"name":"PostgresBackupTest"}` or `{"name":"PostgresBackupSync"}` queues the matching bounded task. MCP offers `stackarr_get_postgres_backup_status`, `stackarr_test_postgres_backup` and `stackarr_run_postgres_backup`.
+
+## Restore procedure
+
+Do not point recovery commands at a live application cluster. PostgreSQL archives and globals can execute SQL: restore only a trusted backup into an isolated recovery engine.
+
+1. Export the current or previous generation. Inspect `manifest.json` for source PostgreSQL and extension versions, database names, properties and numeric archive filenames. Keep the manifest and all files together. Export already checks sizes and SHA-256 hashes.
+2. Start a fresh isolated PostgreSQL engine matching the source major version and extension versions. Install the recorded extension binaries and prepare any recorded tablespace paths. For TimescaleDB, use an engine with the matching TimescaleDB/toolkit versions. A target that stores the bytes does not need these extensions, but the recovery engine does. Do not strip unsupported extensions to force recovery into Neon.
+3. Use a temporary recovery superuser with a name absent from the source role inventory. Connect it to a separate `recovery_control` database created from pristine `template0`. Supply credentials through a private `PGPASSFILE` or the recovery environment, never a URL argument. Restore globals with error stopping enabled:
+
+```sh
+psql -X --set ON_ERROR_STOP=1 --dbname=recovery_control --file=globals.sql
+```
+
+4. Prepare empty destination database names. On a disposable engine, existing bootstrap `postgres` or `template1` can conflict with the archives. Resolve those conflicts while connected to `recovery_control`; removing a bootstrap database is an isolated-recovery operation, never a production instruction. If rebuilding `template1`, clear its template flag before removing it. Do not restore app objects by cloning an already populated source template.
+5. For each archive, first restore its database creation/properties/ACL entries, then its objects and data. This separation lets TimescaleDB enter restore mode before its catalog data is loaded. For the selected archive, generate two TOC lists:
+
+```sh
+pg_restore --list --create database-0000.dump > archive.list
+python3 - <<'PY'
+from pathlib import Path
+import re
+rows = Path('archive.list').read_text().splitlines()
+entry = re.compile(r' (?:DATABASE(?: PROPERTIES)? -|(?:ACL|COMMENT|SECURITY LABEL) - DATABASE) ')
+Path('database.list').write_text('\n'.join(row for row in rows if entry.search(row)) + '\n')
+Path('objects.list').write_text('\n'.join(row for row in rows if not entry.search(row)) + '\n')
+PY
+pg_restore --exit-on-error --create --dbname=recovery_control \
+  --use-list=database.list database-0000.dump
+```
+
+Use the database name mapped to that archive in the manifest for the following commands. `app_data` below is an example, not a fixed Stackarr database. For databases with TimescaleDB, run:
+
+```sh
+psql -X --set ON_ERROR_STOP=1 --dbname=app_data \
+  --command='CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT timescaledb_pre_restore();'
+pg_restore --exit-on-error --dbname=app_data \
+  --use-list=objects.list database-0000.dump
+psql -X --set ON_ERROR_STOP=1 --dbname=app_data \
+  --command='SELECT timescaledb_post_restore();'
+```
+
+For databases without TimescaleDB, omit the pre/post commands. Repeat using each archive's own TOC lists and database name. Do not use `--no-owner`, `--no-acl` or an error-ignoring restore and claim full fidelity.
+
+6. Compare database ownership/properties/grants, schemas, extension versions, table counts and important application queries with the expected recovery point. Validate sequences, large objects and TimescaleDB compressed chunks where used. Test each app against the isolated restore, then plan a separate, backup-first cutover. Preserve the exported generation until the cutover is verified.
+
+The opt-in real-engine integration fixture exercises this procedure with PostgreSQL 18, TimescaleDB compressed hypertables, pgvector/HNSW, custom templates, database ACLs, roles, functions, enums, sequences and large objects. It does not prove every possible third-party extension or your application's recovery. Run a representative restore trial before relying on this backup.
+
+## Neon and idle suspension
+
+The target is contacted only for scheduled jobs or explicit test, run and export operations. No persistent pool, replication slot or target health polling is created. Configure idle suspension separately in Neon's control plane; a connection string cannot configure it. Verify the actual endpoint suspends after the provider's idle period, accounting for other clients that may keep it awake.
+
+For independent sleep and cost isolation from telemetry, use a separate Neon **project/compute**, not just another database sharing its endpoint. Choose modest backup-only compute bounds within your existing plan; do not upgrade the plan merely to enable backups. On Neon's Free plan, five-minute autosuspend is mandatory: timeout `0` uses the plan default, while `-1` disables suspension where allowed. Check your plan's current controls rather than assuming an explicit `300`-second timeout is accepted. Close target connections after each job and verify suspension in the provider control plane without waking the target with a SQL status probe.
+
+Daily or weekly scheduling defines the recovery-point interval. Changes after the last successful run can be lost. Sleeping compute stops compute charges, **not storage or history charges**. Review the plan's capacity, retention and pricing before enabling recurring full backups.

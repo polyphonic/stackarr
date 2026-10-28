@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 load_env
+maintenance_lock_enter "$ROOT_DIR/scripts/backup-run.sh" "$@"
 # Fail before task logging, directory creation, or copying state into staging.
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
 stackarr_storage_guard
@@ -165,37 +166,6 @@ if [[ "$(lowercase "${ENABLE_BACKUP:-true}")" =~ ^(0|false|no|off|disabled)$ ]];
     backup_task_append "$skipped_message"
     exit 0
 fi
-
-backup_device() {
-    stat -c %d "$1" 2>/dev/null || stat -f %d "$1"
-}
-
-verify_external_backup_mount() {
-    local root="$1" volumes_root="${2:-/Volumes}" volume remainder volume_device parent_device root_device
-    case "$root" in
-        "$volumes_root"/*) ;;
-        *) return 0 ;;
-    esac
-
-    # The container bind device alone cannot attest that the host still has
-    # this volume mounted. Require a new host mount-table response for each run.
-    if [[ "$(uname -s)" != Darwin ]]; then
-        [[ -d "$root" && "$(realpath "$root")" == "$root" ]] ||
-            fail "External backup root is missing or not canonical: $root"
-        "$ROOT_DIR/scripts/backup-mount-bridge.sh" verify "$STATE_ROOT" "$root" ||
-            fail "External backup root requires fresh host mount verification: $root"
-        return 0
-    fi
-
-    remainder="${root#"$volumes_root"/}"
-    volume="$volumes_root/${remainder%%/*}"
-    [[ -d "$volume" && -d "$root" ]] || fail "External backup volume is unavailable: $volume"
-    parent_device="$(backup_device "$volumes_root")" || fail "Cannot inspect external backup volume parent"
-    volume_device="$(backup_device "$volume")" || fail "Cannot inspect external backup volume"
-    root_device="$(backup_device "$root")" || fail "Cannot inspect external backup root"
-    [[ -n "$volume_device" && "$volume_device" != "$parent_device" && "$root_device" == "$volume_device" ]] ||
-        fail "External backup volume is not mounted on the host: $volume"
-}
 
 verify_external_backup_mount "$BACKUP_ROOT"
 # A fresh default staging child does not exist yet; the verified backup root

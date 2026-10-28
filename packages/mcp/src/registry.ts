@@ -52,6 +52,7 @@ import {
   getPlexServerStatusAction,
   getPlexSessionsAction,
   getPlexWatchSummaryAction,
+  getPostgresBackupStatusAction,
   getPulsarrUserDiagnosticsAction,
   getQuestarrDownloadsAction,
   getRecentlyAddedAction,
@@ -93,7 +94,9 @@ import {
   pauseTdarrNodeAction,
   prepareLidarrStreamripAlbumAction,
   previewTelemetryPayloadAction,
+  queueStackarrCommandAction,
   queueYoutarrDownloadAction,
+  readEnv,
   readNativeAppAction,
   readTasks,
   reconcileQuestarrRommImportsAction,
@@ -1373,6 +1376,24 @@ const tools: ToolDef[] = [
     handler: getRequestStatusAction
   },
   { name: 'stackarr_run_backup', description: 'Run backup.', shape: empty, handler: runBackupWorkflowAction },
+  {
+    name: 'stackarr_get_postgres_backup_status',
+    description: 'Read cached PostgreSQL archive backup status without waking the target.',
+    shape: empty,
+    handler: () => getPostgresBackupStatusAction(readEnv())
+  },
+  {
+    name: 'stackarr_test_postgres_backup',
+    description: 'Queue a PostgreSQL backup target test.',
+    shape: empty,
+    handler: () => queueStackarrCommandAction({ command: 'PostgresBackupTest' })
+  },
+  {
+    name: 'stackarr_run_postgres_backup',
+    description: 'Queue a PostgreSQL archive sync.',
+    shape: empty,
+    handler: () => queueStackarrCommandAction({ command: 'PostgresBackupSync' })
+  },
   { name: 'stackarr_list_backups', description: 'List backups.', shape: empty, handler: listBackupsAction },
   {
     name: 'stackarr_validate_backup',

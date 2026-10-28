@@ -11,6 +11,8 @@ export type CommandName =
   | 'ApplyRequestsPreset'
   | 'ClearRequestsPreset'
   | 'Backup'
+  | 'PostgresBackupTest'
+  | 'PostgresBackupSync'
   | 'BackupPermissions'
   | 'Update'
   | 'UpdateStackarr'
@@ -48,6 +50,20 @@ export type CommandDefinition = {
 };
 
 export const commandRegistry: Record<CommandName, CommandDefinition> = {
+  PostgresBackupTest: {
+    name: 'PostgresBackupTest',
+    label: 'Test PostgreSQL backup target',
+    args: ['postgres-backup', 'test'],
+    disruptive: false,
+    event: 'Backup'
+  },
+  PostgresBackupSync: {
+    name: 'PostgresBackupSync',
+    label: 'Sync PostgreSQL backup',
+    args: ['postgres-backup', 'run'],
+    disruptive: false,
+    event: 'Backup'
+  },
   StackStart: {
     name: 'StackStart',
     label: 'Start stack',

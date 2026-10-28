@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readEnv } from './env';
+import { readEnv, type StackarrEnv } from './env';
 import { composePath, composeProjectDir, composeProjectName, repoRoot } from './paths';
 import { getServices } from './services';
 import { readTasks } from './tasks';
@@ -150,6 +150,15 @@ export function diskUsages(paths: string[], probe: typeof diskUsage = diskUsage)
   }
 
   return [...byVolume.values()].sort((a, b) => volumeRank(a) - volumeRank(b) || a.path.localeCompare(b.path));
+}
+
+// Keep agent and API disk reports on the same host-aware probe and configured roots.
+export function configuredDiskUsages(env: StackarrEnv, probe: typeof diskUsages = diskUsages) {
+  return probe(
+    [env.MEDIA_ROOT, env.MUSIC_ROOT, env.DOWNLOADS_ROOT, env.BACKUP_ROOT, env.CONFIG_ROOT, env.STATE_ROOT].filter(
+      Boolean
+    ) as string[]
+  );
 }
 
 function diskUsage(diskPath: string): StackMetrics['disks'][number] {

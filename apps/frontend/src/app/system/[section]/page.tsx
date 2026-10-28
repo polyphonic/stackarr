@@ -20,6 +20,7 @@ import { ServerLogViewer } from '../../../components/ServerLogViewer';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
 import { ActionGrid, Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
+import { formatBinaryBytes } from '../../../lib/formatBinaryBytes';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
@@ -309,7 +310,10 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
           </>
         )}
         {section === 'diskspace' && (
-          <Panel title="Disk Space">
+          <Panel
+            title="Disk Space"
+            description="Filesystem free space; Finder may also count reclaimable capacity as available"
+          >
             <Table>
               <thead>
                 <tr>
@@ -326,8 +330,8 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                     <td>{disk.label}</td>
                     <td>{disk.paths.length}</td>
                     <td>{disk.usedPercent === null ? 'Unavailable' : `${disk.usedPercent}%`}</td>
-                    <td>{disk.totalSpace === null ? '' : `${Math.round(disk.totalSpace / 1024 / 1024 / 1024)} GB`}</td>
-                    <td>{disk.freeSpace === null ? '' : `${Math.round(disk.freeSpace / 1024 / 1024 / 1024)} GB`}</td>
+                    <td>{disk.totalSpace === null ? '' : formatBinaryBytes(disk.totalSpace)}</td>
+                    <td>{disk.freeSpace === null ? '' : formatBinaryBytes(disk.freeSpace)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -495,7 +499,7 @@ function formatBytes(bytes: number) {
     return '0 B';
   }
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
   let value = bytes;
   let unitIndex = 0;
   while (value >= 1024 && unitIndex < units.length - 1) {

@@ -15,7 +15,7 @@ export const clientEnv = createEnv({
       .regex(/^[a-z0-9-]+$/)
       .default(defaultSanityProjectId),
     NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED: booleanString,
-    NEXT_PUBLIC_STACKARR_VERSION: z.string().min(1).default('0.3.0-alpha.22') // x-release-please-version
+    NEXT_PUBLIC_STACKARR_VERSION: z.string().min(1).default('0.3.0-alpha.24') // x-release-please-version
   },
   runtimeEnv: {
     NEXT_PUBLIC_SANITY_DATASET: process.env.NEXT_PUBLIC_SANITY_DATASET,
