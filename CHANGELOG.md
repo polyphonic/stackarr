@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.25](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.24...v0.3.0-alpha.25) (2026-10-28)
+
+
+### Documentation
+
+* **backup:** clarify dedicated PostgreSQL target guidance ([a918bb7](https://github.com/polyphonic/stackarr/commit/a918bb701d12d4a19c21cd06f841a38a370a562e))
+* **backup:** clarify dedicated PostgreSQL target guidance ([862cf1e](https://github.com/polyphonic/stackarr/commit/862cf1e8b61da5bb62f8f6ac55a10b61cb67aa4a))
+
 ## [0.3.0-alpha.24](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.23...v0.3.0-alpha.24) (2026-10-28)
 
 
