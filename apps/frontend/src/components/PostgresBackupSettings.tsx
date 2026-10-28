@@ -126,9 +126,9 @@ export function PostgresBackupSettings() {
   return (
     <div className={styles.editor}>
       <p className={styles.intro}>
-        Stores native PostgreSQL archives in a dedicated remote database, not a queryable mirror. Keep encrypted file
-        backups for SQLite, media, and files. Remote storage and history may incur charges even while compute sleeps.
-        Status checks do not wake the target.
+        Store native PostgreSQL archives in your own dedicated backup database, separate from Stackarr&apos;s portable
+        telemetry and account database. This is not a queryable mirror. Keep encrypted file backups for SQLite, media,
+        and files. Storage and history may cost money while compute sleeps; status checks do not wake the target.
       </p>
       <Switch
         className={styles.switch}
@@ -151,7 +151,11 @@ export function PostgresBackupSettings() {
           placeholder={field('URL') ? 'Saved secret, leave blank to keep' : 'postgresql://user:password@host/database'}
           onChange={(event) => setUrl(event.target.value)}
         />
-        <small>Saved secret. Leave blank to retain the current target. TLS is verified against the system CA.</small>
+        <small>
+          Saved in this installation&apos;s private runtime configuration and masked in settings; not separately
+          field-encrypted. Leave blank to keep the target. TLS is verified against the system CA. For independent Neon
+          sleep and cost isolation, use a separate project/compute, not another database on the telemetry endpoint.
+        </small>
       </label>
       <label className={styles.field}>
         <span>Schedule</span>
