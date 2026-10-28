@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0-alpha.26](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.25...v0.3.0-alpha.26) (2026-10-28)
+
+
+### Fixed
+
+* **web:** restore native Vercel deployment and rate limiting ([#107](https://github.com/polyphonic/stackarr/issues/107)) ([2683726](https://github.com/polyphonic/stackarr/commit/26837260adfac7af1e259e1b4c9ea9f624cb3673))
+
 ## [0.3.0-alpha.25](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.24...v0.3.0-alpha.25) (2026-10-28)
 
 
