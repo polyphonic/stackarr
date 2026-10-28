@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.24](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.23...v0.3.0-alpha.24) (2026-10-28)
+
+
+### Fixed
+
+* **backup:** accept public default ACL metadata on empty targets ([e17d041](https://github.com/polyphonic/stackarr/commit/e17d0417116b0a35a5dc162a0447474c097fc184))
+* **backup:** accept public default ACL metadata on empty targets ([b80e74d](https://github.com/polyphonic/stackarr/commit/b80e74d4f1e67cc4fe11185cba4a9fed60c6c65b))
+
 ## [0.3.0-alpha.23](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.22...v0.3.0-alpha.23) (2026-10-27)
 
 
