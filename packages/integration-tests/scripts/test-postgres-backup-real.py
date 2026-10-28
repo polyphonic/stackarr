@@ -93,6 +93,12 @@ def main():
                     raise RuntimeError('Fixture database did not become ready: '+role)
             source, target_name, restore = containers
             sql(target_name, 'CREATE DATABASE backup_store TEMPLATE template0;')
+            # Hosted providers can leave public-scoped default ACL metadata in an otherwise empty database.
+            sql(target_name, '''CREATE ROLE backup_bystander;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO PUBLIC;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO PUBLIC;''', 'backup_store')
+            dependencies = sql(target_name, "SELECT classid::regclass,deptype FROM pg_depend WHERE refclassid='pg_namespace'::regclass AND refobjid='public'::regnamespace ORDER BY 1,2", 'backup_store')
+            assert dependencies == b'pg_default_acl|a\npg_default_acl|a\n', dependencies
             sql(source, "CREATE ROLE archive_owner; CREATE ROLE app_reader; CREATE DATABASE app_data OWNER archive_owner; CREATE TABLE administrative_note(id int PRIMARY KEY, note text); INSERT INTO administrative_note VALUES(1,'admin database included');")
             sql(source, """CREATE EXTENSION IF NOT EXISTS timescaledb;
               CREATE EXTENSION IF NOT EXISTS vector;
@@ -169,6 +175,8 @@ def main():
                     connection.set_session(isolation_level='REPEATABLE READ', readonly=True)
                     assert backup.export_backup(connection, exported) == manifest
             report['tests'].append('native dump and binary COPY publication with TLS verify-full')
+            assert sql(target_name, "SELECT has_schema_privilege('backup_bystander','stackarr_backup_v1','USAGE'),has_table_privilege('backup_bystander','stackarr_backup_v1.chunks','SELECT')", 'backup_store').strip() == b'f|f'
+            report['tests'].append('public-scoped permissive default ACLs do not expose the backup schema or chunks')
             for a in artifacts:
                 assert hashlib.sha256((exported/a['file']).read_bytes()).hexdigest() == a['sha256']
             report['tests'].append('complete exported byte checksums')
@@ -210,6 +218,19 @@ def main():
                     connection.rollback()
             assert sql(target_name, 'SELECT id FROM public.unrelated', 'backup_store').strip() == b'7'
             sql(target_name, 'DROP TABLE public.unrelated;', 'backup_store')
+            for create, drop in [('CREATE FUNCTION public.unrelated() RETURNS int LANGUAGE SQL AS $$SELECT 1$$;',
+                                  'DROP FUNCTION public.unrelated();'),
+                                 ('CREATE TYPE public.unrelated AS ENUM (\'x\');',
+                                  'DROP TYPE public.unrelated;')]:
+                sql(target_name, create, 'backup_store')
+                with backup.target(url) as connection:
+                    try:
+                        backup.publish(connection, capture, dict(manifest, generation=str(uuid.uuid4())))
+                        raise AssertionError('unrelated public object accepted')
+                    except backup.BackupError as error:
+                        assert 'unrelated public objects' in str(error)
+                        connection.rollback()
+                sql(target_name, drop, 'backup_store')
             sql(target_name, "UPDATE stackarr_backup_v1.identity SET owner='different-cluster';", 'backup_store')
             with backup.target(url) as connection:
                 try:

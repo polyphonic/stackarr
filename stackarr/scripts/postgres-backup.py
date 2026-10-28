@@ -353,7 +353,11 @@ def preflight(connection, inventory, claim=False):
         cur.execute("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'")
         if cur.fetchone()[0]:
             raise BackupError('Target contains unrelated public objects; nothing was changed.')
-        cur.execute("SELECT count(*) FROM pg_depend WHERE refclassid='pg_namespace'::regclass AND refobjid='public'::regnamespace")
+        # Default privileges scoped to public are catalog metadata, not objects in
+        # public. Neon may install these on an otherwise empty dedicated database.
+        cur.execute("""SELECT count(*) FROM pg_depend d
+          WHERE d.refclassid='pg_namespace'::regclass AND d.refobjid='public'::regnamespace
+            AND NOT (d.classid='pg_default_acl'::regclass AND d.deptype='a')""")
         if cur.fetchone()[0]:
             raise BackupError('Target contains unrelated public objects; nothing was changed.')
         cur.execute('SELECT count(*) FROM pg_event_trigger')
