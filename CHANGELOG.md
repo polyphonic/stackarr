@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0-alpha.23](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.22...v0.3.0-alpha.23) (2026-10-27)
+
+
+### Added
+
+* **backup:** add complete PostgreSQL archive sync settings ([abc7c06](https://github.com/polyphonic/stackarr/commit/abc7c068fc46affc3f1ba7903c1d7b7493e9f1d3))
+* **backup:** preserve managed PostgreSQL estates in scheduled archives ([78ad87c](https://github.com/polyphonic/stackarr/commit/78ad87c9454e89013a8fa58bdb51399c3b60496f))
+
+
+### Fixed
+
+* **backup:** bind recovery status to its target and active lease ([72bee50](https://github.com/polyphonic/stackarr/commit/72bee5066e817e8100ddd8809a3c6f9efe09ea0b))
+* **backup:** reject stale settings with explicit database URLs ([beafd8c](https://github.com/polyphonic/stackarr/commit/beafd8cb763f4e62b88e25186916cb4f45f32109))
+* **romm:** integrate durable worker configuration ([8909e8c](https://github.com/polyphonic/stackarr/commit/8909e8c52ffffa111ff6e0820d815ca5e5b24174))
+* **romm:** persist API worker count in managed runtime ([8b3cabf](https://github.com/polyphonic/stackarr/commit/8b3cabf5e773eb84c96573e072b8e39eb3a39bbe))
+* **runtime:** retry controller workers and absent storage proof ([23ca944](https://github.com/polyphonic/stackarr/commit/23ca944893cd86a23039e39376a5a63f9f01162d))
+* **runtime:** retry nonessential controller workers and host proof ([c9db3c0](https://github.com/polyphonic/stackarr/commit/c9db3c0c0cbf49d89f24b32b3ceaa15b3b4642e3))
+* **storage:** align disk reports with host metrics ([29af351](https://github.com/polyphonic/stackarr/commit/29af351b76a60dfd7ad54b22e25d1b1e6cff529e))
+* **storage:** integrate host-aware disk reporting ([07885ef](https://github.com/polyphonic/stackarr/commit/07885eff1198837f6ca922e08971c7cbd6b8081a))
+
 ## [0.3.0-alpha.22](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.21...v0.3.0-alpha.22) (2026-10-26)
 
 
