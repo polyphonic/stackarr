@@ -292,6 +292,57 @@ test('API key auth fails closed for command-style requests', async () => {
             rateLimitStatuses.push(response.status);
           }
 
+          // Test IP header cycling evasion (Punto 1)
+          const spoofedIps = ['10.0.0.1', '10.0.0.2', '10.0.0.3', '10.0.0.4', '10.0.0.5'];
+          const spoofedStatuses = [];
+          for (const ip of spoofedIps) {
+            const resp = await login(
+              new NextRequest('http://127.0.0.1:7777/api/v1/auth/login', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+                body: JSON.stringify({ username: 'cycle-user', password: 'wrong-password' })
+              })
+            );
+            spoofedStatuses.push(resp.status);
+          }
+          const cycledLoginWhileBlocked = await login(
+            new NextRequest('http://127.0.0.1:7777/api/v1/auth/login', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.6' },
+              body: JSON.stringify({ username: 'cycle-user', password: 'wrong-password' })
+            })
+          );
+
+          // Test bucket pruning retention for unblocked active counters (Punto 3)
+          const { loginAttemptBuckets, pruneLoginAttemptBuckets } = await import('./apps/frontend/src/lib/api.ts');
+          const testNow = Date.now();
+          for (let i = 0; i < 505; i++) {
+            loginAttemptBuckets.set('test-key-' + i, {
+              failures: 2,
+              resetAt: testNow + 60000,
+              blockedUntil: 0
+            });
+          }
+          pruneLoginAttemptBuckets(testNow);
+          const retainedCount = loginAttemptBuckets.size;
+          for (let i = 0; i < 505; i++) {
+            loginAttemptBuckets.delete('test-key-' + i);
+          }
+
+          // Test API key rotation via PUT /api/v1/config/host (Punto 8)
+          const { PUT: putHostConfig } = await import('./apps/frontend/src/app/api/v1/config/host/route.ts');
+          const rotateResponse = await putHostConfig(
+            new NextRequest('http://127.0.0.1:7777/api/v1/config/host', {
+              method: 'PUT',
+              headers: {
+                'content-type': 'application/json',
+                'x-api-key': 'rotated-stackarr-api-key'
+              },
+              body: JSON.stringify({ rotateApiKey: true })
+            })
+          );
+          const rotateData = await rotateResponse.json();
+
           console.log(JSON.stringify({
             missingKey: missingKey?.status,
             forgedBootstrapSession: forgedBootstrapSession?.status,
@@ -304,6 +355,10 @@ test('API key auth fails closed for command-style requests', async () => {
             sessionCookie: sessionCookie.includes('stackarr_session='),
             lockedLoginStatuses,
             validLoginWhileBlocked: validLoginWhileBlocked.status,
+            spoofedStatuses,
+            cycledLoginWhileBlocked: cycledLoginWhileBlocked.status,
+            retainedCount,
+            rotatedApiKeyReturned: typeof rotateData.apiKey === 'string' && rotateData.apiKey.length >= 32 && rotateData.apiKey !== '********',
             noHeader: noHeader?.status,
             sameOriginBrowser: sameOriginBrowser?.status,
             validSession: validSession === null,
@@ -367,7 +422,11 @@ test('API key auth fails closed for command-style requests', async () => {
     assert.equal(result.loginStatus, 200);
     assert.equal(result.sessionCookie, true);
     assert.deepEqual(result.lockedLoginStatuses, [401, 401, 401, 401, 401]);
-    assert.equal(result.validLoginWhileBlocked, 200);
+    assert.equal(result.validLoginWhileBlocked, 429);
+    assert.deepEqual(result.spoofedStatuses, [401, 401, 401, 401, 401]);
+    assert.equal(result.cycledLoginWhileBlocked, 429);
+    assert.ok(result.retainedCount >= 505);
+    assert.equal(result.rotatedApiKeyReturned, true);
     assert.equal(result.noHeader, 401);
     assert.equal(result.sameOriginBrowser, 401);
     assert.equal(result.validSession, true);

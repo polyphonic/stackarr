@@ -124,8 +124,9 @@ export function postgresBackupPublicConfig(env: StackarrEnv) {
 
 export function nextPostgresBackupRun(env: StackarrEnv, now = new Date()): string | null {
   if (env.STACKARR_PG_BACKUP_ENABLED !== 'true') return null;
+  const timeZone = env.STACKARR_PG_BACKUP_TIMEZONE ?? 'Etc/UTC';
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: env.STACKARR_PG_BACKUP_TIMEZONE ?? 'Etc/UTC',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -134,34 +135,79 @@ export function nextPostgresBackupRun(env: StackarrEnv, now = new Date()): strin
     hourCycle: 'h23',
     weekday: 'short'
   });
-  const [hour, minute] = (env.STACKARR_PG_BACKUP_TIME ?? '03:00').split(':');
-  // Search UTC minutes to resolve local DST gaps and folds to the first actual occurrence.
-  const start = Math.floor(now.getTime() / 60000) * 60000 + 60000;
-  for (let offset = 0; offset < 15 * 24 * 60; offset++) {
-    const candidate = new Date(start + offset * 60000);
-    const parts = Object.fromEntries(formatter.formatToParts(candidate).map((part) => [part.type, part.value]));
-    if (
-      parts.hour === hour &&
-      parts.minute === minute &&
-      (env.STACKARR_PG_BACKUP_SCHEDULE !== 'weekly' || parts.weekday === env.STACKARR_PG_BACKUP_WEEKDAY)
-    ) {
-      // A fall-back hour has two UTC instants. Never schedule the second occurrence.
-      const repeated = Array.from(
-        { length: 180 },
-        (_, index) => new Date(candidate.getTime() - (index + 1) * 60000)
-      ).some((earlier) => {
-        const previous = Object.fromEntries(formatter.formatToParts(earlier).map((part) => [part.type, part.value]));
-        return (
-          previous.year === parts.year &&
-          previous.month === parts.month &&
-          previous.day === parts.day &&
-          previous.hour === hour &&
-          previous.minute === minute
-        );
-      });
-      if (!repeated) return candidate.toISOString();
+  const [hourStrRaw, minuteStrRaw] = (env.STACKARR_PG_BACKUP_TIME ?? '03:00').split(':');
+  const hourStr = hourStrRaw.padStart(2, '0');
+  const minuteStr = (minuteStrRaw ?? '00').padStart(2, '0');
+  const targetH = Number(hourStr);
+  const targetM = Number(minuteStr);
+
+  const nowParts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
+  const localYear = Number(nowParts.year);
+  const localMonth = Number(nowParts.month);
+  const localDay = Number(nowParts.day);
+
+  const minTime = Math.floor(now.getTime() / 60000) * 60000 + 60000;
+  const maxTime = minTime + 15 * 24 * 60 * 60 * 1000;
+
+  for (let dayOffset = 0; dayOffset <= 15; dayOffset++) {
+    const dayAnchor = new Date(Date.UTC(localYear, localMonth - 1, localDay + dayOffset, 12, 0));
+    const dayParts = Object.fromEntries(formatter.formatToParts(dayAnchor).map((part) => [part.type, part.value]));
+    const curY = Number(dayParts.year);
+    const curM = Number(dayParts.month);
+    const curD = Number(dayParts.day);
+    const curWeekday = dayParts.weekday;
+
+    if (env.STACKARR_PG_BACKUP_SCHEDULE === 'weekly' && curWeekday !== env.STACKARR_PG_BACKUP_WEEKDAY) {
+      continue;
+    }
+
+    let candidate = new Date(Date.UTC(curY, curM - 1, curD, targetH, targetM));
+    let matched = false;
+    for (let iter = 0; iter < 4; iter++) {
+      const parts = Object.fromEntries(formatter.formatToParts(candidate).map((part) => [part.type, part.value]));
+      const candY = Number(parts.year);
+      const candM = Number(parts.month);
+      const candD = Number(parts.day);
+      const candH = Number(parts.hour);
+      const candMin = Number(parts.minute);
+
+      const targetUtc = Date.UTC(curY, curM - 1, curD, targetH, targetM);
+      const candLocalAsUtc = Date.UTC(candY, candM - 1, candD, candH, candMin);
+      const diffMs = targetUtc - candLocalAsUtc;
+
+      if (diffMs === 0) {
+        matched = true;
+        break;
+      }
+      candidate = new Date(candidate.getTime() + diffMs);
+    }
+
+    if (!matched || candidate.getTime() < minTime) {
+      continue;
+    }
+
+    if (candidate.getTime() > maxTime) {
+      return null;
+    }
+
+    // A fall-back hour has two UTC instants. Never schedule the second occurrence.
+    const isRepeated = [60, 30, 120].some((backMinutes) => {
+      const earlier = new Date(candidate.getTime() - backMinutes * 60000);
+      const prevParts = Object.fromEntries(formatter.formatToParts(earlier).map((part) => [part.type, part.value]));
+      return (
+        prevParts.year === String(curY).padStart(4, '0') &&
+        prevParts.month === String(curM).padStart(2, '0') &&
+        prevParts.day === String(curD).padStart(2, '0') &&
+        prevParts.hour === hourStr &&
+        prevParts.minute === minuteStr
+      );
+    });
+
+    if (!isRepeated) {
+      return candidate.toISOString();
     }
   }
+
   return null;
 }
 

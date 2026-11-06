@@ -108,3 +108,50 @@ test('storage probe never removes a container without its ownership label', () =
     false
   );
 });
+
+test('storage probe caches failure for cooldown period and prevents redundant container runs', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-metrics-cooldown-'));
+  const originalPath = process.env.PATH;
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  const originalVariables = Object.fromEntries(
+    ['PROBE_CALLS', 'PROBE_NAME_FILE', 'PROBE_MODE', 'STACKARR_STORAGE_POLICY'].map((key) => [key, process.env[key]])
+  );
+  const callsFile = path.join(dir, 'calls');
+  const nameFile = path.join(dir, 'name');
+  fs.writeFileSync(path.join(dir, 'docker'), dockerFixture, { mode: 0o755 });
+  fs.writeFileSync(
+    path.join(dir, 'df'),
+    '#!/bin/sh\necho "Filesystem Type 1024-blocks Used Available Capacity Mounted on"\necho "overlay overlay 1000 200 800 20% /"\n',
+    { mode: 0o755 }
+  );
+  process.env.PATH = `${dir}:${originalPath}`;
+  process.env.PROBE_CALLS = callsFile;
+  process.env.PROBE_NAME_FILE = nameFile;
+  process.env.PROBE_MODE = 'failure';
+  process.env.STACKARR_STORAGE_POLICY = '';
+  Object.defineProperty(process, 'platform', { ...originalPlatform, value: 'linux' });
+
+  try {
+    const probePath = `/stackarr-config/${path.basename(dir)}`;
+    // First call triggers probe which fails
+    const disks1 = diskUsages([probePath]);
+    assert.equal(disks1[0].totalSpace, null);
+    const firstCallCount = fs.readFileSync(callsFile, 'utf8').trim().split('\n').length;
+    assert.ok(firstCallCount > 0);
+
+    // Second immediate call with the same path should hit negative cache without running docker
+    const disks2 = diskUsages([probePath]);
+    assert.equal(disks2[0].totalSpace, null);
+    const secondCallCount = fs.readFileSync(callsFile, 'utf8').trim().split('\n').length;
+    assert.equal(secondCallCount, firstCallCount, 'Negative cache should prevent redundant docker commands');
+  } finally {
+    Object.defineProperty(process, 'platform', originalPlatform);
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+    for (const [key, value] of Object.entries(originalVariables)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

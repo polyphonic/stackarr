@@ -18,7 +18,10 @@ type FilesystemUsage = {
   reliable: boolean;
 };
 
-const virtiofsUsageCache = new Map<string, { expiresAt: number; usage: FilesystemUsage | null }>();
+const FAILURE_COOLDOWN_MS = 30_000;
+const SUCCESS_TTL_MS = 5 * 60 * 1000;
+const inFlightProbes = new Set<string>();
+export const virtiofsUsageCache = new Map<string, { expiresAt: number; usage: FilesystemUsage | null }>();
 
 export type StackMetrics = {
   generatedAt: string;
@@ -301,19 +304,13 @@ export function resolveHostDiskPath(
   return externalVolumeRoot(diskPath) ? diskPath : null;
 }
 
-function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
-  const cached = virtiofsUsageCache.get(diskPath);
-  if (cached && cached.expiresAt > Date.now()) return cached.usage;
-
-  let usage: FilesystemUsage | null = null;
+function probeVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
   try {
     const env = readEnv();
     const policyFile =
       process.env.STACKARR_STORAGE_POLICY ?? (env.STATE_ROOT && path.join(env.STATE_ROOT, 'storage-policy.json'));
     if (policyFile && (process.env.STACKARR_STORAGE_POLICY || fs.existsSync(policyFile))) {
-      usage = readEnrolledHostUsage(diskPath, policyFile);
-      if (usage) virtiofsUsageCache.set(diskPath, { expiresAt: Date.now() + 30_000, usage });
-      return usage; // Never start a Docker probe on an enrolled installation, even if policy vanished.
+      return readEnrolledHostUsage(diskPath, policyFile);
     }
     const container = execFileSync(
       'docker',
@@ -400,17 +397,60 @@ function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
         // The successful --rm path has nothing to inspect, or Docker is unavailable.
       }
     }
-    usage = parseFilesystemUsage(output, true);
+    let usage = parseFilesystemUsage(output, true);
     // A failed bind must not become the VM overlay's capacity. The helper mountpoint
     // is synthetic; report the actual physical host volume instead.
     if (usage?.type === 'overlay' || usage?.type === 'virtiofs') usage = null;
     if (usage) usage.mountPoint = hostMountPoint(source);
+    return usage;
   } catch {
-    usage = null;
+    return null;
+  }
+}
+
+function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
+  const cached = virtiofsUsageCache.get(diskPath);
+  if (cached && cached.expiresAt > Date.now()) return cached.usage;
+
+  // Stale-while-revalidate: if we have a stale valid usage, return it immediately
+  // and trigger a non-blocking background refresh if not already in-flight.
+  if (cached && cached.usage !== null) {
+    if (!inFlightProbes.has(diskPath)) {
+      inFlightProbes.add(diskPath);
+      queueMicrotask(() => {
+        try {
+          const fresh = probeVirtiofsHostUsage(diskPath);
+          virtiofsUsageCache.set(diskPath, {
+            expiresAt: Date.now() + (fresh ? SUCCESS_TTL_MS : FAILURE_COOLDOWN_MS),
+            usage: fresh ?? cached.usage
+          });
+        } finally {
+          inFlightProbes.delete(diskPath);
+        }
+      });
+    }
+    return cached.usage;
   }
 
-  // Transient Docker/image failures are retried on the next request, not cached as a false missing disk.
-  if (usage) virtiofsUsageCache.set(diskPath, { expiresAt: Date.now() + 5 * 60 * 1000, usage });
+  // Deduplicate concurrent probes on cold start
+  if (inFlightProbes.has(diskPath)) {
+    return cached?.usage ?? null;
+  }
+
+  inFlightProbes.add(diskPath);
+  let usage: FilesystemUsage | null = null;
+  try {
+    usage = probeVirtiofsHostUsage(diskPath);
+  } finally {
+    inFlightProbes.delete(diskPath);
+  }
+
+  // Negative caching: cache failures for FAILURE_COOLDOWN_MS so repeated web requests
+  // do not launch redundant Docker containers.
+  virtiofsUsageCache.set(diskPath, {
+    expiresAt: Date.now() + (usage ? SUCCESS_TTL_MS : FAILURE_COOLDOWN_MS),
+    usage
+  });
   return usage;
 }
 

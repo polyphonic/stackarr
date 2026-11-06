@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { databaseExists, insertNotificationRow, readNotificationRows } from './database';
 
 export type WebhookEvent =
@@ -76,34 +77,75 @@ export function notificationSchema() {
 
 export async function dispatchNotification(event: WebhookEvent, payload: Record<string, unknown>) {
   const notifications = readNotifications().filter(
-    (notification) =>
-      notification.enabled &&
-      notification.implementation === 'Webhook' &&
-      notification.url &&
-      notification.events.includes(event)
+    (notification) => notification.enabled && notification.events.includes(event)
   );
+
+  const bodyData = {
+    eventType: event,
+    instanceName: 'Stackarr',
+    applicationUrl: 'http://localhost:7777',
+    ...payload
+  };
+  const serialized = JSON.stringify(bodyData);
 
   await Promise.allSettled(
     notifications.map((notification) => {
-      const url = normalizeWebhookUrl(notification.url);
-      if (!url) {
-        return Promise.resolve();
+      if (notification.implementation === 'Webhook' && notification.url) {
+        const url = normalizeWebhookUrl(notification.url);
+        if (!url) {
+          return Promise.resolve();
+        }
+
+        return fetch(url, {
+          method: 'POST',
+          redirect: 'manual',
+          headers: {
+            'content-type': 'application/json',
+            'x-stackarr-event': event
+          },
+          body: serialized
+        });
       }
 
-      return fetch(url, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: {
-          'content-type': 'application/json',
-          'x-stackarr-event': event
-        },
-        body: JSON.stringify({
-          eventType: event,
-          instanceName: 'Stackarr',
-          applicationUrl: 'http://localhost:7777',
-          ...payload
-        })
-      });
+      if (notification.implementation === 'CustomScript' && notification.path?.trim()) {
+        const scriptPath = notification.path.trim();
+        return new Promise<void>((resolve, reject) => {
+          try {
+            const child = spawn(scriptPath, [event, serialized], {
+              env: {
+                ...process.env,
+                STACKARR_EVENT: event,
+                STACKARR_EVENT_TYPE: event,
+                STACKARR_PAYLOAD: serialized
+              },
+              stdio: ['pipe', 'ignore', 'ignore']
+            });
+
+            child.stdin?.on('error', (err: NodeJS.ErrnoException) => {
+              if (err.code !== 'EPIPE') {
+                // Ignore EPIPE if child exited before reading stdin
+              }
+            });
+
+            child.on('error', reject);
+            child.on('close', (code) => {
+              if (code === 0) {
+                resolve();
+              } else {
+                reject(new Error(`CustomScript ${scriptPath} exited with code ${code}`));
+              }
+            });
+
+            if (child.stdin) {
+              child.stdin.end(serialized);
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+
+      return Promise.resolve();
     })
   );
 }

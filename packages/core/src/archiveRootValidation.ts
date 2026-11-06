@@ -72,14 +72,25 @@ export function validateTorrentArchiveRoot(
       return `Torrent archive root must not overlap the ${name} root.`;
     }
   }
-  if (inside(candidate, '/Volumes')) {
+  const isExternalStorage =
+    inside(candidate, '/Volumes') ||
+    inside(candidate, '/mnt') ||
+    inside(candidate, '/media');
+
+  if (isExternalStorage) {
     try {
       if (!policyFile || fs.lstatSync(policyFile).isSymbolicLink()) throw new Error('missing policy');
       const policy = JSON.parse(fs.readFileSync(policyFile, 'utf8')) as { roots?: Array<{ path?: string }> };
+      const isAllowedExternalPath = (p: string) =>
+        p.startsWith('/Volumes/') || p.startsWith('/mnt/') || p.startsWith('/media/');
+
       if (
         !Array.isArray(policy.roots) ||
         !policy.roots.some(
-          (root) => typeof root.path === 'string' && root.path.startsWith('/Volumes/') && inside(candidate, root.path)
+          (root) =>
+            typeof root.path === 'string' &&
+            isAllowedExternalPath(root.path) &&
+            inside(candidate, root.path)
         )
       )
         throw new Error('not enrolled');
