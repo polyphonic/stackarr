@@ -249,10 +249,13 @@ stackarr_image_is_local() {
 }
 
 start_app_update_worker() {
-    # The updater must not start from a stale moving-tag image: an older
-    # controller image may not know the app-worker command yet. Compose pulls
-    # the worker before it starts, then the worker pulls/recreates the app.
-    local -a run_args=(--profile maintenance run --pull always --quiet-pull -d --rm)
+    # Compose 2.27 (bundled in the controller) has no run --pull option.
+    # Pull explicitly before launch and fail closed, never use a stale worker
+    # after a failed pull or let Compose start unrelated dependencies.
+    if ! stackarr_compose --profile maintenance pull --quiet app-updater; then
+        fail "Stackarr updater image pull failed; the running controller was left unchanged"
+    fi
+    local -a run_args=(--profile maintenance run --no-deps -d --rm)
     if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
         run_args+=(-e "STACKARR_UPDATE_TASK_ID=$STACKARR_TASK_ID")
     fi
