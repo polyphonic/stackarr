@@ -16,6 +16,7 @@ import type React from 'react';
 import { useId, useState } from 'react';
 import { CloudflareEmailAllowlist } from './CloudflareEmailAllowlist';
 import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
+import { DatabaseSetup, databaseEndpointError, databaseSetupChanged, databaseSetupKeys } from './DatabaseSetup';
 import { PathInput } from './PathPicker';
 import styles from './SettingsEditor.module.css';
 
@@ -258,6 +259,7 @@ function musicProfileName(preset: string) {
 
 export function SettingsEditor({ section, env, settings }: Props) {
   const [draftEnv, setDraftEnv] = useState(env);
+  const [savedDatabaseEnv, setSavedDatabaseEnv] = useState(env);
   const [draftSettings, setDraftSettings] = useState(settings);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [accountState, setAccountState] = useState<ApplyState>('idle');
@@ -376,6 +378,24 @@ export function SettingsEditor({ section, env, settings }: Props) {
   }
 
   async function save() {
+    const endpointError = databaseEndpointError(draftEnv);
+    if (endpointError) {
+      setState('error');
+      setMessage(endpointError);
+      toast.error(endpointError);
+      return;
+    }
+    if (databaseSetupChanged(savedDatabaseEnv, draftEnv)) {
+      const mode = ['external', 'independent'].includes(draftEnv.POSTGRES_DEPLOYMENT_MODE || '')
+        ? 'existing external/native PostgreSQL'
+        : 'bundled managed TimescaleDB';
+      if (
+        !window.confirm(
+          `Save database selection: ${mode}, Stackarr state: ${draftEnv.STACKARR_DATABASE_MODE === 'postgres' ? 'shared PostgreSQL' : 'app defaults'}? This saves configuration only. It does not test the draft, migrate data, apply endpoint changes, or establish backup readiness. Keep the original data and a verified recovery point for rollback.`
+        )
+      )
+        return;
+    }
     if (usernameValidationMessage || passwordValidationMessage) {
       const validationMessage = usernameValidationMessage || passwordValidationMessage;
       setState('error');
@@ -399,6 +419,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
     const toastId = toast.loading('Saving settings...');
     const storageChanged = storageEnvKeys.some((key) => envValue(key) !== (env[key] ?? ''));
     const archiveChanged = envValue('TORRENT_ARCHIVE_ROOT') !== (env.TORRENT_ARCHIVE_ROOT ?? '');
+    const databaseChanged = databaseSetupChanged(savedDatabaseEnv, draftEnv);
     const { response, body } = await saveConfig(
       draftEnv,
       draftSettings,
@@ -407,6 +428,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
     setState(response.ok ? 'saved' : 'error');
     if (response.ok) {
+      setSavedDatabaseEnv(draftEnv);
       setGeneralCurrentPassword('');
       let telemetryMessage = '';
       if (draftSettings.telemetry.enabled && !settings.telemetry.enabled) {
@@ -415,7 +437,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
           ? ' Anonymous usage data is enabled and the first heartbeat was sent.'
           : ' Anonymous usage data is enabled; the first heartbeat will retry automatically.';
       }
-      if (storageChanged) {
+      if (storageChanged && !databaseChanged) {
         if (archiveChanged) {
           const warning = `Saved, not applied. Torrent archive migration and other storage mount changes need separate reviewed applies. Migrate and verify existing archives before applying Arr mounts with the host CLI; the controller bind for backup coverage needs its own scoped update.${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
           setMessage(warning);
@@ -437,9 +459,11 @@ export function SettingsEditor({ section, env, settings }: Props) {
         return;
       }
 
-      const nextMessage = archiveChanged
-        ? `Saved, not applied. Existing torrent archives must be migrated to the new root before a scoped host CLI apply of radarr, radarr4k, sonarr, sonarr4k and lidarr. The controller archive bind/backup coverage also needs an explicit scoped update; no services were restarted.${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`
-        : `Saved${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
+      const nextMessage = databaseChanged
+        ? `Saved database selection, not applied.${storageChanged ? ' Storage mounts also need a separate reviewed apply.' : ''} Inspect the saved endpoint, verify all client credentials, TLS and backups, then perform a separate reviewed migration/reconciliation. Keep the old endpoint and data for rollback.${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`
+        : archiveChanged
+          ? `Saved, not applied. Existing torrent archives must be migrated to the new root before a scoped host CLI apply of radarr, radarr4k, sonarr, sonarr4k and lidarr. The controller archive bind/backup coverage also needs an explicit scoped update; no services were restarted.${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`
+          : `Saved${portlessHostActionMessage(body.portlessHostAction)}${telemetryMessage}`;
       setMessage(nextMessage);
       toast.success(nextMessage, { id: toastId });
     } else {
@@ -1644,6 +1668,7 @@ export function SettingsEditor({ section, env, settings }: Props) {
 
       {section === 'general' && draftSettings.ui.showAdvanced && (
         <FormGrid>
+          <DatabaseSetup saved={savedDatabaseEnv} draft={draftEnv} update={updateEnv} />
           {protectedEnvPasswordChanged && (
             <Password
               label="Current Admin Password"
@@ -1653,21 +1678,23 @@ export function SettingsEditor({ section, env, settings }: Props) {
               onChange={setGeneralCurrentPassword}
             />
           )}
-          {advancedEnvKeys.map((key) => {
-            const Field = isSecretEnvKey(key) ? Password : Text;
-            const error = isPortablePasswordEnvKey(key)
-              ? validatePortablePasswordValue(key, envValue(key), env[key] ?? '')
-              : '';
-            return (
-              <Field
-                key={key}
-                label={key}
-                value={envValue(key)}
-                error={error}
-                onChange={(value) => updateEnv(key, value)}
-              />
-            );
-          })}
+          {advancedEnvKeys
+            .filter((key) => !databaseSetupKeys.has(key))
+            .map((key) => {
+              const Field = isSecretEnvKey(key) ? Password : Text;
+              const error = isPortablePasswordEnvKey(key)
+                ? validatePortablePasswordValue(key, envValue(key), env[key] ?? '')
+                : '';
+              return (
+                <Field
+                  key={key}
+                  label={key}
+                  value={envValue(key)}
+                  error={error}
+                  onChange={(value) => updateEnv(key, value)}
+                />
+              );
+            })}
         </FormGrid>
       )}
 
@@ -2112,7 +2139,8 @@ function isSecretEnvKey(key: string) {
     ['PASSWORD', 'TOKEN', 'API_KEY', 'SECRET', 'KEY', 'CLAIM_CODE'].some((fragment) => normalized.includes(fragment)) ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
-    normalized.endsWith('_DB_URL')
+    normalized.endsWith('_DB_URL') ||
+    normalized === 'TRACEARR_REDIS_URL'
   );
 }
 
