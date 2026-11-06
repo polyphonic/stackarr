@@ -8,10 +8,10 @@ export { diskUsageKey } from './diskUsageIdentity';
 
 import { readEnv, type StackarrEnv } from './env';
 import { type CapacityStatus, readHostCapacity } from './hostCapacity';
-import { readHostCapacityReport } from './hostCapacityReport';
+import { type EnclosingMount, readHostCapacityReport } from './hostCapacityReport';
 import { composePath, composeProjectDir, composeProjectName, repoRoot } from './paths';
 import { discoverServiceStorage, type StorageAssociation, type StorageDiscovery } from './serviceStorage';
-import { getServices } from './services';
+import { getServices, serviceDisplayName } from './services';
 import { readTasks } from './tasks';
 
 type FilesystemUsage = {
@@ -55,7 +55,8 @@ export type StackMetrics = {
     usedPercent: number | null;
     status?: CapacityStatus;
     volumeId?: string;
-    associations?: Array<StorageAssociation & { status: CapacityStatus }>;
+    enclosingMount?: EnclosingMount;
+    associations?: Array<StorageAssociation & { status: CapacityStatus; displayName?: string }>;
     discoveryIssues?: StorageDiscovery['issues'];
   }>;
   tasks: {
@@ -146,7 +147,27 @@ export function diskUsages(paths: string[], probe: typeof diskUsage = diskUsage)
 }
 
 export function groupDiskUsages(disks: DiskUsage[]) {
+  disks = disks.map((disk) => ({
+    ...disk,
+    paths: [...disk.paths],
+    associations: disk.associations && [...disk.associations]
+  }));
   const byVolume = new Map<string, DiskUsage>();
+  const proven = disks.filter((disk) => verifiedMountKey(disk));
+  const attached = new Set<DiskUsage>();
+  for (const disk of disks) {
+    const proof = disk.status === 'missing' ? disk.enclosingMount : undefined;
+    if (
+      proof &&
+      proven.some(
+        (volume) =>
+          volume.mountPoint === proof.mountPoint &&
+          volume.filesystem === proof.filesystem &&
+          volume.volumeId === proof.volumeId
+      )
+    )
+      attached.add(disk);
+  }
   // State proofs may omit UUID while an observed path on the same host mount
   // supplies it. Resolve compatible metadata across the whole report first:
   // a UUID-less proof must never bridge two conflicting known identities.
@@ -161,6 +182,7 @@ export function groupDiskUsages(disks: DiskUsage[]) {
   }
 
   for (const source of disks) {
+    if (attached.has(source)) continue;
     const mount = verifiedMountKey(source);
     const ids = mount ? identities.get(mount) : undefined;
     const disk = !source.volumeId && ids?.size === 1 ? { ...source, volumeId: [...ids][0] } : source;
@@ -189,6 +211,22 @@ export function groupDiskUsages(disks: DiskUsage[]) {
     current.label = volumeLabel(current.path);
   }
 
+  // Match only independently measured mount identity, never a label/prefix.
+  // The missing leaf retains its own status and null capacity in associations.
+  for (const source of attached) {
+    const proof = source.enclosingMount!;
+    const target = [...byVolume.values()].find(
+      (disk) =>
+        disk.totalSpace !== null &&
+        disk.mountPoint === proof.mountPoint &&
+        disk.filesystem === proof.filesystem &&
+        disk.volumeId === proof.volumeId
+    );
+    if (!target) continue;
+    target.paths = [...new Set([...target.paths, ...source.paths])];
+    target.associations = [...(target.associations ?? []), ...(source.associations ?? [])];
+  }
+
   return [...byVolume.values()].sort((a, b) => volumeRank(a) - volumeRank(b) || a.path.localeCompare(b.path));
 }
 
@@ -214,13 +252,14 @@ export async function configuredDiskUsages(
             filesystem: v?.filesystem ?? null,
             mountPoint: v?.mountPoint ?? null,
             volumeId: v?.volumeId,
+            enclosingMount: entry.status === 'missing' ? entry.enclosingMount : undefined,
             freeSpace: v ? v.availableKilobytes * 1024 : null,
             totalSpace: v ? v.totalKilobytes * 1024 : null,
             usedPercent: v?.usedPercent ?? null,
             status: entry.status,
             associations: report.roots
               .filter((root) => root.path === entry.path)
-              .map((root) => ({ ...root, status: entry.status })),
+              .map((root) => ({ ...root, displayName: serviceDisplayName(root.service), status: entry.status })),
             discoveryIssues: report.issues
           };
         })
@@ -242,7 +281,11 @@ export async function configuredDiskUsages(
         status: 'probe-unavailable' as const,
         associations: discovered.roots
           .filter((root) => root.path === requested)
-          .map((root) => ({ ...root, status: 'probe-unavailable' as const })),
+          .map((root) => ({
+            ...root,
+            displayName: serviceDisplayName(root.service),
+            status: 'probe-unavailable' as const
+          })),
         discoveryIssues: [...discovered.issues, { service: 'host', status: 'capacity-report-unavailable' }]
       }))
     );
@@ -257,6 +300,7 @@ export async function configuredDiskUsages(
         .filter((root) => root.path === requested)
         .map((root) => ({
           ...root,
+          displayName: serviceDisplayName(root.service),
           status: disk.status ?? (disk.totalSpace === null ? ('probe-unavailable' as const) : ('available' as const))
         })),
       discoveryIssues: issues

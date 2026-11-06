@@ -1,7 +1,7 @@
 import type { StackMetrics } from '@stackarr/core';
-import { diskUsageKey } from '@stackarr/core/diskUsageIdentity';
 import { formatBinaryBytes } from '../lib/formatBinaryBytes';
 import styles from './DashboardOverview.module.css';
+import { StorageVolumes } from './StorageVolumes';
 import { Grid, Panel, Stat } from './ui';
 
 export function DashboardOverview({ metrics }: { metrics: StackMetrics }) {
@@ -81,46 +81,7 @@ export function StorageOverview({ metrics }: { metrics: StackMetrics }) {
           <strong>{mounted.length}</strong>
         </div>
       </div>
-      <div className={styles.disks}>
-        {metrics.disks.length === 0 && <p>No storage paths configured yet.</p>}
-        {metrics.disks.map((disk) => (
-          <div key={diskUsageKey(disk)} className={styles.diskRow}>
-            <div>
-              <strong>{disk.label}</strong>
-              <span>
-                {disk.usedPercent === null
-                  ? `Capacity unavailable · ${disk.status ?? 'probe-unavailable'}`
-                  : `${formatBinaryBytes((disk.totalSpace ?? 0) - (disk.freeSpace ?? 0))} of ${formatBinaryBytes(
-                      disk.totalSpace ?? 0
-                    )} used · ${formatBinaryBytes(disk.freeSpace ?? 0)} available${
-                      disk.paths.length > 1 ? ` · ${disk.paths.length} Stackarr locations` : ''
-                    }`}
-              </span>
-              {disk.associations?.length
-                ? disk.associations.map((association) => (
-                    <span
-                      key={JSON.stringify([
-                        association.path,
-                        association.service,
-                        association.reason,
-                        association.source
-                      ])}
-                      className="pathValue"
-                    >
-                      {association.service}: {association.reason} ({association.path}) · {association.status}
-                    </span>
-                  ))
-                : disk.paths.map((diskPath) => (
-                    <span key={diskPath} className="pathValue">
-                      {diskPath}
-                    </span>
-                  ))}
-            </div>
-            <strong className={styles.diskPercent}>{disk.usedPercent === null ? '—' : `${disk.usedPercent}%`}</strong>
-            <Bar value={disk.usedPercent ?? 0} />
-          </div>
-        ))}
-      </div>
+      <StorageVolumes disks={metrics.disks} />
     </Panel>
   );
 }
@@ -153,14 +114,6 @@ function Sparkline({ label, values }: { label: string; values: number[] }) {
       <svg viewBox="0 0 100 52" preserveAspectRatio="none">
         <polyline className={styles.sparklineLine} points={points} fill="none" strokeWidth="3" />
       </svg>
-    </div>
-  );
-}
-
-function Bar({ value }: { value: number }) {
-  return (
-    <div className={`${styles.bar} ${value > 95 ? styles.barBad : value > 90 ? styles.barWarn : styles.barGood}`}>
-      <span style={{ width: `${Math.min(value, 100)}%` }} />
     </div>
   );
 }

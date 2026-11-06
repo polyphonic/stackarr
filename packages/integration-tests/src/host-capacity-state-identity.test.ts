@@ -104,7 +104,11 @@ for (const mode of ['portable', 'native macOS'] as const) {
             assert.deepEqual([...disks[0].paths].sort(), [...paths].sort());
             assert.deepEqual(
               disks[0].associations,
-              paths.map((target) => ({ ...root(target), status: 'available' }))
+              paths.map((target) => ({
+                ...root(target),
+                displayName: target === library ? 'Plex' : 'Stackarr',
+                status: 'available'
+              }))
             );
             if (key) assert.equal(diskUsageKey(disks[0]), key);
             key = diskUsageKey(disks[0]);

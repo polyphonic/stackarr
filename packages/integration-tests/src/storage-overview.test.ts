@@ -3,38 +3,16 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { formatBinaryBytes } from '../../../apps/frontend/src/lib/formatBinaryBytes';
-import type { StackarrEnv } from '../../core/src/env';
-import { configuredDiskUsages, type DiskUsage, diskUsageKey, diskUsages } from '../../core/src/metrics';
-import type { StorageAssociation } from '../../core/src/serviceStorage';
+import { type DiskUsage, diskUsageKey, groupDiskUsages } from '../../core/src/metrics';
 
-type Element = { type: unknown; key: string | null; props: { children?: unknown; className?: string } };
-const frontendRequire = createRequire(path.resolve('apps/frontend/package.json'));
-// Execute the production TSX and real React JSX runtime. Only CSS and the UI
-// shell are inert, so this checks component output without a browser or Next server.
-const source = readFileSync('apps/frontend/src/components/DashboardOverview.tsx', 'utf8');
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }
-}).outputText;
-const component = { exports: {} as { StorageOverview: (props: { metrics: { disks: DiskUsage[] } }) => Element } };
-new Function('require', 'module', 'exports', compiled)(
-  (id: string) =>
-    id === '@stackarr/core'
-      ? { diskUsageKey }
-      : id.endsWith('.css')
-        ? { disks: 'disks', diskRow: 'diskRow', storageSummary: 'storageSummary' }
-        : id === './ui'
-          ? { Grid: 'grid', Panel: 'panel', Stat: 'stat' }
-          : id.includes('formatBinaryBytes')
-            ? { formatBinaryBytes }
-            : frontendRequire(id),
-  component,
-  component.exports
-);
-
-async function renderDiskPage(disks: DiskUsage[]) {
-  const source = readFileSync('apps/frontend/src/app/system/[section]/page.tsx', 'utf8');
+type Element = { type: any; key: string | null; props: Record<string, any> };
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const frontendRequire = createRequire(path.join(repoRoot, 'apps/frontend/package.json'));
+const compile = (file: string, loader: (id: string) => unknown) => {
+  const source = readFileSync(path.join(repoRoot, file), 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2022,
@@ -43,7 +21,72 @@ async function renderDiskPage(disks: DiskUsage[]) {
       esModuleInterop: true
     }
   }).outputText;
-  const page = { exports: {} as { default: (props: { params: Promise<{ section: string }> }) => Promise<Element> } };
+  const module = { exports: {} as any };
+  new Function('require', 'module', 'exports', compiled)(loader, module, module.exports);
+  return module.exports;
+};
+const accordion = Object.assign((props: any) => props.children, {
+  Item: 'item',
+  Heading: 'heading',
+  Trigger: 'trigger',
+  Indicator: 'indicator',
+  Panel: 'panel',
+  Body: 'body'
+});
+const volumes = compile('apps/frontend/src/components/StorageVolumes.tsx', (id) =>
+  id === '@stackarr/ui'
+    ? { Accordion: accordion }
+    : id.endsWith('diskUsageIdentity')
+      ? { diskUsageKey }
+      : id.endsWith('.css')
+        ? {
+            volumes: 'volumes',
+            volume: 'volume',
+            trigger: 'trigger',
+            heading: 'heading',
+            locations: 'locations',
+            available: 'available',
+            unavailable: 'unavailable',
+            reason: 'reason',
+            locationTitle: 'title'
+          }
+        : id.includes('formatBinaryBytes')
+          ? { formatBinaryBytes }
+          : frontendRequire(id)
+);
+const home = compile('apps/frontend/src/components/DashboardOverview.tsx', (id) =>
+  id === './StorageVolumes'
+    ? volumes
+    : id === './ui'
+      ? { Grid: 'grid', Panel: 'panel', Stat: 'stat' }
+      : id.endsWith('.css')
+        ? { storageSummary: 'storageSummary' }
+        : id.includes('formatBinaryBytes')
+          ? { formatBinaryBytes }
+          : frontendRequire(id)
+);
+
+function elements(value: unknown): Element[] {
+  if (Array.isArray(value)) return value.flatMap(elements);
+  if (value && typeof value === 'object' && 'props' in value) {
+    const element = value as Element;
+    return [element, ...elements(element.props.children)];
+  }
+  return [];
+}
+function text(value: unknown): string {
+  if (Array.isArray(value)) return value.map(text).join('');
+  if (value && typeof value === 'object' && 'props' in value) return text((value as Element).props.children);
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+}
+function rows(disks: DiskUsage[]) {
+  const tree = volumes.StorageVolumes({ disks });
+  const accordion = elements(tree).find((v) => v.type === accordionComponent)!;
+  assert.deepEqual(accordion.props.defaultExpandedKeys, []);
+  return elements(tree).filter((v) => v.type === 'item');
+}
+const accordionComponent = accordion;
+async function pageRows(disks: DiskUsage[]) {
   const shell = Object.fromEntries(
     [
       'ActivityNav',
@@ -63,280 +106,119 @@ async function renderDiskPage(disks: DiskUsage[]) {
       'Table'
     ].map((name) => [name, name])
   );
-  new Function('require', 'module', 'exports', compiled)(
-    (id: string) => {
-      if (id === '@stackarr/core')
-        return {
-          diskUsageKey,
-          getSystemStatus: () => ({}),
-          readEnv: () => ({ ENABLE_BACKUP: 'false' }),
-          getConfiguredStackMetrics: async () => ({ disks }),
-          readTasks: () => [],
-          getBackupRecoveryKeyStatusAction: () => ({})
-        };
-      // The disk page also loads backup status and auth. Keep those external
-      // boundaries inert and never inspect the installed host in component tests.
-      if (id === 'node:fs') return { existsSync: () => false };
-      if (id === 'next/navigation')
-        return {
-          notFound: () => {
-            throw new Error('unexpected section');
-          }
-        };
-      if (id.endsWith('/serverAuth')) return { requireDashboardAuth: async () => {} };
-      if (id.endsWith('/formatBinaryBytes')) return { formatBinaryBytes };
-      if (id.startsWith('../../../components/')) return shell;
-      return frontendRequire(id);
-    },
-    page,
-    page.exports
-  );
-  const tree = await page.exports.default({ params: Promise.resolve({ section: 'diskspace' }) });
-  return elements(tree).filter((element) => element.type === 'tr' && element.key !== null);
-}
-
-for (const consumer of ['home', 'disk page'] as const) {
-  test(`${consumer} counts mixed state/library UUID metadata once in both discovery orders`, async () => {
-    const roots: StorageAssociation[] = [
-      { path: '/mnt/data/state', service: 'stackarr', reason: 'State Root', source: 'configuration' },
-      { path: '/mnt/data/library', service: 'plex', reason: 'Library location', source: 'native-library' }
-    ];
-    let key: string | null | undefined;
-    for (const order of [roots, [...roots].reverse()]) {
-      const disks = await configuredDiskUsages(
-        {} as StackarrEnv,
-        (paths) =>
-          diskUsages(paths, (requested) => ({
-            label: '/mnt/data',
-            path: '/mnt/data',
-            paths: [requested],
-            filesystem: '/dev/fixture',
-            mountPoint: '/mnt/data',
-            ...(requested.endsWith('library') ? { volumeId: 'fixture-volume' } : {}),
-            status: 'available',
-            freeSpace: 1024 ** 3,
-            totalSpace: 2 * 1024 ** 3,
-            usedPercent: 50
-          })),
-        async () => ({ roots: order, issues: [] })
-      );
-      const rows = consumer === 'home' ? render(disks).rows : await renderDiskPage(disks);
-      assert.equal(rows.length, 1);
-      assert.ok(rows[0].key);
-      if (key) assert.equal(rows[0].key, key);
-      key = rows[0].key;
-      assert.match(text(rows), /stackarr: State Root/);
-      assert.match(text(rows), /plex: Library location/);
-      assert.match(text(rows), /\/mnt\/data\/state/);
-      assert.match(text(rows), /\/mnt\/data\/library/);
-      if (consumer === 'home') {
-        assert.equal(text(render(disks).summary), 'Total capacity2.00 GiBUsed1.00 GiBAvailable1.00 GiBMounted drives1');
-      } else {
-        assert.match(text(rows), /2.00 GiB/);
-      }
-    }
+  shell.StorageVolumes = 'StorageVolumes';
+  const page = compile('apps/frontend/src/app/system/[section]/page.tsx', (id) => {
+    if (id === '@stackarr/core')
+      return {
+        getSystemStatus: () => ({}),
+        readEnv: () => ({ ENABLE_BACKUP: 'false' }),
+        getConfiguredStackMetrics: async () => ({ disks }),
+        readTasks: () => [],
+        getBackupRecoveryKeyStatusAction: () => ({})
+      };
+    if (id === 'node:fs') return { existsSync: () => false };
+    if (id === 'next/navigation')
+      return {
+        notFound: () => {
+          throw Error('unexpected section');
+        }
+      };
+    if (id.endsWith('/serverAuth')) return { requireDashboardAuth: async () => {} };
+    if (id.endsWith('/formatBinaryBytes')) return { formatBinaryBytes };
+    if (id.startsWith('../../../components/')) return shell;
+    return frontendRequire(id);
   });
-
-  test(`${consumer} cannot bridge conflicting UUID proofs through a UUID-less state path`, async () => {
-    const roots: StorageAssociation[] = ['state', 'library-a', 'library-b'].map((name) => ({
-      path: `/mnt/data/${name}`,
-      service: name === 'state' ? 'stackarr' : 'plex',
-      reason: name,
-      source: name === 'state' ? 'configuration' : 'native-library'
-    }));
-    const keys = new Map<string, string | null>();
-    // Include the UUID-less path before, between and after known conflicts.
-    for (const order of [
-      [0, 1, 2],
-      [0, 2, 1],
-      [1, 0, 2],
-      [2, 0, 1],
-      [1, 2, 0],
-      [2, 1, 0]
-    ]) {
-      const disks = await configuredDiskUsages(
-        {} as StackarrEnv,
-        (paths) =>
-          diskUsages(paths, (requested) => ({
-            label: '/mnt/data',
-            path: '/mnt/data',
-            paths: [requested],
-            filesystem: '/dev/fixture',
-            mountPoint: '/mnt/data',
-            ...(requested.endsWith('state') ? {} : { volumeId: requested.endsWith('-a') ? 'uuid-a' : 'uuid-b' }),
-            status: 'available',
-            freeSpace: 1024 ** 3,
-            totalSpace: 2 * 1024 ** 3,
-            usedPercent: 50
-          })),
-        async () => ({ roots: order.map((index) => roots[index]), issues: [] })
-      );
-      assert.equal(disks.length, 3);
-      const rows = consumer === 'home' ? render(disks).rows : await renderDiskPage(disks);
-      assert.equal(new Set(rows.map((row) => row.key)).size, 3);
-      for (let i = 0; i < disks.length; i++) {
-        const requested = disks[i].paths[0];
-        assert.equal(disks[i].paths.length, 1);
-        assert.equal(disks[i].associations?.length, 1);
-        assert.ok(rows[i].key);
-        if (keys.has(requested)) assert.equal(rows[i].key, keys.get(requested));
-        keys.set(requested, rows[i].key);
-      }
-    }
-  });
-
-  test(`${consumer} keeps cloned UUID devices distinct with order-stable keys and correct capacity`, async () => {
-    const roots: StorageAssociation[] = [
-      { path: '/mnt/a/library', service: 'plex', reason: 'Library location', source: 'native-library' },
-      { path: '/mnt/b/backup', service: 'backup', reason: 'Backup Root', source: 'configuration' }
-    ];
-    const disks = await configuredDiskUsages(
-      {} as StackarrEnv,
-      (paths) =>
-        diskUsages(paths, (requested) => {
-          const first = requested === '/mnt/a/library';
-          return {
-            label: first ? '/mnt/a' : '/mnt/b',
-            path: first ? '/mnt/a' : '/mnt/b',
-            paths: [requested],
-            filesystem: first ? '/dev/fixture-a' : '/dev/fixture-b',
-            mountPoint: first ? '/mnt/a' : '/mnt/b',
-            volumeId: 'cloned-uuid',
-            status: 'available',
-            freeSpace: first ? 1024 ** 3 : 2 * 1024 ** 3,
-            totalSpace: first ? 2 * 1024 ** 3 : 4 * 1024 ** 3,
-            usedPercent: 50
-          };
-        }),
-      async () => ({ roots, issues: [] })
-    );
-    assert.equal(disks.length, 2);
-    const rows = consumer === 'home' ? render(disks).rows : await renderDiskPage(disks);
-    assert.equal(rows.length, 2);
-    assert.equal(new Set(rows.map((row) => row.key)).size, 2);
-    assert.ok(rows.every((row) => row.key !== null));
-    const ambiguous = disks.map((disk) => ({ ...disk, filesystem: '/dev/ambiguous-label' }));
-    const ambiguousRows = consumer === 'home' ? render(ambiguous).rows : await renderDiskPage(ambiguous);
-    assert.equal(new Set(ambiguousRows.map((row) => row.key)).size, 2, 'different proven mounts remain distinct');
-    assert.match(text(rows), /plex: Library location/);
-    assert.match(text(rows), /backup: Backup Root/);
-    const reversed =
-      consumer === 'home' ? render([...disks].reverse()).rows : await renderDiskPage([...disks].reverse());
-    assert.deepEqual(
-      reversed.map((row) => row.key),
-      rows.map((row) => row.key).reverse()
-    );
-    if (consumer === 'home') {
-      assert.equal(text(render(disks).summary), 'Total capacity6.00 GiBUsed3.00 GiBAvailable3.00 GiBMounted drives2');
-    } else {
-      assert.match(text(rows[0]), /2.00 GiB/);
-      assert.match(text(rows[1]), /4.00 GiB/);
-    }
-  });
+  const tree = await page.default({ params: Promise.resolve({ section: 'diskspace' }) });
+  const instances = elements(tree).filter((v) => v.type === 'StorageVolumes');
+  assert.equal(instances.length, 1);
+  return rows(instances[0].props.disks);
 }
-
-function elements(value: unknown): Element[] {
-  if (Array.isArray(value)) return value.flatMap(elements);
-  if (value && typeof value === 'object' && 'props' in value) {
-    const element = value as Element;
-    return [element, ...elements(element.props.children)];
-  }
-  return [];
-}
-function text(value: unknown): string {
-  if (Array.isArray(value)) return value.map(text).join('');
-  if (value && typeof value === 'object' && 'props' in value) return text((value as Element).props.children);
-  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
-}
-function render(disks: DiskUsage[]) {
-  const tree = component.exports.StorageOverview({ metrics: { disks } });
+function disk(
+  requested: string,
+  status: 'available' | 'missing' | 'unmounted' = 'available',
+  mount = '/mnt/archive',
+  uuid = 'device-a'
+): DiskUsage {
   return {
-    rows: elements(tree).filter((element) => element.props.className === 'diskRow'),
-    summary: elements(tree).find((element) => element.props.className === 'storageSummary')!
-  };
-}
-const roots: StorageAssociation[] = [
-  { path: '/mnt/archive/backups', service: 'backup', reason: 'Backup Root', source: 'configuration' },
-  { path: '/mnt/archive/library', service: 'plex', reason: 'Library location', source: 'native-library' }
-];
-function unavailable(requested: string): DiskUsage {
-  return {
-    label: '/mnt/archive',
-    path: '/mnt/archive',
+    label: mount,
+    path: mount,
     paths: [requested],
-    filesystem: null,
-    mountPoint: null,
-    freeSpace: null,
-    totalSpace: null,
-    usedPercent: null,
-    status: requested.endsWith('backups') ? 'not-enrolled' : 'unmounted'
+    filesystem: status === 'available' ? '/dev/fixture' : null,
+    mountPoint: status === 'available' ? mount : null,
+    volumeId: status === 'available' ? uuid : undefined,
+    freeSpace: status === 'available' ? 1024 ** 3 : null,
+    totalSpace: status === 'available' ? 2 * 1024 ** 3 : null,
+    usedPercent: status === 'available' ? 50 : null,
+    status,
+    associations: [
+      {
+        path: requested,
+        service: requested.includes('romm') ? 'romm' : 'plex',
+        displayName: requested.includes('romm') ? 'RomM' : 'Plex',
+        reason: 'Library location',
+        source: 'native-library',
+        status
+      }
+    ]
   };
 }
-
-test('home storage distinguishes unavailable sibling paths, ownership and status with stable unique keys', async () => {
-  const disks = await configuredDiskUsages(
-    {} as StackarrEnv,
-    (paths) => diskUsages(paths, unavailable),
-    async () => ({ roots, issues: [] })
-  );
-  const { rows } = render(disks);
-  assert.equal(rows.length, 2);
-  assert.equal(new Set(rows.map((row) => row.key)).size, 2);
-  const backup = rows.find((row) => text(row).includes('/mnt/archive/backups'))!;
-  const library = rows.find((row) => text(row).includes('/mnt/archive/library'))!;
-  assert.ok(backup);
-  assert.ok(library);
-  assert.match(text(backup), /not-enrolled/);
-  assert.match(text(backup), /backup: Backup Root/);
-  assert.doesNotMatch(text(backup), /Verify host mount|unmounted/);
-  assert.match(text(library), /unmounted/);
-  assert.match(text(library), /plex: Library location/);
-  assert.deepEqual(
-    render([...disks].reverse()).rows.map((row) => row.key),
-    rows.map((row) => row.key).reverse()
-  );
-});
-
-test('home storage keeps mixed available and unavailable rows distinct and totals only verified capacity', async () => {
-  const disks = await configuredDiskUsages(
-    {} as StackarrEnv,
-    (paths) =>
-      diskUsages(paths, (requested) =>
-        requested.endsWith('backups')
-          ? unavailable(requested)
-          : {
-              label: '/mnt/archive',
-              path: '/mnt/archive',
-              paths: [requested],
-              filesystem: '/dev/fixture',
-              mountPoint: '/mnt/archive',
-              volumeId: 'fixture-volume',
-              freeSpace: 1024 ** 3,
-              totalSpace: 2 * 1024 ** 3,
-              usedPercent: 50,
-              status: 'available'
-            }
-      ),
-    async () => ({ roots, issues: [] })
-  );
-  const { rows, summary } = render(disks);
-  assert.equal(rows.length, 2);
-  assert.equal(new Set(rows.map((row) => row.key)).size, 2);
-  const backup = rows.find((row) => text(row).includes('/mnt/archive/backups'))!;
-  const library = rows.find((row) => text(row).includes('/mnt/archive/library'))!;
-  assert.match(text(backup), /Capacity unavailable · not-enrolled/);
-  assert.doesNotMatch(text(backup), /GiB/);
-  assert.match(text(library), /1.00 GiB of 2.00 GiB used · 1.00 GiB available/);
-  assert.match(text(library), /plex: Library location/);
-  assert.match(text(library), /50%/);
-  assert.equal(text(summary), 'Total capacity2.00 GiBUsed1.00 GiBAvailable1.00 GiBMounted drives1');
-});
-
-test('home storage retains requested paths and a neutral fallback when legacy rows lack associations', () => {
-  const disk = unavailable('/mnt/archive/legacy');
-  delete disk.status;
-  const { rows } = render([disk]);
-  assert.match(text(rows[0]), /probe-unavailable/);
-  assert.match(text(rows[0]), /\/mnt\/archive\/legacy/);
-  assert.doesNotMatch(text(rows[0]), /Verify host mount/);
-});
+for (const consumer of ['home', 'disk page'] as const) {
+  test(`${consumer} shares a collapsed volume list with sorted, truthful path statuses`, async () => {
+    const available = disk('/mnt/archive/plex');
+    const missing = disk('/mnt/archive/romm', 'missing');
+    missing.enclosingMount = {
+      filesystem: '/dev/fixture',
+      mountPoint: '/mnt/archive',
+      volumeId: 'device-a',
+      realAnchor: '/mnt/archive',
+      anchor: '/mnt/archive',
+      filesystemType: 'ext4'
+    };
+    const grouped = groupDiskUsages([missing, available]);
+    const reverse = groupDiskUsages([available, missing]);
+    assert.equal(grouped.length, 1);
+    assert.equal(reverse.length, 1);
+    assert.deepEqual(grouped[0].paths.slice().sort(), reverse[0].paths.slice().sort());
+    assert.equal(grouped[0].totalSpace, 2 * 1024 ** 3);
+    const homeTree = home.StorageOverview({
+      metrics: { disks: grouped, serviceCounts: { dockerRunning: 0 }, performance: {} }
+    });
+    const instance = elements(homeTree).find((v) => v.type === volumes.StorageVolumes)!;
+    assert.deepEqual(instance.props.disks, grouped);
+    const list = consumer === 'home' ? rows(instance.props.disks) : await pageRows(grouped);
+    assert.equal(list.length, 1);
+    assert.match(text(list), /2 locations/);
+    assert.match(text(list), /1.00 GiB used of 2.00 GiB/);
+    const items = elements(list[0]).filter((v) => v.type === 'li');
+    assert.equal(items.length, 2, JSON.stringify(items.map(text)));
+    assert.match(text(items[0]), /PlexAvailable/);
+    assert.match(text(items[1]), /RomMUnavailable/);
+    assert.match(text(items[1]), /Path does not exist/);
+    assert.equal(elements(items[0]).find((v) => v.props.className === 'available')?.type, 'span');
+    assert.equal(elements(items[1]).find((v) => v.props.className === 'unavailable')?.type, 'span');
+    assert.equal(rows(reverse)[0].key, list[0].key);
+    const extra = disk('/mnt/archive/romm-z', 'missing');
+    extra.associations![0].displayName = 'RomM';
+    extra.enclosingMount = missing.enclosingMount;
+    const ordered = rows(groupDiskUsages([extra, missing, available]))[0];
+    assert.deepEqual(
+      elements(ordered)
+        .filter((v) => v.type === 'li')
+        .map(text),
+      [text(items[0]), text(items[1]), 'RomMUnavailableLibrary location/mnt/archive/romm-zPath does not exist']
+    );
+  });
+  test(`${consumer} does not coalesce a clone, an unmounted path, or a mere matching label`, async () => {
+    const a = disk('/mnt/archive/plex');
+    const clone = disk('/mnt/clone/plex', 'available', '/mnt/clone', 'device-a');
+    clone.label = a.label;
+    const unmounted = disk('/mnt/archive/romm', 'unmounted');
+    const unproven = disk('/mnt/archive/future', 'missing');
+    const disks = groupDiskUsages([a, clone, unmounted, unproven]);
+    assert.equal(disks.length, 4);
+    const list = consumer === 'home' ? rows(disks) : await pageRows(disks);
+    assert.equal(new Set(list.map((v) => v.key)).size, 4);
+    assert.match(text(list.find((v) => text(v).includes('/mnt/archive/romm'))), /Expected volume is not mounted/);
+    assert.match(text(list.find((v) => text(v).includes('/mnt/archive/romm'))), /Capacity unavailable/);
+  });
+}

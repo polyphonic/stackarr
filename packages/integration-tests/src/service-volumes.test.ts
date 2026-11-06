@@ -68,10 +68,18 @@ for (const logRoot of ['/mnt/Logs/stackarr', '/container-logs']) {
       assert.equal(logs.freeSpace, 1024);
       assert.equal(logs.mountPoint, '/mnt/Logs');
       assert.deepEqual(logs.associations, [
-        { path: hostLogs, service: 'stackarr', reason: 'LOG_ROOT', source: 'configuration', status: 'available' },
         {
           path: hostLogs,
           service: 'stackarr',
+          displayName: 'Stackarr',
+          reason: 'LOG_ROOT',
+          source: 'configuration',
+          status: 'available'
+        },
+        {
+          path: hostLogs,
+          service: 'stackarr',
+          displayName: 'Stackarr',
           reason: `Bind: ${logRoot}`,
           source: 'container-bind',
           status: 'available'

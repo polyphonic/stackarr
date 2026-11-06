@@ -81,20 +81,39 @@ function parseDf(line) {
 function snapshot(paths) {
   const rows = new Map();
   const existing = [];
+  const missing = [];
   for (const requested of paths) {
     try {
       const realPath = fs.realpathSync(requested);
       const stat = fs.statSync(realPath);
       existing.push({ requested, realPath, dev: stat.dev, ino: stat.ino });
-    } catch (error) { rows.set(requested, { status: failure(error), usage: null }); }
+    } catch (error) {
+      rows.set(requested, { status: failure(error), usage: null });
+      if (error.code === 'ENOENT') {
+        // Walk only to a real, accessible ancestor. Never infer a mount from
+        // the requested string or follow a dangling/retargeted leaf symlink.
+        try {
+          if (fs.lstatSync(requested, { throwIfNoEntry: false })) continue;
+          let anchor = path.dirname(requested);
+          while (!fs.existsSync(anchor) && anchor !== '/') {
+            if (fs.lstatSync(anchor, { throwIfNoEntry: false })) throw new Error('Dangling ancestor');
+            anchor = path.dirname(anchor);
+          }
+          const realPath = fs.realpathSync(anchor);
+          const stat = fs.statSync(realPath);
+          if (stat.isDirectory()) missing.push({ requested, anchor, realPath, dev: stat.dev });
+        } catch { /* No independent enclosing proof. */ }
+      }
+    }
   }
-  if (!existing.length) return rows;
+  const measured = [...existing, ...missing];
+  if (!measured.length) return rows;
   // One kernel df invocation for the complete path set. Every row stays bound by
   // position, and a command/row-count failure discards the complete snapshot.
-  const output = execFileSync(process.platform === 'darwin' ? '/bin/df' : 'df', ['-kP', ...existing.map(v => v.realPath)], {
+  const output = execFileSync(process.platform === 'darwin' ? '/bin/df' : 'df', ['-kP', ...measured.map(v => v.realPath)], {
     encoding: 'utf8', timeout: 2000, maxBuffer: MAX_BYTES, stdio: ['ignore', 'pipe', 'pipe']
   }).trim().split(/\r?\n/).slice(1);
-  if (output.length !== existing.length) throw new Error('Incomplete host df');
+  if (output.length !== measured.length) throw new Error('Incomplete host df');
   const volumes = new Map();
   for (let i = 0; i < existing.length; i++) {
     const item = existing[i];
@@ -114,6 +133,25 @@ function snapshot(paths) {
       rows.set(item.requested, { status: 'available', record, dev: item.dev, ino: item.ino,
         usage: { ...usage, realPath: record.realPath, volumeId: record.uuid, requestedPath: item.requested } });
     } catch (error) { rows.set(item.requested, { status: failure(error), usage: null }); }
+  }
+  for (let i = 0; i < missing.length; i++) {
+    const item = missing[i];
+    try {
+      const usage = parseDf(output[existing.length + i]);
+      // Use the resolved ancestor for an alias, but never allow an unresolved
+      // external namespace to borrow the internal parent filesystem.
+      if (!externalMountPresent(item.realPath, usage.mountPoint) ||
+          (item.realPath === item.anchor && !externalMountPresent(item.requested, usage.mountPoint))) continue;
+      const volume = policy.inspectVolume(usage.mountPoint);
+      if (volume.mountPoint !== usage.mountPoint || fs.statSync(volume.mountPoint).dev !== item.dev ||
+          fs.realpathSync(item.anchor) !== item.realPath || fs.statSync(item.realPath).dev !== item.dev) continue;
+      const anchorRecord = policy.captureRoot(item.anchor, { allowReadOnly: true, probe: () => volume });
+      rows.get(item.requested).enclosingMount = {
+        filesystem: usage.filesystem, filesystemType: volume.filesystem,
+        mountPoint: usage.mountPoint, volumeId: volume.uuid,
+        realAnchor: anchorRecord.realPath, anchor: item.anchor
+      };
+    } catch { /* A failed ancestor proof never changes the path's status. */ }
   }
   return rows;
 }
@@ -150,7 +188,13 @@ function lockedReport(file, adapters) {
     if (!a.usage || !b.usage) {
       let status = !a.usage ? a.status : b.status;
       if (pinned && status === 'missing') status = require('./storage-control.cjs').capacityFailure({ code: 'ENOENT', message: '' }, pinned);
-      return { path: requested, status, usage: null };
+      const x = a.enclosingMount, y = b.enclosingMount;
+      const compatible = x && y && JSON.stringify(x) === JSON.stringify(y) &&
+        (!pinned || (pinned.mountPoint === y.mountPoint && pinned.uuid === y.volumeId &&
+          pinned.filesystem === y.filesystemType &&
+          (pinned.realPath === y.realAnchor || pinned.realPath.startsWith(`${y.realAnchor}/`))));
+      return { path: requested, status, usage: null,
+        ...(status === 'missing' && compatible ? { enclosingMount: y } : {}) };
     }
     if (!same(a.record, b.record) || a.dev !== b.dev || a.ino !== b.ino || a.usage.filesystem !== b.usage.filesystem ||
         (pinned && !same(pinned, b.record))) return { path: requested, status: 'stale-identity', usage: null };

@@ -4,7 +4,17 @@ import path from 'node:path';
 import type { CapacityStatus, HostCapacity, HostUsage } from './hostCapacity';
 import type { StorageAssociation, StorageDiscovery } from './serviceStorage';
 
-export type CapacityReport = StorageDiscovery & { entries: Array<HostCapacity & { path: string }> };
+export type EnclosingMount = {
+  filesystem: string;
+  filesystemType: string;
+  mountPoint: string;
+  volumeId: string;
+  realAnchor: string;
+  anchor: string;
+};
+export type CapacityReport = StorageDiscovery & {
+  entries: Array<HostCapacity & { path: string; enclosingMount?: EnclosingMount }>;
+};
 const pending = new Map<string, Promise<CapacityReport | null>>();
 const denied: CapacityStatus[] = [
   'not-enrolled',
@@ -56,9 +66,30 @@ export function validateCapacityReport(value: unknown): value is CapacityReport 
     seen.add(entry.path);
     if (entry.status !== 'available') {
       if (!denied.includes(entry.status) || entry.usage !== null) return false;
+      const mount = entry.enclosingMount;
+      if (
+        mount &&
+        (entry.status !== 'missing' ||
+          !absolute(mount.mountPoint) ||
+          !absolute(mount.anchor) ||
+          !absolute(mount.realAnchor) ||
+          typeof mount.volumeId !== 'string' ||
+          !mount.volumeId ||
+          typeof mount.filesystem !== 'string' ||
+          !mount.filesystem ||
+          typeof mount.filesystemType !== 'string' ||
+          !mount.filesystemType ||
+          !(
+            mount.realAnchor === mount.mountPoint ||
+            mount.realAnchor.startsWith(`${mount.mountPoint.replace(/\/$/, '')}/`)
+          ) ||
+          !(entry.path === mount.anchor || entry.path.startsWith(`${mount.anchor.replace(/\/$/, '')}/`)))
+      )
+        return false;
       continue;
     }
     const v: HostUsage | null = entry.usage;
+    if (entry.enclosingMount) return false;
     if (
       !v ||
       v.requestedPath !== entry.path ||

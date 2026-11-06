@@ -177,6 +177,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
   }
 };
 
+export function serviceDisplayName(name: string) {
+  return serviceMetadata[name]?.displayName ?? name;
+}
+
 export function getSystemStatus() {
   const env = readEnv();
 
