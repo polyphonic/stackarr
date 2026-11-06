@@ -27,6 +27,10 @@ export function StorageVolumes({ disks }: { disks: DiskUsage[] }) {
       {disks.map((disk) => {
         const locations = new Set(disk.paths).size;
         const measured = disk.totalSpace !== null && disk.freeSpace !== null;
+        const usagePercent =
+          measured && disk.totalSpace! > 0
+            ? Math.max(0, Math.min(100, ((disk.totalSpace! - disk.freeSpace!) / disk.totalSpace!) * 100))
+            : null;
         const associations = [...(disk.associations ?? [])].sort(
           (a, b) =>
             compare(a.displayName ?? a.service, b.displayName ?? b.service) ||
@@ -41,12 +45,18 @@ export function StorageVolumes({ disks }: { disks: DiskUsage[] }) {
             <Accordion.Heading>
               <Accordion.Trigger className={styles.trigger}>
                 <span className={styles.heading}>
-                  <strong>{disk.label}</strong>
+                  <strong>{disk.label.replace(/^\/Volumes\/(?=[^/])/, '')}</strong>
                   <span>
                     {measured
                       ? `${formatBinaryBytes(disk.totalSpace! - disk.freeSpace!)} used of ${formatBinaryBytes(disk.totalSpace!)} · ${formatBinaryBytes(disk.freeSpace!)} free`
                       : 'Capacity unavailable'}{' '}
                     · {locations} {locations === 1 ? 'location' : 'locations'}
+                    {usagePercent !== null && ` · ${Math.round(usagePercent)}% used`}
+                  </span>
+                  <span className={styles.usageTrack} data-unknown={usagePercent === null} aria-hidden="true">
+                    {usagePercent !== null && (
+                      <span className={styles.usageFill} style={{ width: `${usagePercent}%` }} />
+                    )}
                   </span>
                 </span>
                 <Accordion.Indicator aria-hidden="true">⌄</Accordion.Indicator>

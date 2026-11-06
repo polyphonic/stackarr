@@ -44,6 +44,8 @@ const volumes = compile('apps/frontend/src/components/StorageVolumes.tsx', (id) 
             volume: 'volume',
             trigger: 'trigger',
             heading: 'heading',
+            usageTrack: 'usageTrack',
+            usageFill: 'usageFill',
             locations: 'locations',
             available: 'available',
             unavailable: 'unavailable',
@@ -207,6 +209,80 @@ for (const consumer of ['home', 'disk page'] as const) {
         .map(text),
       [text(items[0]), text(items[1]), 'RomMUnavailableLibrary location/mnt/archive/romm-zPath does not exist']
     );
+  });
+  test(`${consumer} shortens only the exact macOS display prefix without changing paths or identity`, async () => {
+    const cases = [
+      ['/Volumes/Archive', 'Archive'],
+      ['/Volumes/External Drive', 'External Drive'],
+      ['/Volumes/Archive/nested', 'Archive/nested'],
+      ['Macintosh HD', 'Macintosh HD'],
+      ['Internal storage', 'Internal storage'],
+      ['/', '/'],
+      ['/Volumes', '/Volumes'],
+      ['/Volumes/', '/Volumes/'],
+      ['/Volumes//Archive', '/Volumes//Archive'],
+      ['/volumes/Archive', '/volumes/Archive'],
+      ['/VolumesExtra/Archive', '/VolumesExtra/Archive'],
+      ['/mnt/Volumes/Archive', '/mnt/Volumes/Archive'],
+      ['/mnt/archive', '/mnt/archive'],
+      ['C:\\Archive', 'C:\\Archive']
+    ];
+    for (const [label, expected] of cases) {
+      const input = disk('/Volumes/Archive/library');
+      input.label = label;
+      const original = structuredClone(input);
+      const row = (consumer === 'home' ? rows([input]) : await pageRows([input]))[0];
+      const trigger = elements(row).find((v) => v.type === 'trigger')!;
+      assert.equal(text(elements(trigger).find((v) => v.type === 'strong')), expected);
+      assert.equal(row.key, diskUsageKey(input));
+      assert.equal(text(elements(row).find((v) => v.type === 'code')), '/Volumes/Archive/library');
+      assert.deepEqual(input, original);
+    }
+  });
+  test(`${consumer} keeps a noninteractive usage bar and equivalent text inside the collapsed trigger`, async () => {
+    for (const [free, percent] of [
+      [0, 100],
+      [1024 ** 3, 50],
+      [2 * 1024 ** 3, 0]
+    ]) {
+      const input = disk('/mnt/archive/plex');
+      input.freeSpace = free;
+      const row = (consumer === 'home' ? rows([input]) : await pageRows([input]))[0];
+      const trigger = elements(row).find((v) => v.type === 'trigger')!;
+      const track = elements(trigger).find((v) => v.props.className === 'usageTrack')!;
+      assert.ok(track, 'usage bar must be inside the always-visible trigger');
+      assert.equal(track.props['aria-hidden'], 'true');
+      assert.equal(track.props['data-unknown'], false);
+      assert.equal(track.props.tabIndex, undefined);
+      const fill = elements(track).find((v) => v.props.className === 'usageFill')!;
+      assert.equal(fill.props.style.width, `${percent}%`);
+      assert.match(text(trigger), new RegExp(`${percent}% used`));
+      assert.match(text(trigger), /used of 2.00 GiB.*free.*1 location/);
+      assert.equal(elements(row).filter((v) => v.props.className === 'usageTrack').length, 1);
+    }
+  });
+  test(`${consumer} never invents a percentage for unknown or zero capacity`, async () => {
+    for (const [totalSpace, freeSpace] of [
+      [null, null],
+      [1024, null],
+      [null, 1024],
+      [0, 0]
+    ]) {
+      const input = disk('/mnt/archive/plex', 'unmounted');
+      Object.assign(input, { totalSpace, freeSpace, usedPercent: null });
+      const row = (consumer === 'home' ? rows([input]) : await pageRows([input]))[0];
+      const trigger = elements(row).find((v) => v.type === 'trigger')!;
+      const track = elements(trigger).find((v) => v.props.className === 'usageTrack')!;
+      assert.ok(track);
+      assert.equal(track.props['data-unknown'], true);
+      assert.equal(
+        elements(track).some((v) => v.props.className === 'usageFill'),
+        false
+      );
+      assert.doesNotMatch(text(trigger), /%|NaN|Infinity/);
+      assert.match(text(trigger), /1 location/);
+      if (totalSpace === null || freeSpace === null) assert.match(text(trigger), /Capacity unavailable/);
+    }
   });
   test(`${consumer} does not coalesce a clone, an unmounted path, or a mere matching label`, async () => {
     const a = disk('/mnt/archive/plex');

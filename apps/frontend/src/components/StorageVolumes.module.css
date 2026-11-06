@@ -20,6 +20,7 @@
 }
 .heading {
   display: grid;
+  flex: 1;
   gap: 4px;
   min-width: 0;
 }
@@ -27,10 +28,27 @@
   font-size: 13px;
   overflow-wrap: anywhere;
 }
-.heading span {
+.heading > span {
   font-size: 11px;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+.usageTrack {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--glass-border);
+}
+.usageTrack[data-unknown="true"] {
+  background: repeating-linear-gradient(135deg, var(--glass-border) 0 4px, transparent 4px 8px);
+}
+.usageFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
 }
 .locations {
   list-style: none;
