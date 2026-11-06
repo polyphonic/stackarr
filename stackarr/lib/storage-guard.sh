@@ -32,10 +32,11 @@ stackarr_verify_torrent_archive_root() {
         "${LOG_ROOT:-${APP_ROOT:-$(default_app_root)}/logs}" \
         "${BACKUP_ROOT:-${APP_ROOT:-$(default_app_root)}/backups}" \
         "${BACKUP_STAGING_ROOT:-${BACKUP_ROOT:-${APP_ROOT:-$(default_app_root)}/backups}/.stackarr-staging}" \
-        "${STACKARR_STORAGE_POLICY:-}" <<'NODE' || fail 'Unsafe or unenrolled TORRENT_ARCHIVE_ROOT'
+        "${STACKARR_STORAGE_POLICY:-}" "$ROOT_DIR/scripts/storage-control.cjs" <<'NODE' || fail 'Unsafe or unenrolled TORRENT_ARCHIVE_ROOT'
 const fs = require('node:fs');
 const path = require('node:path');
-const [archive, config, state, logs, backup, staging, policyFile] = process.argv.slice(2);
+const { execFileSync } = require('node:child_process');
+const [archive, config, state, logs, backup, staging, policyFile, control] = process.argv.slice(2);
 const inside = (child, parent) => child === parent || child.startsWith(`${parent}/`);
 function canonical(input, managed = false) {
   if (!input.startsWith('/') || input.includes('\0') ||
@@ -71,14 +72,42 @@ try {
   if (!isDefault && (inside(target.physical, st.physical) ||
                      inside(st.physical, target.physical))) throw Error('state overlap');
   if (target.physical === '/' || target.lexical === '/') throw Error('filesystem root');
-  if (target.lexical.startsWith('/Volumes/') || target.physical.startsWith('/Volumes/')) {
+  const external = target.lexical.startsWith('/Volumes/') || target.physical.startsWith('/Volumes/');
+  const records = policyFile ? JSON.parse(fs.readFileSync(policyFile, 'utf8')).roots : [];
+  const worker = process.env.STACKARR_RUNTIME === 'docker-updater';
+  const enrolled = records.find(entry => inside(target.lexical, entry.path));
+  if (external || (worker && policyFile && !isDefault)) {
     if (!policyFile) throw Error('missing enrollment');
-    // Host/guest mount identity has already been verified by stackarr_storage_guard.
-    const records = JSON.parse(fs.readFileSync(policyFile, 'utf8')).roots;
-    if (!records.some(record =>
-      inside(target.physical, record.realPath) &&
-      fs.statSync(target.anchor).dev === fs.statSync(record.path).dev
-    )) throw Error('unenrolled root');
+    if (!worker) {
+      // Preserve host/controller checks. Only the narrowly mounted updater needs
+      // a child proof because its enrolled ancestor may be invisible in the guest.
+      if (!records.some(record => inside(target.physical, record.realPath) &&
+          fs.statSync(target.anchor).dev === fs.statSync(record.path).dev))
+        throw Error('unenrolled root');
+    } else {
+    // The host must prove the exact existing archive ancestor, not merely the
+    // volume's policy root. The updater binds Downloads but not its media parent.
+    // The guest additionally ties that ancestor to the narrow visible bind.
+    const record = enrolled;
+    if (!record) throw Error('unenrolled root');
+    const downloads = process.env.DOWNLOADS_ROOT;
+    let guestBind;
+    if (downloads && inside(target.lexical, downloads)) {
+      const mounted = canonical(downloads);
+      if (mounted.anchor !== downloads || !inside(target.anchor, downloads) ||
+          !inside(target.physical, mounted.physical)) throw Error('Downloads bind unavailable');
+      guestBind = downloads;
+    } else {
+      guestBind = record.path;
+      if (target.anchor !== guestBind && !inside(target.anchor, guestBind)) throw Error('enrolled bind unavailable');
+    }
+    if (fs.statSync(target.anchor).dev !== fs.statSync(guestBind).dev)
+      throw Error('archive crosses guest bind');
+    // The usage bridge checks the host's UUID, filesystem, mount point and
+    // exact child identity with a fresh nonce/digest; failure is a refusal.
+    execFileSync(process.execPath, [control, 'guest-archive', policyFile, target.anchor],
+      { stdio: ['ignore', 'ignore', 'pipe'], timeout: 12000 });
+    }
   }
 } catch (error) {
   console.error(`Torrent archive path validation failed: ${error.message}`);

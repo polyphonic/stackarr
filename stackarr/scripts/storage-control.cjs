@@ -353,6 +353,51 @@ async function checkGuestAttempt(file, timeout, now) {
     for (const file of [request, response]) fs.rmSync(file, { force: true });
   }
 }
+// Request a host-checked identity for the exact existing archive ancestor.
+// Unlike a generic readiness proof, this detects an unmounted/replaced child
+// even when its enrolled media parent is invisible in the updater container.
+async function checkGuestArchive(file, requested, { timeout = 3500, attempts = 2, now = Date.now } = {}) {
+  const current = policy.readPolicy(file);
+  const record = current.roots.filter(entry => within(requested, entry.path))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  if (!record || !path.isAbsolute(requested) || /[\0\r\n]/.test(requested) ||
+      requested.split('/').some(part => part === '.' || part === '..'))
+    throw new Error('Archive ancestor is not enrolled');
+  const dir = bridgeDir(file);
+  if (!fs.existsSync(dir) || fs.lstatSync(dir).isSymbolicLink())
+    throw new Error('Host storage bridge unavailable');
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const hash = digest(file);
+    const at = now();
+    const request = path.join(dir, `${nonce}.request`);
+    const response = path.join(dir, `${nonce}.response`);
+    atomic(request, { nonce, digest: hash, at, operation: 'usage', path: requested });
+    try {
+      while (now() - at < timeout) {
+        if (fs.existsSync(response)) {
+          const stat = fs.lstatSync(response);
+          if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096)
+            throw new Error('Invalid archive proof');
+          const reply = JSON.parse(fs.readFileSync(response, 'utf8'));
+          const usage = reply.usage;
+          const expected = path.join(record.realPath, path.relative(record.path, requested));
+          if (reply.nonce !== nonce || reply.digest !== hash || digest(file) !== hash ||
+              reply.ready !== true || !Number.isFinite(reply.at) || reply.at < at ||
+              reply.at > now() || now() - reply.at > 10000 ||
+              usage?.requestedPath !== requested || usage.realPath !== expected ||
+              usage.mountPoint !== record.mountPoint || usage.volumeId !== record.uuid)
+            throw new Error('Host archive identity denied or invalid');
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } finally {
+      for (const entry of [request, response]) fs.rmSync(entry, { force: true });
+    }
+  }
+  throw new Error('Host archive proof absent or unavailable');
+}
 async function checkGuest(file, { timeout = 8000, attempts = 2, now = Date.now } = {}) {
   // Host pressure may delay one response. Each attempt has a fresh nonce and
   // must pass all existing policy/digest/freshness checks. Denials fail closed.
@@ -429,6 +474,7 @@ module.exports = {
   projectName,
   checkHost,
   checkGuest,
+  checkGuestArchive,
   prepare,
   protect,
   stopProject,
@@ -448,6 +494,7 @@ if (require.main === module) {
       checkHost(file);
       await checkGuest(file);
     } else if (command === 'guest-check') await checkGuest(file);
+    else if (command === 'guest-archive' && arg) await checkGuestArchive(file, arg);
     else if (command === 'prepare' && arg && process.argv[5] === '--yes') prepare(file, arg);
     else if (command === 'protect' && arg && process.argv[5] === '--yes') protect(file, arg);
     else if (command === 'observe' && arg && process.argv[5] === '--yes') observe(file, arg);
