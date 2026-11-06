@@ -3,8 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   commandRegistry,
+  diskUsageKey,
   getBackupRecoveryKeyStatusAction,
-  getStackMetrics,
+  getConfiguredStackMetrics,
   getSystemStatus,
   readEnv,
   readTasks,
@@ -49,14 +50,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
 
   const status = getSystemStatus();
   const env = readEnv();
-  const metrics = getStackMetrics([
-    env.MEDIA_ROOT ?? '',
-    env.MUSIC_ROOT ?? '',
-    env.DOWNLOADS_ROOT ?? '',
-    env.BACKUP_ROOT ?? '',
-    env.CONFIG_ROOT ?? '',
-    env.STATE_ROOT ?? ''
-  ]);
+  const metrics = await getConfiguredStackMetrics();
   const tasks = readTasks();
   const backupStatus = getBackupStatus(env, tasks);
   const backupRecoveryKeyStatus = getBackupRecoveryKeyStatusAction();
@@ -318,7 +312,8 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
               <thead>
                 <tr>
                   <th>Path</th>
-                  <th>Stackarr Paths</th>
+                  <th>Associated Paths</th>
+                  <th>Verification</th>
                   <th>Used</th>
                   <th>Total</th>
                   <th>Free</th>
@@ -326,9 +321,21 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
               </thead>
               <tbody>
                 {metrics.disks.map((disk) => (
-                  <tr key={disk.path}>
+                  <tr key={diskUsageKey(disk)}>
                     <td>{disk.label}</td>
-                    <td>{disk.paths.length}</td>
+                    <td>
+                      <details>
+                        <summary>{disk.paths.length}</summary>
+                        <ul>
+                          {disk.associations?.map((association, index) => (
+                            <li key={`${association.path}:${association.service}:${index}`}>
+                              {association.service}: {association.reason} ({association.path}) · {association.status}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </td>
+                    <td>{disk.status ?? (disk.totalSpace === null ? 'probe-unavailable' : 'available')}</td>
                     <td>{disk.usedPercent === null ? 'Unavailable' : `${disk.usedPercent}%`}</td>
                     <td>{disk.totalSpace === null ? '' : formatBinaryBytes(disk.totalSpace)}</td>
                     <td>{disk.freeSpace === null ? '' : formatBinaryBytes(disk.freeSpace)}</td>
@@ -336,6 +343,12 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
                 ))}
               </tbody>
             </Table>
+            {metrics.disks[0]?.discoveryIssues?.length ? (
+              <p>
+                Discovery gaps:{' '}
+                {metrics.disks[0].discoveryIssues.map((issue) => `${issue.service} (${issue.status})`).join(', ')}
+              </p>
+            ) : null}
           </Panel>
         )}
         {section === 'logs' && (

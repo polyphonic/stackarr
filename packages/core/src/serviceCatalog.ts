@@ -961,6 +961,15 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
   ]
 };
 
+// Definitions only: do not load secret values or application config while discovering storage.
+export function serviceStorageFields(service: string) {
+  return (serviceGroups[service] ?? []).flatMap((group) => group.fields).flatMap((field) =>
+    field.type === 'path' && field.source.source === 'env'
+      ? [{ key: field.source.key, label: field.label }]
+      : []
+  );
+}
+
 export function listServiceConfigsAction() {
   return getServices().map((service) => buildModel(service));
 }

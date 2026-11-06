@@ -38,11 +38,11 @@ Run these on the Docker host. Commands with `--yes` change the installation, not
 stackarr storage prepare --yes
 stackarr storage install --yes
 stackarr storage protect /Volumes/External/Media --yes
-stackarr storage protect /Volumes/Backup/Stackarr --yes
+
 stackarr storage check
 ```
 
-Use actual existing paths. On Linux, use your mounted paths such as `/mnt/storage/Media`. Enroll every required media/download/backup path, not only application config. For a non-default Compose project, pass its exact name after `prepare --yes`.
+Use actual existing paths. On Linux, use your mounted paths such as `/mnt/storage/Media`. Enroll every path whose absence must stop managed services with `protect`. Configured backup and library paths receive capacity-only verification automatically and do not need `protect`. For a non-default Compose project, pass its exact name after `prepare --yes`.
 
 The monitor installs as a macOS LaunchAgent or a Linux user systemd service. It pins the installed host runtime, Node and Docker CLI to the operating-system volume, resolving symlinks before validating their volume identity. Homebrew-only or external Node runtimes are rejected for persistent monitor installation. Provide an internal supported Node installation first. Linux user services require an active user manager; arrange login/lingering according to your host policy. macOS LaunchAgents start at user login, not before login.
 
@@ -92,6 +92,20 @@ stackarr storage migrate rollback --yes
 `storage down --yes` is the recovery path when normal `down` is blocked by an incomplete migration or missing disk. It stops and removes only this project's containers without loading the relocated database. It never removes Docker volumes.
 
 Repeat the original `migrate run SOURCE DESTINATION --yes` command to resume an interrupted copy or cutover. Before cutover, rollback restores the original policy and leaves partial destination data untouched. After completed cutover, rollback refuses a destination that has changed since migration. If services have written new state, use a new verified backup or a deliberate reverse migration instead. Do not erase the policy/journal or force-delete directories to bypass a failed safety check.
+
+## Reporting capacity without making a disk a lifecycle dependency
+
+The Disk Space page and `get_disk_usage` include configured storage paths, enabled service bind mounts and local native media-server library locations. They do not enumerate every connected removable device. The backup destination remains listed for on-demand backups even if the scheduled backup switches are off. Each row identifies its owning service, use, and verification state. An unavailable capacity is not evidence that a disk is unmounted.
+
+The matching host monitor automatically reconciles authoritative configured storage at startup, at least once a minute, and on each capacity report. No per-drive `observe` command is needed. It reads the installed configuration and local authenticated library APIs itself. A bridge request cannot supply new paths to authorize. Unrelated removable disks are not scanned or enrolled.
+
+Capacity identities are kept in `STATE_ROOT/storage-capacity-identities.json`, separately from protected lifecycle roots. Each existing configured path is pinned to its resolved host path, filesystem and volume UUID. Removed associations immediately stop authorizing reports. Their identity pins remain, so removing and re-adding a path cannot silently accept a replacement disk. Replacements, symlink retargeting, missing paths and permission failures retain null capacity and require host review. Do not delete the ledger to bypass a mismatch.
+
+One bounded asynchronous report gathers exact-path proofs. Host mount identity is checked around measurement, capacity is not reused from a previous request, and stale or invalid responses are rejected. Compatible verified backing volumes share one row while each association retains its own outcome. Guest overlays and Docker named volumes never masquerade as host disks. The monitor safety loop runs separately from the capacity worker.
+
+`observe` remains an explicit compatibility command for a separately approved reporting root. It does not enable backup schedules or add lifecycle dependencies. `protect` is different: it makes an absent disk a reason to stop the managed project. Automatic capacity reconciliation never calls `protect` and never changes either backup switch.
+
+Native library discovery requires an existing supported credential. Headless macOS discovery does not request Node access to native Plex preferences. If no token is configured, library discovery is reported unavailable while independently configured storage still works. A missing host monitor, authoritative database or local API is a coverage gap, not evidence that a disk is unmounted. Initial host monitor installation or OS consent remains a separate prerequisite.
 
 ## Missing disk or unavailable monitor
 

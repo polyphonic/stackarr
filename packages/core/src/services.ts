@@ -239,8 +239,11 @@ function postgresConnectionLabel(raw: string | undefined) {
 }
 
 export function getServices(): ServiceSummary[] {
-  const env = readEnv();
-  const settings = readSettings();
+  return servicesFromEnv(readEnv(), readSettings());
+}
+
+/** Build the service registry from supplied configuration without opening the settings database. */
+export function servicesFromEnv(env: StackarrEnv, settings?: StackarrSettings): ServiceSummary[] {
   const moviesMode = flag(env.ENABLE_MOVIES, true) ? 'docker' : 'disabled';
   const tvMode = flag(env.ENABLE_TV_SHOWS, true) ? 'docker' : 'disabled';
   const musicMode = flag(env.ENABLE_LIDARR, true) ? 'docker' : 'disabled';

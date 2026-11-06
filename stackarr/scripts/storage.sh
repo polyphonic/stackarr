@@ -26,11 +26,11 @@ case "$command" in
         node "$CONTROL" prepare "$POLICY" "${2:-stackarr}" --yes
         printf 'Managed automatic container restarts are disabled. Install the storage monitor before the next start.\n'
         ;;
-    protect)
-        [[ $# == 2 && "$2" == --yes ]] || fail 'Usage: stackarr storage protect /absolute/existing/path --yes'
+    protect|observe)
+        [[ $# == 2 && "$2" == --yes ]] || fail 'Usage: stackarr storage protect|observe /absolute/existing/path --yes'
         [[ -f "$POLICY" ]] || fail 'Run storage prepare first'
         stackarr_runtime_is_container && fail 'Volume enrollment must run on the Docker host'
-        node "$CONTROL" protect "$POLICY" "$1" --yes
+        node "$CONTROL" "$command" "$POLICY" "$1" --yes
         ;;
     stop|down)
         [[ "${1:-}" == --yes ]] || fail 'Usage: stackarr storage stop|down --yes'
@@ -72,6 +72,7 @@ case "$command" in
             'stackarr storage status|check' \
             'stackarr storage prepare --yes [compose-project]' \
             'stackarr storage protect /absolute/existing/path --yes' \
+            'stackarr storage observe /absolute/existing/path --yes (capacity only, no lifecycle dependency)' \
             'stackarr storage install --yes' \
             'stackarr storage stop --yes' \
             'stackarr storage down --yes' \

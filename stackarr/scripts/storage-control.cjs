@@ -3,7 +3,27 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
+let capacityWorker = null;
+function startCapacityWorker(file, request) {
+  if (capacityWorker) return;
+  const child = spawn(process.execPath, [path.join(__dirname, 'storage-capacity.cjs'), file, request], {
+    stdio: 'ignore', detached: true
+  });
+  capacityWorker = child;
+  const timer = setTimeout(() => {
+    try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Already exited. */ }
+  }, 9000);
+  const clear = () => {
+    // exec timeouts may kill a shell before its descendants. Reap the entire
+    // dedicated worker group even on an early exit, never an unrelated process.
+    if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Already exited. */ } }
+    clearTimeout(timer);
+    if (capacityWorker === child) capacityWorker = null;
+  };
+  child.once('error', clear);
+  child.once('exit', clear);
+}
 const policy = require('./storage-policy.cjs');
 
 function atomic(file, value) {
@@ -130,14 +150,34 @@ function protect(file, root) {
   const roots = current.roots.filter((entry) => entry.path !== record.path);
   policy.writePolicy(file, { ...current, roots: [...roots, record] });
 }
-// Capacity queries are restricted to the enrolled roots (or the internal
-// control-state directory). Never accept a caller-chosen host filesystem path.
-function usageForRoot(file, requested, run = execFileSync) {
-  const roots = policy.readPolicy(file).roots;
+const within = (child, parent) => child === parent || child.startsWith(`${parent.replace(/\/$/, '')}/`);
+function capacityRoot(current, requested) {
+  return [...current.roots, ...(current.observations || [])]
+    .filter(entry => within(requested, entry.path))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+}
+// An enrolled ancestor authorizes inspection, but is never proof of a child.
+// A nested mount or escaping symlink needs its own explicit enrollment.
+function usageForRoot(file, requested, run = execFileSync, verify = policy.verifyRoot) {
+  if (typeof requested !== 'string' || !path.isAbsolute(requested) || /[\0\r\n]/.test(requested) ||
+      requested.split('/').some(part => part === '.' || part === '..')) throw new Error('Unenrolled capacity path');
+  const current = policy.readPolicy(file);
   const state = path.dirname(file);
-  const record = roots.find((entry) => entry.path === requested);
-  if (requested !== state && !record) throw new Error('Unenrolled capacity path');
-  const target = record ? record.realPath : state;
+  const record = capacityRoot(current, requested);
+  if (!within(requested, state) && !record) throw new Error('Unenrolled capacity path');
+  // Observations are checked here, never in the lifecycle stop guard.
+  if (record) verify(record, { allowReadOnly: (current.observations || []).includes(record) });
+  const exactRecord = () => {
+    const exact = requested === record.path ? record : policy.captureRoot(requested, { allowReadOnly: true });
+    if (!within(exact.realPath, record.realPath) || exact.mountPoint !== record.mountPoint ||
+        exact.uuid !== record.uuid || exact.filesystem !== record.filesystem)
+      throw new Error('capacity path identity changed or escaped enrollment');
+    return exact;
+  };
+  const identity = record ? exactRecord() : null;
+  const target = identity ? identity.realPath : fs.realpathSync(requested);
+  if (!record && (!within(target, fs.realpathSync(state)) || fs.statSync(target).dev !== fs.statSync(state).dev))
+    throw new Error('capacity path identity changed or escaped enrollment');
   const output = run(process.platform === 'darwin' ? '/bin/df' : 'df', ['-kP', target], {
     encoding: 'utf8',
     timeout: 2500,
@@ -156,13 +196,65 @@ function usageForRoot(file, requested, run = execFileSync) {
     (record && match[5] !== record.mountPoint)
   )
     throw new Error('Invalid host capacity');
+  if (record) {
+    verify(record, { allowReadOnly: (current.observations || []).includes(record) });
+    if (exactRecord().realPath !== target) throw new Error('capacity path symlink retargeted');
+  } else if (fs.realpathSync(requested) !== target || fs.statSync(target).dev !== fs.statSync(state).dev) {
+    throw new Error('capacity path symlink retargeted');
+  }
   return {
     filesystem: match[1],
+    requestedPath: requested,
+    realPath: target,
+    ...(identity ? { volumeId: identity.uuid } : {}),
     totalKilobytes: Number(match[2]),
     availableKilobytes: Number(match[3]),
     usedPercent: Number(match[4]),
     mountPoint: match[5]
   };
+}
+function observe(file, root) {
+  const current = policy.readPolicy(file);
+  const record = policy.captureRoot(root, { allowReadOnly: true });
+  policy.writePolicy(file, {
+    ...current,
+    observations: [...(current.observations || []).filter(entry => entry.path !== record.path), record]
+  });
+}
+function capacityFailure(error, record) {
+  if (['EACCES', 'EPERM'].includes(error.code)) return 'permission-denied';
+  if (record?.mountPoint) {
+    try {
+      fs.realpathSync(record.mountPoint);
+    } catch (mountError) {
+      if (['EACCES', 'EPERM'].includes(mountError.code)) return 'permission-denied';
+      if (mountError.code === 'ENOENT') return 'unmounted';
+      return 'probe-unavailable';
+    }
+    try {
+      // Identify a parent-filesystem fallback before requiring a UUID or a
+      // supported filesystem: an unmounted disk may leave its directory on
+      // tmpfs or another filesystem that cannot supply a volume identity.
+      const output = execFileSync(process.platform === 'darwin' ? '/bin/df' : 'df', ['-kP', record.mountPoint], {
+        encoding: 'utf8', timeout: 2500, stdio: ['ignore', 'pipe', 'ignore']
+      });
+      const mountedAt = output.trim().split(/\r?\n/).at(-1)?.match(/\d+%\s+(.+)$/)?.[1];
+      if (!mountedAt || !path.isAbsolute(mountedAt)) return 'probe-unavailable';
+      if (mountedAt !== record.mountPoint) return 'unmounted';
+      const actual = policy.inspectVolume(record.mountPoint);
+      if (actual.mountPoint !== record.mountPoint) return 'unmounted';
+      if (actual.uuid !== record.uuid || actual.filesystem !== record.filesystem) return 'stale-identity';
+    } catch (mountError) {
+      if (['EACCES', 'EPERM'].includes(mountError.code)) return 'permission-denied';
+      // An OS probe can itself fail with ENOENT (for example missing findmnt).
+      // Without mount proof, do not diagnose a missing leaf or borrow capacity.
+      return 'probe-unavailable';
+    }
+  }
+  if (error.code === 'ENOENT') return 'missing';
+  if (/Unenrolled/.test(error.message)) return 'not-enrolled';
+  if (/symlink retargeted|identity changed|path does not belong to reported mount/.test(error.message)) return 'stale-identity';
+  return 'probe-unavailable';
 }
 function respond(file, check = checkHost, now = Date.now) {
   const dir = bridgeDir(file);
@@ -188,6 +280,12 @@ function respond(file, check = checkHost, now = Date.now) {
         now() - request.at > 10000
       )
         continue;
+      if (request.operation === 'capacity-report') {
+        // Capacity is independent of lifecycle roots. Keep discovery and native
+        // probes out of the monitor safety loop and bound the whole worker tree.
+        startCapacityWorker(file, entry);
+        continue;
+      }
       let ready = false;
       try {
         check(file);
@@ -196,11 +294,13 @@ function respond(file, check = checkHost, now = Date.now) {
         /* Fail closed without leaking OS errors. */
       }
       let usage;
+      let status = ready ? 'available' : 'guard-unavailable';
       if (ready && request.operation === 'usage') {
         try {
           usage = usageForRoot(file, request.path);
-        } catch {
+        } catch (error) {
           ready = false;
+          status = capacityFailure(error, capacityRoot(policy.readPolicy(file), request.path));
         }
       } else if (request.operation !== undefined) ready = false;
       atomic(path.join(dir, `${nonce}.response`), {
@@ -208,6 +308,7 @@ function respond(file, check = checkHost, now = Date.now) {
         digest: request.digest,
         ready,
         at: now(),
+        ...(request.operation === 'usage' ? { status } : {}),
         ...(usage ? { usage } : {})
       });
       fs.unlinkSync(entry);
@@ -290,6 +391,7 @@ function composeOverride(file, source, rendered) {
 async function watch(file) {
   const project = projectName(file); // Retain containment scope after policy/marker loss.
   let stopped = false;
+  let nextCapacityReconciliation = 0;
   for (;;) {
     try {
       checkHost(file);
@@ -308,6 +410,10 @@ async function watch(file) {
     }
     try {
       respond(file);
+      if (!capacityWorker && Date.now() >= nextCapacityReconciliation) {
+        startCapacityWorker(file, '--reconcile');
+        nextCapacityReconciliation = Date.now() + 60000;
+      }
     } catch {
       console.error('Storage responder unavailable.');
     }
@@ -320,6 +426,7 @@ async function watch(file) {
   }
 }
 module.exports = {
+  projectName,
   checkHost,
   checkGuest,
   prepare,
@@ -330,6 +437,8 @@ module.exports = {
   composeOverride,
   bridgeDir,
   usageForRoot
+  ,observe,
+  capacityFailure
 };
 if (require.main === module) {
   (async () => {
@@ -341,6 +450,7 @@ if (require.main === module) {
     } else if (command === 'guest-check') await checkGuest(file);
     else if (command === 'prepare' && arg && process.argv[5] === '--yes') prepare(file, arg);
     else if (command === 'protect' && arg && process.argv[5] === '--yes') protect(file, arg);
+    else if (command === 'observe' && arg && process.argv[5] === '--yes') observe(file, arg);
     else if (command === 'stop' && arg === '--yes') console.log(`Stopped ${stopProject(file)} managed containers`);
     else if (command === 'down' && arg === '--yes')
       console.log(`Removed ${removeProject(file)} managed containers; volumes retained`);
