@@ -850,7 +850,7 @@ services:
       HOST: 0.0.0.0
       TZ: ${TIMEZONE:-Etc/UTC}
       DATABASE_URL: ${TRACEARR_DATABASE_URL:-postgres://tracearr:stackarr@database:5432/tracearr}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${TRACEARR_REDIS_URL:-redis://redis:6379}
       JWT_SECRET: ${TRACEARR_JWT_SECRET:-}
       COOKIE_SECRET: ${TRACEARR_COOKIE_SECRET:-}
       CORS_ORIGIN: ${TRACEARR_CORS_ORIGIN:-*}
@@ -908,7 +908,7 @@ services:
       TZ: ${TIMEZONE:-Etc/UTC}
       DB_TYPE: ${SEERR_DB_TYPE:-postgres}
       DB_HOST: ${SEERR_POSTGRES_HOST:-database}
-      DB_PORT: 5432
+      DB_PORT: ${SEERR_POSTGRES_PORT:-5432}
       DB_NAME: ${SEERR_POSTGRES_DATABASE:-seerr}
       DB_USER: ${SEERR_POSTGRES_USER:-seerr}
       DB_PASS: ${SEERR_POSTGRES_PASSWORD:-stackarr}
@@ -1314,14 +1314,14 @@ services:
     image: ${IMMICH_SERVER_IMAGE:-ghcr.io/immich-app/immich-server}:${IMMICH_VERSION:-release}
     environment:
       TZ: ${TIMEZONE:-Etc/UTC}
-      DB_HOSTNAME: database
-      DB_PORT: 5432
+      DB_HOSTNAME: ${IMMICH_DB_HOSTNAME:-database}
+      DB_PORT: ${IMMICH_DB_PORT:-5432}
       DB_USERNAME: ${IMMICH_DB_USERNAME:-immich}
       DB_PASSWORD: ${IMMICH_DB_PASSWORD:-stackarr}
       DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME:-immich}
       DB_VECTOR_EXTENSION: ${IMMICH_DB_VECTOR_EXTENSION:-pgvector}
-      REDIS_HOSTNAME: redis
-      REDIS_PORT: 6379
+      REDIS_HOSTNAME: ${IMMICH_REDIS_HOST:-redis}
+      REDIS_PORT: ${IMMICH_REDIS_PORT:-6379}
       IMMICH_MACHINE_LEARNING_URL: http://immich-ml:3003
     volumes:
       - "${IMMICH_UPLOAD_LOCATION:-./.stackarr/media/Pictures}:/data"

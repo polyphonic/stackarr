@@ -270,14 +270,24 @@ export function servicesFromEnv(env: StackarrEnv, settings?: StackarrSettings): 
       experience: 'infrastructure',
       notes: ['Primary dashboard/API overseeing this homelab and its configured apps.']
     }),
-    service('database', 'support', 'docker', Number(env.DATABASE_HOST_PORT ?? 5433), settings, {
-      localUrl: undefined,
-      browserUrl: undefined,
-      experience: 'infrastructure',
-      notes: [
-        'PostgreSQL 18 with TimescaleDB and pgvector; Stackarr creates separate databases for itself and supported apps.'
-      ]
-    }),
+    service(
+      'database',
+      'support',
+      ['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE) ? 'native' : 'docker',
+      Number(env.DATABASE_HOST_PORT ?? 5433),
+      settings,
+      {
+        dockerService: ['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE) ? undefined : 'database',
+        localUrl: undefined,
+        browserUrl: undefined,
+        experience: 'infrastructure',
+        notes: [
+          ['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE)
+            ? 'External PostgreSQL endpoint; Stackarr does not manage this engine or provision its databases.'
+            : 'PostgreSQL 18 with TimescaleDB and pgvector; Stackarr creates separate databases for itself and supported apps.'
+        ]
+      }
+    ),
     service(
       'transmission',
       'download',
@@ -503,12 +513,26 @@ export function servicesFromEnv(env: StackarrEnv, settings?: StackarrSettings): 
         ]
       }
     ),
-    service('redis', 'support', sharedRedisMode, undefined, settings, {
-      browserUrl: undefined,
-      localUrl: undefined,
-      experience: 'infrastructure',
-      notes: ['Shared Redis container used by Immich, RomM, Tracearr, and other supported services.']
-    }),
+    service(
+      'redis',
+      'support',
+      sharedRedisMode === 'docker' && ['external', 'independent'].includes(env.REDIS_DEPLOYMENT_MODE)
+        ? 'native'
+        : sharedRedisMode,
+      undefined,
+      settings,
+      {
+        dockerService: ['external', 'independent'].includes(env.REDIS_DEPLOYMENT_MODE) ? undefined : 'redis',
+        browserUrl: undefined,
+        localUrl: undefined,
+        experience: 'infrastructure',
+        notes: [
+          ['external', 'independent'].includes(env.REDIS_DEPLOYMENT_MODE)
+            ? 'External Redis endpoint; Stackarr does not manage this engine.'
+            : 'Shared Redis container used by Immich, RomM, Tracearr, and other supported services.'
+        ]
+      }
+    ),
     mediaServer('plex', plexMode, 32400, env.PLEX_CONFIG_PATH, env, settings),
     mediaServer('jellyfin', jellyfinMode, 8096, env.JELLYFIN_CONFIG_PATH, env, settings),
     service('backup', 'support', flag(env.ENABLE_BACKUP, true) ? 'native' : 'disabled', undefined, settings, {

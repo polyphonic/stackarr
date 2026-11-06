@@ -1,7 +1,14 @@
 import { execFile } from 'node:child_process';
 import * as nodeCrypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { defaultStackarrAppRoot, type InstallMode, type StackarrEnv, type TorrentClient, writeEnvConfig } from '../env';
+import {
+  defaultStackarrAppRoot,
+  type InstallMode,
+  readEnv,
+  type StackarrEnv,
+  type TorrentClient,
+  writeEnvConfig
+} from '../env';
 import {
   accountUsernameValidationError,
   portablePasswordValidationError,
@@ -683,6 +690,18 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
     };
   }
 
+  const existing = readEnv();
+  if (['external', 'independent'].includes(existing.POSTGRES_DEPLOYMENT_MODE) && existing.TRACEARR_DATABASE_URL) {
+    envPatch.TRACEARR_DATABASE_URL = existing.TRACEARR_DATABASE_URL;
+    for (const key of [
+      'TRACEARR_POSTGRES_USER',
+      'TRACEARR_POSTGRES_PASSWORD',
+      'TRACEARR_POSTGRES_DATABASE',
+      'TRACEARR_DB_PASSWORD'
+    ]) {
+      if (existing[key]) envPatch[key] = existing[key];
+    }
+  }
   writeEnvConfig(envPatch);
   writeSettings({
     setup: { onboardingComplete: false, installMode: 'fresh' },

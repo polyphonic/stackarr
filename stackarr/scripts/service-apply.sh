@@ -52,6 +52,15 @@ validate_runtime_service() {
     esac
 }
 
+runtime_database_service_owned() {
+    case "$1" in
+        database) [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] ;;
+        redis) [[ "${REDIS_DEPLOYMENT_MODE:-managed}" == managed ]] ;;
+        youtarr-db) [[ "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" == managed ]] ;;
+        *) return 0 ;;
+    esac
+}
+
 apply_service_runtime() {
     [[ "$#" -gt 0 ]] || {
         usage
@@ -60,6 +69,12 @@ apply_service_runtime() {
 
     print_header "Stackarr Service Runtime Apply"
     load_env
+    # Reject the entire request before snapshots, reconciliation, or removals.
+    local requested
+    for requested in "$@"; do
+        validate_runtime_service "$requested"
+        runtime_database_service_owned "$requested" || fail "$requested is externally managed; runtime apply is unavailable"
+    done
     write_compose_env_file
     ensure_docker_runtime
     # A single-app change must not restart the controller's own database.
@@ -105,7 +120,7 @@ apply_service_runtime() {
 
         if ! runtime_service_enabled "$service"; then
             stackarr_compose --profile "$profile" rm -f -s "$service" >/dev/null 2>&1 || true
-            if [[ "$service" == "youtarr" ]]; then
+            if [[ "$service" == "youtarr" ]] && runtime_database_service_owned youtarr-db; then
                 stackarr_compose --profile youtarr rm -f -s youtarr-db >/dev/null 2>&1 || true
             fi
             ok "$service is disabled; its stale container was removed"
@@ -118,7 +133,9 @@ apply_service_runtime() {
                 ensure_dir "$TDARR_CACHE_ROOT"
                 ;;
             romm|immich|immich-ml|tracearr)
-                stackarr_compose "${profile_args[@]}" up -d redis
+                if runtime_database_service_owned redis; then
+                    stackarr_compose "${profile_args[@]}" up -d redis
+                fi
                 ;;
             questarr)
                 if [[ "${QUESTARR_ROMM_IMPORT_ENABLED:-false}" == "true" ]]; then
@@ -132,7 +149,9 @@ apply_service_runtime() {
                 ensure_dir "$YOUTARR_CONFIG_ROOT"
                 ensure_dir "$YOUTARR_JOBS_ROOT"
                 ensure_dir "$YOUTARR_IMAGES_ROOT"
-                stackarr_compose "${profile_args[@]}" up -d --wait youtarr-db
+                if runtime_database_service_owned youtarr-db; then
+                    stackarr_compose "${profile_args[@]}" up -d --wait youtarr-db
+                fi
                 ;;
             homeassistant|frigate)
                 ensure_dir "$MOSQUITTO_CONFIG_ROOT"

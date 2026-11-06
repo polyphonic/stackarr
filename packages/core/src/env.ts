@@ -1,6 +1,7 @@
 import * as nodeCrypto from 'node:crypto';
 import * as nodeFs from 'node:fs';
 import { databaseExists, readJsonSetting, writeJsonSetting } from './database';
+import { projectDatabaseEndpoints } from './databaseEndpoints';
 import { validatePostgresBackupConfig } from './postgresBackup';
 
 export type InstallMode = 'disabled' | 'native' | 'docker';
@@ -418,6 +419,13 @@ export const managedEnvDefaults: StackarrEnv = {
   YOUTARR_DB_IMAGE: 'mariadb:10.11',
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
+  POSTGRES_DEPLOYMENT_MODE: 'managed',
+  POSTGRES_HOST: '',
+  POSTGRES_PORT: '',
+  REDIS_DEPLOYMENT_MODE: 'managed',
+  REDIS_HOST: '',
+  REDIS_PORT: '',
+  YOUTARR_DATABASE_DEPLOYMENT_MODE: 'managed',
   DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
   DATABASE_PGDATA: '',
   DATABASE_BIND_IP: '127.0.0.1',
@@ -560,7 +568,15 @@ export function readEnv(): StackarrEnv {
 }
 
 export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
-  const merged = mergeEditableEnv(readEnv(), next);
+  const current = readEnv();
+  const merged = projectDatabaseEndpoints(mergeEditableEnv(current, next));
+  if (
+    merged.STACKARR_PG_BACKUP_ENABLED === 'true' &&
+    current.STACKARR_PG_BACKUP_ENABLED === 'true' &&
+    (merged.POSTGRES_DEPLOYMENT_MODE !== current.POSTGRES_DEPLOYMENT_MODE ||
+      Object.keys(merged).some((key) => key.startsWith('STACKARR_PG_BACKUP_SOURCE_') && merged[key] !== current[key]))
+  )
+    throw new Error('Disable scheduled PostgreSQL backup before changing its source mode or capabilities.');
   validatePostgresBackupConfig(merged);
   if (merged.ROMM_WEB_SERVER_CONCURRENCY && !/^(?:[1-9]|1[0-6])$/.test(merged.ROMM_WEB_SERVER_CONCURRENCY)) {
     throw new Error('ROMM_WEB_SERVER_CONCURRENCY must be an integer from 1 to 16 or empty.');
@@ -763,7 +779,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   merged.TDARR_MEDIA_ROOT ||= merged.MEDIA_ROOT;
   if (flagValue(merged.ENABLE_TDARR)) merged.TDARR_API_KEY ||= `tapi_${nodeCrypto.randomBytes(24).toString('hex')}`;
 
-  return merged;
+  return projectDatabaseEndpoints(merged);
 }
 
 function applyAppDependencyRules(env: StackarrEnv) {
@@ -922,11 +938,12 @@ function applyTracearrSecretDefaults(env: StackarrEnv, databasePassword: string)
 
   env.TRACEARR_DB_PASSWORD = env.TRACEARR_DB_PASSWORD || databasePassword || nodeCrypto.randomBytes(24).toString('hex');
   env.TRACEARR_POSTGRES_PASSWORD = env.TRACEARR_POSTGRES_PASSWORD || env.TRACEARR_DB_PASSWORD;
-  env.TRACEARR_DATABASE_URL = buildPostgresUrl(
-    env.TRACEARR_POSTGRES_USER || 'tracearr',
-    env.TRACEARR_POSTGRES_PASSWORD,
-    env.TRACEARR_POSTGRES_DATABASE || 'tracearr'
-  );
+  if (!env.TRACEARR_DATABASE_URL || !['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE || 'managed'))
+    env.TRACEARR_DATABASE_URL = buildPostgresUrl(
+      env.TRACEARR_POSTGRES_USER || 'tracearr',
+      env.TRACEARR_POSTGRES_PASSWORD,
+      env.TRACEARR_POSTGRES_DATABASE || 'tracearr'
+    );
   env.TRACEARR_JWT_SECRET = env.TRACEARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
   env.TRACEARR_COOKIE_SECRET = env.TRACEARR_COOKIE_SECRET || nodeCrypto.randomBytes(32).toString('hex');
   env.TRACEARR_ADMIN_USERNAME = env.TRACEARR_ADMIN_USERNAME || env.USERNAME || 'stackarr';
@@ -1115,7 +1132,8 @@ export function isSecretKey(key: string): boolean {
     normalized === 'STACKARR_PG_BACKUP_URL' ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
-    normalized.endsWith('_DB_URL')
+    normalized.endsWith('_DB_URL') ||
+    normalized === 'TRACEARR_REDIS_URL'
   );
 }
 

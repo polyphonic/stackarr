@@ -378,6 +378,7 @@ load_postgres_runtime_config_from_host() {
 
 load_postgres_runtime_config_through_database() {
     [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
     stackarr_runtime_is_container && return 1
     command -v python3 >/dev/null 2>&1 || return 1
 
@@ -424,11 +425,12 @@ load_postgres_runtime_config() {
         return $?
     fi
     load_postgres_runtime_config_through_app || \
-        load_postgres_runtime_config_through_database || \
+        { [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] && load_postgres_runtime_config_through_database; } || \
         load_postgres_runtime_config_from_host
 }
 
 installed_managed_database() {
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
     local project source
     project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' database 2>/dev/null)" || return 1
     [[ "$project" == "${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}" ]] || return 1
@@ -438,6 +440,8 @@ installed_managed_database() {
 
 start_existing_database_for_runtime_config() {
     [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] || return 1
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
+    installed_managed_database || return 1
     ensure_docker_runtime
     docker inspect database >/dev/null 2>&1 || return 1
     docker start database >/dev/null
@@ -477,6 +481,7 @@ import sys
 
 env_file = sys.argv[1]
 include = re.compile(
+    r"^(POSTGRES_(DEPLOYMENT_MODE|HOST|PORT)|REDIS_(DEPLOYMENT_MODE|HOST|PORT))$|"
     r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
     r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
@@ -654,17 +659,23 @@ load_env() {
     # Host commands cannot resolve the Compose-only `database` hostname. Read
     # PostgreSQL-backed settings through the running Stackarr controller first.
     # An installed database is authoritative even when bootstrap flags are stale.
-    if ! stackarr_runtime_is_container && installed_managed_database; then
+    if ! stackarr_runtime_is_container && [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] && installed_managed_database; then
         STACKARR_DATABASE_MODE=postgres
     fi
     if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]]; then
+        # A URL is authoritative even if an inherited mode still says SQLite.
+        STACKARR_DATABASE_MODE=postgres
         if ! load_postgres_runtime_config; then
             # Host startup may still need to start the existing database first.
             # Containers already have database access: never use inherited
             # credentials to reconcile roles or recreate services after a failed read.
-            if stackarr_runtime_is_container; then
+            # Native/external installations need not retain any SQLite file.
+            # Missing legacy state is never evidence of a fresh installation.
+            if stackarr_runtime_is_container || [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != managed ]]; then
                 fail "Unable to load authoritative PostgreSQL runtime settings; refusing inherited credentials"
             fi
+            # Managed first-install and stopped-database recovery retain the
+            # existing startup contract. External stores must already exist.
         fi
     else
         load_sqlite_runtime_config
@@ -1311,6 +1322,10 @@ load_env() {
     export ENABLE_QUESTARR QUESTARR_URL QUESTARR_APP_URL QUESTARR_ALLOWED_ORIGINS QUESTARR_IMAGE QUESTARR_BIND_IP QUESTARR_WEB_PORT QUESTARR_CONTAINER_PORT QUESTARR_DATA_ROOT QUESTARR_LIBRARY_ROOT QUESTARR_SQLITE_DB_PATH QUESTARR_JWT_SECRET QUESTARR_IGDB_CLIENT_ID QUESTARR_IGDB_CLIENT_SECRET QUESTARR_ROMM_IMPORT_ENABLED QUESTARR_ROMM_TRANSFER_MODE QUESTARR_ROMM_DOWNLOAD_ROOT QUESTARR_ROMM_LIBRARY_ROOT QUESTARR_ROMM_LIBRARY_MOUNT_MODE QUESTARR_ROMM_CLAMAV_ENABLED QUESTARR_ROMM_CLAMAV_HOST QUESTARR_ROMM_CLAMAV_PORT QUESTARR_ROMM_IMPORT_LIMIT
     export ENABLE_YOUTARR YOUTARR_URL YOUTARR_API_KEY YOUTARR_IMAGE YOUTARR_DB_IMAGE YOUTARR_BIND_IP YOUTARR_WEB_PORT YOUTARR_CONTAINER_PORT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT YOUTARR_IMAGES_ROOT YOUTARR_DB_HOST YOUTARR_DB_PORT YOUTARR_DB_NAME YOUTARR_DB_USER YOUTARR_DB_PASSWORD YOUTARR_DB_ROOT_PASSWORD YOUTARR_LOGIN_ENABLED YOUTARR_ADMIN_USERNAME YOUTARR_ADMIN_PASSWORD YOUTARR_TRUST_PROXY YOUTARR_LOG_LEVEL YOUTARR_PLEX_URL
     export TRACEARR_URL TRACEARR_API_KEY TRACEARR_IMAGE TRACEARR_BIND_IP TRACEARR_PORT TRACEARR_DB_PASSWORD TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_DATABASE_URL TRACEARR_JWT_SECRET TRACEARR_COOKIE_SECRET TRACEARR_LOG_LEVEL TRACEARR_CORS_ORIGIN
+    export POSTGRES_DEPLOYMENT_MODE POSTGRES_HOST POSTGRES_PORT REDIS_DEPLOYMENT_MODE REDIS_HOST REDIS_PORT YOUTARR_DATABASE_DEPLOYMENT_MODE YOUTARR_DB_HOST YOUTARR_DB_PORT TRACEARR_REDIS_URL IMMICH_DB_HOSTNAME IMMICH_DB_PORT IMMICH_REDIS_HOST IMMICH_REDIS_PORT
+    local endpoint_exports
+    endpoint_exports="$(node "$ROOT_DIR/scripts/database-endpoints.cjs" env)" || fail 'Invalid database endpoint settings'
+    eval "$endpoint_exports"
     export PULSARR_API_KEY BOOKORBIT_TOKEN BAZARR_API_KEY TINYMEDIAMANAGER_API_KEY TIDARR_URL TIDARR_API_KEY
     export TRANSMISSION_PASSWORD QBITTORRENT_PASSWORD PROWLARR_PASSWORD RADARR_PASSWORD RADARR4K_PASSWORD SONARR_PASSWORD SONARR4K_PASSWORD LIDARR_PASSWORD BAZARR_PASSWORD PULSARR_PASSWORD BOOKORBIT_PASSWORD TINYMEDIAMANAGER_PASSWORD
 }
@@ -1334,6 +1349,7 @@ from pathlib import Path
 
 target = Path(sys.argv[1])
 include = re.compile(
+    r"^(POSTGRES_(DEPLOYMENT_MODE|HOST|PORT)|REDIS_(DEPLOYMENT_MODE|HOST|PORT))$|"
     r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
     r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
@@ -1376,6 +1392,7 @@ def is_secret(key: str) -> bool:
         or key in {"STACKARR_DATABASE_URL", "STACKARR_LOG_DATABASE_URL", "STACKARR_PG_BACKUP_URL", "DATABASE_URL"}
         or key.endswith("_DATABASE_URL")
         or key.endswith("_DB_URL")
+        or key.endswith("_REDIS_URL")
     )
 
 lines = [
@@ -1835,6 +1852,7 @@ database_mode_is_postgres() {
 }
 
 database_required() {
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != external && "${POSTGRES_DEPLOYMENT_MODE:-managed}" != independent ]] || return 1
     if database_mode_is_postgres; then
         return 0
     fi
@@ -2228,7 +2246,7 @@ remove_disabled_optional_containers() {
         stackarr_compose --profile romm rm -f -s mariadb mysql romm-db >/dev/null 2>&1 || true
     fi
 
-    if ! optional_service_enabled youtarr; then
+    if [[ "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" == managed ]] && ! optional_service_enabled youtarr; then
         stackarr_compose --profile youtarr rm -f -s youtarr-db >/dev/null 2>&1 || true
     fi
 }
@@ -2444,6 +2462,16 @@ prepare_compose_runtime_file() {
     fi
     chmod 0644 "$agregarr_guard_target"
     prepare_storage_compose_override "$project_dir" "$source_file"
+    if [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != managed || "${REDIS_DEPLOYMENT_MODE:-managed}" != managed || "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" != managed ]]; then
+        local rendered endpoint_override="$project_dir/database-endpoints-override.yml"
+        rendered="$(docker compose --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" --project-directory "$project_dir" -f "$compose_file" --profile '*' config --format json)" || fail 'Cannot render managed database topology'
+        if ! printf '%s' "$rendered" | node "$ROOT_DIR/scripts/database-endpoints.cjs" override > "$endpoint_override.tmp.$$"; then
+            rm -f "$endpoint_override.tmp.$$"
+            fail 'Cannot generate external endpoint topology'
+        fi
+        chmod 600 "$endpoint_override.tmp.$$"
+        mv "$endpoint_override.tmp.$$" "$endpoint_override"
+    fi
 }
 
 migrate_legacy_image_volume() {
@@ -2551,6 +2579,10 @@ stackarr_compose() {
     if [[ -n "${STACKARR_STORAGE_POLICY:-}" ]]; then
         storage_args=(-f "$project_dir/storage-override.json")
     fi
+    if [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != managed || "${REDIS_DEPLOYMENT_MODE:-managed}" != managed || "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" != managed ]]; then
+        storage_args+=(-f "$project_dir/database-endpoints-override.yml")
+    fi
+
 
     if [[ "$migrate_volumes" == true ]]; then
         migrate_legacy_image_volumes

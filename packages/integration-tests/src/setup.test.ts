@@ -678,7 +678,7 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
     compose,
     /DATABASE_URL: \$\{TRACEARR_DATABASE_URL:-postgres:\/\/tracearr:stackarr@database:5432\/tracearr\}/
   );
-  assert.match(compose, /REDIS_URL: redis:\/\/redis:6379/);
+  assert.match(compose, /REDIS_URL: \$\{TRACEARR_REDIS_URL:-redis:\/\/redis:6379\}/);
   assert.match(compose, /container_name: redis/);
   assert.match(compose, /image: \$\{REDIS_IMAGE:-redis:8\.8\.0-alpine\}/);
   assert.doesNotMatch(compose, /container_name: database-init/);
@@ -708,8 +708,8 @@ test('configure script bootstraps Pulsarr but does not create personal router ru
   assert.match(compose, /\$\{IMMICH_UPLOAD_LOCATION:-\.\/\.stackarr\/media\/Pictures\}:\/data/);
   assert.match(compose, /\$\{IMMICH_EXTERNAL_LIBRARY_LOCATION:-immich-external\}:\/external:ro/);
   assert.match(compose, /^  immich-external:$/m);
-  assert.match(compose, /DB_HOSTNAME: database/);
-  assert.match(compose, /REDIS_HOSTNAME: redis/);
+  assert.match(compose, /DB_HOSTNAME: \$\{IMMICH_DB_HOSTNAME:-database\}/);
+  assert.match(compose, /REDIS_HOSTNAME: \$\{IMMICH_REDIS_HOST:-redis\}/);
   assert.doesNotMatch(compose, /container_name: immich-postgres/);
   assert.doesNotMatch(compose, /container_name: immich-redis/);
   assert.match(compose, /ROMM_DB_DRIVER: \$\{ROMM_DB_DRIVER:-postgresql\}/);
