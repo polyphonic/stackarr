@@ -30,7 +30,7 @@ The dashboard stays available at the same time, so you can move between chat and
 ```bash
 mkdir -p stackarr && cd stackarr
 curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
-docker compose --profile stackarr up -d app
+docker compose --profile stackarr up -d stackarr
 ```
 
 Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
@@ -40,7 +40,7 @@ Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
 Generate the Codex connection from the running container:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile admin
+docker exec stackarr /app/bin/stackarr mcp config codex --profile admin
 ```
 
 Run the generated command on the Docker host. Replace `codex` with `claude`, `lmstudio`, `chatgpt`, `hermes`, or `openclaw` to generate that client's setup. ChatGPT uses an outbound-only Secure MCP Tunnel so the homelab does not need a public MCP port.

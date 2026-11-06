@@ -8,10 +8,24 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { changedEnvironmentKeys, composeServicesAffectedByEnvironment } from '../../core/src/composeRuntime.ts';
+import type { StackarrEnv } from '../../core/src/env.ts';
+import { servicesFromEnv } from '../../core/src/services.ts';
 
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
+
+test('controller identity matches rendered Compose and service registry', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  assert.match(compose, /^  stackarr:\n    profiles:\n      - stackarr\n    container_name: stackarr$/m);
+  assert.match(compose, /^      STACKARR_CONTAINER_NAME: stackarr$/m);
+  assert.doesNotMatch(compose, /^  app:$/m);
+  const service = servicesFromEnv({ STACKARR_WEB_PORT: '7777' } as StackarrEnv).find(
+    (item) => item.name === 'stackarr'
+  );
+  assert.equal(service?.dockerService, 'stackarr');
+  assert.match(compose, /^  app-updater:$/m);
+});
 
 test('new installs default to Portless links without duplicating global link settings on each app', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
@@ -574,7 +588,7 @@ test('Portless apply restarts a mismatched proxy and keeps the configured suffix
     const hostnames = routes.map((route: { hostname: string }) => route.hostname).sort();
     const calls = await readFile(callsFile, 'utf8');
 
-    assert.ok(hostnames.includes('app.stack'));
+    assert.ok(hostnames.includes('stackarr.stack'));
     assert.ok(hostnames.includes('custom.stackarr'));
     assert.ok(!hostnames.includes('app.stackarr'));
     assert.ok(!hostnames.includes('maintainerr.stack'));
@@ -732,9 +746,9 @@ test('host MCP commands use the authoritative running Stackarr controller', asyn
   assert.match(bin, /ensure_docker_runtime <\/dev\/null/);
   assert.match(bin, /stackarr_compose ps --services --status running <\/dev\/null/);
   assert.match(bin, /while IFS= read -r service/);
-  assert.match(bin, /\[\[ "\$service" == "app" \]\] && app_is_running=true/);
+  assert.match(bin, /\[\[ "\$service" == "stackarr" \]\] && app_is_running=true/);
   assert.doesNotMatch(bin, /grep -Fxq app/);
-  assert.match(bin, /stackarr_compose exec -T app node packages\/mcp\/dist\/index\.js/);
+  assert.match(bin, /stackarr_compose exec -T stackarr node packages\/mcp\/dist\/index\.js/);
 });
 
 test('Cloudflare route apply uses route-only command outside host-only runner gate', async () => {
@@ -931,7 +945,7 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.match(directory, /Container update queued for/);
   assert.match(script, /write_compose_env_file/);
   assert.match(script, /up -d --wait --wait-timeout 180 --force-recreate --no-deps "\$service"/);
-  assert.match(script, /app\|database\|transmission/);
+  assert.match(script, /stackarr\|database\|transmission/);
 });
 
 test('security credential apply leaves the Stackarr controller running', async () => {
@@ -945,11 +959,11 @@ test('security credential apply leaves the Stackarr controller running', async (
   assert.doesNotMatch(serviceList, /services\+=\("redis"\)/);
   assert.match(script, /Stackarr controller stays online because it reads account credentials from runtime storage/);
   assert.match(script, /STACKARR_TASK_HANDOFF_STARTED/);
-  assert.match(script, /docker inspect "\$\{STACKARR_CONTAINER_NAME:-app\}" --format '\{\{\.Config\.Image\}\}'/);
+  assert.match(script, /docker inspect "\$\{STACKARR_CONTAINER_NAME:-stackarr\}" --format '\{\{\.Config\.Image\}\}'/);
   assert.match(script, /STACKARR_IMAGE="\$worker_image" STACKARR_SECURITY_HANDOFF=true/);
   assert.doesNotMatch(script, /STACKARR_SECURITY_HANDOFF=true stackarr_compose/);
   assert.match(script, /app-updater security apply-worker/);
-  assert.match(script, /up -d --force-recreate --no-deps app/);
+  assert.match(script, /up -d --force-recreate --no-deps stackarr/);
   assert.match(
     script,
     /task_database_url="\$\{STACKARR_DATABASE_URL:-\}"[\s\S]*?start_security_apply_worker "\$task_database_url"/

@@ -598,7 +598,7 @@ function service(
     localUrl: port ? `http://127.0.0.1:${port}` : undefined,
     browserUrl: mode !== 'disabled' && port ? browserUrl(name, port, settings) : undefined,
     status: mode === 'disabled' ? 'disabled' : 'configured',
-    dockerService: name === 'stackarr' ? undefined : name,
+    dockerService: name,
     ...extras
   };
 }
@@ -722,7 +722,7 @@ function hostnameLabel(name: string) {
   }
 
   if (name === 'stackarr') {
-    return 'app';
+    return 'stackarr';
   }
 
   if (name === 'tinymediamanager') {

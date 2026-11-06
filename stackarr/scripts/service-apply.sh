@@ -14,7 +14,7 @@ EOF
 
 runtime_service_profile() {
     case "$1" in
-        app) printf 'stackarr\n' ;;
+        stackarr) printf 'stackarr\n' ;;
         radarr) printf 'movies\n' ;;
         sonarr) printf 'tv\n' ;;
         immich-ml) printf 'immich\n' ;;
@@ -25,7 +25,7 @@ runtime_service_profile() {
 
 runtime_service_enabled() {
     case "$1" in
-        app) stackarr_web_enabled ;;
+        stackarr) stackarr_web_enabled ;;
         database) database_required ;;
         transmission|qbittorrent) torrent_client_enabled "$1" ;;
         plex) [[ "$(lowercase "${PLEX_INSTALL_MODE:-native}")" == "docker" ]] ;;
@@ -43,7 +43,7 @@ runtime_service_enabled() {
 
 validate_runtime_service() {
     case "$1" in
-        app|database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|tdarr|maintainerr|cleanuparr|mosquitto|homeassistant|frigate|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
+        stackarr|database|transmission|qbittorrent|prowlarr|sonarr|sonarr4k|radarr|radarr4k|bazarr|tinymediamanager|pulsarr|tdarr|maintainerr|cleanuparr|mosquitto|homeassistant|frigate|agregarr|tracearr|redis|seerr|plex|jellyfin|recyclarr|flaresolverr|lidarr|tidarr|bookorbit|romm|questarr|youtarr|youtarr-db|immich|immich-ml)
             return 0
             ;;
         *)

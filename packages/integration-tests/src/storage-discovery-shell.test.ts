@@ -44,8 +44,9 @@ stackarr_compose() { exit 96; }
 printf '%s\\n' "$*" >> "$DOCKER_LOG"
 if [ "$1" = ps ]; then
   case "$*" in
-    *'label=com.docker.compose.project=stackarr'*'label=com.docker.compose.service=app'*) printf '%s' "\${CONTROLLER_IDS:-}";;
-    *) exit 2;;
+    *'label=com.docker.compose.project=stackarr'*'label=com.docker.compose.service=stackarr'*) [ "\${CONTROLLER_SERVICE:-stackarr}" = stackarr ] && printf '%s' "\${CONTROLLER_IDS:-}" || :;;
+    *'label=com.docker.compose.project=stackarr'*'label=com.docker.compose.service=app'*) [ "\${CONTROLLER_SERVICE:-stackarr}" = app ] && printf '%s' "\${CONTROLLER_IDS:-}"; printf '%s' "\${CONTROLLER_IDS_OLD:-}";;
+    *) :;;
   esac
 elif [ "$1" = exec ] && [ "$2" = -i ] && [ "$3" = abcdef123456 ] && [ "$4" = node ] && [ "$5" = - ] && [ "$6" = --capacity-discovery ]; then
   printf '%s' "$CONTROLLER_RECORD"
@@ -82,6 +83,10 @@ else exit 3; fi
     const before = readFileSync(dbPath);
     assert.deepEqual(JSON.parse(run(policy).stdout), { log: null });
     assert.deepEqual(JSON.parse(run(policy, { CONTROLLER_IDS: 'abcdef123456' }).stdout), { log: 'controller' });
+    assert.deepEqual(JSON.parse(run(policy, { CONTROLLER_IDS: 'abcdef123456', CONTROLLER_SERVICE: 'app' }).stdout), {
+      log: 'controller'
+    });
+    assert.notEqual(run(policy, { CONTROLLER_IDS: 'abcdef123456', CONTROLLER_IDS_OLD: 'abcdef654321' }).status, 0);
     assert.match(readFileSync(dockerLog, 'utf8'), /exec -i abcdef123456 node - --capacity-discovery/);
     assert.notEqual(run(policy, { CONTROLLER_IDS: 'abcdef123456\\nabcdef654321' }).status, 0);
     assert.notEqual(run(policy, { CONTROLLER_IDS: 'abcdef123456', CONTROLLER_RECORD: 'not-json' }).status, 0);

@@ -24,7 +24,7 @@ Stackarr is distributed as a Docker image. Download the Compose file and start t
 ```bash
 mkdir -p stackarr && cd stackarr
 curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
-docker compose --profile stackarr up -d app
+docker compose --profile stackarr up -d stackarr
 ```
 
 Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
@@ -34,7 +34,7 @@ Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
 For Codex, generate the local MCP connection from the running container:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile admin
+docker exec stackarr /app/bin/stackarr mcp config codex --profile admin
 ```
 
 Run the generated command on the Docker host. Use `admin` while the agent sets up infrastructure, then switch to `manage` for normal use. The generator also supports Claude, LM Studio, ChatGPT, Hermes, OpenClaw, and other clients.

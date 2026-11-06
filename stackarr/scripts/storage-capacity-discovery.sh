@@ -14,7 +14,14 @@ reader="$ROOT_DIR/scripts/storage-config-read.cjs"
 # Feed our bounded read-only reader over stdin. No shell or caller path runs in it.
 project="${STACKARR_CAPACITY_PROJECT:-stackarr}"
 [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || fail 'Invalid project'
-ids="$(docker ps -q --filter "label=com.docker.compose.project=$project" --filter 'label=com.docker.compose.service=app' 2>/dev/null)" || ids=''
+ids=''
+for service in stackarr app; do
+    found="$(docker ps -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=$service" 2>/dev/null)" || fail 'Controller discovery unavailable'
+    if [[ -n "$found" ]]; then
+        [[ -z "$ids" ]] || fail 'One authoritative controller required'
+        ids="$found"
+    fi
+done
 [[ -z "$ids" || "$ids" =~ ^[a-f0-9]{12,64}$ ]] || fail 'One authoritative controller required'
 if [[ -n "$ids" ]]; then
     config="$(docker exec -i "$ids" node - --capacity-discovery < "$reader")" || fail 'Authoritative controller configuration unavailable'

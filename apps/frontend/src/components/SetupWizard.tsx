@@ -1437,7 +1437,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               Connect Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client from the Docker host after
               setup. Every client receives the same actions and safety policy.
             </p>
-            <pre>{`docker exec app /app/bin/stackarr mcp config codex --profile admin`}</pre>
+            <pre>{`docker exec stackarr /app/bin/stackarr mcp config codex --profile admin`}</pre>
             <p>Use the admin profile while setting up infrastructure, then switch to manage for everyday use.</p>
           </div>
         )}

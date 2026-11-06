@@ -14,7 +14,7 @@ Choose the backup folder during setup. For an external disk or network share, ma
 Use the dashboard, ask your agent, or run:
 
 ```bash
-docker exec app /app/bin/stackarr backup run
+docker exec stackarr /app/bin/stackarr backup run
 ```
 
 If a required database cannot be read, Stackarr fails the backup instead of creating an incomplete archive.
@@ -58,7 +58,7 @@ Choose `full` when you intentionally want cache-heavy service data and have enou
 Keep the stack quiet during a restore. Start from **Setup → Restore**, ask an admin-profile agent to prepare a dry-run, or use an archive already visible inside the container's backup folder:
 
 ```bash
-docker exec app /app/bin/stackarr backup restore \
+docker exec stackarr /app/bin/stackarr backup restore \
   /path/inside/container/stackarr-backup.tar.gz.enc \
   --backup-key-file /path/inside/container/backup-encryption.key
 ```

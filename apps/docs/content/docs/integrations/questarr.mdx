@@ -57,8 +57,8 @@ The importer fails closed. A missing ClamAV daemon, scan error, infected result,
 Enable it on an existing installation with:
 
 ```bash
-docker exec app /app/bin/stackarr questarr romm-import enable
-docker exec app /app/bin/stackarr questarr apply
+docker exec stackarr /app/bin/stackarr questarr romm-import enable
+docker exec stackarr /app/bin/stackarr questarr apply
 ```
 
 Cleanuparr remains a second layer for risky extensions and downloads that have no Arr content ID. It is not an antivirus engine.
@@ -68,8 +68,8 @@ Cleanuparr remains a second layer for risky extensions and downloads that have n
 Preview or execute an owned-library sync with:
 
 ```bash
-docker exec app /app/bin/stackarr questarr romm-library sync
-docker exec app /app/bin/stackarr questarr romm-library sync --yes --limit 20
+docker exec stackarr /app/bin/stackarr questarr romm-library sync
+docker exec stackarr /app/bin/stackarr questarr romm-library sync --yes --limit 20
 ```
 
 Execution is deliberately limited to 20 writes per run because Questarr protects collection writes with a 30-request-per-minute limiter. Stackarr's scheduler repeats the sync in bounded batches before download reconciliation. Run a RomM scan first when files were added outside RomM; the sync verifies every indexed RomM record against its actual path under the mounted library and cannot identify a file that RomM has never scanned.

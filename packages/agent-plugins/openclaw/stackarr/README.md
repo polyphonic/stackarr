@@ -10,7 +10,7 @@ Because OpenClaw-style plugin layouts vary by runtime, this bundle includes both
 Generate a Docker-host configuration for the authority you want:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config openclaw --profile manage
+docker exec stackarr /app/bin/stackarr mcp config openclaw --profile manage
 ```
 
 Import the generated `mcpServers` entry into OpenClaw. The committed files use the same Docker stdio connection with the default `manage` profile.

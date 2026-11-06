@@ -231,7 +231,7 @@ test('guarded Compose disables daemon restarts and carries proof policy into con
     const config = control.composeOverride(file, path.join(root, 'stackarr/docker-compose.yml'));
     assert.ok(Object.keys(config.services).length > 20);
     for (const service of Object.values(config.services) as { restart: string }[]) assert.equal(service.restart, 'no');
-    for (const name of ['app', 'app-updater']) {
+    for (const name of ['stackarr', 'app-updater']) {
       assert.equal(config.services[name].environment.STACKARR_STORAGE_POLICY, file);
       assert.equal(config.services[name].volumes[0].read_only, true);
       assert.equal(config.services[name].volumes[0].bind.create_host_path, false);

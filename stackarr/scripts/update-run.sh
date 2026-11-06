@@ -76,7 +76,7 @@ enabled_managed_services() {
     configured="$(stackarr_compose "${profile_args[@]}" config --services)" || return 1
     while IFS= read -r service; do
         case "$service" in
-            app|app-updater|database|database-init|image-cleanup)
+            stackarr|app|app-updater|database|database-init|image-cleanup)
                 ;;
             *)
                 printf '%s\n' "$service"
@@ -286,7 +286,7 @@ update_stackarr_app_worker() {
     sleep 2
     update_task_note "Pulling the published Stackarr controller image"
 
-    if ! stackarr_compose --profile stackarr pull --quiet app; then
+    if ! stackarr_compose --profile stackarr pull --quiet stackarr; then
         update_task_note "Stackarr image pull failed; the running controller was left unchanged"
         finish_update_task failed 1
         worker_task_finished=true
@@ -302,7 +302,7 @@ update_stackarr_app_worker() {
     fi
 
     update_task_note "Recreating only the Stackarr controller"
-    if ! stackarr_compose --profile stackarr up -d --force-recreate --no-deps app; then
+    if ! stackarr_compose --profile stackarr up -d --force-recreate --no-deps stackarr; then
         update_task_note "Stackarr recreation failed"
         finish_update_task failed 1
         worker_task_finished=true
@@ -310,7 +310,7 @@ update_stackarr_app_worker() {
     fi
 
     if [[ -f /.dockerenv || -f /run/.containerenv ]]; then
-        health_url="http://app:${STACKARR_WEB_PORT:-7777}/api/v1/health"
+        health_url="http://stackarr:${STACKARR_WEB_PORT:-7777}/api/v1/health"
     else
         health_url="http://127.0.0.1:${STACKARR_WEB_PORT:-7777}/api/v1/health"
     fi

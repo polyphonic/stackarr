@@ -107,27 +107,38 @@ test('configured reports use the current controller namespace, including nested 
     ]
   });
   for (const runtime of ['docker', 'docker-updater', 'host']) {
-    const roots = collectServiceStorage({
-      env: { CONFIG_ROOT: '/config/nested/app', STATE_ROOT: '/config/private/state' } as StackarrEnv,
-      services: [...services],
-      project: 'fixture',
-      runtime,
-      libraries: [],
-      containers: [
-        container('app', '/host/current'),
-        container('app', '/host/stale', false),
-        container('app-updater', '/host/updater')
-      ]
-    });
-    const paths = [...new Set(roots.map((r) => r.path))];
-    if (runtime === 'host') assert.deepEqual(paths, ['/config/nested/app', '/config/private/state']);
-    else assert.deepEqual(paths, [`/host/${runtime === 'docker' ? 'current' : 'updater'}/special/app`]);
-    assert.ok(!paths.some((p) => p.includes('/daemon/') || p.includes('/host/stale')));
+    for (const controllerService of ['stackarr', 'app']) {
+      const roots = collectServiceStorage({
+        env: { CONFIG_ROOT: '/config/nested/app', STATE_ROOT: '/config/private/state' } as StackarrEnv,
+        services: [...services],
+        project: 'fixture',
+        runtime,
+        libraries: [],
+        containers: [
+          container(controllerService, '/host/current'),
+          container('app', '/host/stale', false),
+          container('app-updater', '/host/updater')
+        ]
+      });
+      const paths = [...new Set(roots.map((r) => r.path))];
+      if (runtime === 'host') assert.deepEqual(paths, ['/config/nested/app', '/config/private/state']);
+      else assert.deepEqual(paths, [`/host/${runtime === 'docker' ? 'current' : 'updater'}/special/app`]);
+      assert.ok(!paths.some((p) => p.includes('/daemon/') || p.includes('/host/stale')));
+    }
   }
+  const ambiguous = collectServiceStorage({
+    env: { CONFIG_ROOT: '/config/nested/app' } as StackarrEnv,
+    services: [...services],
+    project: 'fixture',
+    runtime: 'docker',
+    libraries: [],
+    containers: [container('stackarr', '/host/new'), container('app', '/host/old')]
+  });
+  assert.ok(!ambiguous.some((root) => root.path.startsWith('/host/')));
 });
 
 const services = [
-  { name: 'stackarr', mode: 'docker', dockerService: 'app' },
+  { name: 'stackarr', mode: 'docker', dockerService: 'stackarr' },
   { name: 'plex', mode: 'native' },
   { name: 'tdarr', mode: 'docker', dockerService: 'tdarr' },
   { name: 'backup', mode: 'disabled' },

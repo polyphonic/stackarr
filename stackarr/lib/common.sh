@@ -329,7 +329,7 @@ load_postgres_runtime_config_through_app() {
     stackarr_runtime_is_container && return 1
 
     local exports
-    if ! exports="$(stackarr_compose exec -T app sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
+    if ! exports="$(stackarr_compose exec -T stackarr sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
         return 1
     fi
 
@@ -2646,7 +2646,7 @@ refresh_stackarr_web_storage_mounts() {
     local path
     local missing=()
 
-    if ! stackarr_compose "${compose_args[@]}" ps --services --status running 2>/dev/null | grep -qx 'app'; then
+    if ! stackarr_compose "${compose_args[@]}" ps --services --status running 2>/dev/null | grep -qx 'stackarr'; then
         return 0
     fi
 
@@ -2654,7 +2654,7 @@ refresh_stackarr_web_storage_mounts() {
         [[ -n "$path" ]] || continue
         [[ -e "$path" ]] || continue
 
-        if ! stackarr_compose "${compose_args[@]}" exec -T app test -e "$path" >/dev/null 2>&1; then
+        if ! stackarr_compose "${compose_args[@]}" exec -T stackarr test -e "$path" >/dev/null 2>&1; then
             missing+=("$path")
         fi
     done
@@ -2663,7 +2663,7 @@ refresh_stackarr_web_storage_mounts() {
 
     warn "Stackarr web storage mount stale, recreating UI container for: ${missing[*]}"
     write_compose_env_file
-    stackarr_compose "${compose_args[@]}" up -d --force-recreate --no-deps app
+    stackarr_compose "${compose_args[@]}" up -d --force-recreate --no-deps stackarr
 }
 
 canonical_dir() {
@@ -2705,7 +2705,7 @@ set_env_value() {
     command -v node >/dev/null 2>&1 || fail "Missing command: node"
 
     if [[ -n "${STACKARR_DATABASE_URL:-}" ]] && ! stackarr_runtime_is_container; then
-        if stackarr_compose exec -T app bash -lc '
+        if stackarr_compose exec -T stackarr bash -lc '
             node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-write.cjs" "$1" "$2"
             source "$STACKARR_REPO_ROOT/stackarr/lib/common.sh"
             load_env

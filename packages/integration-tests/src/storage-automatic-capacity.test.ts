@@ -107,7 +107,7 @@ test('normal host exporter/responder/report handles unenrolled roots, native API
   });
   fs.writeFileSync(
     path.join(bin, 'docker'),
-    `#!/bin/sh\ncase "$1" in\nps) case "$*" in *label=com.docker.compose.service=app*) exit 0;; *label=com.docker.compose.project=capacity-fixture*) printf 'abcdef123456\\n';; *) exit 9;; esac;;\ninspect) printf '%s\\n' '${inspected}';;\nesac\n`,
+    `#!/bin/sh\ncase "$1" in\nps) case "$*" in *label=com.docker.compose.service=stackarr*) exit 0;; *label=com.docker.compose.service=app*) exit 0;; *label=com.docker.compose.project=capacity-fixture*) printf 'abcdef123456\\n';; *) exit 9;; esac;;\ninspect) printf '%s\\n' '${inspected}';;\nesac\n`,
     { mode: 0o755 }
   );
   fs.mkdirSync(path.join(state, 'compose'));

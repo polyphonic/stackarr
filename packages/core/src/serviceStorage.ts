@@ -56,11 +56,11 @@ export function collectServiceStorage(input: {
   const roots: StorageAssociation[] = [];
   const enabled = services.filter((s) => s.mode !== 'disabled');
   const runtime = input.runtime ?? process.env.STACKARR_RUNTIME;
-  const controllerName = runtime === 'docker-updater' ? 'app-updater' : 'app';
+  const controllerNames = runtime === 'docker-updater' ? ['app-updater'] : ['stackarr', 'app'];
   const controllers = containers.filter(
     (container) =>
       container.Config?.Labels?.['com.docker.compose.project'] === (input.project ?? composeProjectName) &&
-      container.Config?.Labels?.['com.docker.compose.service'] === controllerName &&
+      controllerNames.includes(container.Config?.Labels?.['com.docker.compose.service'] ?? '') &&
       container.State?.Running !== false
   );
   // Do not borrow mounts from a stopped or ambiguous controller replacement.
@@ -108,12 +108,12 @@ export function collectServiceStorage(input: {
     const name = labels['com.docker.compose.service'];
     const owner = enabled.find(
       (s) =>
-        (s.name === 'stackarr' && ['app', 'app-updater'].includes(name)) ||
+        (s.name === 'stackarr' && ['stackarr', 'app', 'app-updater'].includes(name)) ||
         (s.mode === 'docker' &&
           s.dockerService &&
           (name === s.dockerService || name?.startsWith(`${s.dockerService}-`)))
     );
-    if (!owner) continue;
+    if (!owner || (owner.name === 'stackarr' && controllers.length !== 1)) continue;
     for (const mount of container.Mounts ?? []) {
       // Named volumes belong to the daemon, not a host filesystem path. OS plumbing
       // is not application storage and must not pull arbitrary removable disks in.

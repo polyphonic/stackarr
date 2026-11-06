@@ -365,7 +365,7 @@ function composeOverride(file, source, rendered) {
   const text = fs.readFileSync(source, 'utf8').split(/^volumes:\s*$/m)[0];
   const services = {};
   for (const match of text.matchAll(/^  ([a-z][a-z0-9-]*):\s*$/gm)) services[match[1]] = { restart: 'no' };
-  if (!services.app || !services['app-updater']) throw new Error('Unrecognized Compose service layout');
+  if (!services.stackarr || !services['app-updater']) throw new Error('Unrecognized Compose service layout');
   if (rendered) {
     for (const [name, service] of Object.entries(rendered.services || {})) {
       if (!services[name]) throw new Error('Unexpected Compose service');
@@ -378,7 +378,7 @@ function composeOverride(file, source, rendered) {
   // Only the new host paths below need escaping, never the rendered topology.
   const policyPath = file.replaceAll('$', () => '$$');
   const bridgePath = bridgeDir(file).replaceAll('$', () => '$$');
-  for (const name of ['app', 'app-updater']) {
+  for (const name of ['stackarr', 'app-updater']) {
     services[name].environment = { STACKARR_STORAGE_POLICY: policyPath };
     services[name].volumes = [
       ...(services[name].volumes || []),

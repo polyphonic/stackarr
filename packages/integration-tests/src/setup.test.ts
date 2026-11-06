@@ -752,8 +752,8 @@ test('Stackarr dashboard uses mounted runtime config inside Docker', async () =>
   assert.match(compose, /STACKARR_REPO_ROOT: \/app/);
   assert.match(compose, /STACKARR_DATABASE_FILE: \/stackarr-config\/stackarr\.db/);
   assert.match(compose, /\$\{STACKARR_DATABASE_DIR:-\.\/\.stackarr\/config\}:\/stackarr-config/);
-  assert.match(compose, /^  app:$/m);
-  assert.match(compose, /container_name: app/);
+  assert.match(compose, /^  stackarr:$/m);
+  assert.match(compose, /container_name: stackarr/);
   assert.doesNotMatch(compose, /STACKARR_DATABASE_FILE: \$\{STACKARR_DATABASE_FILE/);
   assert.doesNotMatch(compose, /\.\.:\/stackarr-workspace/);
 });

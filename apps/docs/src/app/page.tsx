@@ -273,14 +273,14 @@ export default function LandingPage() {
             <p>Download the Compose file and run the control plane on any Docker-compatible host.</p>
             <LandingCodeBlock>{`curl -fsSL https://stackarr.app/docker-compose.yml \\
   -o docker-compose.yml
-docker compose --profile stackarr up -d app`}</LandingCodeBlock>
+docker compose --profile stackarr up -d stackarr`}</LandingCodeBlock>
           </article>
           <article>
             <h3>2. Connect your assistant</h3>
             <p>Start with approval-backed management, use admin for setup, or deliberately grant full autonomy.</p>
             <LandingCodeBlock>{`codex mcp add stackarr -- \\
   docker exec -i -e STACKARR_MCP_PROFILE=manage \\
-  app /app/bin/stackarr mcp serve`}</LandingCodeBlock>
+  stackarr /app/bin/stackarr mcp serve`}</LandingCodeBlock>
             <p>
               See the <a href="/docs/agent/mcp">MCP connection guides</a> for Claude, Hermes, OpenClaw, and LM Studio.
             </p>

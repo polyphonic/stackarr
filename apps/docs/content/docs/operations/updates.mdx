@@ -21,7 +21,7 @@ Ask an admin-profile agent to back up and update the managed apps, use
 **System → Updates → Update apps**, or run:
 
 ```bash
-docker exec app /app/bin/stackarr update services
+docker exec stackarr /app/bin/stackarr update services
 ```
 
 The app workflow targets managed services explicitly, leaves the Stackarr
@@ -71,7 +71,7 @@ runtime-configurable when an installation needs a deliberate version pin.
 Use **System → Updates → Update Stackarr**, or run:
 
 ```console
-docker exec app /app/bin/stackarr update app
+docker exec stackarr /app/bin/stackarr update app
 ```
 
 The running controller hands this operation to a one-shot maintenance worker.

@@ -13,7 +13,7 @@ Stackarr is distributed as a Docker image and the supplied Compose file is the s
 ```bash
 mkdir -p stackarr && cd stackarr
 curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
-docker compose --profile stackarr up -d app
+docker compose --profile stackarr up -d stackarr
 ```
 
 Open `http://127.0.0.1:7777/setup`.
@@ -36,22 +36,22 @@ STACKARR_WEB_PORT=7777
 Then recreate the app:
 
 ```bash
-docker compose --profile stackarr up -d app
+docker compose --profile stackarr up -d stackarr
 ```
 
 ## Verify
 
 ```bash
-docker compose ps app
-docker compose logs --tail=100 app
-docker exec app /app/bin/stackarr permissions audit
+docker compose ps stackarr
+docker compose logs --tail=100 stackarr
+docker exec stackarr /app/bin/stackarr permissions audit
 ```
 
 ## Update
 
 ```bash
-docker compose pull app
-docker compose --profile stackarr up -d app
+docker compose pull stackarr
+docker compose --profile stackarr up -d stackarr
 ```
 
 For the complete product guide, see [Install Stackarr](https://stackarr.app/docs/installation).
