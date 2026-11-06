@@ -29,6 +29,7 @@ stackarr/config/*.sqlite-wal
 stackarr/config/*.secret
 stackarr/state/
 stackarr/agregarr-placeholder-guard.cjs
+stackarr/scripts/storage-discovery.cjs
 tmp/
 
 # Local deployment credentials and Worker artifacts

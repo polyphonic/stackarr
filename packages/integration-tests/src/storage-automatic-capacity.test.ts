@@ -149,27 +149,29 @@ test('normal host exporter/responder/report handles unenrolled roots, native API
   process.env.HOME = home;
   process.env.PATH = `${bin}:${saved.PATH}`;
   process.env.STACKARR_STORAGE_POLICY = file;
-  const sourceRoot = path.resolve(import.meta.dirname, '../../../stackarr');
-  const installedBin = execFileSync(
-    '/bin/bash',
-    ['-c', 'source "$1/lib/common.sh"; install_managed_host_runtime', 'bash', sourceRoot],
-    {
-      env: { HOME: home, PATH: process.env.PATH, TMPDIR: process.env.TMPDIR },
-      encoding: 'utf8',
-      timeout: 15000
-    }
-  ).trim();
-  assert(installedBin.startsWith(`${home}/`));
-  const installedScripts = path.resolve(path.dirname(installedBin), '../scripts');
-  assert.deepEqual(
-    fs.readFileSync(path.join(installedScripts, 'storage-discovery.cjs')),
-    fs.readFileSync(path.join(sourceRoot, 'scripts/storage-discovery.cjs'))
-  );
-  const installedControl = require(path.join(installedScripts, 'storage-control.cjs'));
-  let ticks = 0;
-  const tick = setInterval(() => ticks++, 10);
-  const responder = setInterval(() => installedControl.respond(file), 50);
+  let tick: ReturnType<typeof setInterval> | undefined;
+  let responder: ReturnType<typeof setInterval> | undefined;
   try {
+    const sourceRoot = path.resolve(import.meta.dirname, '../../../stackarr');
+    const installedBin = execFileSync(
+      '/bin/bash',
+      ['-c', 'source "$1/lib/common.sh"; install_managed_host_runtime', 'bash', sourceRoot],
+      {
+        env: { HOME: home, PATH: process.env.PATH, TMPDIR: process.env.TMPDIR },
+        encoding: 'utf8',
+        timeout: 15000
+      }
+    ).trim();
+    assert(installedBin.startsWith(`${home}/`));
+    const installedScripts = path.resolve(path.dirname(installedBin), '../scripts');
+    assert.deepEqual(
+      fs.readFileSync(path.join(installedScripts, 'storage-discovery.cjs')),
+      fs.readFileSync(path.join(sourceRoot, 'scripts/storage-discovery.cjs'))
+    );
+    const installedControl = require(path.join(installedScripts, 'storage-control.cjs'));
+    let ticks = 0;
+    tick = setInterval(() => ticks++, 10);
+    responder = setInterval(() => installedControl.respond(file), 50);
     const start = performance.now();
     const rows = await configuredDiskUsages(env);
     assert(performance.now() - start < 8000);
@@ -194,6 +196,7 @@ test('normal host exporter/responder/report handles unenrolled roots, native API
     clearInterval(tick);
     clearInterval(responder);
     db.close();
+    server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key];

@@ -11,7 +11,7 @@
   },
   "private": true,
   "scripts": {
-    "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test src/*.test.ts",
+    "test": "pnpm --filter @stackarr/mcp build && NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "type": "module"
