@@ -8,6 +8,7 @@ import { seerrGet } from '../clients/seerr';
 import { servarrGet } from '../clients/servarr';
 import { type ArrInstance, maybeServiceBaseUrl, selectedDownloader, serviceApiKey } from '../clients/serviceConfig';
 import { readEnv } from '../env';
+import { composeProjectName } from '../paths';
 import { redactSecrets } from '../safety/redaction';
 import { getServices } from '../services';
 import { readTasks } from '../tasks';
@@ -237,6 +238,11 @@ export type HealthFinding = {
 };
 
 /** Only Stackarr's Compose project is authoritative; never match unrelated same-named containers. */
+function healthComposeProject(): string {
+  const env = readEnv();
+  return env.STACKARR_COMPOSE_PROJECT_NAME || env.COMPOSE_PROJECT_NAME || composeProjectName;
+}
+
 export function containerHealthFindings(
   services: ReturnType<typeof getServices>,
   overview: DockerContainerOverview,
@@ -288,7 +294,7 @@ export function containerHealthFindings(
             source: 'container',
             service: service.name,
             status: 'warning',
-            message: 'Docker restart policy is not configured.'
+            message: 'Docker restart policy is disabled or unavailable; active storage-guard recovery was not verified.'
           });
         return findings;
       });
@@ -346,7 +352,7 @@ export async function getHealthReportAction() {
           : `Application health is ${check.status}.`
       });
     }
-  findings.push(...containerHealthFindings(services, docker, readEnv().STACKARR_COMPOSE_PROJECT_NAME || 'stackarr'));
+  findings.push(...containerHealthFindings(services, docker, healthComposeProject()));
   const tasks = readTasks().filter(
     (task) => !task.reviewedAt && (task.status === 'failed' || task.status === 'blocked')
   );
@@ -553,7 +559,7 @@ async function checkSpecialHealth(service: string, displayName: string, kind: st
     } else if (kind === 'container') {
       const overview = await getDockerContainerOverviewAction();
       if (!overview.dockerAvailable) return probeFailure(service, displayName, scope);
-      const project = readEnv().COMPOSE_PROJECT_NAME || process.env.COMPOSE_PROJECT_NAME || 'stackarr';
+      const project = healthComposeProject();
       const container = overview.containers.find(
         (item) => item.composeProject === project && item.composeService === service
       );
