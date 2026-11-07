@@ -262,11 +262,19 @@ function respond(file, check = checkHost, now = Date.now) {
   for (const name of fs.readdirSync(dir).slice(0, 256)) {
     if (!/^[a-f0-9]{32}\.(request|response)$/.test(name)) continue;
     const entry = path.join(dir, name);
-    const stat = fs.lstatSync(entry);
-    if (!stat.isFile()) continue;
-    if (now() - stat.mtimeMs > 30000) {
-      fs.unlinkSync(entry);
-      continue;
+    let stat;
+    try {
+      stat = fs.lstatSync(entry);
+      if (!stat.isFile()) continue;
+      if (now() - stat.mtimeMs > 30000) {
+        fs.unlinkSync(entry);
+        continue;
+      }
+    } catch (error) {
+      // Clients remove their own request/response after consuming a proof.
+      // A listed entry may disappear before stat or expired-entry cleanup.
+      if (error.code === 'ENOENT') continue;
+      throw error;
     }
     if (!name.endsWith('.request') || stat.size > 1024) continue;
     try {
