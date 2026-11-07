@@ -1,5 +1,4 @@
 @import "tailwindcss" source(none);
-@import "@heroui/styles";
 @import "@stackarr/ui/styles.css";
 @source "../";
 

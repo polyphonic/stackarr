@@ -1,3 +1,5 @@
+@import "@heroui/styles";
+
 /* Shared Stackarr HeroUI V3 theme: 4px spacing, 12px fields, and 24px surfaces. */
 :root {
   --background: var(--bg, #f6f8fb);
