@@ -76,13 +76,32 @@ enabled_managed_services() {
     configured="$(stackarr_compose "${profile_args[@]}" config --services)" || return 1
     while IFS= read -r service; do
         case "$service" in
-            stackarr|app|app-updater|database|database-init|image-cleanup)
+            app|app-updater|database|database-init|image-cleanup)
                 ;;
             *)
                 printf '%s\n' "$service"
                 ;;
         esac
     done <<< "$configured"
+}
+
+# Assess release-specific known incompatibilities before pulling; an absent
+# release entry warns but does not freeze routine application updates.
+check_image_compatibility() {
+    local service ids
+    local -a identities=()
+    for service in "$@"; do
+        ids="$(stackarr_compose "${profile_args[@]}" ps --all -q "$service")" || fail "Cannot inspect $service for update"
+        if [[ -n "$ids" ]]; then
+            [[ "$ids" =~ ^[[:xdigit:]]{12,64}$ ]] || fail "$service has ambiguous container identity"
+            identities+=("$service=$ids")
+        else
+            identities+=("$service")
+        fi
+    done
+    stackarr_compose "${profile_args[@]}" config --format json | \
+        COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-stackarr}" node "$ROOT_DIR/scripts/image-update-gate.cjs" "${identities[@]}" || \
+        fail "Known incompatible image transition held; running containers unchanged"
 }
 
 PULLED_MANAGED_SERVICES=()
@@ -213,7 +232,8 @@ update_managed_services() {
         return 0
     fi
 
-    ok "Pulling latest images for ${#services[@]} managed services"
+    check_image_compatibility "${services[@]}"
+    ok "Pulling images for ${#services[@]} managed services"
     pull_managed_services "${services[@]}"
 
     "$ROOT_DIR/scripts/naming.sh" prestart || true
@@ -249,13 +269,16 @@ stackarr_image_is_local() {
 }
 
 start_app_update_worker() {
-    # Compose 2.27 (bundled in the controller) has no run --pull option.
-    # Pull explicitly before launch and fail closed, never use a stale worker
-    # after a failed pull or let Compose start unrelated dependencies.
-    if ! stackarr_compose --profile maintenance pull --quiet app-updater; then
-        fail "Stackarr updater image pull failed; the running controller was left unchanged"
+    # The updater must not start from a stale moving-tag image: an older
+    # controller image may not know the app-worker command yet. Compose pulls
+    # the worker before it starts, then the worker pulls/recreates the app.
+    local -a run_args=(--profile maintenance run --pull always --quiet-pull -d --rm)
+    if [[ -n "${STACKARR_RELEASE_COMPATIBILITY_FILE:-}" ]]; then
+        case "$STACKARR_RELEASE_COMPATIBILITY_FILE" in
+            "$CONFIG_ROOT"/*|"$STATE_ROOT"/*) run_args+=(-e "STACKARR_RELEASE_COMPATIBILITY_FILE=$STACKARR_RELEASE_COMPATIBILITY_FILE") ;;
+            *) fail "Release matrix must be within shared config/state for updater handoff" ;;
+        esac
     fi
-    local -a run_args=(--profile maintenance run --no-deps -d --rm)
     if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
         run_args+=(-e "STACKARR_UPDATE_TASK_ID=$STACKARR_TASK_ID")
     fi
@@ -287,9 +310,11 @@ update_stackarr_app_worker() {
     # Let the dashboard command finish its final output write before the
     # independent worker begins appending to the same task.
     sleep 2
-    update_task_note "Pulling the published Stackarr controller image"
+    update_task_note "Checking known release incompatibilities before controller pull"
+    check_image_compatibility app
+    update_task_note "Pulling the Stackarr controller image"
 
-    if ! stackarr_compose --profile stackarr pull --quiet stackarr; then
+    if ! stackarr_compose --profile stackarr pull --quiet app; then
         update_task_note "Stackarr image pull failed; the running controller was left unchanged"
         finish_update_task failed 1
         worker_task_finished=true
@@ -305,7 +330,7 @@ update_stackarr_app_worker() {
     fi
 
     update_task_note "Recreating only the Stackarr controller"
-    if ! stackarr_compose --profile stackarr up -d --force-recreate --no-deps stackarr; then
+    if ! stackarr_compose --profile stackarr up -d --force-recreate --no-deps app; then
         update_task_note "Stackarr recreation failed"
         finish_update_task failed 1
         worker_task_finished=true
@@ -313,7 +338,7 @@ update_stackarr_app_worker() {
     fi
 
     if [[ -f /.dockerenv || -f /run/.containerenv ]]; then
-        health_url="http://stackarr:${STACKARR_WEB_PORT:-7777}/api/v1/health"
+        health_url="http://app:${STACKARR_WEB_PORT:-7777}/api/v1/health"
     else
         health_url="http://127.0.0.1:${STACKARR_WEB_PORT:-7777}/api/v1/health"
     fi
@@ -333,6 +358,7 @@ update_stackarr_app() {
         return 0
     fi
 
+    check_image_compatibility app
     start_app_update_worker
 }
 

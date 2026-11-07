@@ -7,11 +7,20 @@ import { commandStartedTaskHandoff, createQueuedTask, type StackarrTask, updateT
 
 const execFileAsync = promisify(execFile);
 
+function rejectUpdateOverrides(command: CommandName, args?: string[]) {
+  if ((command === 'Update' || command === 'UpdateStackarr') && args?.length) {
+    throw new Error(
+      'Update commands do not accept override arguments; authorize the exact image transition separately.'
+    );
+  }
+}
+
 export async function runStackarrCommandAction(
   input: { command: CommandName; args?: string[] } & DangerousConfirmation
 ) {
   const definition = commandRegistry[input.command];
   if (!definition) throw new Error(`Unknown Stackarr command: ${input.command}`);
+  rejectUpdateOverrides(input.command, input.args);
   if (definition.disruptive) requireDangerousConfirmation(input);
   const { stdout, stderr } = await execFileAsync(stackarrBin, [...definition.args, ...(input.args ?? [])], {
     timeout: 10 * 60 * 1000
@@ -34,6 +43,7 @@ export const runBackupAction = () => queueStackarrCommandAction({ command: 'Back
 export function queueStackarrCommandAction(input: { command: CommandName; args?: string[] } & DangerousConfirmation) {
   const definition = commandRegistry[input.command];
   if (!definition) throw new Error(`Unknown Stackarr command: ${input.command}`);
+  rejectUpdateOverrides(input.command, input.args);
   if (definition.disruptive) requireDangerousConfirmation(input);
 
   const task = createQueuedTask(definition.name, definition.label);

@@ -1273,6 +1273,17 @@ load_env() {
     : "${BACKUP_ENCRYPTION:=keyfile}"
     : "${STACKARR_PG_BACKUP_ENABLED:=false}"
     : "${STACKARR_PG_BACKUP_URL:=}"
+    : "${STACKARR_PG_BACKUP_RETENTION_COUNT:=4}"
+    : "${STACKARR_PG_BACKUP_SOURCE_HOST:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_PORT:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_USER:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_PASSWORD:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_TLS_MODE:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS:=}"
     : "${STACKARR_PG_BACKUP_SCHEDULE:=daily}"
     : "${STACKARR_PG_BACKUP_TIME:=03:00}"
     : "${STACKARR_PG_BACKUP_WEEKDAY:=Sun}"
@@ -1314,7 +1325,8 @@ load_env() {
     esac
     export TORRENT_ARCHIVE_ROOT
     export STACKARR_REPO_ROOT STACKARR_DATABASE_FILE STACKARR_DATABASE_DIR STACKARR_DATABASE_MODE STACKARR_DATABASE_URL STACKARR_LOG_DATABASE_URL STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD COMPOSE_PROJECT_NAME TIMEZONE PUID PGID MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH PLEX_INSTALL_MODE JELLYFIN_INSTALL_MODE JELLYFIN_CONFIG_PATH ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM BOOKORBIT_JWT_SECRET BOOKORBIT_SETUP_TOKEN BOOKORBIT_DATABASE_URL BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD BOOKORBIT_IMAGE BOOKORBIT_BIND_IP BOOKORBIT_WEB_PORT BOOKORBIT_CONTAINER_PORT BOOKORBIT_URL BOOKORBIT_APP_URL BOOKORBIT_CLIENT_URL BOOKS_ROOT DATABASE_IMAGE DATABASE_PGDATA DATABASE_BIND_IP DATABASE_HOST_PORT DATABASE_NAME DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD REDIS_IMAGE SEERR_DB_TYPE SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD PULSARR_DB_TYPE PULSARR_DB_PATH PULSARR_DB_HOST PULSARR_DB_PORT PULSARR_DB_NAME PULSARR_DB_USER PULSARR_DB_PASSWORD PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD BAZARR_POSTGRES_ENABLED BAZARR_POSTGRES_HOST BAZARR_POSTGRES_PORT BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD PROWLARR_POSTGRES_HOST PROWLARR_POSTGRES_PORT PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD RADARR_POSTGRES_HOST RADARR_POSTGRES_PORT RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD RADARR4K_POSTGRES_HOST RADARR4K_POSTGRES_PORT RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD SONARR_POSTGRES_HOST SONARR_POSTGRES_PORT SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD SONARR4K_POSTGRES_HOST SONARR4K_POSTGRES_PORT SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD LIDARR_POSTGRES_HOST LIDARR_POSTGRES_PORT LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD ENABLE_TINYMEDIAMANAGER ENABLE_RECYCLARR ENABLE_FLARESOLVERR ENABLE_TIDARR ENABLE_SEERR STACKARR_CONFIGURE_SEERR ENABLE_PULSARR ENABLE_TRACEARR STACKARR_MOVIE_PROFILE_PRESET STACKARR_MOVIE_4K_PROFILE_PRESET STACKARR_TV_PROFILE_PRESET STACKARR_TV_4K_PROFILE_PRESET STACKARR_MUSIC_PROFILE_PRESET STACKARR_MOVIE_DEFAULT_PROFILE STACKARR_MOVIE_4K_DEFAULT_PROFILE STACKARR_TV_DEFAULT_PROFILE STACKARR_TV_4K_DEFAULT_PROFILE STACKARR_MUSIC_DEFAULT_PROFILE ENABLE_BACKUP STACKARR_API_KEY STACKARR_DOCKER_CONTEXT USERNAME PASSWORD USER_EMAIL TRANSMISSION_URL QBITTORRENT_URL PROWLARR_URL RADARR_URL RADARR_4K_URL RADARR4K_URL SONARR_URL SONARR_4K_URL SONARR4K_URL LIDARR_URL BAZARR_URL SEERR_URL PULSARR_URL TRACEARR_URL PLEX_URL JELLYFIN_URL TINYMEDIAMANAGER_URL FLARESOLVERR_URL TRANSMISSION_IMAGE QBITTORRENT_IMAGE RADARR_IMAGE SONARR_IMAGE PROWLARR_IMAGE BAZARR_IMAGE SEERR_IMAGE RECYCLARR_IMAGE FLARESOLVERR_IMAGE LIDARR_IMAGE TIDARR_IMAGE TINYMEDIAMANAGER_IMAGE TRANSMISSION_BIND_IP TRANSMISSION_TORRENT_PORT QBITTORRENT_BIND_IP QBITTORRENT_WEBUI_PORT QBITTORRENT_TORRENT_PORT PLEX_IMAGE PLEX_DOCKER_PORT JELLYFIN_IMAGE JELLYFIN_DOCKER_PORT STACKARR_WEB_ENABLED STACKARR_IMAGE STACKARR_BIND_IP STACKARR_WEB_PORT STACKARR_TELEMETRY_FEATURE_ENABLED STACKARR_TELEMETRY_ENABLED STACKARR_TELEMETRY_ENDPOINT STACKARR_TELEMETRY_CHANNEL STACKARR_TELEMETRY_INGEST_KEY PULSARR_IMAGE SEERR_BIND_IP PULSARR_BIND_IP PULSARR_PORT PULSARR_AUTHENTICATION_METHOD PULSARR_COOKIE_SECURED PREFERRED_TORRENT_CLIENT BACKUP_ROOT BACKUP_STAGING_ROOT BACKUP_TIME BACKUP_SCHEDULE BACKUP_WEEKDAY BACKUP_RETENTION_COUNT BACKUP_ENCRYPTION ENABLE_SCHEDULED_UPDATES UPDATE_TIME UPDATE_WEEKDAY DOWNLOAD_INCOMPLETE_NAME DOWNLOAD_COMPLETE_NAME RADARR_CATEGORY RADARR_4K_CATEGORY SONARR_CATEGORY SONARR_4K_CATEGORY LIDARR_CATEGORY PLEX_BACKUP_MODE CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARED_TUNNEL_NAME CLOUDFLARED_TUNNEL_ID CLOUDFLARED_METRICS_PORT CLOUDFLARED_BIN CLOUDFLARED_TOKEN_FILE CLOUDFLARED_KEEP_LAN CLOUDFLARE_ROUTE_MANAGED CLOUDFLARE_TUNNEL_ROUTES CLOUDFLARE_ACCESS_ENABLED CLOUDFLARE_ACCESS_ALLOWED_EMAILS CLOUDFLARE_ACCESS_SESSION_DURATION SEERR_ORIGIN_URL STACKARR_SERVICE_URL_MODE STACKARR_SERVICE_URL_SCHEME STACKARR_SERVICE_URL_HOST_SUFFIX STACKARR_UNIFY_SERVICE_URLS
-    export STACKARR_PG_BACKUP_ENABLED STACKARR_PG_BACKUP_URL STACKARR_PG_BACKUP_SCHEDULE STACKARR_PG_BACKUP_TIME STACKARR_PG_BACKUP_WEEKDAY STACKARR_PG_BACKUP_TIMEZONE
+    export STACKARR_PG_BACKUP_ENABLED STACKARR_PG_BACKUP_URL STACKARR_PG_BACKUP_RETENTION_COUNT STACKARR_PG_BACKUP_SCHEDULE STACKARR_PG_BACKUP_TIME STACKARR_PG_BACKUP_WEEKDAY STACKARR_PG_BACKUP_TIMEZONE
+    export STACKARR_PG_BACKUP_SOURCE_HOST STACKARR_PG_BACKUP_SOURCE_PORT STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR STACKARR_PG_BACKUP_SOURCE_USER STACKARR_PG_BACKUP_SOURCE_PASSWORD STACKARR_PG_BACKUP_SOURCE_TLS_MODE STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS
     export ENABLE_TDARR TDARR_URL TDARR_API_URL TDARR_IMAGE TDARR_BIND_IP TDARR_WEB_PORT TDARR_SERVER_PORT TDARR_API_KEY TDARR_AUTH TDARR_INTERNAL_NODE TDARR_START_PAUSED TDARR_NODE_NAME TDARR_CACHE_ROOT TDARR_MEDIA_ROOT
     export ENABLE_MAINTAINERR MAINTAINERR_URL MAINTAINERR_IMAGE MAINTAINERR_BIND_IP MAINTAINERR_PORT MAINTAINERR_BASE_PATH MAINTAINERR_GITHUB_TOKEN MAINTAINERR_CLEANUP_PRESETS MAINTAINERR_PLEX_SERVER_URL MAINTAINERR_JELLYFIN_SERVER_URL MAINTAINERR_QBITTORRENT_URL
     export ENABLE_CLEANUPARR CLEANUPARR_URL CLEANUPARR_IMAGE CLEANUPARR_BIND_IP CLEANUPARR_PORT CLEANUPARR_AUTO_CONFIGURE CLEANUPARR_MALWARE_CRON CLEANUPARR_DATABASE_PROVIDER CLEANUPARR_POSTGRES_HOST CLEANUPARR_POSTGRES_PORT CLEANUPARR_POSTGRES_DATABASE CLEANUPARR_POSTGRES_USER CLEANUPARR_POSTGRES_PASSWORD CLAMAV_IMAGE CLAMAV_DATA_ROOT
@@ -2481,36 +2493,26 @@ prepare_compose_runtime_file() {
 }
 
 migrate_legacy_image_volume() {
-    local container_name="$1"
-    local destination="$2"
-    local volume_key="$3"
+    local container_name="$1" destination="$2" volume_key="$3"
     local project_name="${COMPOSE_PROJECT_NAME:-stackarr}"
-    local target_volume="${project_name}_${volume_key}"
-    local migration_image="${STACKARR_IMAGE:-polyphonic/stackarr:alpha}"
-    local mount_info source_volume was_running cleanup_target_on_failure=false
-
-    mount_info="$(
-        docker inspect \
-            --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{printf \"%s|%s\" .Type .Name}}{{end}}{{end}}" \
-            "$container_name" 2>/dev/null || true
-    )"
+    local target_volume="${project_name}_${volume_key}" mount_info source_volume was_running
+    local helper_image target_created=false
+    mount_info="$(docker inspect --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{printf \"%s|%s\" .Type .Name}}{{end}}{{end}}" "$container_name" 2>/dev/null || true)"
     [[ "$mount_info" == volume\|* ]] || return 0
-
     source_volume="${mount_info#volume|}"
     [[ -n "$source_volume" && "$source_volume" != "$target_volume" ]] || return 0
-    case "$source_volume$target_volume" in
-        *[!A-Za-z0-9_.-]*)
-            warn "Refusing to migrate an invalid Docker volume name for $container_name"
-            return 1
-            ;;
-    esac
-
+    if [[ ! "$project_name" =~ ^[a-zA-Z0-9_-]{1,64}$ || ! "$source_volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ || ! "$target_volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
+        fail "Automatic legacy volume migration HOLD: invalid volume or project identity"
+    fi
+    # Check the exact source container and both volumes before creating or stopping.
+    [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container_name" 2>/dev/null)" == "$project_name" ]] || fail "Automatic legacy volume migration HOLD: source project mismatch"
+    docker volume inspect "$source_volume" >/dev/null 2>&1 || fail "Automatic legacy volume migration HOLD: source volume missing"
+    helper_image="$(COMPOSE_PROJECT_NAME="$project_name" node "$ROOT_DIR/scripts/legacy-volume-helper.cjs")" || fail "Automatic legacy volume migration HOLD: immutable installed helper unavailable or unapproved"
+    [[ "$helper_image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "Automatic legacy volume migration HOLD: invalid helper image ID"
     if docker volume inspect "$target_volume" >/dev/null 2>&1; then
-        if ! docker run --rm --user 0:0 --entrypoint sh \
-            -v "$target_volume:/target:ro" "$migration_image" \
+        if ! docker run --pull never --rm --user 0:0 --entrypoint sh -v "$target_volume:/target:ro" "$helper_image" \
             -c 'test -z "$(find /target -mindepth 1 -maxdepth 1 -print -quit)"'; then
-            if docker run --rm --user 0:0 --entrypoint sh \
-                -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$migration_image" \
+            if docker run --pull never --rm --user 0:0 --entrypoint sh -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$helper_image" \
                 -c 'diff -qr /source /target >/dev/null'; then
                 ok "Verified the existing $container_name migration in stable volume $target_volume"
                 return 0
@@ -2518,41 +2520,35 @@ migrate_legacy_image_volume() {
             warn "Refusing to overwrite non-empty Docker volume $target_volume"
             return 1
         fi
-        cleanup_target_on_failure=true
     else
-        docker volume create \
-            --label "com.docker.compose.project=$project_name" \
-            --label "com.docker.compose.volume=$volume_key" \
-            "$target_volume" >/dev/null || return 1
-        cleanup_target_on_failure=true
+        docker volume create --label "com.docker.compose.project=$project_name" \
+            --label "com.docker.compose.volume=$volume_key" "$target_volume" >/dev/null || return 1
+        target_created=true
     fi
-
-    was_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null || true)"
+    was_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null)" || return 1
     if [[ "$was_running" == true ]]; then
         if ! docker stop "$container_name" >/dev/null; then
-            [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+            [[ "$target_created" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
             return 1
         fi
+    elif [[ "$was_running" != false ]]; then
+        warn "Cannot establish prior running state of $container_name"
+        return 1
     fi
-
-    if ! docker run --rm --user 0:0 --entrypoint sh \
-        -v "$source_volume:/source:ro" -v "$target_volume:/target" "$migration_image" \
+    if ! docker run --pull never --rm --user 0:0 --entrypoint sh -v "$source_volume:/source:ro" -v "$target_volume:/target" "$helper_image" \
         -c 'cp -a /source/. /target/'; then
-        [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+        [[ "$target_created" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
         [[ "$was_running" == true ]] && docker start "$container_name" >/dev/null 2>&1 || true
         warn "Docker volume migration failed for $container_name; the original volume remains attached"
         return 1
     fi
-
-    if ! docker run --rm --user 0:0 --entrypoint sh \
-        -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$migration_image" \
+    if ! docker run --pull never --rm --user 0:0 --entrypoint sh -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$helper_image" \
         -c 'diff -qr /source /target >/dev/null'; then
-        [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+        [[ "$target_created" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
         [[ "$was_running" == true ]] && docker start "$container_name" >/dev/null 2>&1 || true
         warn "Docker volume verification failed for $container_name; the original volume remains attached"
         return 1
     fi
-
     ok "Migrated $container_name $destination data to stable volume $target_volume"
     warn "Original volume $source_volume was retained for review and is safe to remove only after $container_name is healthy"
 }

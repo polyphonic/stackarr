@@ -99,7 +99,7 @@ test('worker plans while authoritative runtime exists and does not stop on unsaf
     const calls: string[] = [];
     const result = move.work(policy, {
       guard: () => calls.push('guard'),
-      run: (_file: string, _args: string[], env: Record<string, string>) => {
+      run: (_file: string, args: string[], env: Record<string, string>) => {
         calls.push('load');
         return JSON.stringify({
           ...env,
@@ -148,7 +148,7 @@ test('worker runs scoped down, migration and generated guarded Compose restart i
           calls.push('down');
         } else if (args[1]?.includes('docker compose')) {
           assert.match(args[1], /storage-override\.json/);
-          assert.doesNotMatch(args[1], /configure|stackarr_compose "\$\{args/);
+          assert.doesNotMatch(args[1], /load_env|stackarr_compose "\$\{args/);
           calls.push('start');
         } else assert.fail(`Unexpected command: ${args.join(' ')}`);
         return '';

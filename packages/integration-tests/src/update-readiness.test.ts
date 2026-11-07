@@ -19,6 +19,10 @@ async function run(
     await mkdir(path.join(root, 'scripts'));
     await mkdir(path.join(root, 'lib'));
     await mkdir(path.join(root, 'bin'));
+    const pinned = `example/app:1@sha256:${'a'.repeat(64)}`;
+    for (const name of ['image-update-gate.cjs', 'image-update-policy.cjs']) {
+      await writeFile(path.join(root, 'scripts', name), await readFile(path.join(repo, 'stackarr/scripts', name)));
+    }
     await writeFile(
       path.join(root, 'scripts/update-run.sh'),
       await readFile(path.join(repo, 'stackarr/scripts/update-run.sh'))
@@ -43,11 +47,12 @@ stackarr_compose() {
   printf '%s\\n' "$*" >> "$ACTIONS"
   case "$*" in
     *'config --services') printf 'app\\nfirst\\nsecond\\n';;
+    *'config --format json') printf '%s\\n' '{"services":{"first":{"image":"${pinned}"},"second":{"image":"${pinned}"}}}';;
     *'pull --quiet first') return 0;;
     *'pull --quiet second') return ${options.partial ? 1 : 0};;
     *'pull --quiet'*) return ${options.partial ? 1 : 0};;
-    *'ps --all -q first') ${options.missing ? ':' : options.multi ? "printf 'abcdef\\n123456\\n'" : "printf 'abcdef\\n'"};;
-    *'ps --all -q second') printf '123456\\n';;
+    *'ps --all -q first') ${options.missing ? ':' : options.multi ? "printf 'abcdefabcdef\\n123456123456\\n'" : "printf 'abcdefabcdef\\n'"};;
+    *'ps --all -q second') printf '123456123456\\n';;
   esac
   return 0
 }
@@ -64,7 +69,14 @@ fail() { printf '%s\\n' "$1" >&2; exit 1; }
       `#!/bin/bash
 printf '%s\\n' "$*" >> "$ACTIONS"
 [[ "$1" == inspect ]] || exit 8
-if [[ "$4" == 123456 ]]; then printf 'running|healthy|0|configured\\n'; exit; fi
+if [[ "$2" != --format ]]; then
+  service=first
+  [[ "$2" == 123456123456 ]] && service=second
+  printf '%s\\n' '[{"Id":"'"$2"'0000000000000000000000000000000000000000000000000000","Image":"sha256:${'c'.repeat(64)}","Config":{"Image":"${pinned}","Labels":{"com.docker.compose.project":"stackarr","com.docker.compose.service":"'"$service"'"}}}]'
+  exit
+fi
+if [[ "$3" == '{{.Config.Image}}' ]]; then printf '%s\\n' '${pinned}'; exit; fi
+if [[ "$4" == 123456123456 ]]; then printf 'running|healthy|0|configured\\n'; exit; fi
 index=$(cat "$INDEX")
 IFS=',' read -r -a states <<< "$STATES"
 if (( index >= \${#states[@]} )); then index=$((\${#states[@]} - 1)); fi
@@ -102,9 +114,11 @@ test('cleanup follows checked healthy services; partial pull still checks select
   const full = await run(['running|healthy|0|configured']);
   assert.equal(full.success, true, full.stderr);
 
-  assert.ok(full.actions.indexOf('downloads.sh apply') < full.actions.indexOf('inspect --format'));
-  assert.ok(full.actions.indexOf('requests.sh apply') < full.actions.indexOf('inspect --format'));
-  assert.ok(full.actions.indexOf('inspect --format') < full.actions.indexOf('run --rm image-cleanup'));
+  assert.ok(full.actions.indexOf('downloads.sh apply') < full.actions.indexOf('inspect --format {{.State.Status}}'));
+  assert.ok(full.actions.indexOf('requests.sh apply') < full.actions.indexOf('inspect --format {{.State.Status}}'));
+  assert.ok(
+    full.actions.indexOf('inspect --format {{.State.Status}}') < full.actions.indexOf('run --rm image-cleanup')
+  );
   const partial = await run(['running|healthy|0|configured'], { partial: true });
   assert.equal(partial.success, false);
   assert.match(partial.stderr, /partially updated/);

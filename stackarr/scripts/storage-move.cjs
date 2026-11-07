@@ -222,6 +222,8 @@ function work(
       fs.lstatSync(path.dirname(request.destination)).isSymbolicLink()
     )
       throw new Error('Destination must be absent with a real existing parent');
+    // Storage migration reuses the current images (--pull never), not a release
+    // update. The storage guard, source/destination preflight and rollback remain.
     engine.plan(source, request.destination, journal, policyFile); // Before downtime.
     engine.preflight(source, request.destination, project);
     writers(source, run, 'preflight');
@@ -240,7 +242,7 @@ function work(
       '/bin/bash',
       [
         '-c',
-        'set -euo pipefail; source "$1"; dir="$(stackarr_compose_project_dir)"; file="$(stackarr_compose_file)"; [[ -f "$file" && -f "$dir/storage-override.json" ]] || exit 1; args=(); while IFS= read -r arg; do args+=("$arg"); done < <(compose_profile_args); stackarr_storage_guard; docker compose --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" --project-directory "$dir" -f "$file" -f "$dir/storage-override.json" "${args[@]}" up -d --remove-orphans',
+        'set -euo pipefail; source "$1"; dir="$(stackarr_compose_project_dir)"; file="$(stackarr_compose_file)"; [[ -f "$file" && -f "$dir/storage-override.json" ]] || exit 1; args=(); while IFS= read -r arg; do args+=("$arg"); done < <(compose_profile_args); stackarr_storage_guard; configure_docker_environment; docker compose --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" --project-directory "$dir" -f "$file" -f "$dir/storage-override.json" "${args[@]}" up -d --pull never --no-build --remove-orphans',
         'storage-move',
         common
       ],
