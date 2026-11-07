@@ -198,20 +198,31 @@ case "$instance" in "$service"|"${service}4k") ;; *) log 'invalid Arr instance';
 valid_hash "$download_id" || { log 'invalid download hash; skipping'; exit 0; }
 download_id="$(upper "$download_id")"
 safe_component "$release_title" || release_title="$download_id"
-# Bound UTF-8 bytes, leaving room for a 64-character v2 collision suffix.
+# Leave room for the v2 hash suffix, extension and private temporary suffix.
+# od/awk are already required by the metainfo verifier. Use bytes explicitly so
+# this path works in minimal Arr images without Python, jq or a UTF-8 locale.
 if [ "$(LC_ALL=C printf '%s' "$release_title" | wc -c | tr -d ' ')" -gt 140 ]; then
-    if command -v jq >/dev/null 2>&1; then
-        release_title="$(jq -nr --arg title "$release_title" '
-            $title | explode | reduce .[] as $cp ({out:[], bytes:0, full:false};
-              (if $cp < 128 then 1 elif $cp < 2048 then 2 elif $cp < 65536 then 3 else 4 end) as $size |
-              if .full or .bytes + $size > 140 then .full = true
-              else .out += [$cp] | .bytes += $size end) |
-            .out | implode | sub("[ .]+$"; "")')"
-    else
-        release_title="$download_id"
-    fi
+    release_title="$(printf '%s' "$release_title" | od -An -v -tu1 | LC_ALL=C awk '
+        { for (i = 1; i <= NF; i++) bytes[++count] = $i }
+        END {
+            out = ""
+            for (i = 1; i <= count;) {
+                b = bytes[i]
+                size = (b < 128 ? 1 : b >= 194 && b <= 223 ? 2 : b >= 224 && b <= 239 ? 3 : b >= 240 && b <= 244 ? 4 : 0)
+                if (!size || i + size - 1 > count) exit 1
+                for (j = 1; j < size; j++)
+                    if (bytes[i+j] < 128 || bytes[i+j] > 191) exit 1
+                if ((b == 224 && bytes[i+1] < 160) || (b == 237 && bytes[i+1] > 159) ||
+                    (b == 240 && bytes[i+1] < 144) || (b == 244 && bytes[i+1] > 143)) exit 1
+                if (i + size - 1 > 140) break
+                for (j = 0; j < size; j++) out = out sprintf("%c", bytes[i+j])
+                i += size
+            }
+            sub(/[ .]+$/, "", out)
+            printf "%s", out
+        }')" || release_title="$download_id"
 fi
-[ -n "$release_title" ] || release_title="$download_id"
+safe_component "$release_title" || release_title="$download_id"
 case "$release_title" in *.torrent) release_title="${release_title%.torrent}" ;; esac
 stem="$release_title"
 

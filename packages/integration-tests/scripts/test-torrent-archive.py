@@ -142,6 +142,29 @@ class ArchiveTest(unittest.TestCase):
         self.assertTrue(files[0].name.startswith('Épisode.'))
         self.assertLessEqual(len(files[0].name.encode()), 255)
 
+    def test_filenames_without_jq_or_python_preserve_names_and_utf8_collisions(self):
+        bin_ = self.root / 'minimal-bin'; bin_.mkdir()
+        for name in ('sh', 'tr', 'wc', 'mkdir', 'mktemp', 'mv', 'cp', 'ln', 'rm',
+                     'date', 'cmp', 'chmod', 'od', 'awk', 'dd', 'sha1sum', 'sha256sum', 'dirname', 'sed'):
+            executable = shutil.which(name); assert executable, name
+            (bin_ / name).symlink_to(executable)
+        payloads = (torrent('Feature.mkv'), torrent('Other.mkv'))
+        hashes = [self.source(data) for data in payloads]
+        cases = [('A' * 140, 'A' * 140), ('A' * 139 + 'é' * 20, 'A' * 139),
+                 ('映画🎬' * 40, '映画🎬' * 14)]
+        for title, expected in cases:
+            with self.subTest(title=title):
+                for hash_ in hashes:
+                    result = self.run_hook(radarr_eventtype='Download', radarr_download_id=hash_,
+                        radarr_moviefile_path='/movies/Film/Feature.mkv', radarr_release_title=title,
+                        radarr_movie_id='42', PATH=str(bin_))
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                ordinary = self.archive / 'Movies/Film' / (expected + '.torrent')
+                collision = ordinary.with_name(f'{expected} [{hashes[1]}].torrent')
+                self.assertEqual(ordinary.read_bytes(), payloads[0])
+                self.assertEqual(collision.read_bytes(), payloads[1])
+                self.assertLessEqual(len(collision.name.encode()), 255)
+
     def test_symlink_source_and_stage_rejected(self):
         data = torrent('Feature.mkv'); hash_ = infohash(data)
         external = self.root / 'outside'; external.write_bytes(data)
