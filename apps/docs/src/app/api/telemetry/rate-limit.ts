@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
-import { ipAddress } from '@vercel/functions';
+import { ipAddress, waitUntil } from '@vercel/functions';
 import type { NextRequest } from 'next/server';
 
 export type TelemetryRateLimitPolicy = 'ingest' | 'registration';
@@ -29,17 +29,23 @@ export async function checkTelemetryRateLimit(
   policy: TelemetryRateLimitPolicy
 ) {
   const address =
-    (process.env.DEPLOYMENT_PLATFORM === 'cloudflare' && request.headers.get('cf-connecting-ip')?.trim()) ||
+    (process.env.VERCEL !== '1' &&
+      process.env.DEPLOYMENT_PLATFORM === 'cloudflare' &&
+      request.headers.get('cf-connecting-ip')?.trim()) ||
     ipAddress(request) ||
     fallbackAddress(request);
   const identifier = telemetryRateLimitIdentifier(policy, address, config.ingestKey);
   const limiter = telemetryLimiters(config)[policy];
   const result = await limiter.limit(identifier);
-  await result.pending.catch(() => undefined);
+  const pending = result.pending.catch(() => undefined);
+  if (process.env.VERCEL === '1') waitUntil(pending);
 
   if (result.reason === 'timeout') {
     throw new Error('Telemetry rate limiting timed out.');
   }
+
+  // Keep analytics alive after a Vercel response without delaying the rate-limit decision.
+  if (process.env.VERCEL !== '1') await pending;
 
   const resetSeconds = Math.max(0, Math.ceil(result.reset / 1000));
   const retryAfter = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000));

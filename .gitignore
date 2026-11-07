@@ -38,3 +38,6 @@ tmp/
 .wrangler/
 apps/docs/.source-cloudflare/
 .vinext/
+
+# Local Vercel project links and downloaded environment files
+.vercel/
