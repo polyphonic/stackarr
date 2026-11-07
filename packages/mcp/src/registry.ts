@@ -162,14 +162,21 @@ import {
   updateCloudflareRoutesAction,
   updateLidarrMusicMountAction,
   updateMcpConnectionPolicyAction,
-  updateServiceConfigAction,
-  updateStackConfigAction,
   updateStreamripConfigAction,
   updateTelemetryConfigAction,
   validateBackupAction,
   validateSqliteDbAction
 } from '@stackarr/core';
 import { z } from 'zod';
+import {
+  discoverConfigurationAction,
+  getNativeDatabaseGuidanceAction,
+  previewServiceConfigurationAction,
+  previewStackConfigurationAction,
+  readConfigurationAction,
+  updateSafeServiceConfigurationAction,
+  updateSafeStackConfigurationAction
+} from './configurationControl';
 import { serializeError } from './errors';
 import { jsonContent } from './format';
 
@@ -859,9 +866,72 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_update_service_config',
-    description: 'Update service config values using UI field ids.',
-    shape: { service: z.string(), values: z.record(z.string(), z.unknown()) },
-    handler: updateServiceConfigAction
+    description:
+      'Unavailable: generic MCP service configuration mutation is disabled; use authenticated settings or specialized tools.',
+    shape: empty,
+    handler: updateSafeServiceConfigurationAction
+  },
+  {
+    name: 'stackarr_discover_configuration',
+    description:
+      'Read initialized SQLite settings inventory; generic MCP writes and service catalog discovery are unavailable.',
+    shape: empty,
+    handler: discoverConfigurationAction
+  },
+  {
+    name: 'stackarr_read_configuration',
+    description:
+      'Read initialized SQLite managed environment and settings without initializing defaults; service catalog unavailable.',
+    shape: empty,
+    handler: readConfigurationAction
+  },
+  {
+    name: 'stackarr_preview_stack_configuration',
+    description:
+      'Provisional read-only SQLite snapshot comparison for limited non-secret settings; no generic MCP commit exists.',
+    shape: {
+      settings: z
+        .object({
+          ui: z
+            .object({
+              theme: z.enum(['light', 'dark', 'system']).optional(),
+              showAdvanced: z.boolean().optional(),
+              refreshIntervalSeconds: z.number().int().optional(),
+              diskWarningThresholdPercent: z.number().int().optional(),
+              unifyServiceUrls: z.boolean().optional(),
+              serviceFavorites: z.array(z.string()).optional()
+            })
+            .strict()
+            .optional(),
+          connect: z
+            .object({ exposeSeerrOnly: z.boolean().optional(), warnBeforePublicExposure: z.boolean().optional() })
+            .strict()
+            .optional(),
+          metadata: z
+            .object({
+              tinyMediaManagerEnabled: z.boolean().optional(),
+              plexMetadataMonitoring: z.boolean().optional(),
+              jellyfinMetadataMonitoring: z.boolean().optional()
+            })
+            .strict()
+            .optional()
+        })
+        .strict()
+    },
+    handler: previewStackConfigurationAction
+  },
+  {
+    name: 'stackarr_get_native_database_guidance',
+    description:
+      'Explain managed versus external connection, migration prerequisites and backup coverage limits without probing or writing.',
+    shape: empty,
+    handler: getNativeDatabaseGuidanceAction
+  },
+  {
+    name: 'stackarr_preview_service_configuration',
+    description: 'Unavailable: generic service catalog preview is disabled pending safe non-initializing validation.',
+    shape: empty,
+    handler: previewServiceConfigurationAction
   },
   {
     name: 'stackarr_get_container_overview',
@@ -931,9 +1001,10 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_update_stack_config',
-    description: 'Update DB-backed Stackarr runtime config by env key.',
-    shape: { values: z.record(z.string(), z.unknown()) },
-    handler: updateStackConfigAction
+    description:
+      'Unavailable: generic MCP stack configuration mutation is disabled; use authenticated settings or specialized tools.',
+    shape: empty,
+    handler: updateSafeStackConfigurationAction
   },
   {
     name: 'stackarr_get_telemetry_status',
@@ -1848,7 +1919,7 @@ async function authorizeToolCall(
   return { approved: true, input: withInternalApproval(input) };
 }
 
-function credentialKeysInConfigurationCall(toolName: string, input: Record<string, unknown>) {
+export function credentialKeysInConfigurationCall(toolName: string, input: Record<string, unknown>) {
   if (
     toolName !== 'stackarr_update_service_config' &&
     toolName !== 'stackarr_update_stack_config' &&
@@ -1857,14 +1928,24 @@ function credentialKeysInConfigurationCall(toolName: string, input: Record<strin
     return [];
   }
 
-  const values = input.values;
-  if (!values || typeof values !== 'object' || Array.isArray(values)) return [];
-
-  return Object.keys(values).filter((key) =>
-    /(password|passwd|token|secret|credential|username|email|claim|api[_-]?key|apikey|(^|[._-])arl$|app[_-]?id|client[_-]?id)/i.test(
-      key
-    )
-  );
+  const blocked: string[] = [];
+  const credentialKey =
+    /(password|passwd|token|secret|credential|username|email|claim|api[_-]?key|apikey|(^|[._-])arl$|app[_-]?id|client[_-]?id)/i;
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > 8 || blocked.length >= 30) return;
+    if (typeof value === 'string') {
+      // Reject userinfo even when the containing field has an innocuous name.
+      if (/(?:[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/i.test(value)) blocked.push(path);
+    } else if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value)) {
+        const next = path ? `${path}.${key}` : key;
+        if (credentialKey.test(key)) blocked.push(next);
+        else visit(child, next, depth + 1);
+      }
+    }
+  };
+  visit(toolName === 'stackarr_update_stack_config' ? input : input.values, '', 0);
+  return blocked;
 }
 
 function requiresInteractiveApproval(meta: ToolCatalogEntry, input: Record<string, unknown>) {

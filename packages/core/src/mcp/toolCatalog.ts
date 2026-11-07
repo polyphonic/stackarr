@@ -471,7 +471,54 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
-    description: 'Update one service configuration using the same field ids exposed in the Stackarr UI.'
+    description:
+      'Unavailable: generic MCP service configuration mutation is disabled; use authenticated settings or specialized tools.'
+  },
+  {
+    name: 'stackarr_discover_configuration',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description:
+      'Inventory initialized SQLite env and settings; generic writes and service catalog discovery unavailable.'
+  },
+  {
+    name: 'stackarr_read_configuration',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Read masked initialized SQLite settings without default initialization; service catalog unavailable.'
+  },
+  {
+    name: 'stackarr_preview_stack_configuration',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Provisional read-only comparison for limited non-secret settings; no generic MCP commit exists.'
+  },
+  {
+    name: 'stackarr_get_native_database_guidance',
+    category: 'stack',
+    scopes: ['stack:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Explain external connection versus migration and backup coverage prerequisites.'
+  },
+  {
+    name: 'stackarr_preview_service_configuration',
+    category: 'services',
+    scopes: ['services:read'],
+    risk: 'read',
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: 'Unavailable: generic MCP service configuration preview is disabled.'
   },
   {
     name: 'stackarr_get_container_overview',
@@ -552,7 +599,8 @@ export const stackarrToolCatalog: ToolCatalogEntry[] = [
     risk: 'dangerous',
     enabledForLocalMcp: true,
     remoteReadyDefault: false,
-    description: 'Update DB-backed Stackarr runtime configuration values by managed env key.'
+    description:
+      'Unavailable: generic MCP stack configuration mutation is disabled; use authenticated settings or specialized tools.'
   },
   {
     name: 'stackarr_get_telemetry_status',
