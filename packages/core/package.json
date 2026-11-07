@@ -1,8 +1,11 @@
 {
   "name": "@stackarr/core",
   "version": "0.3.0-alpha.25",
+  "dependencies": {
+    "socket.io-client": "^4.8.4"
+  },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.6.6",
     "typescript": "^6.0.3"
   },
   "exports": {
@@ -13,8 +16,5 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
-  "type": "module",
-  "dependencies": {
-    "socket.io-client": "^4.8.3"
-  }
+  "type": "module"
 }

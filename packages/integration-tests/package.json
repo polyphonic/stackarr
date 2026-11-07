@@ -5,13 +5,13 @@
     "@stackarr/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
-    "tsx": "^4.23.1",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   },
   "private": true,
   "scripts": {
-    "test": "pnpm --filter @stackarr/mcp build && NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test src/*.test.ts",
+    "test": "pnpm --filter @stackarr/mcp build && NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx --test src/*.test.ts && node --test scripts/test-backup-independent-guard.cjs scripts/test-restore-staging.cjs",
     "typecheck": "tsc --noEmit"
   },
   "type": "module"
