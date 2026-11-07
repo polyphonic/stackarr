@@ -40,7 +40,7 @@ test('managed app updates prune dangling and unused images after old containers 
 
   assert.ok(recreation >= 0, 'managed services should be recreated with old containers removed');
   assert.ok(cleanup > recreation, 'image cleanup should run only after service recreation');
-  assert.ok(cleanup < reconciliation, 'image cleanup should run before post-update reconciliation');
+  assert.ok(cleanup > reconciliation, 'image cleanup should run after post-update reconciliation');
   assert.ok(compose.includes("required_get('/containers/json?all=1')"));
   assert.ok(compose.includes("api('DELETE', '/images/'"));
   assert.doesNotMatch(compose, /\/images\/prune/);
@@ -69,7 +69,9 @@ test('local Stackarr images are preserved while published images use an independ
 
   assert.match(update, /"\$\{STACKARR_IMAGE:-\}" == \*:local/);
   assert.match(update, /STACKARR_UPDATE_HANDOFF_STARTED/);
-  assert.match(update, /run --pull always --quiet-pull -d --rm/);
+  assert.match(update, /pull --quiet app-updater/);
+  assert.match(update, /run --no-deps -d --rm/);
+  assert.doesNotMatch(update, /run --pull always/);
   assert.match(update, /case "\$action" in\n\s+run\|services\)\n\s+wait_for_stackarr_storage/);
   assert.match(update, /STACKARR_RUNTIME:-}" != "docker-updater"/);
   assert.match(update, /update_stackarr_app\(\)[\s\S]*?start_app_update_worker\n}/);

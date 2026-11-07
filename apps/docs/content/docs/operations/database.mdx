@@ -24,10 +24,16 @@ The database listens inside Docker on port `5432` and is published to `127.0.0.1
 To initialize or repair the configured databases:
 
 ```bash
-docker exec app /app/bin/stackarr database ensure
+docker exec stackarr /app/bin/stackarr database ensure
 ```
 
 Use the Stackarr dashboard to view redacted connection details. Enter database credentials only through authenticated settings or setup surfaces.
+
+## Recovery after an engine restart
+
+The Stackarr controller checks for database startup failures after each start, even when scheduled maintenance is disabled. It makes up to 60 checks, five seconds apart. Once PostgreSQL accepts connections, it can restart an enabled Arr app or Cleanuparr that is still running but unreachable with a confirmed database startup failure. Arr file logs are also checked when Docker logging is disabled.
+
+Recovery only considers logs from the current container start and attempts each service once per controller start. Healthy apps, stopped apps, SQLite-backed Arr apps, and unrelated failures are left unchanged. It does not recreate containers or change library paths. Keep the controller enabled to receive this recovery after Docker Desktop, OrbStack, or the Docker daemon restarts.
 
 ## Backups
 

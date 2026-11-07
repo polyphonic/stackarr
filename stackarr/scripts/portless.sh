@@ -144,7 +144,7 @@ NODE
 
 register_aliases() {
     if stackarr_web_enabled; then
-        register app "${STACKARR_WEB_PORT:-7777}"
+        register stackarr "${STACKARR_WEB_PORT:-7777}"
     fi
 
     case "$(lowercase "${PREFERRED_TORRENT_CLIENT:-transmission}")" in

@@ -58,7 +58,8 @@ test('dangerous MCP calls use elicitation and decline without executing', async 
     assert.equal(payload.accepted, false);
     assert.equal(payload.decision, 'decline');
     assert.match(elicitationMessage, /stackarr_update_stack_config/);
-    assert.match(elicitationMessage, /http:\/\/untrusted\.invalid/);
+    assert.doesNotMatch(elicitationMessage, /http:\/\/untrusted\.invalid/);
+    assert.match(elicitationMessage, /Arguments:\n\{\}/);
     assert.equal(elicitationMeta?.codex_approval_kind, 'mcp_tool_call');
   } finally {
     await client.close();

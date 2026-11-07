@@ -1,3 +1,4 @@
+import { instanceOperations } from '../instanceOperations';
 import { getServices } from '../services';
 import { readSettings } from '../settings';
 import { stackarrToolCatalog } from './toolCatalog';
@@ -145,7 +146,11 @@ export function isToolEnabledForProfile(tool: ToolCatalogEntry, profile: McpProf
     return tool.risk === 'read';
   }
 
-  return tool.risk === 'read' || (appActionCategories.has(tool.category) && !adminOnlyTools.has(tool.name));
+  return (
+    tool.risk === 'read' ||
+    (appActionCategories.has(tool.category) && !adminOnlyTools.has(tool.name)) ||
+    instanceOperations.some((entry) => entry.mcp === tool.name && entry.risk === 'write')
+  );
 }
 
 export function getToolServiceRequirement(tool: ToolCatalogEntry): ServiceRequirement | undefined {

@@ -127,7 +127,7 @@ test('restore brings back runtime config, service config, and state from a backu
       'bash',
       [
         '-c',
-        'docker(){ return 1; }; export -f docker; printf "y\\n" | "$1" "$2" --force-config',
+        'docker(){ return 1; }; export -f docker; printf "y\\n" | "$1" "$2" --force-config --staging-root "$(dirname "$2")"',
         'bash',
         restoreScript,
         archivePath
@@ -192,7 +192,7 @@ test('restore accepts zip archives and can run non-interactively from onboarding
       'bash',
       [
         '-c',
-        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --skip-postgres --skip-native-plex --skip-plex-preferences --mark-onboarding-complete',
+        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --skip-postgres --skip-native-plex --skip-plex-preferences --mark-onboarding-complete --staging-root "$(dirname "$2")"',
         'bash',
         restoreScript,
         archivePath
@@ -259,7 +259,7 @@ test('constrained restore ignores archive-controlled host roots', async () => {
       'bash',
       [
         '-c',
-        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --constrain-runtime-roots --restore-app-root "$3" --skip-postgres --skip-native-plex --skip-plex-preferences',
+        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --constrain-runtime-roots --restore-app-root "$3" --skip-postgres --skip-native-plex --skip-plex-preferences --staging-root "$(dirname "$2")"',
         'bash',
         restoreScript,
         archivePath,
@@ -354,7 +354,7 @@ test('encrypted restore bootstraps portable credentials and native Jellyfin data
       'bash',
       [
         '-c',
-        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --skip-postgres --skip-native-plex --skip-plex-preferences --restore-native-jellyfin --backup-key-file "$3" --adopt-backup-key',
+        'docker(){ return 1; }; export -f docker; "$1" "$2" --yes --force-config --skip-postgres --skip-native-plex --skip-plex-preferences --restore-native-jellyfin --backup-key-file "$3" --adopt-backup-key --staging-root "$(dirname "$2")"',
         'bash',
         restoreScript,
         encryptedArchivePath,

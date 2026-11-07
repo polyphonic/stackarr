@@ -22,7 +22,7 @@ STACKARR_DATABASE_FILE="$ROOT_DIR/tasks.db"
 ensure_dir() { mkdir -p "$1"; }
 lowercase() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 flag_enabled() { [[ "$1" == true ]]; }
-load_env() { ENABLE_BACKUP=true; BACKUP_SCHEDULE=daily; BACKUP_TIME=00:00; ENABLE_SCHEDULED_UPDATES=false; QUESTARR_ROMM_IMPORT_ENABLED=false; TIMEZONE=Etc/UTC; return 0; }
+load_env() { ENABLE_BACKUP="\${TEST_BACKUP_ENABLED:-true}"; STACKARR_PG_BACKUP_ENABLED="\${TEST_PG_ENABLED:-false}"; BACKUP_SCHEDULE=daily; BACKUP_TIME=00:00; ENABLE_SCHEDULED_UPDATES=false; QUESTARR_ROMM_IMPORT_ENABLED=false; TIMEZONE=Etc/UTC; return 0; }
 `
   );
   const bin = path.join(root, 'bin/stackarr');
@@ -63,6 +63,21 @@ test('legacy empty lock and simultaneous schedulers run one job per stamp', asyn
     const third = await run(script, ['--run-once'], env);
     assert.equal(third.code, 0, third.stdout);
     assert.equal(await readFile(path.join(root, 'jobs'), 'utf8'), 'start\nend\n');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('PG due-check dispatches once per enabled scheduler loop without using local backup stamps', async () => {
+  const { root, script } = await fixture();
+  try {
+    await writeFile(path.join(root, 'bin/stackarr'), '#!/bin/bash\nprintf "%s\\n" "$*" >> "$ROOT_DIR/jobs"\n');
+    const env = { ...process.env, ROOT_DIR: root, TEST_BACKUP_ENABLED: 'false', TEST_PG_ENABLED: 'true' };
+    const first = await run(script, ['--run-once'], env);
+    const second = await run(script, ['--run-once'], env);
+    assert.equal(first.code, 0, first.stdout);
+    assert.equal(second.code, 0, second.stdout);
+    assert.equal(await readFile(path.join(root, 'jobs'), 'utf8'), 'backup postgres run-due\nbackup postgres run-due\n');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

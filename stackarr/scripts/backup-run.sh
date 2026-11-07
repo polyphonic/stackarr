@@ -7,6 +7,17 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 load_env
+# The full archive still captures bundled engine stores. A native PostgreSQL
+# capture alone cannot make an independent multi-engine installation restorable.
+case "${POSTGRES_DEPLOYMENT_MODE:-managed}:${REDIS_DEPLOYMENT_MODE:-managed}:${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" in
+    managed:managed:managed) ;;
+    *) fail 'Independent or external database full backup requires complete engine integration; no full-protection archive created' ;;
+esac
+maintenance_lock_enter "$ROOT_DIR/scripts/backup-run.sh" "$@"
+# Fail before task logging, directory creation, or copying state into staging.
+BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
+stackarr_storage_guard
+stackarr_verify_torrent_archive_root
 
 BACKUP_ENCRYPTION="$(lowercase "${BACKUP_ENCRYPTION:-keyfile}")"
 BACKUP_ENCRYPTION_KEY_FILE="${BACKUP_ENCRYPTION_KEY_FILE:-$STATE_ROOT/backup-encryption.key}"
@@ -162,38 +173,12 @@ if [[ "$(lowercase "${ENABLE_BACKUP:-true}")" =~ ^(0|false|no|off|disabled)$ ]];
     exit 0
 fi
 
-backup_device() {
-    stat -c %d "$1" 2>/dev/null || stat -f %d "$1"
-}
-
-verify_external_backup_mount() {
-    local root="$1" volumes_root="${2:-/Volumes}" volume remainder volume_device parent_device root_device
-    case "$root" in
-        "$volumes_root"/*) ;;
-        *) return 0 ;;
-    esac
-
-    # The container bind device alone cannot attest that the host still has
-    # this volume mounted. Require a new host mount-table response for each run.
-    if [[ "$(uname -s)" != Darwin ]]; then
-        [[ -d "$root" && "$(realpath "$root")" == "$root" ]] ||
-            fail "External backup root is missing or not canonical: $root"
-        "$ROOT_DIR/scripts/backup-mount-bridge.sh" verify "$STATE_ROOT" "$root" ||
-            fail "External backup root requires fresh host mount verification: $root"
-        return 0
-    fi
-
-    remainder="${root#"$volumes_root"/}"
-    volume="$volumes_root/${remainder%%/*}"
-    [[ -d "$volume" && -d "$root" ]] || fail "External backup volume is unavailable: $volume"
-    parent_device="$(backup_device "$volumes_root")" || fail "Cannot inspect external backup volume parent"
-    volume_device="$(backup_device "$volume")" || fail "Cannot inspect external backup volume"
-    root_device="$(backup_device "$root")" || fail "Cannot inspect external backup root"
-    [[ -n "$volume_device" && "$volume_device" != "$parent_device" && "$root_device" == "$volume_device" ]] ||
-        fail "External backup volume is not mounted on the host: $volume"
-}
-
 verify_external_backup_mount "$BACKUP_ROOT"
+# A fresh default staging child does not exist yet; the verified backup root
+# covers it. Independently placed staging must prove its own host mount.
+if [[ "$BACKUP_STAGING_ROOT" != "$BACKUP_ROOT"/* ]]; then
+    verify_external_backup_mount "$BACKUP_STAGING_ROOT"
+fi
 task_ensure_dir "backup root" "$BACKUP_ROOT"
 task_ensure_dir "log root" "$LOG_ROOT"
 
@@ -294,6 +279,12 @@ FULL_CONFIG_EXCLUDES=("${LITE_CONFIG_EXCLUDES[@]}")
 STATE_EXCLUDES=(
     "compose/.env"
     "backup-encryption.key"
+    "storage-policy.json"
+    "storage-enrollment.json"
+    "storage-migration.json.lock"
+    "storage-migration.json"
+    "storage-bridge/"
+    "compose/storage-override.json"
 )
 FULL_PLEX_EXCLUDES=(
     "Codecs/"
@@ -954,6 +945,13 @@ case "$PLEX_BACKUP_MODE_NORMALIZED" in
 esac
 with_progress_heartbeat 25 "Copying Stackarr state" "$STAGING/state" \
     copy_tree_excluding "$STATE_ROOT/" "$STAGING/state/" "${STATE_EXCLUDES[@]}"
+if [[ "$TORRENT_ARCHIVE_ROOT" != "$STATE_ROOT/torrent-archive" ]]; then
+    # The shared preflight ran before staging or any source copy.
+    [[ -d "$TORRENT_ARCHIVE_ROOT" && ! -L "$TORRENT_ARCHIVE_ROOT" ]] ||
+        fail 'Custom torrent archive root is missing or a symlink'
+    with_progress_heartbeat 27 "Copying custom torrent archive" "$STAGING/torrent-archive" \
+        copy_tree "$TORRENT_ARCHIVE_ROOT/" "$STAGING/torrent-archive/"
+fi
 if [[ -d "$ROOT_DIR/state/streamrip" && "$STATE_ROOT" != "$ROOT_DIR/state" ]]; then
     with_progress_heartbeat 28 "Copying Streamrip state" "$STAGING/state/streamrip" \
         copy_tree "$ROOT_DIR/state/streamrip/" "$STAGING/state/streamrip/"
@@ -1006,12 +1004,19 @@ if [[ "$(lowercase "${JELLYFIN_INSTALL_MODE:-disabled}")" == "native" && -d "$JE
 fi
 
 progress 86 "Writing backup manifest"
+# Preserve volume identities as recovery reference, never as an automatically
+# restored policy that could trust the wrong host or replay an interrupted move.
+if [[ -n "${STACKARR_STORAGE_POLICY:-}" ]]; then
+    stackarr_storage_guard
+    copy_file "$STACKARR_STORAGE_POLICY" "$STAGING/stackarr/storage-policy-reference.json"
+fi
 cat > "$STAGING/manifest.txt" <<EOF
 created_at=$(date '+%Y-%m-%d %H:%M:%S %z')
 stackarr_root=$ROOT_DIR
 media_root=$MEDIA_ROOT
 music_root=$MUSIC_ROOT
 downloads_root=$DOWNLOADS_ROOT
+torrent_archive_root=$TORRENT_ARCHIVE_ROOT
 backup_root=$BACKUP_ROOT
 plex_config_path=$PLEX_CONFIG_PATH
 plex_prefs_path=$PLEX_PREFS_PATH
@@ -1027,6 +1032,7 @@ romm_state=database/romm.dump plus config/romm/config and config/romm/assets
 prowlarr_custom_definitions=config/prowlarr/Definitions/Custom
 questarr_romm_import_state=state/questarr-romm-import.json
 portable_runtime_config=stackarr/runtime-config.json
+storage_policy_reference=stackarr/storage-policy-reference.json (re-enroll on the restore host; not auto-applied)
 credential_audit=stackarr/credential-audit.json
 compose_env_restore=regenerated from portable runtime config; generated state/compose/.env is intentionally excluded
 archive_encryption=$BACKUP_ENCRYPTION
@@ -1052,6 +1058,7 @@ else
     ARCHIVE_PATH="$BACKUP_ROOT/$BACKUP_NAME.tar.gz"
 fi
 with_progress_heartbeat 92 "Compressing backup archive" "$ARCHIVE_PATH" create_archive
+stackarr_storage_guard
 progress 97 "Recording backup archive"
 record_backup_archive "$ARCHIVE_PATH"
 progress 98 "Pruning old backup archives"

@@ -10,8 +10,8 @@ description: Resolve the most common Stackarr container, storage, and connection
 Check the app container and its latest logs:
 
 ```bash
-docker compose ps app
-docker compose logs --tail=100 app
+docker compose ps stackarr
+docker compose logs --tail=100 stackarr
 ```
 
 If port `7777` is already used, set another `STACKARR_WEB_PORT` in `.env` and recreate the app container.
@@ -27,7 +27,7 @@ Confirm the Compose file mounts the Docker socket:
 Then check whether the container can reach Docker:
 
 ```bash
-docker exec app docker info
+docker exec stackarr docker info
 ```
 
 ## A media or download folder is unavailable
@@ -35,7 +35,7 @@ docker exec app docker info
 Run the permissions audit:
 
 ```bash
-docker exec app /app/bin/stackarr permissions audit
+docker exec stackarr /app/bin/stackarr permissions audit
 ```
 
 Confirm the host folder exists, Docker can access it, and the same path is used by Stackarr and the dependent service.

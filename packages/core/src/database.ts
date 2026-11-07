@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { AgentActivityRecord } from './actions/agentActivity';
+import { downloadClientSources, downloadClientTargets, isOptionalDownloadClientPair } from './instanceCatalog';
 import { appDatabasePath } from './paths';
 import type { StackarrTask } from './tasks';
 
@@ -13,6 +14,9 @@ type SqliteInputValue = string | number | bigint | Uint8Array | null;
 let database: Database | undefined;
 let postgresMainMigrated = false;
 let postgresLogMigrated = false;
+const instancePlatformSchemaVersion = 20260920;
+const instanceDraftSchemaVersion = 20261107;
+const instanceConnectionSchemaVersion = 20261108;
 
 type NotificationRow = {
   id: number;
@@ -53,6 +57,142 @@ type TaskDbRow = {
   reviewed_at?: string | null;
 };
 
+export type InstanceOwnership = 'managed' | 'external' | 'native';
+
+export type InstanceDbRow = {
+  id: string;
+  definition_id: string;
+  display_name: string;
+  ownership: InstanceOwnership;
+  state: 'draft';
+  configuration: string;
+  secret_references: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InstanceConnectionRow = { source_id: string; target_id: string; kind: 'download-client' };
+export class InstanceConnectionConflict extends Error {}
+const sqlList = (ids: readonly string[]) => ids.map(sqlLiteral).join(',');
+
+export function listInstanceConnectionRows(
+  id: string,
+  limit: number,
+  cursor?: [string, string]
+): InstanceConnectionRow[] {
+  const after = cursor
+    ? ` and (source_id > ${sqlLiteral(cursor[0])} or (source_id = ${sqlLiteral(cursor[0])} and target_id > ${sqlLiteral(cursor[1])}))`
+    : '';
+  if (postgresConfigured('main')) {
+    if (!migratePostgres('main')) throw new Error('Postgres instance store unavailable.');
+    return JSON.parse(
+      runPsql(`select coalesce(json_agg(row_to_json(e) order by e.source_id, e.target_id), '[]'::json)
+      from (select source_id, target_id, kind from app_instance_connections
+        where (source_id = ${sqlLiteral(id)} or target_id = ${sqlLiteral(id)})${after}
+        order by source_id, target_id limit ${limit}) e;`)
+    ) as InstanceConnectionRow[];
+  }
+  return getSqliteDatabase()
+    .prepare(`select source_id, target_id, kind from app_instance_connections
+    where (source_id = ? or target_id = ?) and (? is null or source_id > ? or (source_id = ? and target_id > ?))
+    order by source_id, target_id limit ?`)
+    .all(
+      id,
+      id,
+      cursor?.[0] ?? null,
+      cursor?.[0] ?? null,
+      cursor?.[0] ?? null,
+      cursor?.[1] ?? null,
+      limit
+    ) as InstanceConnectionRow[];
+}
+
+export function readConnectionInstanceDefinitions(
+  sourceId: string,
+  targetId: string
+): Array<{ id: string; definition_id: string }> {
+  if (postgresConfigured('main')) {
+    if (!migratePostgres('main')) throw new Error('Postgres instance store unavailable.');
+    return JSON.parse(
+      runPsql(`select coalesce(json_agg(row_to_json(e)), '[]'::json) from
+      (select id, definition_id from app_instances where state = 'draft' and id in (${sqlLiteral(sourceId)}, ${sqlLiteral(targetId)})) e;`)
+    );
+  }
+  return getSqliteDatabase()
+    .prepare("select id, definition_id from app_instances where state = 'draft' and id in (?, ?)")
+    .all(sourceId, targetId) as Array<{ id: string; definition_id: string }>;
+}
+
+export function connectInstanceRows(row: InstanceConnectionRow): boolean {
+  if (postgresConfigured('main')) {
+    if (!migratePostgres('main')) throw new Error('Postgres instance store unavailable.');
+    const result = runPsql(`with parents as materialized (
+      select id, definition_id from app_instances where state = 'draft' and id in (${sqlLiteral(row.source_id)}, ${sqlLiteral(row.target_id)})
+      order by id for update), inserted as (
+      insert into app_instance_connections(source_id, target_id, kind)
+      select ${sqlLiteral(row.source_id)}, ${sqlLiteral(row.target_id)}, 'download-client'
+      where (select definition_id from parents where id = ${sqlLiteral(row.source_id)}) in (${sqlList(downloadClientSources)})
+        and (select definition_id from parents where id = ${sqlLiteral(row.target_id)}) in (${sqlList(downloadClientTargets)})
+      on conflict (source_id,target_id,kind) do nothing returning source_id)
+      select case when (select definition_id from parents where id = ${sqlLiteral(row.source_id)}) in (${sqlList(downloadClientSources)})
+        and (select definition_id from parents where id = ${sqlLiteral(row.target_id)}) in (${sqlList(downloadClientTargets)})
+        then 'ok' else 'missing' end from (select count(*) from inserted) completed;`);
+    return result === 'ok';
+  }
+  const db = getSqliteDatabase();
+  db.exec('begin immediate');
+  try {
+    const parents = db
+      .prepare("select id, definition_id from app_instances where state = 'draft' and id in (?, ?)")
+      .all(row.source_id, row.target_id) as Array<{ id: string; definition_id: string }>;
+    const source = parents.find((p) => p.id === row.source_id);
+    const target = parents.find((p) => p.id === row.target_id);
+    const valid = !!source && !!target && isOptionalDownloadClientPair(source.definition_id, target.definition_id);
+    if (valid)
+      db.prepare(`insert into app_instance_connections(source_id,target_id,kind) values (?,?,'download-client')
+      on conflict(source_id,target_id,kind) do nothing`).run(row.source_id, row.target_id);
+    db.exec('commit');
+    return valid;
+  } catch (error) {
+    db.exec('rollback');
+    throw error;
+  }
+}
+
+export function disconnectInstanceRows(row: InstanceConnectionRow): boolean {
+  if (postgresConfigured('main')) {
+    if (!migratePostgres('main')) throw new Error('Postgres instance store unavailable.');
+    return (
+      runPsql(`with parents as materialized (
+      select id from app_instances where state = 'draft' and id in (${sqlLiteral(row.source_id)}, ${sqlLiteral(row.target_id)})
+      order by id for update), removed as (
+      delete from app_instance_connections where source_id = ${sqlLiteral(row.source_id)}
+      and target_id = ${sqlLiteral(row.target_id)} and kind = 'download-client'
+      and (select count(*) from parents) = 2 returning source_id)
+      select coalesce((select source_id from removed), 'missing');`) === row.source_id
+    );
+  }
+  const db = getSqliteDatabase();
+  db.exec('begin immediate');
+  try {
+    const parents = db
+      .prepare("select id from app_instances where state='draft' and id in (?, ?)")
+      .all(row.source_id, row.target_id);
+    const changed =
+      parents.length === 2 &&
+      Number(
+        db
+          .prepare(`delete from app_instance_connections where source_id=? and target_id=? and kind='download-client'`)
+          .run(row.source_id, row.target_id).changes
+      ) === 1;
+    db.exec('commit');
+    return changed;
+  } catch (error) {
+    db.exec('rollback');
+    throw error;
+  }
+}
+
 export function getDatabase() {
   if (postgresConfigured('main')) {
     throw new Error('Stackarr is configured for PostgreSQL; use database helper functions instead of getDatabase().');
@@ -65,6 +205,8 @@ function getSqliteDatabase() {
   if (!database) {
     fs.mkdirSync(path.dirname(appDatabasePath), { recursive: true });
     database = new DatabaseSync(appDatabasePath);
+    database.exec('pragma busy_timeout = 5000');
+    database.exec('pragma foreign_keys = on');
     migrate(database);
   }
 
@@ -117,6 +259,106 @@ export function writeJsonSetting<T>(key: string, value: T) {
   }
 
   writeSqliteSetting(key, jsonValue);
+}
+
+export function readInstanceRowsPage(limit: number, cursor?: string): InstanceDbRow[] {
+  if (postgresConfigured('main')) {
+    if (!migratePostgres('main')) throw new Error('Postgres instance store is unavailable.');
+    try {
+      const result = runPsql(`select coalesce(json_agg(row_to_json(items)), '[]'::json) from (
+        select id, definition_id, display_name, ownership, state, configuration::text as configuration,
+          secret_references::text as secret_references,
+          to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at,
+          to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated_at
+        from app_instances where id > ${sqlLiteral(cursor ?? '')} order by id limit ${limit}
+      ) items;`);
+      return JSON.parse(result) as InstanceDbRow[];
+    } catch {
+      throw new Error('Postgres instance store is unavailable.');
+    }
+  }
+  return getSqliteDatabase()
+    .prepare(`select id, definition_id, display_name, ownership, state,
+    configuration, secret_references, created_at, updated_at from app_instances
+    where id > ? order by id limit ?`)
+    .all(cursor ?? '', limit) as InstanceDbRow[];
+}
+
+export function insertInstanceRow(row: Omit<InstanceDbRow, 'created_at' | 'updated_at'>): InstanceDbRow {
+  validatePrivateJson(row.configuration);
+  validatePrivateJson(row.secret_references, true);
+  if (row.state !== 'draft') throw new Error('Only draft instance records can be inserted.');
+  if (postgresConfigured('main')) {
+    const inserted = insertPostgresInstanceRow(row);
+    if (inserted) return inserted;
+    throw new Error('Postgres instance insert failed.');
+  }
+
+  return getSqliteDatabase()
+    .prepare(
+      `insert into app_instances (id, definition_id, display_name, ownership, state, configuration, secret_references)
+       values (?, ?, ?, ?, 'draft', ?, ?)
+       returning id, definition_id, display_name, ownership, state, configuration, secret_references, created_at, updated_at`
+    )
+    .get(
+      row.id,
+      row.definition_id,
+      row.display_name,
+      row.ownership,
+      row.configuration,
+      row.secret_references
+    ) as InstanceDbRow;
+}
+
+export function renameInstanceRow(id: string, displayName: string): InstanceDbRow | undefined {
+  if (postgresConfigured('main')) {
+    return renamePostgresInstanceRow(id, displayName);
+  }
+
+  return getSqliteDatabase()
+    .prepare(
+      `update app_instances
+       set display_name = ?, updated_at = datetime('now')
+       where id = ? and state = 'draft'
+       returning id, definition_id, display_name, ownership, state, configuration, secret_references, created_at, updated_at`
+    )
+    .get(displayName, id) as InstanceDbRow | undefined;
+}
+
+export function removeInstanceRow(id: string): boolean {
+  if (postgresConfigured('main')) {
+    return removePostgresInstanceRow(id);
+  }
+
+  const db = getSqliteDatabase();
+  db.exec('begin immediate');
+  try {
+    if (db.prepare('select 1 from app_instance_connections where source_id = ? or target_id = ? limit 1').get(id, id))
+      throw new InstanceConnectionConflict('Draft instance has connections.');
+    const result = db.prepare("delete from app_instances where id = ? and state = 'draft'").run(id);
+    db.exec('commit');
+    return Number(result.changes ?? 0) === 1;
+  } catch (error) {
+    db.exec('rollback');
+    throw error;
+  }
+}
+
+function validatePrivateJson(value: string, stringValues = false) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error('Invalid private instance JSON.');
+  }
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    (stringValues && Object.values(parsed).some((entry) => typeof entry !== 'string'))
+  ) {
+    throw new Error('Invalid private instance JSON.');
+  }
 }
 
 function readSqliteSetting(key: string): { value?: string } | undefined {
@@ -515,6 +757,66 @@ function migrate(db: Database) {
   if (!taskColumns.some((column) => column.name === 'reviewed_at')) {
     db.exec('alter table tasks add column reviewed_at text');
   }
+
+  migrateInstancePlatformSqlite(db);
+}
+
+function migrateInstancePlatformSqlite(db: Database) {
+  db.exec('begin immediate');
+  try {
+    const applied = db
+      .prepare('select 1 from schema_migrations where version = ?')
+      .get(instancePlatformSchemaVersion) as { 1: number } | undefined;
+    if (applied) {
+      migrateInstanceDraftSqlite(db);
+      migrateInstanceConnectionsSqlite(db);
+      db.exec('commit');
+      return;
+    }
+    db.exec(`
+      create table if not exists app_instances (
+        id text primary key,
+        definition_id text not null,
+        display_name text not null,
+        ownership text not null check (ownership in ('managed', 'external', 'native')),
+        configuration text not null default '{}',
+        secret_references text not null default '{}',
+        created_at text not null default (datetime('now')),
+        updated_at text not null default (datetime('now'))
+      );
+      create index if not exists app_instances_definition_id_idx on app_instances(definition_id);
+      insert into schema_migrations (version) values (${instancePlatformSchemaVersion});
+    `);
+    // Both versions are stamped only after the atomic upgrade succeeds.
+    migrateInstanceDraftSqlite(db);
+    migrateInstanceConnectionsSqlite(db);
+    db.exec('commit');
+  } catch (error) {
+    try {
+      db.exec('rollback');
+    } catch {
+      // Preserve the original migration error.
+    }
+    throw error;
+  }
+}
+
+function migrateInstanceDraftSqlite(db: Database) {
+  if (db.prepare('select 1 from schema_migrations where version = ?').get(instanceDraftSchemaVersion)) return;
+  db.exec(`
+    alter table app_instances add column state text not null default 'draft' check (state = 'draft');
+    insert into schema_migrations (version) values (${instanceDraftSchemaVersion});
+  `);
+}
+function migrateInstanceConnectionsSqlite(db: Database) {
+  if (db.prepare('select 1 from schema_migrations where version = ?').get(instanceConnectionSchemaVersion)) return;
+  db.exec(`create table app_instance_connections (
+    source_id text not null references app_instances(id) on delete restrict,
+    target_id text not null references app_instances(id) on delete restrict,
+    kind text not null check (kind = 'download-client'),
+    check (source_id <> target_id), unique(source_id, target_id, kind));
+    create index app_instance_connections_target_idx on app_instance_connections(target_id);
+    insert into schema_migrations (version) values (${instanceConnectionSchemaVersion});`);
 }
 
 function postgresConfigured(target: StackarrDatabaseTarget) {
@@ -533,6 +835,10 @@ function migratePostgres(target: StackarrDatabaseTarget) {
     if (target === 'main') {
       runPsql(
         `
+      begin;
+      set local lock_timeout = '5s';
+      select pg_advisory_xact_lock(hashtext('stackarr:migrations'));
+
       create table if not exists schema_migrations (
         version integer primary key,
         applied_at timestamptz not null default now()
@@ -574,6 +880,40 @@ function migratePostgres(target: StackarrDatabaseTarget) {
 
       create index if not exists tasks_queued_at_idx on tasks(queued_at);
       alter table tasks add column if not exists reviewed_at timestamptz;
+
+      create table if not exists app_instances (
+        id text primary key, definition_id text not null, display_name text not null,
+        ownership text not null check (ownership in ('managed', 'external', 'native')),
+        configuration jsonb not null default '{}'::jsonb,
+        secret_references jsonb not null default '{}'::jsonb,
+        created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+      );
+      create index if not exists app_instances_definition_id_idx on app_instances(definition_id);
+      insert into schema_migrations (version) values (${instancePlatformSchemaVersion}) on conflict do nothing;
+      do $$ begin
+        if not exists (select 1 from schema_migrations where version = ${instanceDraftSchemaVersion}) then
+          alter table app_instances add column if not exists state text;
+          update app_instances set state = 'draft' where state is null;
+          alter table app_instances alter column state set default 'draft';
+          alter table app_instances alter column state set not null;
+        if not exists (select 1 from pg_constraint where conrelid = 'app_instances'::regclass and conname = 'app_instances_state_draft_check') then
+          alter table app_instances add constraint app_instances_state_draft_check check (state = 'draft');
+        end if;
+          insert into schema_migrations (version) values (${instanceDraftSchemaVersion}) on conflict do nothing;
+        end if;
+      end $$;
+      do $$ begin
+        if not exists (select 1 from schema_migrations where version = ${instanceConnectionSchemaVersion}) then
+          create table app_instance_connections (
+            source_id text not null references app_instances(id) on delete restrict,
+            target_id text not null references app_instances(id) on delete restrict,
+            kind text not null check (kind = 'download-client'),
+            check (source_id <> target_id), unique(source_id, target_id, kind));
+          create index app_instance_connections_target_idx on app_instance_connections(target_id);
+          insert into schema_migrations(version) values (${instanceConnectionSchemaVersion});
+        end if;
+      end $$;
+      commit;
     `,
         {},
         false,
@@ -585,6 +925,10 @@ function migratePostgres(target: StackarrDatabaseTarget) {
 
     runPsql(
       `
+      begin;
+      set local lock_timeout = '5s';
+      select pg_advisory_xact_lock(hashtext('stackarr:migrations'));
+
       create table if not exists schema_migrations (
         version integer primary key,
         applied_at timestamptz not null default now()
@@ -608,6 +952,7 @@ function migratePostgres(target: StackarrDatabaseTarget) {
       );
 
       create index if not exists agent_activity_timestamp_idx on agent_activity(timestamp);
+      commit;
     `,
       {},
       false,
@@ -652,6 +997,51 @@ function writePostgresSetting(key: string, value: string) {
   } catch {
     return false;
   }
+}
+
+// Project the mutated row in the same SQL statement; zero rows means not found,
+// while psql failure throws and is never confused with an empty result.
+function postgresInstanceMutation(sql: string): InstanceDbRow | undefined {
+  if (!migratePostgres('main')) throw new Error('Postgres instance store is unavailable.');
+  const value = runPsql(`with mutated as (${sql} returning *)
+    select row_to_json(item) from (
+      select id, definition_id, display_name, ownership, state,
+        configuration::text as configuration, secret_references::text as secret_references,
+        to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at,
+        to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated_at
+      from mutated
+    ) item;`);
+  return value ? (JSON.parse(value) as InstanceDbRow) : undefined;
+}
+
+function insertPostgresInstanceRow(row: Omit<InstanceDbRow, 'created_at' | 'updated_at'>): InstanceDbRow {
+  const inserted = postgresInstanceMutation(`insert into app_instances
+    (id, definition_id, display_name, ownership, state, configuration, secret_references)
+    values (${sqlLiteral(row.id)}, ${sqlLiteral(row.definition_id)}, ${sqlLiteral(row.display_name)},
+      ${sqlLiteral(row.ownership)}, 'draft', ${sqlLiteral(row.configuration)}::jsonb,
+      ${sqlLiteral(row.secret_references)}::jsonb)`);
+  if (!inserted) throw new Error('Postgres instance insert returned no row.');
+  return inserted;
+}
+
+function renamePostgresInstanceRow(id: string, displayName: string): InstanceDbRow | undefined {
+  return postgresInstanceMutation(`update app_instances set display_name = ${sqlLiteral(displayName)}, updated_at = now()
+    where id = ${sqlLiteral(id)} and state = 'draft'`);
+}
+
+function removePostgresInstanceRow(id: string): boolean {
+  if (!migratePostgres('main')) throw new Error('Postgres instance store is unavailable.');
+  const result = runPsql(`begin;
+    do $$ begin perform id from app_instances where id = ${sqlLiteral(id)} and state = 'draft' for update; end $$;
+    with blocked as materialized
+    (select 1 from app_instance_connections where source_id = ${sqlLiteral(id)} or target_id = ${sqlLiteral(id)} limit 1),
+    removed as (delete from app_instances where id = ${sqlLiteral(id)} and state = 'draft'
+      and not exists(select 1 from blocked) returning id)
+    select case when exists(select 1 from blocked) then 'conflict'
+      when exists(select 1 from removed) then 'removed' else 'missing' end;
+    commit;`);
+  if (result === 'conflict') throw new InstanceConnectionConflict('Draft instance has connections.');
+  return result === 'removed';
 }
 
 function readPostgresNotifications(): NotificationRow[] | undefined {

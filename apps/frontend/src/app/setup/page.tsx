@@ -17,6 +17,7 @@ export default async function SetupPage() {
             mediaRoot: env.MEDIA_ROOT,
             musicRoot: env.MUSIC_ROOT,
             downloadsRoot: env.DOWNLOADS_ROOT,
+            torrentArchiveRoot: env.TORRENT_ARCHIVE_ROOT,
             backupRoot: env.BACKUP_ROOT,
             enable4kServarr: /^(1|true|yes|on)$/i.test(env.ENABLE_4K_SERVARR ?? ''),
             movieProfilePreset: env.STACKARR_MOVIE_PROFILE_PRESET,

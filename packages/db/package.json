@@ -1,23 +1,22 @@
 {
   "name": "@stackarr/db",
-  "version": "0.3.0-alpha.20",
-  "sideEffects": false,
+  "version": "0.3.0-alpha.25",
   "dependencies": {
-    "@neondatabase/serverless": "1.1.0",
-    "@prisma/adapter-neon": "7.10.0",
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
-    "@prisma/client-runtime-utils": "7.10.0",
+    "@neondatabase/serverless": "1.2.0",
+    "@prisma/adapter-neon": "7.10.1",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@prisma/client-runtime-utils": "7.10.1",
     "@t3-oss/env-nextjs": "^0.13.11",
-    "pg": "8.23.0",
-    "ws": "8.21.3",
-    "zod": "^4.4.3"
+    "pg": "8.23.1",
+    "ws": "8.22.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.6.6",
     "@types/pg": "8.23.1",
-    "@types/ws": "8.18.1",
-    "prisma": "7.10.0",
+    "@types/ws": "8.18.2",
+    "prisma": "7.10.1",
     "typescript": "^6.0.3"
   },
   "exports": {
@@ -33,5 +32,6 @@
     "migrate:dev": "prisma migrate dev",
     "typecheck": "tsc --noEmit"
   },
+  "sideEffects": false,
   "type": "module"
 }

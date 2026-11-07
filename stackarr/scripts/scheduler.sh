@@ -232,6 +232,11 @@ while true; do
             fi
         fi
 
+        if flag_enabled "${STACKARR_PG_BACKUP_ENABLED:-false}"; then
+            STACKARR_RUN_SOURCE=scheduled "$ROOT_DIR/bin/stackarr" backup postgres run-due ||
+                log_scheduler "PostgreSQL backup check failed"
+        fi
+
         if flag_enabled "${ENABLE_SCHEDULED_UPDATES:-false}"; then
             if update_stamp="$(due_daily_or_weekly update weekly "${UPDATE_TIME:-04:30}" "${UPDATE_WEEKDAY:-Sun}")"; then
                 run_with_lock update "$update_stamp"

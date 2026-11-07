@@ -84,11 +84,15 @@ test('external mount bridge accepts only fresh matching host mount-table replies
       []
     );
     const backupSource = await readFile(runner, 'utf8');
+    const commonSource = await readFile(
+      fileURLToPath(new URL('../../../stackarr/lib/common.sh', import.meta.url)),
+      'utf8'
+    );
     assert.ok(
       backupSource.indexOf('verify_external_backup_mount "$BACKUP_ROOT"') <
         backupSource.indexOf('task_ensure_dir "backup root"')
     );
-    assert.match(backupSource, /backup-mount-bridge\.sh" verify "\$STATE_ROOT" "\$root"/);
+    assert.match(commonSource, /backup-mount-bridge\.sh" verify "\$STATE_ROOT" "\$root"/);
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }

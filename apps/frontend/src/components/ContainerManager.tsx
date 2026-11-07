@@ -1337,7 +1337,7 @@ function formatBytes(value?: number) {
     return undefined;
   }
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
   let size = value;
   let unit = 0;
 

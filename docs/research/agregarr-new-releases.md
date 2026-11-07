@@ -20,12 +20,12 @@ This is preferable to directly enabling Plex's built-in hubs for this Stackarr c
 
 When placeholders are enabled, no native default hub in Agregarr's four-item warning set should remain visible. Either replace it with the matching filtered version and hide the native row, or hide it without replacement if that row is not wanted:
 
-| Native Plex hub | Safe Agregarr replacement |
-| --- | --- |
-| `movie.recentlyadded` | `filtered_hub` / `recently_added` |
-| `tv.recentlyadded` | `filtered_hub` / `recently_added` |
-| `movie.recentlyreleased` | `filtered_hub` / `recently_released` |
-| `tv.recentlyaired` | `filtered_hub` / `recently_released_episodes` |
+| Native Plex hub          | Safe Agregarr replacement                     |
+| ------------------------ | --------------------------------------------- |
+| `movie.recentlyadded`    | `filtered_hub` / `recently_added`             |
+| `tv.recentlyadded`       | `filtered_hub` / `recently_added`             |
+| `movie.recentlyreleased` | `filtered_hub` / `recently_released`          |
+| `tv.recentlyaired`       | `filtered_hub` / `recently_released_episodes` |
 
 This does **not** mean New Episodes should use `recently_released_episodes`. The table describes one-for-one replacements for Plex's existing native hubs. New Movies and the show-level New Episodes row use `recently_released`. Preserve the existing Recently Added experience as its own filtered row when it is meant to stay visible, and hide only its native duplicates. The native movie release row can be hidden in favor of New Movies. The native TV recently-aired-episodes row has different semantics: keep it as a separate filtered `recently_released_episodes` row only if it is independently desired; otherwise hide it without replacement. Agregarr's UI explicitly warns that all four visible native hubs are problematic when a library has placeholders, and directs the operator to create the matching filtered hub or disable the native hub when the replacement exists. [Agregarr placeholder warning and mapping](https://github.com/agregarr/agregarr/blob/v2.4.2/src/components/Collections/Views/CollectionSettings.tsx#L53-L63), [placeholder-hub decision logic](https://github.com/agregarr/agregarr/blob/v2.4.2/src/components/Collections/Views/CollectionSettings.tsx#L98-L176), [filtered-hub guidance](https://github.com/agregarr/agregarr/blob/v2.4.2/src/components/Collections/Forms/CollectionConfigForm.tsx#L243-L246)
 

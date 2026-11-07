@@ -32,7 +32,7 @@ test('LM Studio connection kit uses mcp.json notation and explains fail-closed a
     'STACKARR_MCP_PROFILE=admin',
     '-e',
     'STACKARR_MCP_CLIENT=lmstudio',
-    'app'
+    'stackarr'
   ]);
   assert.ok(kit.warnings.some((warning) => warning.includes('fail closed')));
   assert.equal(kit.documentationUrl, 'https://lmstudio.ai/docs/app/mcp');
@@ -62,4 +62,7 @@ test('connection kits cover every supported chat surface without embedding secre
     ['codex', 'claude', 'lmstudio', 'chatgpt', 'hermes', 'openclaw', 'generic']
   );
   assert.ok(kits.every((kit) => !JSON.stringify(kit).includes('sk-')));
+  assert.ok(
+    kits.filter((kit) => kit.command).every((kit) => kit.command?.includes(' stackarr /app/bin/stackarr mcp serve'))
+  );
 });

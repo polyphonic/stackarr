@@ -1,9 +1,17 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
-import { readEnv } from './env';
+import path from 'node:path';
+import { diskUsageKey, verifiedMountKey } from './diskUsageIdentity';
+
+export { diskUsageKey } from './diskUsageIdentity';
+
+import { readEnv, type StackarrEnv } from './env';
+import { type CapacityStatus, readHostCapacity } from './hostCapacity';
+import { type EnclosingMount, readHostCapacityReport } from './hostCapacityReport';
 import { composePath, composeProjectDir, composeProjectName, repoRoot } from './paths';
-import { getServices } from './services';
+import { discoverServiceStorage, type StorageAssociation, type StorageDiscovery } from './serviceStorage';
+import { getServices, serviceDisplayName } from './services';
 import { readTasks } from './tasks';
 
 type FilesystemUsage = {
@@ -14,9 +22,10 @@ type FilesystemUsage = {
   usedPercent: number;
   mountPoint: string | null;
   reliable: boolean;
+  volumeId?: string;
 };
 
-const virtiofsUsageCache = new Map<string, { expiresAt: number; usage: FilesystemUsage | null }>();
+export type DiskUsage = StackMetrics['disks'][number];
 
 export type StackMetrics = {
   generatedAt: string;
@@ -44,6 +53,11 @@ export type StackMetrics = {
     freeSpace: number | null;
     totalSpace: number | null;
     usedPercent: number | null;
+    status?: CapacityStatus;
+    volumeId?: string;
+    enclosingMount?: EnclosingMount;
+    associations?: Array<StorageAssociation & { status: CapacityStatus; displayName?: string }>;
+    discoveryIssues?: StorageDiscovery['issues'];
   }>;
   tasks: {
     queued: number;
@@ -53,7 +67,7 @@ export type StackMetrics = {
   };
 };
 
-export function getStackMetrics(paths: string[] = []): StackMetrics {
+export function getStackMetrics(paths: string[] = [], disks?: StackMetrics['disks']): StackMetrics {
   const services = getServices();
   const tasks = readTasks();
   const memoryTotalBytes = os.totalmem();
@@ -78,7 +92,7 @@ export function getStackMetrics(paths: string[] = []): StackMetrics {
       memoryTotalBytes,
       uptimeSeconds: os.uptime()
     },
-    disks: diskUsages(paths),
+    disks: disks ?? diskUsages(paths),
     tasks: {
       queued: tasks.filter((task) => task.status === 'queued').length,
       running: tasks.filter((task) => task.status === 'running').length,
@@ -86,6 +100,10 @@ export function getStackMetrics(paths: string[] = []): StackMetrics {
       completed: tasks.filter((task) => task.status === 'completed').length
     }
   };
+}
+
+export async function getConfiguredStackMetrics() {
+  return getStackMetrics([], await configuredDiskUsages(readEnv()));
 }
 
 function readDockerRunningCount() {
@@ -125,39 +143,202 @@ export function diskUsages(paths: string[], probe: typeof diskUsage = diskUsage)
   const fallbackPaths = requestedPaths.length > 0 ? requestedPaths : [readEnv().CONFIG_ROOT ?? repoRoot];
   // Probe the actual bound path, not its volume root: only a subdirectory may be shared with Docker.
   const disks = fallbackPaths.map((diskPath) => probe(diskPath));
-  const byVolume = new Map<string, (typeof disks)[number]>();
+  return groupDiskUsages(disks);
+}
 
+export function groupDiskUsages(disks: DiskUsage[]) {
+  disks = disks.map((disk) => ({
+    ...disk,
+    paths: [...disk.paths],
+    associations: disk.associations && [...disk.associations]
+  }));
+  const byVolume = new Map<string, DiskUsage>();
+  const proven = disks.filter((disk) => verifiedMountKey(disk));
+  const attached = new Set<DiskUsage>();
   for (const disk of disks) {
-    const key = volumeKey(disk);
-    const current = byVolume.get(key);
+    const proof = disk.status === 'missing' ? disk.enclosingMount : undefined;
+    if (
+      proof &&
+      proven.some(
+        (volume) =>
+          volume.mountPoint === proof.mountPoint &&
+          volume.filesystem === proof.filesystem &&
+          volume.volumeId === proof.volumeId
+      )
+    )
+      attached.add(disk);
+  }
+  // State proofs may omit UUID while an observed path on the same host mount
+  // supplies it. Resolve compatible metadata across the whole report first:
+  // a UUID-less proof must never bridge two conflicting known identities.
+  const identities = new Map<string, Set<string>>();
+  for (const disk of disks) {
+    const mount = verifiedMountKey(disk);
+    if (mount && disk.volumeId) {
+      const ids = identities.get(mount) ?? new Set<string>();
+      ids.add(disk.volumeId);
+      identities.set(mount, ids);
+    }
+  }
+
+  for (const source of disks) {
+    if (attached.has(source)) continue;
+    const mount = verifiedMountKey(source);
+    const ids = mount ? identities.get(mount) : undefined;
+    const disk = !source.volumeId && ids?.size === 1 ? { ...source, volumeId: [...ids][0] } : source;
+    const key = diskUsageKey(disk);
+    let current = byVolume.get(key);
 
     if (!current) {
       byVolume.set(key, disk);
       continue;
     }
 
+    current.associations = [...(current.associations ?? []), ...(disk.associations ?? [])];
     current.paths = [...new Set([...current.paths, ...disk.paths])];
+    // Preserve associations even when replacing a volume-level measurement.
+    if (current.totalSpace === null && disk.totalSpace !== null) {
+      current = {
+        ...disk,
+        associations: current.associations,
+        paths: current.paths,
+        path: current.path,
+        label: current.label
+      };
+      byVolume.set(key, current);
+    }
     current.path = preferredVolumeLabel(current.path, disk.path);
     current.label = volumeLabel(current.path);
+  }
+
+  // Match only independently measured mount identity, never a label/prefix.
+  // The missing leaf retains its own status and null capacity in associations.
+  for (const source of attached) {
+    const proof = source.enclosingMount!;
+    const target = [...byVolume.values()].find(
+      (disk) =>
+        disk.totalSpace !== null &&
+        disk.mountPoint === proof.mountPoint &&
+        disk.filesystem === proof.filesystem &&
+        disk.volumeId === proof.volumeId
+    );
+    if (!target) continue;
+    target.paths = [...new Set([...target.paths, ...source.paths])];
+    target.associations = [...(target.associations ?? []), ...(source.associations ?? [])];
   }
 
   return [...byVolume.values()].sort((a, b) => volumeRank(a) - volumeRank(b) || a.path.localeCompare(b.path));
 }
 
-function diskUsage(diskPath: string) {
+// Keep agent and API disk reports on the same host-aware probe and configured roots.
+export async function configuredDiskUsages(
+  env: StackarrEnv,
+  probe: typeof diskUsages = diskUsages,
+  discover: (env: StackarrEnv) => Promise<StorageDiscovery> = discoverServiceStorage
+) {
+  const policyFile =
+    process.env.STACKARR_STORAGE_POLICY ?? (env.STATE_ROOT && path.join(env.STATE_ROOT, 'storage-policy.json'));
+  if (probe === diskUsages && discover === discoverServiceStorage && policyFile) {
+    const report = await readHostCapacityReport(policyFile);
+    if (report) {
+      return groupDiskUsages(
+        report.entries.map((entry) => {
+          const v = entry.usage;
+          const display = v?.mountPoint ?? externalVolumeRoot(entry.path) ?? entry.path;
+          return {
+            label: volumeLabel(display),
+            path: display,
+            paths: [entry.path],
+            filesystem: v?.filesystem ?? null,
+            mountPoint: v?.mountPoint ?? null,
+            volumeId: v?.volumeId,
+            enclosingMount: entry.status === 'missing' ? entry.enclosingMount : undefined,
+            freeSpace: v ? v.availableKilobytes * 1024 : null,
+            totalSpace: v ? v.totalKilobytes * 1024 : null,
+            usedPercent: v?.usedPercent ?? null,
+            status: entry.status,
+            associations: report.roots
+              .filter((root) => root.path === entry.path)
+              .map((root) => ({ ...root, displayName: serviceDisplayName(root.service), status: entry.status })),
+            discoveryIssues: report.issues
+          };
+        })
+      );
+    }
+    // A new controller with a missing/old responder remains honest and bounded.
+    // Never fall back to the old serialized bridge or guest/native df here.
+    const discovered = await discover(env);
+    return groupDiskUsages(
+      [...new Set(discovered.roots.map((root) => root.path))].map((requested) => ({
+        label: requested,
+        path: requested,
+        paths: [requested],
+        filesystem: null,
+        mountPoint: null,
+        freeSpace: null,
+        totalSpace: null,
+        usedPercent: null,
+        status: 'probe-unavailable' as const,
+        associations: discovered.roots
+          .filter((root) => root.path === requested)
+          .map((root) => ({
+            ...root,
+            displayName: serviceDisplayName(root.service),
+            status: 'probe-unavailable' as const
+          })),
+        discoveryIssues: [...discovered.issues, { service: 'host', status: 'capacity-report-unavailable' }]
+      }))
+    );
+  }
+  const { roots, issues } = await discover(env);
+  // Attach exact-path outcomes before any grouping. A display label is not
+  // evidence that two unavailable paths belong to the same backing volume.
+  const disks = [...new Set(roots.map((root) => root.path))].flatMap((requested) =>
+    probe([requested]).map((disk) => ({
+      ...disk,
+      associations: roots
+        .filter((root) => root.path === requested)
+        .map((root) => ({
+          ...root,
+          displayName: serviceDisplayName(root.service),
+          status: disk.status ?? (disk.totalSpace === null ? ('probe-unavailable' as const) : ('available' as const))
+        })),
+      discoveryIssues: issues
+    }))
+  );
+  return groupDiskUsages(disks);
+}
+
+function diskUsage(diskPath: string): StackMetrics['disks'][number] {
+  let status: CapacityStatus = 'probe-unavailable';
   try {
-    const normalizedPath = fs.existsSync(diskPath) ? fs.realpathSync(diskPath) : diskPath;
-    const containerUsage = readFilesystemUsage(diskPath);
-    // Docker's shared virtiofs device reports another volume's capacity for unrelated binds.
-    // Overlay is the VM, not the physical disk. Neither is a trustworthy fallback.
-    const usage =
-      process.platform === 'darwin'
-        ? containerUsage
-        : containerUsage?.type === 'virtiofs' ||
-            containerUsage?.type === 'overlay' ||
-            process.env.STACKARR_RUNTIME === 'docker'
-          ? readVirtiofsHostUsage(diskPath)
-          : containerUsage;
+    const container =
+      ['docker', 'docker-updater'].includes(process.env.STACKARR_RUNTIME ?? '') ||
+      fs.existsSync('/.dockerenv') ||
+      fs.existsSync('/run/.containerenv');
+    const normalizedPath = container ? diskPath : fs.realpathSync(diskPath);
+    let usage = container ? null : readFilesystemUsage(normalizedPath);
+    if (container) {
+      const env = readEnv();
+      const policyFile =
+        process.env.STACKARR_STORAGE_POLICY ?? (env.STATE_ROOT && path.join(env.STATE_ROOT, 'storage-policy.json'));
+      if (policyFile) {
+        const host = readHostCapacity(diskPath, policyFile);
+        status = host.status;
+        if (host.usage) usage = { ...host.usage, type: '', reliable: true };
+      }
+    }
+    // Never report guest overlay or virtiofs capacity as a host disk measurement.
+    if (usage && ['overlay', 'virtiofs', 'fuse.overlayfs', 'tmpfs'].includes(usage.type)) usage = null;
+    if (
+      usage &&
+      !container &&
+      externalVolumeRoot(normalizedPath) &&
+      usage.mountPoint !== externalVolumeRoot(normalizedPath)
+    ) {
+      usage = null;
+      status = 'unmounted';
+    }
     if (!usage) throw new Error('Disk capacity unavailable');
     const freeSpace = usage.availableKilobytes * 1024;
     const totalSpace = usage.totalKilobytes * 1024;
@@ -172,9 +353,14 @@ function diskUsage(diskPath: string) {
       mountPoint,
       freeSpace,
       totalSpace,
-      usedPercent: usage.usedPercent
+      usedPercent: usage.usedPercent,
+      status: 'available',
+      ...(usage.volumeId ? { volumeId: usage.volumeId } : {})
     };
-  } catch {
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') status = 'missing';
+    if (code === 'EACCES' || code === 'EPERM') status = 'permission-denied';
     const displayPath = externalVolumeRoot(diskPath) ?? diskPath;
     return {
       label: volumeLabel(displayPath),
@@ -184,21 +370,10 @@ function diskUsage(diskPath: string) {
       mountPoint: null,
       freeSpace: null,
       totalSpace: null,
-      usedPercent: null
+      usedPercent: null,
+      status
     };
   }
-}
-
-function volumeKey(disk: { path: string; filesystem: string | null; mountPoint: string | null }) {
-  if (disk.path.startsWith('/Volumes/')) {
-    return `host-volume:${disk.path}`;
-  }
-
-  if (disk.filesystem && disk.mountPoint) {
-    return `${disk.filesystem}:${disk.mountPoint}`;
-  }
-
-  return `path:${disk.path}`;
 }
 
 function displayVolumePath(diskPath: string, normalizedPath: string, mountPoint: string | null) {
@@ -249,110 +424,44 @@ function volumeRank(disk: { path: string; mountPoint: string | null }) {
 }
 
 function readFilesystemUsage(diskPath: string): FilesystemUsage | null {
-  try {
-    const mac = process.platform === 'darwin';
-    const output = execFileSync('df', mac ? ['-kP', diskPath] : ['-PTk', diskPath], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 2500
-    });
-    return parseFilesystemUsage(output, false, mac);
-  } catch {
-    return null;
-  }
+  const mac = process.platform === 'darwin';
+  const output = execFileSync('df', mac ? ['-kP', diskPath] : ['-PTk', diskPath], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    timeout: 2500
+  });
+  return parseFilesystemUsage(output, false, mac);
 }
 
-// Resolve a container path against the running controller's actual bind mounts. Docker
-// shares virtiofs devices, so df inside the app cannot identify the physical host disk.
-export function resolveHostDiskPath(
-  diskPath: string,
-  mounts: Array<{ Type: string; Source: string; Destination: string }>
-): string | null {
-  const mount = mounts
-    .filter(
-      (item) => item.Type === 'bind' && (diskPath === item.Destination || diskPath.startsWith(`${item.Destination}/`))
-    )
-    .sort((a, b) => b.Destination.length - a.Destination.length)[0];
-  if (mount) return `${mount.Source}${diskPath.slice(mount.Destination.length)}`;
-  // Runtime config can contain host-side bind sources rather than container destinations.
-  const hostBind = mounts
-    .filter((item) => item.Type === 'bind' && (diskPath === item.Source || diskPath.startsWith(`${item.Source}/`)))
-    .sort((a, b) => b.Source.length - a.Source.length)[0];
-  if (hostBind) return diskPath;
-  // OrbStack may expose the same absolute host path inside the container without an explicit bind.
-  // Only trust this namespace for external volumes; never attribute arbitrary overlay paths to a host disk.
-  return externalVolumeRoot(diskPath) ? diskPath : null;
-}
+export { resolveHostDiskPath } from './serviceStorage';
 
-function readVirtiofsHostUsage(diskPath: string): FilesystemUsage | null {
-  const cached = virtiofsUsageCache.get(diskPath);
-  if (cached && cached.expiresAt > Date.now()) return cached.usage;
-
-  let usage: FilesystemUsage | null = null;
+export function hostMountPoint(source: string, stateRoot = readEnv().STATE_ROOT): string {
+  // Docker inspect retains a logical bind source even when the host follows a
+  // symlink onto another disk. The host-owned storage policy records that
+  // physical location; a container-side realpath of the bind cannot recover it.
   try {
-    const env = readEnv();
-    const container = execFileSync(
-      'docker',
-      [
-        'compose',
-        '--project-name',
-        composeProjectName,
-        '--project-directory',
-        composeProjectDir,
-        '-f',
-        composePath,
-        'ps',
-        '-q',
-        'app'
-      ],
-      {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        env: { ...process.env, ...env },
-        timeout: 2500,
-        stdio: ['ignore', 'pipe', 'ignore']
+    if (stateRoot) {
+      const policy = JSON.parse(fs.readFileSync(path.join(stateRoot, 'storage-policy.json'), 'utf8')) as {
+        roots?: Array<{ path: string; realPath: string; mountPoint: string }>;
+      };
+      const root = policy.roots
+        ?.filter(
+          (entry) =>
+            typeof entry.path === 'string' &&
+            typeof entry.realPath === 'string' &&
+            typeof entry.mountPoint === 'string' &&
+            (source === entry.path || source.startsWith(`${entry.path}/`))
+        )
+        .sort((a, b) => b.path.length - a.path.length)[0];
+      if (root) {
+        const physical = `${root.realPath}${source.slice(root.path.length)}`;
+        if (physical === root.mountPoint || physical.startsWith(`${root.mountPoint}/`)) return root.mountPoint;
       }
-    ).trim();
-    if (!container) throw new Error('Controller container unavailable');
-    const inspected = JSON.parse(
-      execFileSync('docker', ['inspect', '--format', '{{json .}}', container], {
-        encoding: 'utf8',
-        timeout: 2500,
-        stdio: ['ignore', 'pipe', 'ignore']
-      })
-    ) as { Image?: string; Mounts?: Array<{ Type: string; Source: string; Destination: string }> };
-    const source = resolveHostDiskPath(diskPath, inspected.Mounts ?? []);
-    if (!source || !inspected.Image?.startsWith('sha256:')) throw new Error('Host path or running image unavailable');
-    const output = execFileSync(
-      'docker',
-      [
-        'run',
-        '--rm',
-        '--pull=never',
-        '--network',
-        'none',
-        '--entrypoint',
-        'df',
-        '--mount',
-        `type=bind,source=${source},target=/stackarr-storage-probe,readonly`,
-        inspected.Image,
-        '-PTk',
-        '/stackarr-storage-probe'
-      ],
-      { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] }
-    );
-    usage = parseFilesystemUsage(output, true);
-    // A failed bind must not become the VM overlay's capacity. The helper mountpoint
-    // is synthetic; report the actual physical host volume instead.
-    if (usage?.type === 'overlay') usage = null;
-    if (usage) usage.mountPoint = externalVolumeRoot(source) ?? '/';
+    }
   } catch {
-    usage = null;
+    // Older installs have no storage policy. Keep their original path behavior.
   }
-
-  // Transient Docker/image failures are retried on the next request, not cached as a false missing disk.
-  if (usage) virtiofsUsageCache.set(diskPath, { expiresAt: Date.now() + 5 * 60 * 1000, usage });
-  return usage;
+  return externalVolumeRoot(source) ?? '/';
 }
 
 export function parseFilesystemUsage(output: string, reliable: boolean, mac = false): FilesystemUsage | null {

@@ -9,6 +9,7 @@ const allowed = new Set([
   'MEDIA_ROOT',
   'MUSIC_ROOT',
   'DOWNLOADS_ROOT',
+  'TORRENT_ARCHIVE_ROOT',
   'BACKUP_ROOT',
   'BACKUP_STAGING_ROOT',
   'APP_ROOT',
@@ -245,8 +246,11 @@ const allowed = new Set([
   'ROMM_URL',
   'ROMM_BIND_IP',
   'ROMM_WEB_PORT',
+  'ROMM_WEB_SERVER_CONCURRENCY',
+
   'ROMM_CONTAINER_PORT',
   'ROMM_LIBRARY_ROOT',
+  'ROMM_ADDITIONAL_GAMES_ROOT',
   'ROMM_STEAM_LIBRARY_ENABLED',
   'ROMM_STEAM_MAC_LIBRARY_ROOT',
   'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
@@ -290,6 +294,17 @@ const allowed = new Set([
   'ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA',
   'ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON',
   'STACKARR_DATABASE_MODE',
+  'POSTGRES_DEPLOYMENT_MODE',
+  'POSTGRES_HOST_ADDRESS',
+  'POSTGRES_HOST_PORT',
+  'POSTGRES_INSTANCE_ID',
+  'POSTGRES_HOST_CLIENT_BIN',
+  'POSTGRES_HOST',
+  'POSTGRES_PORT',
+  'REDIS_DEPLOYMENT_MODE',
+  'REDIS_HOST',
+  'REDIS_PORT',
+  'YOUTARR_DATABASE_DEPLOYMENT_MODE',
   'DATABASE_IMAGE',
   'DATABASE_PGDATA',
   'DATABASE_BIND_IP',
@@ -388,6 +403,23 @@ const allowed = new Set([
   'BACKUP_WEEKDAY',
   'BACKUP_RETENTION_COUNT',
   'BACKUP_ENCRYPTION',
+  'STACKARR_PG_BACKUP_ENABLED',
+  'STACKARR_PG_BACKUP_URL',
+  'STACKARR_PG_BACKUP_RETENTION_COUNT',
+  'STACKARR_PG_BACKUP_SOURCE_HOST',
+  'STACKARR_PG_BACKUP_SOURCE_PORT',
+  'STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID',
+  'STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN',
+  'STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR',
+  'STACKARR_PG_BACKUP_SOURCE_USER',
+  'STACKARR_PG_BACKUP_SOURCE_PASSWORD',
+  'STACKARR_PG_BACKUP_SOURCE_TLS_MODE',
+  'STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT',
+  'STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS',
+  'STACKARR_PG_BACKUP_SCHEDULE',
+  'STACKARR_PG_BACKUP_TIME',
+  'STACKARR_PG_BACKUP_WEEKDAY',
+  'STACKARR_PG_BACKUP_TIMEZONE',
   'ENABLE_SCHEDULED_UPDATES',
   'UPDATE_TIME',
   'UPDATE_WEEKDAY',
@@ -439,6 +471,7 @@ const allowed = new Set([
   'TRACEARR_POSTGRES_USER',
   'TRACEARR_POSTGRES_PASSWORD',
   'TRACEARR_DATABASE_URL',
+  'TRACEARR_REDIS_URL',
   'RECYCLARR_IMAGE',
   'FLARESOLVERR_IMAGE',
   'LIDARR_IMAGE',
@@ -479,11 +512,44 @@ try {
   const value = readSetting('stackarr.runtimeConfig');
   if (!value) process.exit(0);
   const config = JSON.parse(value);
+  const mode = config.POSTGRES_DEPLOYMENT_MODE || 'managed';
+  if (!['managed', 'independent', 'external'].includes(mode)) throw new Error('Unsupported backup source mode');
+  if (config.STACKARR_PG_BACKUP_ENABLED === 'true') {
+    if (
+      mode === 'external' &&
+      ([
+        'HOST',
+        'PORT',
+        'INSTANCE_ID',
+        'CLIENT_BIN',
+        'CLIENT_MAJOR',
+        'USER',
+        'PASSWORD',
+        'TLS_MODE',
+        'TLS_ROOT_CERT'
+      ].some((field) => !config[`STACKARR_PG_BACKUP_SOURCE_${field}`]) ||
+        config.STACKARR_PG_BACKUP_SOURCE_TLS_MODE !== 'verify-full')
+    )
+      throw new Error('Incomplete external backup source');
+    if (
+      mode === 'independent' &&
+      [
+        'POSTGRES_HOST_ADDRESS',
+        'POSTGRES_HOST_PORT',
+        'POSTGRES_INSTANCE_ID',
+        'POSTGRES_HOST_CLIENT_BIN',
+        'DATABASE_SUPERUSER',
+        'DATABASE_SUPERUSER_PASSWORD'
+      ].some((key) => !config[key])
+    )
+      throw new Error('Incomplete independent backup source');
+  }
   for (const [key, value] of Object.entries(config)) {
     if (/^[A-Z_][A-Z0-9_]*$/.test(key) && allowed.has(key)) {
       console.log('export ' + key + '=' + quote(value));
     }
   }
 } catch {
-  process.exit(0);
+  // Reject corrupt storage rather than exporting a partial or inherited source.
+  process.exit(1);
 }

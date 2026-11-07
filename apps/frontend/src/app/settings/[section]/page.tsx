@@ -2,7 +2,9 @@ import { readEnv, readJsonPreset, readSettings, redactEnv } from '@stackarr/core
 import { notFound, redirect } from 'next/navigation';
 import { PageBody, Toolbar } from '../../../components/AppFrame';
 import { CloudflareSyncPanel } from '../../../components/CloudflareSyncPanel';
+import { PostgresBackupSettings } from '../../../components/PostgresBackupSettings';
 import { SettingsEditor } from '../../../components/SettingsEditor';
+import { StorageMove } from '../../../components/StorageMove';
 import { SubNav } from '../../../components/SubNav';
 import { Panel, Table } from '../../../components/ui';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
@@ -76,6 +78,19 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
                 </tr>
               </tbody>
             </Table>
+          </Panel>
+        )}
+        {section === 'mediamanagement' && (
+          <Panel
+            title="Remote PostgreSQL archives"
+            description="Optional database-only backup to a dedicated PostgreSQL target"
+          >
+            <PostgresBackupSettings />
+          </Panel>
+        )}
+        {section === 'mediamanagement' && (
+          <Panel title="Configuration storage">
+            <StorageMove />
           </Panel>
         )}
         {section === 'profiles' && (

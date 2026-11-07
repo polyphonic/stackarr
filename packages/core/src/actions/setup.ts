@@ -1,7 +1,14 @@
 import { execFile } from 'node:child_process';
 import * as nodeCrypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { defaultStackarrAppRoot, type InstallMode, type StackarrEnv, type TorrentClient, writeEnvConfig } from '../env';
+import {
+  defaultStackarrAppRoot,
+  type InstallMode,
+  readEnv,
+  type StackarrEnv,
+  type TorrentClient,
+  writeEnvConfig
+} from '../env';
 import {
   accountUsernameValidationError,
   portablePasswordValidationError,
@@ -35,6 +42,7 @@ export type MediaServerSetupInput = {
   mediaRoot?: string;
   musicRoot?: string;
   downloadsRoot?: string;
+  torrentArchiveRoot?: string;
   backupRoot?: string;
   backupRetentionCount?: number;
   plexInstallMode?: InstallMode;
@@ -164,6 +172,7 @@ export const opinionatedSetupDefaults = {
   mediaRoot: `${setupDefaultAppRoot}/media`,
   musicRoot: `${setupDefaultAppRoot}/media/Music`,
   downloadsRoot: `${setupDefaultAppRoot}/downloads`,
+  torrentArchiveRoot: `${setupDefaultAppRoot}/state/torrent-archive`,
   backupRoot: `${setupDefaultAppRoot}/backups`,
   backupRetentionCount: 52,
   databaseMode: 'app-default' as const,
@@ -286,6 +295,12 @@ export function getMediaServerSetupProfileAction() {
         prompt: 'Where should downloads live?',
         type: 'path',
         default: opinionatedSetupDefaults.downloadsRoot
+      },
+      {
+        id: 'torrentArchiveRoot',
+        prompt: 'Where should saved torrent metadata live?',
+        type: 'path',
+        default: opinionatedSetupDefaults.torrentArchiveRoot
       },
       {
         id: 'backupRetentionCount',
@@ -675,6 +690,18 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
     };
   }
 
+  const existing = readEnv();
+  if (['external', 'independent'].includes(existing.POSTGRES_DEPLOYMENT_MODE) && existing.TRACEARR_DATABASE_URL) {
+    envPatch.TRACEARR_DATABASE_URL = existing.TRACEARR_DATABASE_URL;
+    for (const key of [
+      'TRACEARR_POSTGRES_USER',
+      'TRACEARR_POSTGRES_PASSWORD',
+      'TRACEARR_POSTGRES_DATABASE',
+      'TRACEARR_DB_PASSWORD'
+    ]) {
+      if (existing[key]) envPatch[key] = existing[key];
+    }
+  }
   writeEnvConfig(envPatch);
   writeSettings({
     setup: { onboardingComplete: false, installMode: 'fresh' },
@@ -763,6 +790,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
     MEDIA_ROOT: input.mediaRoot,
     MUSIC_ROOT: input.musicRoot,
     DOWNLOADS_ROOT: input.downloadsRoot,
+    TORRENT_ARCHIVE_ROOT: input.torrentArchiveRoot,
     BACKUP_ROOT: input.backupRoot,
     ENABLE_BACKUP: String(input.installBackup),
     BACKUP_SCHEDULE: 'weekly',

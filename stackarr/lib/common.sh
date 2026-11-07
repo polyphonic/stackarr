@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=storage-guard.sh
+source "$ROOT_DIR/lib/storage-guard.sh"
 if [[ -n "${STACKARR_REPO_ROOT:-}" ]]; then
     REPO_ROOT="$STACKARR_REPO_ROOT"
 elif [[ -f "$ROOT_DIR/../package.json" && -d "$ROOT_DIR/../stackarr" ]]; then
@@ -264,16 +266,20 @@ default_stackarr_database_file() {
 }
 
 load_sqlite_runtime_config() {
+    local strict="${1:-}"
     local db_file
     db_file="$(default_stackarr_database_file)"
     local exporter="$ROOT_DIR/scripts/runtime-config-export.cjs"
     [[ -n "${STACKARR_DATABASE_URL:-}" || -f "$db_file" ]] || return 0
-    [[ -f "$exporter" ]] || return 0
-    command -v node >/dev/null 2>&1 || return 0
+    if [[ ! -f "$exporter" ]] || ! command -v node >/dev/null 2>&1; then
+        [[ "$strict" != strict ]]
+        return $?
+    fi
 
     local exports
     if ! exports="$(STACKARR_DATABASE_FILE="$db_file" node "$exporter")"; then
-        return 0
+        [[ "$strict" != strict ]]
+        return $?
     fi
 
     [[ -n "$exports" ]] || return 0
@@ -296,9 +302,9 @@ eval_host_runtime_config_exports() {
     local exports="$1"
     local key backup_key before after
     local path_keys=(
-        APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT
+        APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT TORRENT_ARCHIVE_ROOT
         BOOKS_ROOT GAMES_ROOT BACKUP_ROOT BACKUP_STAGING_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH
-        JELLYFIN_CONFIG_PATH ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT
+        JELLYFIN_CONFIG_PATH ROMM_LIBRARY_ROOT ROMM_ADDITIONAL_GAMES_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT
         ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_DB_DATA_LOCATION QUESTARR_DATA_ROOT
         CLAMAV_DATA_ROOT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT
         YOUTARR_IMAGES_ROOT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION
@@ -327,7 +333,7 @@ load_postgres_runtime_config_through_app() {
     stackarr_runtime_is_container && return 1
 
     local exports
-    if ! exports="$(stackarr_compose exec -T app sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
+    if ! exports="$(stackarr_compose exec -T stackarr sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
         return 1
     fi
 
@@ -376,6 +382,7 @@ load_postgres_runtime_config_from_host() {
 
 load_postgres_runtime_config_through_database() {
     [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]] || return 1
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
     stackarr_runtime_is_container && return 1
     command -v python3 >/dev/null 2>&1 || return 1
 
@@ -422,12 +429,23 @@ load_postgres_runtime_config() {
         return $?
     fi
     load_postgres_runtime_config_through_app || \
-        load_postgres_runtime_config_through_database || \
+        { [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] && load_postgres_runtime_config_through_database; } || \
         load_postgres_runtime_config_from_host
+}
+
+installed_managed_database() {
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
+    local project source
+    project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' database </dev/null 2>/dev/null)" || return 1
+    [[ "$project" == "${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}" ]] || return 1
+    source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Source}}{{end}}{{end}}' database </dev/null 2>/dev/null)" || return 1
+    [[ "$source" == "${APP_ROOT:-$(default_app_root)}/config/database" ]]
 }
 
 start_existing_database_for_runtime_config() {
     [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" ]] || return 1
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
+    installed_managed_database || return 1
     ensure_docker_runtime
     docker inspect database >/dev/null 2>&1 || return 1
     docker start database >/dev/null
@@ -467,7 +485,8 @@ import sys
 
 env_file = sys.argv[1]
 include = re.compile(
-    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
+    r"^(POSTGRES_(DEPLOYMENT_MODE|HOST|PORT)|REDIS_(DEPLOYMENT_MODE|HOST|PORT))$|"
+    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
     r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
@@ -483,6 +502,8 @@ context_only = {
     "STACKARR_COMPOSE_PROJECT_DIR",
     "STACKARR_CONTAINER_NAME",
     "STACKARR_DATABASE_DIR",
+    "STACKARR_STORAGE_POLICY",
+    "STACKARR_STORAGE_DOCKER",
     "STACKARR_DATABASE_FILE",
     "STACKARR_PLEX_HOST",
     "STACKARR_REPO_ROOT",
@@ -562,9 +583,9 @@ configure_docker_environment() {
     local current_context=""
 
     if [[ -z "$requested_context" && "$(uname -s 2>/dev/null || true)" == "Darwin" && "$(command -v docker || true)" ]]; then
-        current_context="$(docker context show 2>/dev/null || true)"
+        current_context="$(docker context show </dev/null 2>/dev/null || true)"
         if [[ "${DOCKER_HOST:-}" == *arcbox* || "$current_context" == *arcbox* ]]; then
-            if docker context inspect orbstack >/dev/null 2>&1; then
+            if docker context inspect orbstack </dev/null >/dev/null 2>&1; then
                 requested_context="orbstack"
             fi
         fi
@@ -629,26 +650,41 @@ database_pgdata_default() {
 }
 
 load_env() {
+    # Check the internal policy before touching a possibly relocated database.
+    stackarr_storage_guard
     : "${STACKARR_REPO_ROOT:=$REPO_ROOT}"
     configure_docker_environment
     # Load installed paths before choosing the database. A source checkout may
     # still contain an old database and must not become the controller's mount.
     load_compose_runtime_env
+    stackarr_storage_guard
     : "${STACKARR_DATABASE_FILE:=$(default_stackarr_database_file)}"
     : "${STACKARR_DATABASE_DIR:=$(dirname "$STACKARR_DATABASE_FILE")}"
     # Host commands cannot resolve the Compose-only `database` hostname. Read
     # PostgreSQL-backed settings through the running Stackarr controller first.
+    # An installed database is authoritative even when bootstrap flags are stale.
+    if ! stackarr_runtime_is_container && [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] && installed_managed_database; then
+        STACKARR_DATABASE_MODE=postgres
+    fi
     if [[ "$(lowercase "${STACKARR_DATABASE_MODE:-}")" == "postgres" || -n "${STACKARR_DATABASE_URL:-}" ]]; then
+        # A URL is authoritative even if an inherited mode still says SQLite.
+        STACKARR_DATABASE_MODE=postgres
         if ! load_postgres_runtime_config; then
             # Host startup may still need to start the existing database first.
             # Containers already have database access: never use inherited
             # credentials to reconcile roles or recreate services after a failed read.
-            if stackarr_runtime_is_container; then
+            # Native/external installations need not retain any SQLite file.
+            # Missing legacy state is never evidence of a fresh installation.
+            if stackarr_runtime_is_container || [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != managed ]]; then
                 fail "Unable to load authoritative PostgreSQL runtime settings; refusing inherited credentials"
             fi
+            # Managed first-install and stopped-database recovery retain the
+            # existing startup contract. External stores must already exist.
         fi
     else
-        load_sqlite_runtime_config
+        if ! load_sqlite_runtime_config "${1:-}"; then
+            fail "Unable to load authoritative SQLite runtime settings; backup cancelled"
+        fi
     fi
     load_browser_link_runtime_settings
 
@@ -672,6 +708,7 @@ load_env() {
     : "${DOWNLOADS_ROOT:=$APP_ROOT/downloads}"
     : "${CONFIG_ROOT:=$APP_ROOT/config}"
     : "${STATE_ROOT:=$APP_ROOT/state}"
+    : "${TORRENT_ARCHIVE_ROOT:=$STATE_ROOT/torrent-archive}"
     : "${LOG_ROOT:=$APP_ROOT/logs}"
     : "${PLEX_CONFIG_PATH:=$HOME/Library/Application Support/Plex Media Server}"
     : "${PLEX_PREFS_PATH:=$HOME/Library/Preferences/com.plexapp.plexmediaserver.plist}"
@@ -853,8 +890,11 @@ load_env() {
     : "${ROMM_BIND_IP:=127.0.0.1}"
     : "${ROMM_WEB_PORT:=7583}"
     : "${ROMM_CONTAINER_PORT:=8080}"
+    : "${ROMM_WEB_SERVER_CONCURRENCY:=}"
     : "${ROMM_URL:=http://127.0.0.1:${ROMM_WEB_PORT}}"
     : "${ROMM_LIBRARY_ROOT:=$GAMES_ROOT}"
+    : "${ROMM_ADDITIONAL_GAMES_ROOT:=}"
+    export ROMM_ADDITIONAL_GAMES_ROOT
     : "${ROMM_STEAM_LIBRARY_ENABLED:=false}"
     : "${ROMM_STEAM_MAC_LIBRARY_ROOT:=}"
     : "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:=}"
@@ -1231,6 +1271,23 @@ load_env() {
     : "${BACKUP_WEEKDAY:=Sun}"
     : "${BACKUP_RETENTION_COUNT:=52}"
     : "${BACKUP_ENCRYPTION:=keyfile}"
+    : "${STACKARR_PG_BACKUP_ENABLED:=false}"
+    : "${STACKARR_PG_BACKUP_URL:=}"
+    : "${STACKARR_PG_BACKUP_RETENTION_COUNT:=4}"
+    : "${STACKARR_PG_BACKUP_SOURCE_HOST:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_PORT:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_USER:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_PASSWORD:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_TLS_MODE:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT:=}"
+    : "${STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS:=}"
+    : "${STACKARR_PG_BACKUP_SCHEDULE:=daily}"
+    : "${STACKARR_PG_BACKUP_TIME:=03:00}"
+    : "${STACKARR_PG_BACKUP_WEEKDAY:=Sun}"
+    : "${STACKARR_PG_BACKUP_TIMEZONE:=Etc/UTC}"
     : "${ENABLE_SCHEDULED_UPDATES:=false}"
     : "${UPDATE_TIME:=04:30}"
     : "${UPDATE_WEEKDAY:=Sun}"
@@ -1266,7 +1323,10 @@ load_env() {
             PREFERRED_TORRENT_CLIENT="transmission"
             ;;
     esac
+    export TORRENT_ARCHIVE_ROOT
     export STACKARR_REPO_ROOT STACKARR_DATABASE_FILE STACKARR_DATABASE_DIR STACKARR_DATABASE_MODE STACKARR_DATABASE_URL STACKARR_LOG_DATABASE_URL STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD COMPOSE_PROJECT_NAME TIMEZONE PUID PGID MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH PLEX_INSTALL_MODE JELLYFIN_INSTALL_MODE JELLYFIN_CONFIG_PATH ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM BOOKORBIT_JWT_SECRET BOOKORBIT_SETUP_TOKEN BOOKORBIT_DATABASE_URL BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD BOOKORBIT_IMAGE BOOKORBIT_BIND_IP BOOKORBIT_WEB_PORT BOOKORBIT_CONTAINER_PORT BOOKORBIT_URL BOOKORBIT_APP_URL BOOKORBIT_CLIENT_URL BOOKS_ROOT DATABASE_IMAGE DATABASE_PGDATA DATABASE_BIND_IP DATABASE_HOST_PORT DATABASE_NAME DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD REDIS_IMAGE SEERR_DB_TYPE SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD PULSARR_DB_TYPE PULSARR_DB_PATH PULSARR_DB_HOST PULSARR_DB_PORT PULSARR_DB_NAME PULSARR_DB_USER PULSARR_DB_PASSWORD PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD BAZARR_POSTGRES_ENABLED BAZARR_POSTGRES_HOST BAZARR_POSTGRES_PORT BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD PROWLARR_POSTGRES_HOST PROWLARR_POSTGRES_PORT PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD RADARR_POSTGRES_HOST RADARR_POSTGRES_PORT RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD RADARR4K_POSTGRES_HOST RADARR4K_POSTGRES_PORT RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD SONARR_POSTGRES_HOST SONARR_POSTGRES_PORT SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD SONARR4K_POSTGRES_HOST SONARR4K_POSTGRES_PORT SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD LIDARR_POSTGRES_HOST LIDARR_POSTGRES_PORT LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD ENABLE_TINYMEDIAMANAGER ENABLE_RECYCLARR ENABLE_FLARESOLVERR ENABLE_TIDARR ENABLE_SEERR STACKARR_CONFIGURE_SEERR ENABLE_PULSARR ENABLE_TRACEARR STACKARR_MOVIE_PROFILE_PRESET STACKARR_MOVIE_4K_PROFILE_PRESET STACKARR_TV_PROFILE_PRESET STACKARR_TV_4K_PROFILE_PRESET STACKARR_MUSIC_PROFILE_PRESET STACKARR_MOVIE_DEFAULT_PROFILE STACKARR_MOVIE_4K_DEFAULT_PROFILE STACKARR_TV_DEFAULT_PROFILE STACKARR_TV_4K_DEFAULT_PROFILE STACKARR_MUSIC_DEFAULT_PROFILE ENABLE_BACKUP STACKARR_API_KEY STACKARR_DOCKER_CONTEXT USERNAME PASSWORD USER_EMAIL TRANSMISSION_URL QBITTORRENT_URL PROWLARR_URL RADARR_URL RADARR_4K_URL RADARR4K_URL SONARR_URL SONARR_4K_URL SONARR4K_URL LIDARR_URL BAZARR_URL SEERR_URL PULSARR_URL TRACEARR_URL PLEX_URL JELLYFIN_URL TINYMEDIAMANAGER_URL FLARESOLVERR_URL TRANSMISSION_IMAGE QBITTORRENT_IMAGE RADARR_IMAGE SONARR_IMAGE PROWLARR_IMAGE BAZARR_IMAGE SEERR_IMAGE RECYCLARR_IMAGE FLARESOLVERR_IMAGE LIDARR_IMAGE TIDARR_IMAGE TINYMEDIAMANAGER_IMAGE TRANSMISSION_BIND_IP TRANSMISSION_TORRENT_PORT QBITTORRENT_BIND_IP QBITTORRENT_WEBUI_PORT QBITTORRENT_TORRENT_PORT PLEX_IMAGE PLEX_DOCKER_PORT JELLYFIN_IMAGE JELLYFIN_DOCKER_PORT STACKARR_WEB_ENABLED STACKARR_IMAGE STACKARR_BIND_IP STACKARR_WEB_PORT STACKARR_TELEMETRY_FEATURE_ENABLED STACKARR_TELEMETRY_ENABLED STACKARR_TELEMETRY_ENDPOINT STACKARR_TELEMETRY_CHANNEL STACKARR_TELEMETRY_INGEST_KEY PULSARR_IMAGE SEERR_BIND_IP PULSARR_BIND_IP PULSARR_PORT PULSARR_AUTHENTICATION_METHOD PULSARR_COOKIE_SECURED PREFERRED_TORRENT_CLIENT BACKUP_ROOT BACKUP_STAGING_ROOT BACKUP_TIME BACKUP_SCHEDULE BACKUP_WEEKDAY BACKUP_RETENTION_COUNT BACKUP_ENCRYPTION ENABLE_SCHEDULED_UPDATES UPDATE_TIME UPDATE_WEEKDAY DOWNLOAD_INCOMPLETE_NAME DOWNLOAD_COMPLETE_NAME RADARR_CATEGORY RADARR_4K_CATEGORY SONARR_CATEGORY SONARR_4K_CATEGORY LIDARR_CATEGORY PLEX_BACKUP_MODE CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARED_TUNNEL_NAME CLOUDFLARED_TUNNEL_ID CLOUDFLARED_METRICS_PORT CLOUDFLARED_BIN CLOUDFLARED_TOKEN_FILE CLOUDFLARED_KEEP_LAN CLOUDFLARE_ROUTE_MANAGED CLOUDFLARE_TUNNEL_ROUTES CLOUDFLARE_ACCESS_ENABLED CLOUDFLARE_ACCESS_ALLOWED_EMAILS CLOUDFLARE_ACCESS_SESSION_DURATION SEERR_ORIGIN_URL STACKARR_SERVICE_URL_MODE STACKARR_SERVICE_URL_SCHEME STACKARR_SERVICE_URL_HOST_SUFFIX STACKARR_UNIFY_SERVICE_URLS
+    export STACKARR_PG_BACKUP_ENABLED STACKARR_PG_BACKUP_URL STACKARR_PG_BACKUP_RETENTION_COUNT STACKARR_PG_BACKUP_SCHEDULE STACKARR_PG_BACKUP_TIME STACKARR_PG_BACKUP_WEEKDAY STACKARR_PG_BACKUP_TIMEZONE
+    export STACKARR_PG_BACKUP_SOURCE_HOST STACKARR_PG_BACKUP_SOURCE_PORT STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR STACKARR_PG_BACKUP_SOURCE_USER STACKARR_PG_BACKUP_SOURCE_PASSWORD STACKARR_PG_BACKUP_SOURCE_TLS_MODE STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS
     export ENABLE_TDARR TDARR_URL TDARR_API_URL TDARR_IMAGE TDARR_BIND_IP TDARR_WEB_PORT TDARR_SERVER_PORT TDARR_API_KEY TDARR_AUTH TDARR_INTERNAL_NODE TDARR_START_PAUSED TDARR_NODE_NAME TDARR_CACHE_ROOT TDARR_MEDIA_ROOT
     export ENABLE_MAINTAINERR MAINTAINERR_URL MAINTAINERR_IMAGE MAINTAINERR_BIND_IP MAINTAINERR_PORT MAINTAINERR_BASE_PATH MAINTAINERR_GITHUB_TOKEN MAINTAINERR_CLEANUP_PRESETS MAINTAINERR_PLEX_SERVER_URL MAINTAINERR_JELLYFIN_SERVER_URL MAINTAINERR_QBITTORRENT_URL
     export ENABLE_CLEANUPARR CLEANUPARR_URL CLEANUPARR_IMAGE CLEANUPARR_BIND_IP CLEANUPARR_PORT CLEANUPARR_AUTO_CONFIGURE CLEANUPARR_MALWARE_CRON CLEANUPARR_DATABASE_PROVIDER CLEANUPARR_POSTGRES_HOST CLEANUPARR_POSTGRES_PORT CLEANUPARR_POSTGRES_DATABASE CLEANUPARR_POSTGRES_USER CLEANUPARR_POSTGRES_PASSWORD CLAMAV_IMAGE CLAMAV_DATA_ROOT
@@ -1275,11 +1335,15 @@ load_env() {
     export ENABLE_FRIGATE FRIGATE_IMAGE FRIGATE_BIND_IP FRIGATE_PORT FRIGATE_URL FRIGATE_CONFIG_ROOT FRIGATE_MEDIA_ROOT
     export ENABLE_AGREGARR AGREGARR_URL AGREGARR_API_KEY AGREGARR_IMAGE AGREGARR_BIND_IP AGREGARR_PORT AGREGARR_PLACEHOLDER_FOLDER
     export IMMICH_URL IMMICH_API_KEY IMMICH_SERVER_IMAGE IMMICH_MACHINE_LEARNING_IMAGE IMMICH_BIND_IP IMMICH_WEB_PORT IMMICH_CONTAINER_PORT IMMICH_UPLOAD_LOCATION IMMICH_EXTERNAL_LIBRARY_LOCATION IMMICH_VERSION IMMICH_DB_USERNAME IMMICH_DB_PASSWORD IMMICH_DB_DATABASE_NAME IMMICH_DB_VECTOR_EXTENSION
-    export GAMES_ROOT ROMM_URL ROMM_API_KEY ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED ROMM_TGDB_API_ENABLED ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON
+    export GAMES_ROOT ROMM_URL ROMM_API_KEY ROMM_IMAGE ROMM_DB_IMAGE ROMM_BIND_IP ROMM_WEB_PORT ROMM_CONTAINER_PORT ROMM_WEB_SERVER_CONCURRENCY ROMM_LIBRARY_ROOT ROMM_ASSETS_ROOT ROMM_CONFIG_ROOT ROMM_RESOURCES_ROOT ROMM_REDIS_DATA_ROOT ROMM_REDIS_HOST ROMM_REDIS_PORT ROMM_ENABLE_RESCAN_ON_FILESYSTEM_CHANGE ROMM_RESCAN_ON_FILESYSTEM_CHANGE_DELAY ROMM_DB_DATA_LOCATION ROMM_DB_DRIVER ROMM_DB_HOST ROMM_DB_PORT ROMM_DB_NAME ROMM_DB_USER ROMM_DB_PASSWORD ROMM_DB_ROOT_PASSWORD ROMM_DB_QUERY_JSON ROMM_AUTH_SECRET_KEY ROMM_AUTO_CONFIGURE ROMM_ADMIN_USERNAME ROMM_ADMIN_EMAIL ROMM_ADMIN_PASSWORD ROMM_IGDB_CLIENT_ID ROMM_IGDB_CLIENT_SECRET ROMM_MOBYGAMES_API_KEY ROMM_SCREENSCRAPER_USER ROMM_SCREENSCRAPER_PASSWORD ROMM_RETROACHIEVEMENTS_API_KEY ROMM_REFRESH_RETROACHIEVEMENTS_CACHE_DAYS ROMM_STEAMGRIDDB_API_KEY ROMM_HASHEOUS_API_ENABLED ROMM_PLAYMATCH_API_ENABLED ROMM_LAUNCHBOX_API_ENABLED ROMM_FLASHPOINT_API_ENABLED ROMM_HLTB_API_ENABLED ROMM_TGDB_API_ENABLED ROMM_ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA ROMM_SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON
     export ROMM_STEAM_LIBRARY_ENABLED ROMM_STEAM_MAC_LIBRARY_ROOT ROMM_STEAM_WINDOWS_LIBRARY_ROOT ROMM_STEAM_LINUX_LIBRARY_ROOT
     export ENABLE_QUESTARR QUESTARR_URL QUESTARR_APP_URL QUESTARR_ALLOWED_ORIGINS QUESTARR_IMAGE QUESTARR_BIND_IP QUESTARR_WEB_PORT QUESTARR_CONTAINER_PORT QUESTARR_DATA_ROOT QUESTARR_LIBRARY_ROOT QUESTARR_SQLITE_DB_PATH QUESTARR_JWT_SECRET QUESTARR_IGDB_CLIENT_ID QUESTARR_IGDB_CLIENT_SECRET QUESTARR_ROMM_IMPORT_ENABLED QUESTARR_ROMM_TRANSFER_MODE QUESTARR_ROMM_DOWNLOAD_ROOT QUESTARR_ROMM_LIBRARY_ROOT QUESTARR_ROMM_LIBRARY_MOUNT_MODE QUESTARR_ROMM_CLAMAV_ENABLED QUESTARR_ROMM_CLAMAV_HOST QUESTARR_ROMM_CLAMAV_PORT QUESTARR_ROMM_IMPORT_LIMIT
     export ENABLE_YOUTARR YOUTARR_URL YOUTARR_API_KEY YOUTARR_IMAGE YOUTARR_DB_IMAGE YOUTARR_BIND_IP YOUTARR_WEB_PORT YOUTARR_CONTAINER_PORT YOUTARR_OUTPUT_ROOT YOUTARR_CONFIG_ROOT YOUTARR_JOBS_ROOT YOUTARR_IMAGES_ROOT YOUTARR_DB_HOST YOUTARR_DB_PORT YOUTARR_DB_NAME YOUTARR_DB_USER YOUTARR_DB_PASSWORD YOUTARR_DB_ROOT_PASSWORD YOUTARR_LOGIN_ENABLED YOUTARR_ADMIN_USERNAME YOUTARR_ADMIN_PASSWORD YOUTARR_TRUST_PROXY YOUTARR_LOG_LEVEL YOUTARR_PLEX_URL
     export TRACEARR_URL TRACEARR_API_KEY TRACEARR_IMAGE TRACEARR_BIND_IP TRACEARR_PORT TRACEARR_DB_PASSWORD TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_DATABASE_URL TRACEARR_JWT_SECRET TRACEARR_COOKIE_SECRET TRACEARR_LOG_LEVEL TRACEARR_CORS_ORIGIN
+    export POSTGRES_DEPLOYMENT_MODE POSTGRES_HOST POSTGRES_PORT REDIS_DEPLOYMENT_MODE REDIS_HOST REDIS_PORT YOUTARR_DATABASE_DEPLOYMENT_MODE YOUTARR_DB_HOST YOUTARR_DB_PORT TRACEARR_REDIS_URL IMMICH_DB_HOSTNAME IMMICH_DB_PORT IMMICH_REDIS_HOST IMMICH_REDIS_PORT
+    local endpoint_exports
+    endpoint_exports="$(node "$ROOT_DIR/scripts/database-endpoints.cjs" env)" || fail 'Invalid database endpoint settings'
+    eval "$endpoint_exports"
     export PULSARR_API_KEY BOOKORBIT_TOKEN BAZARR_API_KEY TINYMEDIAMANAGER_API_KEY TIDARR_URL TIDARR_API_KEY
     export TRANSMISSION_PASSWORD QBITTORRENT_PASSWORD PROWLARR_PASSWORD RADARR_PASSWORD RADARR4K_PASSWORD SONARR_PASSWORD SONARR4K_PASSWORD LIDARR_PASSWORD BAZARR_PASSWORD PULSARR_PASSWORD BOOKORBIT_PASSWORD TINYMEDIAMANAGER_PASSWORD
 }
@@ -1303,7 +1367,8 @@ from pathlib import Path
 
 target = Path(sys.argv[1])
 include = re.compile(
-    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
+    r"^(POSTGRES_(DEPLOYMENT_MODE|HOST|PORT)|REDIS_(DEPLOYMENT_MODE|HOST|PORT))$|"
+    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
     r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
@@ -1319,6 +1384,8 @@ context_only = {
     "STACKARR_COMPOSE_PROJECT_DIR",
     "STACKARR_CONTAINER_NAME",
     "STACKARR_DATABASE_FILE",
+    "STACKARR_STORAGE_POLICY",
+    "STACKARR_STORAGE_DOCKER",
     "STACKARR_PLEX_HOST",
     "STACKARR_REPO_ROOT",
     "STACKARR_REVISION",
@@ -1340,9 +1407,10 @@ def is_secret(key: str) -> bool:
     return bool(
         re.search(r"(?:PASSWORD|TOKEN|SECRET|CLAIM_CODE|_KEY)$", key)
         or key in {"ROMM_IGDB_CLIENT_ID", "QUESTARR_IGDB_CLIENT_ID", "ROMM_SCREENSCRAPER_USER"}
-        or key in {"STACKARR_DATABASE_URL", "STACKARR_LOG_DATABASE_URL", "DATABASE_URL"}
+        or key in {"STACKARR_DATABASE_URL", "STACKARR_LOG_DATABASE_URL", "STACKARR_PG_BACKUP_URL", "DATABASE_URL"}
         or key.endswith("_DATABASE_URL")
         or key.endswith("_DB_URL")
+        or key.endswith("_REDIS_URL")
     )
 
 lines = [
@@ -1708,6 +1776,76 @@ selected_media_server_profiles() {
     esac
 }
 
+# Only a live inherited lock descriptor for this installation permits nesting.
+# An environment variable alone cannot bypass exclusion.
+maintenance_lock_owned() {
+    [[ "${STACKARR_MAINTENANCE_LOCK_FD:-}" =~ ^[0-9]+$ ]] || return 1
+    python3 - "$STATE_ROOT/maintenance.lock" "$STACKARR_MAINTENANCE_LOCK_FD" <<'PY'
+import fcntl
+import os
+import sys
+try:
+    fd = int(sys.argv[2])
+    path = sys.argv[1]
+    descriptor, target = os.fstat(fd), os.stat(path)
+    if (descriptor.st_dev, descriptor.st_ino) != (target.st_dev, target.st_ino):
+        raise ValueError("different lock")
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except (OSError, ValueError):
+    sys.exit(1)
+PY
+}
+
+maintenance_lock_enter() {
+    if maintenance_lock_owned; then return 0; fi
+    unset STACKARR_MAINTENANCE_LOCK_FD
+    exec python3 "$ROOT_DIR/scripts/maintenance-lock.py" "$STATE_ROOT" -- "$@"
+}
+
+backup_device() {
+    stat -c %d "$1" 2>/dev/null || stat -f %d "$1"
+}
+
+verify_external_backup_mount() {
+    local root="$1" volumes_root="${2:-/Volumes}" volume remainder volume_device parent_device root_device
+    case "$root" in
+        "$volumes_root"/*) ;;
+        *) return 0 ;;
+    esac
+    # A bind's device alone cannot prove the host still has the volume mounted.
+    # Demand a fresh host mount-table response before every bulk operation.
+    if [[ "$(uname -s)" != Darwin ]]; then
+        [[ -d "$root" && "$(realpath "$root")" == "$root" ]] ||
+            fail "External backup root is missing or not canonical: $root"
+        "$ROOT_DIR/scripts/backup-mount-bridge.sh" verify "$STATE_ROOT" "$root" ||
+            fail "External backup root requires fresh host mount verification: $root"
+        return 0
+    fi
+    remainder="${root#"$volumes_root"/}"
+    volume="$volumes_root/${remainder%%/*}"
+    [[ -d "$volume" && -d "$root" ]] || fail "External backup volume is unavailable: $volume"
+    parent_device="$(backup_device "$volumes_root")" || fail "Cannot inspect external backup volume parent"
+    volume_device="$(backup_device "$volume")" || fail "Cannot inspect external backup volume"
+    root_device="$(backup_device "$root")" || fail "Cannot inspect external backup root"
+    [[ -n "$volume_device" && "$volume_device" != "$parent_device" && "$root_device" == "$volume_device" ]] ||
+        fail "External backup volume is not mounted on the host: $volume"
+}
+
+verify_backup_mounts() {
+    local staging="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
+    stackarr_storage_guard
+    verify_external_backup_mount "$BACKUP_ROOT"
+    if [[ "$staging" != "$BACKUP_ROOT"/* ]]; then
+        verify_external_backup_mount "$staging"
+    fi
+    [[ -d "$BACKUP_ROOT" ]] || fail "Backup root is missing: $BACKUP_ROOT"
+    mkdir -p "$staging"
+    [[ "$(backup_device "$staging")" == "$(backup_device "$BACKUP_ROOT")" ]] ||
+        fail "Backup staging and archive roots must be on the same filesystem"
+    BACKUP_STAGING_ROOT="$staging"
+    export BACKUP_STAGING_ROOT
+}
+
 flag_enabled() {
     local value="${1:-true}"
     case "$(lowercase "$value")" in
@@ -1732,6 +1870,7 @@ database_mode_is_postgres() {
 }
 
 database_required() {
+    [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != external && "${POSTGRES_DEPLOYMENT_MODE:-managed}" != independent ]] || return 1
     if database_mode_is_postgres; then
         return 0
     fi
@@ -1856,6 +1995,7 @@ database_backed_servarr_services() {
         flag_enabled "${ENABLE_TV_SHOWS:-false}" && printf '%s\n' "sonarr4k"
     fi
     flag_enabled "${ENABLE_LIDARR:-false}" && printf '%s\n' "lidarr"
+    return 0
 }
 
 servarr_service_url() {
@@ -1884,37 +2024,97 @@ servarr_service_url() {
     esac
 }
 
-recover_database_startup_failures() {
-    local service url recent_logs
+# Recovery must not render Compose, migrate storage, or recreate containers.
+# Reuse the installed project's existing definition for scoped Docker actions.
+recovery_compose() {
+    local project_dir compose_file
+    project_dir="$(stackarr_compose_project_dir)"
+    compose_file="$(stackarr_compose_file)"
+    [[ -f "$compose_file" ]] || return 1
+    docker compose --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" \
+        --project-directory "$project_dir" -f "$compose_file" "$@"
+}
 
-    database_required || return 0
+shared_database_is_ready() {
+    recovery_compose --profile database exec -T database \
+        pg_isready -q -U "${DATABASE_SUPERUSER:-postgres}" -d "${DATABASE_NAME:-postgres}" >/dev/null 2>&1
+}
+
+service_container_started_at() {
+    local container_id
+    container_id="$(recovery_compose ps -q "$1" 2>/dev/null)" || return 1
+    [[ -n "$container_id" ]] || return 1
+    docker inspect --format '{{if .State.Running}}{{.State.StartedAt}}{{end}}' "$container_id" 2>/dev/null
+}
+
+database_startup_failure_logs() {
+    local service="$1" started_at="$2" log_name
+    recovery_compose logs --since="$started_at" --tail=500 "$service" 2>/dev/null || true
+    # Sonarr may intentionally have Docker logging disabled. Its own log still
+    # records the fatal startup, using the service's configured local timezone.
+    [[ "$service" != cleanuparr ]] || return 0
+    log_name="${service%4k}"
+    TZ="${TIMEZONE:-Etc/UTC}" python3 "$ROOT_DIR/scripts/startup-log.py" \
+        "${CONFIG_ROOT:-}/$service/logs/$log_name.txt" "$started_at" 2>/dev/null || true
+}
+
+recover_database_startup_failures() {
+    local service url recent_logs started_at services="" marker database_host_key
+
+    database_required && shared_database_is_ready || return 0
+    if database_mode_is_postgres; then
+        services="$(database_backed_servarr_services)"
+    fi
+    if flag_enabled "${ENABLE_CLEANUPARR:-false}" &&
+        [[ "$(lowercase "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}")" == postgres ]]; then
+        services="${services}"$'\ncleanuparr'
+    fi
 
     while IFS= read -r service; do
         [[ -n "$service" ]] || continue
-        stackarr_compose ps --services --status running 2>/dev/null | grep -qx "$service" || continue
-        url="$(servarr_service_url "$service")" || continue
+        marker="${STACKARR_RECOVERY_STATE_DIR:-}/$service"
+        [[ -z "${STACKARR_RECOVERY_STATE_DIR:-}" || ! -e "$marker" ]] || continue
+        recovery_compose ps --services --status running 2>/dev/null | grep -qx "$service" || continue
+        started_at="$(service_container_started_at "$service")" || continue
+        [[ -n "$started_at" ]] || continue
+        if [[ "$service" == cleanuparr ]]; then
+            url="$(service_url cleanuparr "${CLEANUPARR_URL:-}" "${CLEANUPARR_PORT:-11011}")" || continue
+            url="${url%/}/api/health"
+        else
+            url="$(servarr_service_url "$service")" || continue
+        fi
         http_url_is_reachable "$url" && continue
-
-        recent_logs="$(stackarr_compose logs --tail=250 "$service" 2>&1 || true)"
-        if [[ "$recent_logs" == *"database system is starting up"* ]] && [[ "$recent_logs" == *"Non-recoverable failure"* ]]; then
-            warn "$service is stuck after starting before the database was ready; restarting it"
-            stackarr_compose restart "$service"
+        recent_logs="$(database_startup_failure_logs "$service" "$started_at")"
+        if [[ "$recent_logs" != *"database system is starting up"* ]]; then
+            # Docker DNS and PostgreSQL's listening socket can become ready
+            # after the app has already failed. Only recover a known database
+            # client failure, and require DNS to work from that app first.
+            [[ "$recent_logs" == *"Npgsql.NpgsqlException"* ]] || continue
+            if [[ "$recent_logs" == *"Connection refused"* ]]; then
+                :
+            elif [[ "$recent_logs" == *"Name or service not known"* ||
+                "$recent_logs" == *"Temporary failure in name resolution"* ]]; then
+                [[ "$service" != cleanuparr || "$recent_logs" == *"Unhandled exception."* ]] || continue
+                database_host_key="$(printf '%s_POSTGRES_HOST' "$service" | tr '[:lower:]' '[:upper:]')"
+                recovery_compose exec -T "$service" getent hosts "${!database_host_key:-database}" >/dev/null 2>&1 || continue
+            else
+                continue
+            fi
         fi
-    done < <(database_backed_servarr_services)
-
-    # Docker daemon restarts do not honor Compose's service_healthy ordering.
-    # Cleanuparr can stay running after a fatal PostgreSQL startup exception;
-    # restart only that confirmed failure, never a merely unhealthy instance.
-    if flag_enabled "${ENABLE_CLEANUPARR:-false}" &&
-        [[ "$(lowercase "${CLEANUPARR_DATABASE_PROVIDER:-sqlite}")" == "postgres" ]] &&
-        stackarr_compose ps --services --status running 2>/dev/null | grep -qx cleanuparr &&
-        ! http_url_is_reachable "${CLEANUPARR_URL:-http://127.0.0.1:${CLEANUPARR_PORT:-11011}}/api/health"; then
-        recent_logs="$(stackarr_compose logs --since=30m --tail=250 cleanuparr 2>&1 || true)"
-        if [[ "$recent_logs" == *"57P03"* ]] && [[ "$recent_logs" == *"database system is starting up"* ]]; then
-            warn "cleanuparr is stuck after starting before the database was ready; restarting it"
-            stackarr_compose restart cleanuparr
+        if [[ "$service" != cleanuparr ]]; then
+            [[ "$recent_logs" == *"Non-recoverable failure"* || "$recent_logs" == *"Application startup exception"* || "$recent_logs" == *"|Fatal|"* ]] || continue
         fi
-    fi
+        # Do not revive a service stopped/recreated while its logs were read.
+        [[ "$(service_container_started_at "$service" || true)" == "$started_at" ]] || continue
+        shared_database_is_ready || return 0
+        if [[ -n "${STACKARR_RECOVERY_STATE_DIR:-}" ]]; then
+            # One attempt per service in this controller-start recovery window.
+            # Mark before restarting, so failures cannot create a restart loop.
+            : > "$marker"
+        fi
+        warn "$service is stuck after starting before the database was ready; restarting it"
+        recovery_compose restart "$service" || warn "$service recovery restart failed"
+    done <<< "$services"
 }
 
 optional_service_enabled() {
@@ -2064,7 +2264,7 @@ remove_disabled_optional_containers() {
         stackarr_compose --profile romm rm -f -s mariadb mysql romm-db >/dev/null 2>&1 || true
     fi
 
-    if ! optional_service_enabled youtarr; then
+    if [[ "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" == managed ]] && ! optional_service_enabled youtarr; then
         stackarr_compose --profile youtarr rm -f -s youtarr-db >/dev/null 2>&1 || true
     fi
 }
@@ -2153,7 +2353,7 @@ ensure_docker_runtime() {
     require_command docker
     configure_docker_environment
 
-    docker info >/dev/null 2>&1 || fail "Docker runtime is not ready. Start a Docker-compatible engine before running Stackarr."
+    docker info </dev/null >/dev/null 2>&1 || fail "Docker runtime is not ready. Start a Docker-compatible engine before running Stackarr."
     ok "Docker runtime is ready"
 }
 
@@ -2205,7 +2405,61 @@ stackarr_compose_file() {
     printf '%s/docker-compose.yml\n' "$(stackarr_compose_project_dir)"
 }
 
+# Refuse a Compose bind cutover that would hide populated legacy data behind
+# an empty new path. The storage relocation worker leaves a symlink at the
+# logical old config root; resolve that alias rather than demanding a copy.
+stackarr_verify_legacy_compose_mounts() {
+    require_command node
+    node - "${APP_ROOT:-$(default_app_root)}" "${CONFIG_ROOT:-${APP_ROOT:-$(default_app_root)}/config}" \
+        "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-${APP_ROOT:-$(default_app_root)}/state}/torrent-archive}" <<'NODE' || fail 'Legacy Compose mount preflight failed; inspect and migrate existing data before applying mounts'
+const fs = require('node:fs');
+const path = require('node:path');
+const [app, config, archive] = process.argv.slice(2);
+const names = [
+  'transmission', 'qbittorrent', 'sonarr', 'sonarr4k', 'radarr', 'radarr4k', 'hooks',
+  'database', 'prowlarr', 'bazarr', 'tinymediamanager', 'pulsarr',
+  'maintainerr', 'cleanuparr', 'agregarr', 'tracearr', 'seerr',
+  'plex', 'jellyfin', 'recyclarr', 'lidarr', 'tidarr', 'bookorbit'
+];
+function physical(input) {
+  if (!path.isAbsolute(input)) throw Error('mount root is not absolute');
+  let existing = input;
+  while (!fs.existsSync(existing)) {
+    try { fs.lstatSync(existing); throw Error('dangling mount source'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const parent = path.dirname(existing);
+    if (parent === existing) throw Error('mount root is unavailable');
+    existing = parent;
+  }
+  return path.join(fs.realpathSync(existing), path.relative(existing, input));
+}
+function populated(input) {
+  let stat;
+  try { stat = fs.lstatSync(input); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  // A dangling link or an unreadable directory must fail, not look empty.
+  if (stat.isSymbolicLink()) fs.statSync(input);
+  if (!fs.statSync(input).isDirectory()) throw Error('mount source is not a directory');
+  return fs.readdirSync(input).length > 0;
+}
+function check(oldRoot, newRoot, label) {
+  if (physical(oldRoot) === physical(newRoot)) return;
+  if (populated(oldRoot) && !populated(newRoot))
+    throw Error(`${label}: populated legacy bind would be replaced by an empty target (${oldRoot} -> ${newRoot}); migrate and verify before retrying`);
+}
+try {
+  for (const name of names) check(path.join(app, 'config', name), path.join(config, name), `config/${name}`);
+  check(path.join(app, 'state', 'torrent-archive'), archive, 'torrent-archive');
+} catch (error) {
+  console.error(`Legacy Compose mount check: ${error.message}`);
+  process.exitCode = 1;
+}
+NODE
+}
+
 prepare_compose_runtime_file() {
+    stackarr_storage_guard
+    stackarr_verify_torrent_archive_root
     local source_file="$ROOT_DIR/docker-compose.yml"
     local agregarr_guard_source="$ROOT_DIR/scripts/agregarr-placeholder-guard.cjs"
     local project_dir compose_file agregarr_guard_target
@@ -2225,39 +2479,40 @@ prepare_compose_runtime_file() {
         cp "$agregarr_guard_source" "$agregarr_guard_target"
     fi
     chmod 0644 "$agregarr_guard_target"
+    prepare_storage_compose_override "$project_dir" "$source_file"
+    if [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != managed || "${REDIS_DEPLOYMENT_MODE:-managed}" != managed || "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" != managed ]]; then
+        local rendered endpoint_override="$project_dir/database-endpoints-override.yml"
+        rendered="$(docker compose --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" --project-directory "$project_dir" -f "$compose_file" --profile '*' config --format json)" || fail 'Cannot render managed database topology'
+        if ! printf '%s' "$rendered" | node "$ROOT_DIR/scripts/database-endpoints.cjs" override > "$endpoint_override.tmp.$$"; then
+            rm -f "$endpoint_override.tmp.$$"
+            fail 'Cannot generate external endpoint topology'
+        fi
+        chmod 600 "$endpoint_override.tmp.$$"
+        mv "$endpoint_override.tmp.$$" "$endpoint_override"
+    fi
 }
 
 migrate_legacy_image_volume() {
-    local container_name="$1"
-    local destination="$2"
-    local volume_key="$3"
+    local container_name="$1" destination="$2" volume_key="$3"
     local project_name="${COMPOSE_PROJECT_NAME:-stackarr}"
-    local target_volume="${project_name}_${volume_key}"
-    local migration_image="${STACKARR_IMAGE:-polyphonic/stackarr:alpha}"
-    local mount_info source_volume was_running cleanup_target_on_failure=false
-
-    mount_info="$(
-        docker inspect \
-            --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{printf \"%s|%s\" .Type .Name}}{{end}}{{end}}" \
-            "$container_name" 2>/dev/null || true
-    )"
+    local target_volume="${project_name}_${volume_key}" mount_info source_volume was_running
+    local helper_image target_created=false
+    mount_info="$(docker inspect --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{printf \"%s|%s\" .Type .Name}}{{end}}{{end}}" "$container_name" 2>/dev/null || true)"
     [[ "$mount_info" == volume\|* ]] || return 0
-
     source_volume="${mount_info#volume|}"
     [[ -n "$source_volume" && "$source_volume" != "$target_volume" ]] || return 0
-    case "$source_volume$target_volume" in
-        *[!A-Za-z0-9_.-]*)
-            warn "Refusing to migrate an invalid Docker volume name for $container_name"
-            return 1
-            ;;
-    esac
-
+    if [[ ! "$project_name" =~ ^[a-zA-Z0-9_-]{1,64}$ || ! "$source_volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ || ! "$target_volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
+        fail "Automatic legacy volume migration HOLD: invalid volume or project identity"
+    fi
+    # Check the exact source container and both volumes before creating or stopping.
+    [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container_name" 2>/dev/null)" == "$project_name" ]] || fail "Automatic legacy volume migration HOLD: source project mismatch"
+    docker volume inspect "$source_volume" >/dev/null 2>&1 || fail "Automatic legacy volume migration HOLD: source volume missing"
+    helper_image="$(COMPOSE_PROJECT_NAME="$project_name" node "$ROOT_DIR/scripts/legacy-volume-helper.cjs")" || fail "Automatic legacy volume migration HOLD: immutable installed helper unavailable or unapproved"
+    [[ "$helper_image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "Automatic legacy volume migration HOLD: invalid helper image ID"
     if docker volume inspect "$target_volume" >/dev/null 2>&1; then
-        if ! docker run --rm --user 0:0 --entrypoint sh \
-            -v "$target_volume:/target:ro" "$migration_image" \
+        if ! docker run --pull never --rm --user 0:0 --entrypoint sh -v "$target_volume:/target:ro" "$helper_image" \
             -c 'test -z "$(find /target -mindepth 1 -maxdepth 1 -print -quit)"'; then
-            if docker run --rm --user 0:0 --entrypoint sh \
-                -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$migration_image" \
+            if docker run --pull never --rm --user 0:0 --entrypoint sh -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$helper_image" \
                 -c 'diff -qr /source /target >/dev/null'; then
                 ok "Verified the existing $container_name migration in stable volume $target_volume"
                 return 0
@@ -2265,41 +2520,35 @@ migrate_legacy_image_volume() {
             warn "Refusing to overwrite non-empty Docker volume $target_volume"
             return 1
         fi
-        cleanup_target_on_failure=true
     else
-        docker volume create \
-            --label "com.docker.compose.project=$project_name" \
-            --label "com.docker.compose.volume=$volume_key" \
-            "$target_volume" >/dev/null || return 1
-        cleanup_target_on_failure=true
+        docker volume create --label "com.docker.compose.project=$project_name" \
+            --label "com.docker.compose.volume=$volume_key" "$target_volume" >/dev/null || return 1
+        target_created=true
     fi
-
-    was_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null || true)"
+    was_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null)" || return 1
     if [[ "$was_running" == true ]]; then
         if ! docker stop "$container_name" >/dev/null; then
-            [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+            [[ "$target_created" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
             return 1
         fi
+    elif [[ "$was_running" != false ]]; then
+        warn "Cannot establish prior running state of $container_name"
+        return 1
     fi
-
-    if ! docker run --rm --user 0:0 --entrypoint sh \
-        -v "$source_volume:/source:ro" -v "$target_volume:/target" "$migration_image" \
+    if ! docker run --pull never --rm --user 0:0 --entrypoint sh -v "$source_volume:/source:ro" -v "$target_volume:/target" "$helper_image" \
         -c 'cp -a /source/. /target/'; then
-        [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+        [[ "$target_created" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
         [[ "$was_running" == true ]] && docker start "$container_name" >/dev/null 2>&1 || true
         warn "Docker volume migration failed for $container_name; the original volume remains attached"
         return 1
     fi
-
-    if ! docker run --rm --user 0:0 --entrypoint sh \
-        -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$migration_image" \
+    if ! docker run --pull never --rm --user 0:0 --entrypoint sh -v "$source_volume:/source:ro" -v "$target_volume:/target:ro" "$helper_image" \
         -c 'diff -qr /source /target >/dev/null'; then
-        [[ "$cleanup_target_on_failure" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
+        [[ "$target_created" == true ]] && docker volume rm "$target_volume" >/dev/null 2>&1 || true
         [[ "$was_running" == true ]] && docker start "$container_name" >/dev/null 2>&1 || true
         warn "Docker volume verification failed for $container_name; the original volume remains attached"
         return 1
     fi
-
     ok "Migrated $container_name $destination data to stable volume $target_volume"
     warn "Original volume $source_volume was retained for review and is safe to remove only after $container_name is healthy"
 }
@@ -2311,18 +2560,32 @@ migrate_legacy_image_volumes() {
 
 stackarr_compose() {
     local project_dir compose_file argument migrate_volumes=false
+    local storage_args=()
 
     configure_docker_environment
-    prepare_compose_runtime_file
-    project_dir="$(stackarr_compose_project_dir)"
-    compose_file="$(stackarr_compose_file)"
-
     for argument in "$@"; do
         if [[ "$argument" == up || "$argument" == create ]]; then
             migrate_volumes=true
             break
         fi
     done
+    if [[ "$migrate_volumes" == true ]]; then
+        # Read-only Compose commands (including restore's ps probe) must not
+        # mistake a retained archive tree for an attempted bind cutover.
+        stackarr_storage_guard
+        stackarr_verify_legacy_compose_mounts
+    fi
+    prepare_compose_runtime_file
+    project_dir="$(stackarr_compose_project_dir)"
+    compose_file="$(stackarr_compose_file)"
+    if [[ -n "${STACKARR_STORAGE_POLICY:-}" ]]; then
+        storage_args=(-f "$project_dir/storage-override.json")
+    fi
+    if [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" != managed || "${REDIS_DEPLOYMENT_MODE:-managed}" != managed || "${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" != managed ]]; then
+        storage_args+=(-f "$project_dir/database-endpoints-override.yml")
+    fi
+
+
     if [[ "$migrate_volumes" == true ]]; then
         migrate_legacy_image_volumes
     fi
@@ -2331,6 +2594,7 @@ stackarr_compose() {
         --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" \
         --project-directory "$project_dir" \
         -f "$compose_file" \
+        ${storage_args[@]+"${storage_args[@]}"} \
         "$@"
 }
 
@@ -2373,6 +2637,7 @@ wait_for_directories() {
 }
 
 wait_for_stackarr_storage() {
+    stackarr_storage_guard
     local timeout="${STACKARR_STORAGE_WAIT_SECONDS:-180}"
     local required=()
 
@@ -2415,7 +2680,7 @@ refresh_stackarr_web_storage_mounts() {
     local path
     local missing=()
 
-    if ! stackarr_compose "${compose_args[@]}" ps --services --status running 2>/dev/null | grep -qx 'app'; then
+    if ! stackarr_compose "${compose_args[@]}" ps --services --status running 2>/dev/null | grep -qx 'stackarr'; then
         return 0
     fi
 
@@ -2423,7 +2688,7 @@ refresh_stackarr_web_storage_mounts() {
         [[ -n "$path" ]] || continue
         [[ -e "$path" ]] || continue
 
-        if ! stackarr_compose "${compose_args[@]}" exec -T app test -e "$path" >/dev/null 2>&1; then
+        if ! stackarr_compose "${compose_args[@]}" exec -T stackarr test -e "$path" >/dev/null 2>&1; then
             missing+=("$path")
         fi
     done
@@ -2432,7 +2697,7 @@ refresh_stackarr_web_storage_mounts() {
 
     warn "Stackarr web storage mount stale, recreating UI container for: ${missing[*]}"
     write_compose_env_file
-    stackarr_compose "${compose_args[@]}" up -d --force-recreate --no-deps app
+    stackarr_compose "${compose_args[@]}" up -d --force-recreate --no-deps stackarr
 }
 
 canonical_dir() {
@@ -2474,7 +2739,7 @@ set_env_value() {
     command -v node >/dev/null 2>&1 || fail "Missing command: node"
 
     if [[ -n "${STACKARR_DATABASE_URL:-}" ]] && ! stackarr_runtime_is_container; then
-        if stackarr_compose exec -T app bash -lc '
+        if stackarr_compose exec -T stackarr bash -lc '
             node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-write.cjs" "$1" "$2"
             source "$STACKARR_REPO_ROOT/stackarr/lib/common.sh"
             load_env

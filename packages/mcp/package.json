@@ -1,24 +1,24 @@
 {
   "name": "@stackarr/mcp",
-  "version": "0.3.0-alpha.20",
+  "version": "0.3.0-alpha.25",
   "bin": {
     "stackarr-mcp": "dist/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@stackarr/core": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   },
   "main": "dist/index.js",
   "private": true,
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/index.js --log-level=warning",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/index.js --log-level=warning && esbuild ../core/src/storageDiscoveryCli.ts --bundle --platform=node --format=cjs --define:import.meta.url=stackarrBundleUrl --banner:js=\"const stackarrBundleUrl = require('node:url').pathToFileURL(__filename).href;\" --outfile=../../stackarr/scripts/storage-discovery.cjs --log-level=warning",
     "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/index.ts",
     "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning node dist/index.js",
     "typecheck": "tsc --noEmit"

@@ -24,7 +24,7 @@ The Stackarr app is the optional visual control room for the same homelab capabi
   <figcaption>Apps keep the changing status visible while connection details and secondary actions stay out of the way.</figcaption>
 </figure>
 
-On macOS virtualization, Stackarr measures each configured `/Volumes/...` drive with a cached, read-only Docker mount probe. This avoids reporting the container's internal disk for an external library while keeping media mounts read-only.
+For an enrolled external volume, the dashboard requests a bounded capacity reading from the existing host storage monitor. The response must match the current policy and a fresh request; missing or invalid proof displays capacity as unavailable, not the Docker VM's capacity. Config, state, media, downloads and backup roots are included, with paths on the same physical volume grouped into one row. On older unenrolled macOS virtualization installs, a read-only Docker mount probe remains a fallback; Stackarr removes only its own labeled probe container if creation times out. Storage bars are green through 90% used, orange above 90%, and red above 95%. An unavailable capacity has no inferred percentage.
 
 The layout works as a desktop sidebar and a mobile navigation surface. Keyboard focus, reduced motion, minimum touch targets, and skip navigation are built in.
 

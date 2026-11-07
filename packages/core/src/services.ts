@@ -177,6 +177,10 @@ const serviceMetadata: Record<string, ServiceMetadata> = {
   }
 };
 
+export function serviceDisplayName(name: string) {
+  return serviceMetadata[name]?.displayName ?? name;
+}
+
 export function getSystemStatus() {
   const env = readEnv();
 
@@ -239,8 +243,11 @@ function postgresConnectionLabel(raw: string | undefined) {
 }
 
 export function getServices(): ServiceSummary[] {
-  const env = readEnv();
-  const settings = readSettings();
+  return servicesFromEnv(readEnv(), readSettings());
+}
+
+/** Build the service registry from supplied configuration without opening the settings database. */
+export function servicesFromEnv(env: StackarrEnv, settings?: StackarrSettings): ServiceSummary[] {
   const moviesMode = flag(env.ENABLE_MOVIES, true) ? 'docker' : 'disabled';
   const tvMode = flag(env.ENABLE_TV_SHOWS, true) ? 'docker' : 'disabled';
   const musicMode = flag(env.ENABLE_LIDARR, true) ? 'docker' : 'disabled';
@@ -263,14 +270,24 @@ export function getServices(): ServiceSummary[] {
       experience: 'infrastructure',
       notes: ['Primary dashboard/API overseeing this homelab and its configured apps.']
     }),
-    service('database', 'support', 'docker', Number(env.DATABASE_HOST_PORT ?? 5433), settings, {
-      localUrl: undefined,
-      browserUrl: undefined,
-      experience: 'infrastructure',
-      notes: [
-        'PostgreSQL 18 with TimescaleDB and pgvector; Stackarr creates separate databases for itself and supported apps.'
-      ]
-    }),
+    service(
+      'database',
+      'support',
+      ['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE) ? 'native' : 'docker',
+      Number(env.DATABASE_HOST_PORT ?? 5433),
+      settings,
+      {
+        dockerService: ['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE) ? undefined : 'database',
+        localUrl: undefined,
+        browserUrl: undefined,
+        experience: 'infrastructure',
+        notes: [
+          ['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE)
+            ? 'External PostgreSQL endpoint; Stackarr does not manage this engine or provision its databases.'
+            : 'PostgreSQL 18 with TimescaleDB and pgvector; Stackarr creates separate databases for itself and supported apps.'
+        ]
+      }
+    ),
     service(
       'transmission',
       'download',
@@ -496,12 +513,26 @@ export function getServices(): ServiceSummary[] {
         ]
       }
     ),
-    service('redis', 'support', sharedRedisMode, undefined, settings, {
-      browserUrl: undefined,
-      localUrl: undefined,
-      experience: 'infrastructure',
-      notes: ['Shared Redis container used by Immich, RomM, Tracearr, and other supported services.']
-    }),
+    service(
+      'redis',
+      'support',
+      sharedRedisMode === 'docker' && ['external', 'independent'].includes(env.REDIS_DEPLOYMENT_MODE)
+        ? 'native'
+        : sharedRedisMode,
+      undefined,
+      settings,
+      {
+        dockerService: ['external', 'independent'].includes(env.REDIS_DEPLOYMENT_MODE) ? undefined : 'redis',
+        browserUrl: undefined,
+        localUrl: undefined,
+        experience: 'infrastructure',
+        notes: [
+          ['external', 'independent'].includes(env.REDIS_DEPLOYMENT_MODE)
+            ? 'External Redis endpoint; Stackarr does not manage this engine.'
+            : 'Shared Redis container used by Immich, RomM, Tracearr, and other supported services.'
+        ]
+      }
+    ),
     mediaServer('plex', plexMode, 32400, env.PLEX_CONFIG_PATH, env, settings),
     mediaServer('jellyfin', jellyfinMode, 8096, env.JELLYFIN_CONFIG_PATH, env, settings),
     service('backup', 'support', flag(env.ENABLE_BACKUP, true) ? 'native' : 'disabled', undefined, settings, {
@@ -591,7 +622,7 @@ function service(
     localUrl: port ? `http://127.0.0.1:${port}` : undefined,
     browserUrl: mode !== 'disabled' && port ? browserUrl(name, port, settings) : undefined,
     status: mode === 'disabled' ? 'disabled' : 'configured',
-    dockerService: name === 'stackarr' ? undefined : name,
+    dockerService: name,
     ...extras
   };
 }
@@ -715,7 +746,7 @@ function hostnameLabel(name: string) {
   }
 
   if (name === 'stackarr') {
-    return 'app';
+    return 'stackarr';
   }
 
   if (name === 'tinymediamanager') {

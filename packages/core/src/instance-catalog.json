@@ -1,0 +1,325 @@
+{
+  "schemaVersion": 1,
+  "sourceCounts": {
+    "registry": 35,
+    "compose": 38,
+    "union": 40
+  },
+  "entries": [
+    {
+      "sourceId": "agregarr",
+      "kind": "definition",
+      "definitionId": "agregarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Agregarr"
+    },
+    {
+      "sourceId": "app-updater",
+      "kind": "worker",
+      "definitionId": null,
+      "registry": false,
+      "compose": true
+    },
+    {
+      "sourceId": "backup",
+      "kind": "infrastructure",
+      "definitionId": null,
+      "registry": true,
+      "compose": false,
+      "displayName": "Backups"
+    },
+    {
+      "sourceId": "bazarr",
+      "kind": "definition",
+      "definitionId": "bazarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Bazarr"
+    },
+    {
+      "sourceId": "bookorbit",
+      "kind": "definition",
+      "definitionId": "bookorbit",
+      "registry": true,
+      "compose": true,
+      "displayName": "BookOrbit"
+    },
+    {
+      "sourceId": "clamav",
+      "kind": "worker",
+      "definitionId": null,
+      "registry": false,
+      "compose": true
+    },
+    {
+      "sourceId": "cleanuparr",
+      "kind": "definition",
+      "definitionId": "cleanuparr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Cleanuparr"
+    },
+    {
+      "sourceId": "database",
+      "kind": "infrastructure",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "Database"
+    },
+    {
+      "sourceId": "flaresolverr",
+      "kind": "helper",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "FlareSolverr"
+    },
+    {
+      "sourceId": "frigate",
+      "kind": "definition",
+      "definitionId": "frigate",
+      "registry": true,
+      "compose": true,
+      "displayName": "Frigate"
+    },
+    {
+      "sourceId": "homeassistant",
+      "kind": "definition",
+      "definitionId": "homeassistant",
+      "registry": true,
+      "compose": true,
+      "displayName": "Home Assistant"
+    },
+    {
+      "sourceId": "image-cleanup",
+      "kind": "worker",
+      "definitionId": null,
+      "registry": false,
+      "compose": true
+    },
+    {
+      "sourceId": "immich",
+      "kind": "definition",
+      "definitionId": "immich",
+      "registry": true,
+      "compose": true,
+      "displayName": "Immich"
+    },
+    {
+      "sourceId": "immich-ml",
+      "kind": "worker",
+      "definitionId": null,
+      "registry": false,
+      "compose": true
+    },
+    {
+      "sourceId": "jellyfin",
+      "kind": "definition",
+      "definitionId": "jellyfin",
+      "registry": true,
+      "compose": true,
+      "displayName": "Jellyfin"
+    },
+    {
+      "sourceId": "lidarr",
+      "kind": "definition",
+      "definitionId": "lidarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Lidarr"
+    },
+    {
+      "sourceId": "maintainerr",
+      "kind": "definition",
+      "definitionId": "maintainerr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Maintainerr"
+    },
+    {
+      "sourceId": "mosquitto",
+      "kind": "infrastructure",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "MQTT"
+    },
+    {
+      "sourceId": "plex",
+      "kind": "definition",
+      "definitionId": "plex",
+      "registry": true,
+      "compose": true,
+      "displayName": "Plex"
+    },
+    {
+      "sourceId": "prowlarr",
+      "kind": "definition",
+      "definitionId": "prowlarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Prowlarr"
+    },
+    {
+      "sourceId": "pulsarr",
+      "kind": "definition",
+      "definitionId": "pulsarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Pulsarr"
+    },
+    {
+      "sourceId": "qbittorrent",
+      "kind": "definition",
+      "definitionId": "qbittorrent",
+      "registry": true,
+      "compose": true,
+      "displayName": "qBittorrent"
+    },
+    {
+      "sourceId": "questarr",
+      "kind": "definition",
+      "definitionId": "questarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Questarr"
+    },
+    {
+      "sourceId": "radarr",
+      "kind": "definition",
+      "definitionId": "radarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Radarr"
+    },
+    {
+      "sourceId": "radarr4k",
+      "kind": "alias",
+      "definitionId": "radarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Radarr 4K"
+    },
+    {
+      "sourceId": "recyclarr",
+      "kind": "helper",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "Recyclarr"
+    },
+    {
+      "sourceId": "redis",
+      "kind": "infrastructure",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "Redis"
+    },
+    {
+      "sourceId": "romm",
+      "kind": "definition",
+      "definitionId": "romm",
+      "registry": true,
+      "compose": true,
+      "displayName": "RomM"
+    },
+    {
+      "sourceId": "seerr",
+      "kind": "definition",
+      "definitionId": "seerr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Seerr"
+    },
+    {
+      "sourceId": "sonarr",
+      "kind": "definition",
+      "definitionId": "sonarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Sonarr"
+    },
+    {
+      "sourceId": "sonarr4k",
+      "kind": "alias",
+      "definitionId": "sonarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Sonarr 4K"
+    },
+    {
+      "sourceId": "stackarr",
+      "kind": "infrastructure",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "Stackarr"
+    },
+    {
+      "sourceId": "streamrip",
+      "kind": "helper",
+      "definitionId": null,
+      "registry": true,
+      "compose": false,
+      "displayName": "Streamrip"
+    },
+    {
+      "sourceId": "tdarr",
+      "kind": "definition",
+      "definitionId": "tdarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Tdarr"
+    },
+    {
+      "sourceId": "tidarr",
+      "kind": "helper",
+      "definitionId": null,
+      "registry": true,
+      "compose": true,
+      "displayName": "Tidarr"
+    },
+    {
+      "sourceId": "tinymediamanager",
+      "kind": "definition",
+      "definitionId": "tinymediamanager",
+      "registry": true,
+      "compose": true,
+      "displayName": "TinyMediaManager"
+    },
+    {
+      "sourceId": "tracearr",
+      "kind": "definition",
+      "definitionId": "tracearr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Tracearr"
+    },
+    {
+      "sourceId": "transmission",
+      "kind": "definition",
+      "definitionId": "transmission",
+      "registry": true,
+      "compose": true,
+      "displayName": "Transmission"
+    },
+    {
+      "sourceId": "youtarr",
+      "kind": "definition",
+      "definitionId": "youtarr",
+      "registry": true,
+      "compose": true,
+      "displayName": "Youtarr"
+    },
+    {
+      "sourceId": "youtarr-db",
+      "kind": "worker",
+      "definitionId": null,
+      "registry": false,
+      "compose": true
+    }
+  ]
+}

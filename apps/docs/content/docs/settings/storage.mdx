@@ -15,3 +15,5 @@ Stackarr uses a split similar to the arr apps' app-data approach.
 Cloudflare token state files let the container scheduler run tunnel tasks outside the dashboard process. Dashboard-saved tokens remain the source of truth.
 
 The Docker image never bakes local config, database files, logs, state, or token files into the image.
+
+External application storage is an opt-in host operation, not an ordinary path-field edit. After host enrollment and controller recreation, **Settings → Media Management → Move configuration** queues the verified move through the internal host monitor. The controller reconnects after copying and restart, and the original remains available for recovery. Use the [external-storage workflow](/docs/setup/external-storage) for preparation and recovery. Internal-only installations remain unchanged.

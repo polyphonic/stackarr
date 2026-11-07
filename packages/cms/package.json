@@ -1,41 +1,41 @@
 {
   "name": "@stackarr/cms",
   "version": "0.3.0-alpha.13",
-  "private": true,
-  "type": "module",
-  "types": "./src/index.ts",
+  "dependencies": {
+    "@sanity/client": "8.14.1",
+    "@sanity/icons": "5.2.3",
+    "@sanity/vision": "6.22.0",
+    "sanity": "6.22.0",
+    "server-only": "0.0.1",
+    "styled-components": "6.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^6.0.3"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./config": "./sanity.config.ts",
     "./markdown": "./src/markdown.ts"
   },
+  "peerDependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "private": true,
   "scripts": {
+    "article:cleanup": "node scripts/cleanup-article.mjs",
+    "article:prepare": "node scripts/prepare-article.mjs",
     "build": "pnpm run typecheck",
     "dev": "sanity dev",
     "schema:deploy": "sanity schema deploy",
     "studio:deploy": "sanity deploy",
-    "article:prepare": "node scripts/prepare-article.mjs",
-    "article:cleanup": "node scripts/cleanup-article.mjs",
     "taxonomy:seed": "node scripts/seed-taxonomy.mjs",
     "test": "node --test scripts/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@sanity/client": "8.2.0",
-    "@sanity/icons": "5.2.1",
-    "@sanity/vision": "6.13.1",
-    "sanity": "6.9.2",
-    "server-only": "0.0.1",
-    "styled-components": "6.4.2"
-  },
-  "devDependencies": {
-    "@types/node": "^26.0.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "typescript": "^6.0.3"
-  },
-  "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
-  }
+  "type": "module",
+  "types": "./src/index.ts"
 }

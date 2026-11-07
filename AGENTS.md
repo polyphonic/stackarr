@@ -29,6 +29,7 @@ Treat a Docker image or repository request as an end-to-end Stackarr integration
 - Verify Compose rendering, formatting/linting, type checks, focused and full tests, portability/secret scans, container health, authentication, dependency connections, frequent MCP actions, dashboard visibility, and the final localhost and Portless URLs. Report unsupported upstream capabilities and any remaining host-approval step explicitly.
 
 ## Commit Message Conventions
+
 - Use Angular/Conventional commit subjects: `type(scope): description`.
 - Valid types are `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`, `temp`, and `config`.
 - Use the full commit format for agent-created commits:
@@ -62,6 +63,7 @@ Note: call out important context, exclusions, remaining local changes, or verifi
 - Never prune persistent volumes, installed-service images, or unrelated Docker resources as part of routine test cleanup.
 
 ## GitHub Actions Runtime Policy
+
 - Never add or retain a GitHub Action release that depends on a deprecated runner Node.js runtime.
 - Before changing a workflow, verify every referenced action against its current stable release, pin it to the full commit SHA, and keep the release version in an inline comment.
 - Do not use `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION` to suppress runtime deprecation warnings; upgrade or replace the action instead.

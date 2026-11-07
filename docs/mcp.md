@@ -4,12 +4,12 @@ Stackarr exposes a local stdio MCP server from inside its Docker container. The 
 
 ## Authority profiles
 
-| Profile | Use |
-| --- | --- |
-| `observe` | Read-only status and diagnostics |
-| `manage` | Everyday requests, downloads, backups, and safe repairs |
-| `admin` | Setup, configuration, networking, migrations, and restores |
-| `unrestricted` | Complete control without per-action approval prompts |
+| Profile        | Use                                                        |
+| -------------- | ---------------------------------------------------------- |
+| `observe`      | Read-only status and diagnostics                           |
+| `manage`       | Everyday requests, downloads, backups, and safe repairs    |
+| `admin`        | Setup, configuration, networking, migrations, and restores |
+| `unrestricted` | Complete control without per-action approval prompts       |
 
 Agents cannot change their own profile.
 
@@ -18,11 +18,11 @@ Agents cannot change their own profile.
 Stackarr generates the correct host-side configuration for each supported client:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile manage
-docker exec app /app/bin/stackarr mcp config claude --profile manage
-docker exec app /app/bin/stackarr mcp config lmstudio --profile observe
-docker exec app /app/bin/stackarr mcp config hermes --profile manage
-docker exec app /app/bin/stackarr mcp config openclaw --profile manage
+docker exec stackarr /app/bin/stackarr mcp config codex --profile manage
+docker exec stackarr /app/bin/stackarr mcp config claude --profile manage
+docker exec stackarr /app/bin/stackarr mcp config lmstudio --profile observe
+docker exec stackarr /app/bin/stackarr mcp config hermes --profile manage
+docker exec stackarr /app/bin/stackarr mcp config openclaw --profile manage
 ```
 
 Run the generated Codex or Hermes command, or import the generated `mcpServers` entry into Claude, LM Studio, OpenClaw, or another MCP client.
@@ -34,7 +34,7 @@ LM Studio users add the entry in **Program → Install → Edit mcp.json**. Stac
 Use an outbound-only OpenAI Secure MCP Tunnel so Stackarr remains private:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config chatgpt \
+docker exec stackarr /app/bin/stackarr mcp config chatgpt \
   --profile manage \
   --tunnel-id tunnel_your_tunnel_id
 ```

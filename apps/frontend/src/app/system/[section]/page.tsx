@@ -4,7 +4,7 @@ import path from 'node:path';
 import {
   commandRegistry,
   getBackupRecoveryKeyStatusAction,
-  getStackMetrics,
+  getConfiguredStackMetrics,
   getSystemStatus,
   readEnv,
   readTasks,
@@ -17,6 +17,7 @@ import { BackupRecoveryKey } from '../../../components/BackupRecoveryKey';
 import { CommandButton } from '../../../components/CommandButton';
 import { PortlessHostCommands } from '../../../components/PortlessHostCommands';
 import { ServerLogViewer } from '../../../components/ServerLogViewer';
+import { StorageVolumes } from '../../../components/StorageVolumes';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
 import { ActionGrid, Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
@@ -48,14 +49,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
 
   const status = getSystemStatus();
   const env = readEnv();
-  const metrics = getStackMetrics([
-    env.MEDIA_ROOT ?? '',
-    env.MUSIC_ROOT ?? '',
-    env.DOWNLOADS_ROOT ?? '',
-    env.BACKUP_ROOT ?? '',
-    env.CONFIG_ROOT ?? '',
-    env.STATE_ROOT ?? ''
-  ]);
+  const metrics = await getConfiguredStackMetrics();
   const tasks = readTasks();
   const backupStatus = getBackupStatus(env, tasks);
   const backupRecoveryKeyStatus = getBackupRecoveryKeyStatusAction();
@@ -309,29 +303,17 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
           </>
         )}
         {section === 'diskspace' && (
-          <Panel title="Disk Space">
-            <Table>
-              <thead>
-                <tr>
-                  <th>Path</th>
-                  <th>Stackarr Paths</th>
-                  <th>Used</th>
-                  <th>Total</th>
-                  <th>Free</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.disks.map((disk) => (
-                  <tr key={disk.path}>
-                    <td>{disk.label}</td>
-                    <td>{disk.paths.length}</td>
-                    <td>{disk.usedPercent === null ? 'Unavailable' : `${disk.usedPercent}%`}</td>
-                    <td>{disk.totalSpace === null ? '' : `${Math.round(disk.totalSpace / 1024 / 1024 / 1024)} GB`}</td>
-                    <td>{disk.freeSpace === null ? '' : `${Math.round(disk.freeSpace / 1024 / 1024 / 1024)} GB`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+          <Panel
+            title="Disk Space"
+            description="Filesystem free space; Finder may also count reclaimable capacity as available"
+          >
+            <StorageVolumes disks={metrics.disks} />
+            {metrics.disks[0]?.discoveryIssues?.length ? (
+              <p>
+                Discovery gaps:{' '}
+                {metrics.disks[0].discoveryIssues.map((issue) => `${issue.service} (${issue.status})`).join(', ')}
+              </p>
+            ) : null}
           </Panel>
         )}
         {section === 'logs' && (
@@ -495,7 +477,7 @@ function formatBytes(bytes: number) {
     return '0 B';
   }
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
   let value = bytes;
   let unitIndex = 0;
   while (value >= 1024 && unitIndex < units.length - 1) {

@@ -15,10 +15,20 @@ test('partial image pull updates only successful services, preserves other conta
   try {
     await mkdir(path.join(root, 'scripts'));
     await mkdir(path.join(root, 'lib'));
+    await mkdir(path.join(root, 'bin'));
+    const pinned = `example/app:1@sha256:${'a'.repeat(64)}`;
+    await writeFile(
+      path.join(root, 'bin/docker'),
+      `#!/bin/sh\nif [ "$1" = inspect ] && [ "$2" != --format ]; then printf '%s\\n' '[{"Id":"'"$2"'0000000000000000000000000000000000000000000000000000","Image":"sha256:${'c'.repeat(64)}","Config":{"Image":"${pinned}","Labels":{"com.docker.compose.project":"stackarr","com.docker.compose.service":"'"$([ "$2" = abcdefabcdef ] && echo first || echo second)"'"}}}]'; elif [ "$1" = inspect ] && [ "$3" = '{{.Config.Image}}' ]; then printf '%s\\n' '${pinned}'; else printf "running|healthy|0|configured\\n"; fi\n`
+    );
+    await chmod(path.join(root, 'bin/docker'), 0o755);
     await writeFile(
       path.join(root, 'scripts/update-run.sh'),
       await readFile(path.join(repoRoot, 'stackarr/scripts/update-run.sh'), 'utf8')
     );
+    for (const name of ['image-update-gate.cjs', 'image-update-policy.cjs']) {
+      await writeFile(path.join(root, 'scripts', name), await readFile(path.join(repoRoot, 'stackarr/scripts', name)));
+    }
     for (const name of ['naming.sh', 'downloads.sh', 'requests.sh']) {
       await writeFile(path.join(root, 'scripts', name), '#!/bin/sh\nexit 0\n');
       await chmod(path.join(root, 'scripts', name), 0o755);
@@ -28,6 +38,7 @@ test('partial image pull updates only successful services, preserves other conta
       `
 print_header() { :; }
 load_env() { :; }
+maintenance_lock_enter() { :; }
 database_mode_is_postgres() { return 1; }
 write_compose_env_file() { :; }
 wait_for_stackarr_storage() { :; }
@@ -37,6 +48,9 @@ stackarr_compose() {
   printf '%s\\n' "$*" >> "$STACKARR_TEST_ACTIONS"
   case "$*" in
     *'config --services') printf 'app\\nfirst\\nsecond\\n';;
+    *'config --format json') printf '%s\\n' '{"services":{"first":{"image":"${pinned}"},"second":{"image":"${pinned}"}}}';;
+    *'ps --all -q first') printf 'abcdefabcdef\\n';;
+    *'ps --all -q second') printf '123456123456\\n';;
     *'pull --quiet first') return 0;;
     *'pull --quiet'*) return 1;;
   esac
@@ -52,7 +66,13 @@ fail() { printf '%s\\n' "$1" >&2; exit 1; }
     const actions = path.join(root, 'actions');
     await assert.rejects(
       execFile('bash', [path.join(root, 'scripts/update-run.sh'), 'services'], {
-        env: { ...process.env, STACKARR_TEST_ACTIONS: actions, STACKARR_UPDATE_PULL_ATTEMPTS: '1' }
+        env: {
+          ...process.env,
+          PATH: `${path.join(root, 'bin')}:${process.env.PATH}`,
+          STACKARR_TEST_ACTIONS: actions,
+          STACKARR_UPDATE_PULL_ATTEMPTS: '1',
+          STACKARR_UPDATE_HEALTHY_STABILITY_SECONDS: '0'
+        }
       }),
       /Managed services partially updated: 1 of 2 images pulled/
     );

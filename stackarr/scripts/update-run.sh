@@ -9,6 +9,25 @@ action="${1:-services}"
 
 print_header "Stackarr Update"
 load_env
+if [[ "$action" == app-worker ]]; then
+    # The initiating process holds the lock while handing off to this detached
+    # container. Acquire anew on the shared state mount before any worker work.
+    if ! maintenance_lock_owned; then
+        unset STACKARR_MAINTENANCE_LOCK_FD
+        if python3 "$ROOT_DIR/scripts/maintenance-lock.py" "$STATE_ROOT" --wait 60 -- "$ROOT_DIR/scripts/update-run.sh" "$@"; then
+            exit 0
+        else
+            lock_result=$?
+            if [[ "$lock_result" -eq 75 && -n "${STACKARR_UPDATE_TASK_ID:-}" ]]; then
+                node "$ROOT_DIR/scripts/task-log.cjs" update "$STACKARR_UPDATE_TASK_ID" \
+                    --status failed --exit-code "$lock_result" --ended-now || true
+            fi
+            exit "$lock_result"
+        fi
+    fi
+else
+    maintenance_lock_enter "$ROOT_DIR/scripts/update-run.sh" "$@"
+fi
 # A host calendar job may fire before the Docker socket exists at login.
 if [[ "${STACKARR_RUN_SOURCE:-}" == "scheduled" ]]; then
     wait_for_docker_runtime "${STACKARR_DOCKER_WAIT_SECONDS:-600}"
@@ -66,6 +85,25 @@ enabled_managed_services() {
     done <<< "$configured"
 }
 
+# Assess release-specific known incompatibilities before pulling; an absent
+# release entry warns but does not freeze routine application updates.
+check_image_compatibility() {
+    local service ids
+    local -a identities=()
+    for service in "$@"; do
+        ids="$(stackarr_compose "${profile_args[@]}" ps --all -q "$service")" || fail "Cannot inspect $service for update"
+        if [[ -n "$ids" ]]; then
+            [[ "$ids" =~ ^[[:xdigit:]]{12,64}$ ]] || fail "$service has ambiguous container identity"
+            identities+=("$service=$ids")
+        else
+            identities+=("$service")
+        fi
+    done
+    stackarr_compose "${profile_args[@]}" config --format json | \
+        COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-stackarr}" node "$ROOT_DIR/scripts/image-update-gate.cjs" "${identities[@]}" || \
+        fail "Known incompatible image transition held; running containers unchanged"
+}
+
 PULLED_MANAGED_SERVICES=()
 MANAGED_PULL_PARTIAL=false
 
@@ -114,6 +152,71 @@ pull_managed_services() {
     fi
 }
 
+# Docker health checks are authoritative when present. Without one, observe
+# a restart-free running interval; this is not proof of application health.
+wait_for_managed_readiness() {
+    local -a services=("$@") ids=() stable_since=() restart_counts=()
+    local timeout="${STACKARR_UPDATE_READY_TIMEOUT_SECONDS:-300}"
+    local healthy_stability="${STACKARR_UPDATE_HEALTHY_STABILITY_SECONDS:-10}"
+    local running_stability="${STACKARR_UPDATE_RUNNING_STABILITY_SECONDS:-30}"
+    local start=$SECONDS now service id candidates details status health restarts configured i ready
+    for i in "$timeout" "$healthy_stability" "$running_stability"; do
+        [[ "$i" =~ ^[0-9]+$ ]] || fail "Managed update readiness intervals must be non-negative integers"
+    done
+    (( timeout > 0 && timeout <= 900 && healthy_stability <= timeout && running_stability <= timeout )) || \
+        fail "Managed update readiness intervals must fit within the 1-900 second timeout"
+    for ((i = 0; i < ${#services[@]}; i++)); do
+        ids[i]=""
+        stable_since[i]=-1
+        restart_counts[i]=""
+    done
+    while true; do
+        now=$SECONDS
+        ready=true
+        for ((i = 0; i < ${#services[@]}; i++)); do
+            service="${services[i]}"
+            candidates="$(stackarr_compose "${profile_args[@]}" ps --all -q "$service")" || \
+                fail "Cannot inspect $service; image cleanup skipped"
+            [[ "$candidates" =~ ^[[:xdigit:]]+$ ]] || fail "$service has no unique Compose container; image cleanup skipped"
+            id="$candidates"
+            if [[ -n "${ids[i]}" && "${ids[i]}" != "$id" ]]; then
+                fail "$service container changed during readiness observation; image cleanup skipped"
+            fi
+            ids[i]="$id"
+            details="$(docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.RestartCount}}|{{if .Config.Healthcheck}}configured{{else}}none{{end}}' "$id")" || \
+                fail "Cannot inspect $service container; image cleanup skipped"
+            IFS='|' read -r status health restarts configured <<< "$details"
+            [[ "$restarts" =~ ^[0-9]+$ && ( "$configured" == configured || "$configured" == none ) ]] || \
+                fail "Invalid Docker state for $service; image cleanup skipped"
+            [[ "$status" == running ]] || fail "$service is $status; image cleanup skipped"
+            [[ "$health" != unhealthy ]] || fail "$service is unhealthy; image cleanup skipped"
+            [[ -z "${restart_counts[i]}" || "${restart_counts[i]}" == "$restarts" ]] || \
+                fail "$service restarted during readiness observation; image cleanup skipped"
+            restart_counts[i]="$restarts"
+            if [[ "$configured" == configured ]]; then
+                [[ "$health" == healthy || "$health" == starting ]] || fail "$service health check unavailable ($health); image cleanup skipped"
+                if [[ "$health" == healthy ]]; then
+                    (( stable_since[i] >= 0 )) || stable_since[i]=$now
+                    (( now - stable_since[i] >= healthy_stability )) || ready=false
+                else
+                    stable_since[i]=-1
+                    ready=false
+                fi
+            else
+                [[ "$health" == none ]] || fail "$service has unexpected Docker health state; image cleanup skipped"
+                (( stable_since[i] >= 0 )) || stable_since[i]=$now
+                (( now - stable_since[i] >= running_stability )) || ready=false
+            fi
+        done
+        if [[ "$ready" == true ]]; then
+            ok "Selected services passed Docker health checks or restart-free running observation; services without checks are not application-health verified"
+            return 0
+        fi
+        (( now - start < timeout )) || fail "Managed service readiness timed out; image cleanup skipped"
+        sleep 1
+    done
+}
+
 update_managed_services() {
     local -a services=()
     local service service_list
@@ -129,7 +232,8 @@ update_managed_services() {
         return 0
     fi
 
-    ok "Pulling latest images for ${#services[@]} managed services"
+    check_image_compatibility "${services[@]}"
+    ok "Pulling images for ${#services[@]} managed services"
     pull_managed_services "${services[@]}"
 
     "$ROOT_DIR/scripts/naming.sh" prestart || true
@@ -138,6 +242,11 @@ update_managed_services() {
     stackarr_compose "${profile_args[@]}" up -d --no-deps "${PULLED_MANAGED_SERVICES[@]}"
     remove_database_init_sidecar
     remove_inactive_torrent_client_container
+    "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
+    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
+    "$ROOT_DIR/scripts/requests.sh" apply --wait || true
+    # Reconciliation may recreate a downloader. Check final replacements.
+    wait_for_managed_readiness "${PULLED_MANAGED_SERVICES[@]}"
     if stackarr_compose --profile maintenance run --rm image-cleanup; then
         ok "Unused Docker images cleaned"
     else
@@ -145,9 +254,6 @@ update_managed_services() {
         warn "Unused Docker image cleanup failed; the update will be reported as failed after reconciliation"
         update_task_note "Unused Docker image cleanup failed"
     fi
-    "$ROOT_DIR/scripts/naming.sh" apply --wait --skip-tmm || true
-    "$ROOT_DIR/scripts/downloads.sh" apply --wait || true
-    "$ROOT_DIR/scripts/requests.sh" apply --wait || true
 
     if [[ "$MANAGED_PULL_PARTIAL" == true ]]; then
         fail "Managed services partially updated: ${#PULLED_MANAGED_SERVICES[@]} of ${#services[@]} images pulled; failed services were left unchanged"
@@ -163,10 +269,19 @@ stackarr_image_is_local() {
 }
 
 start_app_update_worker() {
-    # The updater must not start from a stale moving-tag image: an older
-    # controller image may not know the app-worker command yet. Compose pulls
-    # the worker before it starts, then the worker pulls/recreates the app.
-    local -a run_args=(--profile maintenance run --pull always --quiet-pull -d --rm)
+    # Pull the worker explicitly before launch; Compose run --pull flags are
+    # not supported by every installed Compose version. Never recreate the app
+    # or start dependencies if the worker pull fails.
+    if ! stackarr_compose --profile maintenance pull --quiet app-updater; then
+        fail "Stackarr updater image pull failed; the running controller was left unchanged"
+    fi
+    local -a run_args=(--profile maintenance run --no-deps -d --rm)
+    if [[ -n "${STACKARR_RELEASE_COMPATIBILITY_FILE:-}" ]]; then
+        case "$STACKARR_RELEASE_COMPATIBILITY_FILE" in
+            "$CONFIG_ROOT"/*|"$STATE_ROOT"/*) run_args+=(-e "STACKARR_RELEASE_COMPATIBILITY_FILE=$STACKARR_RELEASE_COMPATIBILITY_FILE") ;;
+            *) fail "Release matrix must be within shared config/state for updater handoff" ;;
+        esac
+    fi
     if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
         run_args+=(-e "STACKARR_UPDATE_TASK_ID=$STACKARR_TASK_ID")
     fi
@@ -198,7 +313,9 @@ update_stackarr_app_worker() {
     # Let the dashboard command finish its final output write before the
     # independent worker begins appending to the same task.
     sleep 2
-    update_task_note "Pulling the published Stackarr controller image"
+    update_task_note "Checking known release incompatibilities before controller pull"
+    check_image_compatibility app
+    update_task_note "Pulling the Stackarr controller image"
 
     if ! stackarr_compose --profile stackarr pull --quiet app; then
         update_task_note "Stackarr image pull failed; the running controller was left unchanged"
@@ -244,6 +361,7 @@ update_stackarr_app() {
         return 0
     fi
 
+    check_image_compatibility app
     start_app_update_worker
 }
 

@@ -24,9 +24,9 @@ description: Private ROM and game-library management in Stackarr.
 Stackarr does **not** publish RomM by default. Use the local URL or Portless alias first. If you later decide to expose it, add a Cloudflare route intentionally instead of relying on setup defaults.
 
 ```bash
-docker exec app /app/bin/stackarr romm enable
-docker exec app /app/bin/stackarr up
-docker exec app /app/bin/stackarr romm status
+docker exec stackarr /app/bin/stackarr romm enable
+docker exec stackarr /app/bin/stackarr up
+docker exec stackarr /app/bin/stackarr romm status
 ```
 
 ## Folder structure
@@ -61,6 +61,12 @@ Games/
 ```
 
 This is a filesystem symlink/bind-mount arrangement, not a RomM folder-alias or platform-variant mapping. The folders use RomM's official `mac`, `win`, and `linux` platform slugs. When Steam integration is disabled, Stackarr clears all three external roots and Compose falls back to the normal RomM library source rather than mounting an external desktop library.
+
+## Moving a library
+
+**Additional Games Folder (read-only)** makes a second host folder available at `/romm/additional-games` without replacing the active library or Steam mounts. Set `ROMM_ADDITIONAL_GAMES_ROOT` to an existing folder and apply the RomM service. This is a staging mount, not a second automatically indexed library; when unset it mirrors the active library folder.
+
+Keep automatic scans disabled while files are being copied. After verifying the completed copy, update the active library and Steam roots, apply RomM, and then scan. The additional mount never writes to the source folder.
 
 ## Scans after secure imports
 

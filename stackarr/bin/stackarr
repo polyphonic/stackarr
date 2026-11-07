@@ -45,6 +45,10 @@ case "$cmd" in
         shift || true
         exec "$ROOT_DIR/scripts/migrate.sh" "$@"
         ;;
+    storage)
+        shift || true
+        exec /bin/bash "$ROOT_DIR/scripts/storage.sh" "$@"
+        ;;
     telemetry)
         shift || true
         load_env
@@ -55,7 +59,19 @@ case "$cmd" in
             exec node "$mcp_entrypoint" telemetry "$@"
         fi
         ensure_docker_runtime
-        exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js telemetry "$@"
+        exec docker exec "${STACKARR_CONTAINER_NAME:-stackarr}" node packages/mcp/dist/index.js telemetry "$@"
+        ;;
+    instances)
+        shift || true
+        load_env
+        export STACKARR_DATABASE_FILE="${STACKARR_DATABASE_FILE:-$CONFIG_ROOT/stackarr.db}"
+        export STACKARR_REPO_ROOT="$REPO_ROOT"
+        export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=ExperimentalWarning"
+        if [[ -f "/.dockerenv" || -f "/run/.containerenv" ]]; then
+            exec node "$mcp_entrypoint" instances "$@"
+        fi
+        ensure_docker_runtime
+        exec docker exec -i "${STACKARR_CONTAINER_NAME:-stackarr}" node packages/mcp/dist/index.js instances "$@"
         ;;
     agregarr)
         shift || true
@@ -67,7 +83,7 @@ case "$cmd" in
             exec node "$mcp_entrypoint" agregarr "$@"
         fi
         ensure_docker_runtime
-        exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js agregarr "$@"
+        exec docker exec "${STACKARR_CONTAINER_NAME:-stackarr}" node packages/mcp/dist/index.js agregarr "$@"
         ;;
     naming)
         shift || true
@@ -182,14 +198,22 @@ case "$cmd" in
                 shift || true
                 exec "$ROOT_DIR/scripts/backup-run.sh" "$@"
                 ;;
+            postgres)
+                shift || true
+                exec "$ROOT_DIR/scripts/postgres-backup.sh" "$@"
+                ;;
             restore)
                 shift || true
                 exec "$ROOT_DIR/scripts/restore.sh" "$@"
                 ;;
             *)
-                fail "Usage: stackarr backup install|uninstall|permissions|run|restore <archive>"
+                fail "Usage: stackarr backup install|uninstall|permissions|run|postgres status|test|run|run-due|list|export --output PATH|restore <archive>"
                 ;;
         esac
+        ;;
+    postgres-backup)
+        shift || true
+        exec "$ROOT_DIR/scripts/postgres-backup.sh" "$@"
         ;;
     mcp)
         shift || true
@@ -207,10 +231,10 @@ case "$cmd" in
                 ensure_docker_runtime </dev/null >&2
                 app_is_running=false
                 while IFS= read -r service; do
-                    [[ "$service" == "app" ]] && app_is_running=true
+                    [[ "$service" == "stackarr" ]] && app_is_running=true
                 done < <(stackarr_compose ps --services --status running </dev/null 2>/dev/null)
                 if [[ "$app_is_running" == "true" ]]; then
-                    stackarr_compose exec -T app node packages/mcp/dist/index.js "$sub" "$@"
+                    stackarr_compose exec -T stackarr node packages/mcp/dist/index.js "$sub" "$@"
                     exit $?
                 fi
 
@@ -300,8 +324,10 @@ Stackarr commands:
   stackarr down
   stackarr configure
   stackarr migrate plan|run
+  stackarr storage status|check|prepare|protect|install|stop|down|migrate|monitor
   stackarr telemetry status|preview|enable|disable|send
   stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job
+  stackarr instances catalog|list|create|rename|remove|connections|connect|disconnect  (draft metadata only)
   stackarr naming apply|prestart
   stackarr downloads apply
   stackarr security apply
@@ -318,7 +344,8 @@ Stackarr commands:
   stackarr portless apply|install|status|uninstall
   stackarr cloudflare install|start|stop|status|delete|uninstall
   stackarr startup install|uninstall
-  stackarr backup install|uninstall|permissions|run
+  stackarr backup install|uninstall|permissions|run|postgres status|test|run [--no-prune]|run-due|list|export --output PATH [--previous | --generation UUID]
+  stackarr postgres-backup status|test|run [--no-prune]|run-due|list|export --output PATH [--previous | --generation UUID]
   stackarr backup restore <archive>
   stackarr mcp serve
   stackarr mcp serve-http

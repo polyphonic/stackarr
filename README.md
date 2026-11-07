@@ -30,7 +30,7 @@ The dashboard stays available at the same time, so you can move between chat and
 ```bash
 mkdir -p stackarr && cd stackarr
 curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
-docker compose --profile stackarr up -d app
+docker compose --profile stackarr up -d stackarr
 ```
 
 Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
@@ -40,7 +40,7 @@ Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
 Generate the Codex connection from the running container:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile admin
+docker exec stackarr /app/bin/stackarr mcp config codex --profile admin
 ```
 
 Run the generated command on the Docker host. Replace `codex` with `claude`, `lmstudio`, `chatgpt`, `hermes`, or `openclaw` to generate that client's setup. ChatGPT uses an outbound-only Secure MCP Tunnel so the homelab does not need a public MCP port.
@@ -53,14 +53,14 @@ Use `admin` during setup and `manage` for everyday operation. `observe` is read-
 
 ## What Stackarr manages
 
-| Area | Examples |
-| --- | --- |
-| Movies and TV | Radarr, Sonarr, Seerr, Plex, Jellyfin |
-| Downloads and indexers | Transmission, qBittorrent, Prowlarr, Cleanuparr |
-| Music, books, photos, games, and YouTube | Lidarr, BookOrbit, Immich, RomM, Youtarr |
-| Supporting services | Bazarr, Recyclarr, Maintainerr, Tdarr, Tracearr, FlareSolverr |
-| Operations | Setup, health, backups, restores, updates, and migrations |
-| Access | Local-only defaults and optional Cloudflare routes |
+| Area                                     | Examples                                                      |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Movies and TV                            | Radarr, Sonarr, Seerr, Plex, Jellyfin                         |
+| Downloads and indexers                   | Transmission, qBittorrent, Prowlarr, Cleanuparr               |
+| Music, books, photos, games, and YouTube | Lidarr, BookOrbit, Immich, RomM, Youtarr                      |
+| Supporting services                      | Bazarr, Recyclarr, Maintainerr, Tdarr, Tracearr, FlareSolverr |
+| Operations                               | Setup, health, backups, restores, updates, and migrations     |
+| Access                                   | Local-only defaults and optional Cloudflare routes            |
 
 Stackarr advertises only the agent actions relevant to the apps selected during setup.
 
@@ -81,6 +81,7 @@ The dashboard uses Portless app URLs by default, keeps pinned apps in the main n
 
 - [Quick start](https://stackarr.app/docs)
 - [Docker installation](https://stackarr.app/docs/installation)
+- [External storage and safe migration](https://stackarr.app/docs/setup/external-storage)
 - [MCP connections](https://stackarr.app/docs/agent/mcp)
 - [Hermes and OpenClaw](https://stackarr.app/docs/agent/plugins)
 - [Safety and control](https://stackarr.app/docs/agent/safety)

@@ -23,7 +23,7 @@ The profile is set when the client starts the MCP process. Agents cannot promote
 Ask the running Stackarr container for a copy-ready connection kit:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile admin
+docker exec stackarr /app/bin/stackarr mcp config codex --profile admin
 ```
 
 Replace `codex` with `claude`, `lmstudio`, `chatgpt`, `hermes`, `openclaw`, or `generic`. The same generator powers Stackarr's chat tool, authenticated API, and optional dashboard, so every integration receives the same Docker command, authority rules, and app filtering.
@@ -33,7 +33,7 @@ Replace `codex` with `claude`, `lmstudio`, `chatgpt`, `hermes`, `openclaw`, or `
 Generate and run the Codex command:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile manage
+docker exec stackarr /app/bin/stackarr mcp config codex --profile manage
 ```
 
 Use `admin` instead of `manage` during first-time setup.
@@ -43,7 +43,7 @@ Use `admin` instead of `manage` during first-time setup.
 Generate the `mcpServers` entry and add it to the client's local configuration:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config claude --profile manage
+docker exec stackarr /app/bin/stackarr mcp config claude --profile manage
 ```
 
 The generated entry runs `docker exec -i` on the Docker host and starts `/app/bin/stackarr mcp serve` inside the private Stackarr container.
@@ -53,13 +53,13 @@ The generated entry runs `docker exec -i` on the Docker host and starts `/app/bi
 Generate the LM Studio entry:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config lmstudio --profile observe
+docker exec stackarr /app/bin/stackarr mcp config lmstudio --profile observe
 ```
 
 In **Program → Install → Edit mcp.json**, add the generated server. LM Studio follows `mcp.json` notation and warns that excessive MCP tools can overwhelm smaller local models. Stackarr already filters uninstalled apps; narrow the groups further when needed:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config lmstudio \
+docker exec stackarr /app/bin/stackarr mcp config lmstudio \
   --profile manage \
   --groups stack,services,arr,downloads,seerr,health
 ```
@@ -71,7 +71,7 @@ LM Studio's official guide is [Use MCP Servers](https://lmstudio.ai/docs/app/mcp
 ChatGPT is hosted, so it cannot start `docker exec` on your machine. Stackarr generates an [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) configuration instead:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config chatgpt \
+docker exec stackarr /app/bin/stackarr mcp config chatgpt \
   --profile manage \
   --tunnel-id tunnel_your_tunnel_id
 ```

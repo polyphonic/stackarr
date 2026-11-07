@@ -1,6 +1,8 @@
 import * as nodeCrypto from 'node:crypto';
 import * as nodeFs from 'node:fs';
 import { databaseExists, readJsonSetting, writeJsonSetting } from './database';
+import { projectDatabaseEndpoints } from './databaseEndpoints';
+import { validatePostgresBackupConfig } from './postgresBackup';
 
 export type InstallMode = 'disabled' | 'native' | 'docker';
 export type TorrentClient = 'transmission' | 'qbittorrent';
@@ -35,6 +37,7 @@ export const managedEnvDefaults: StackarrEnv = {
   MEDIA_ROOT: defaultMediaRoot,
   MUSIC_ROOT: defaultMusicRoot,
   DOWNLOADS_ROOT: defaultDownloadsRoot,
+  TORRENT_ARCHIVE_ROOT: `${defaultStateRoot}/torrent-archive`,
   BACKUP_ROOT: `${defaultAppRoot}/backups`,
   BACKUP_STAGING_ROOT: '',
   APP_ROOT: defaultAppRoot,
@@ -57,6 +60,7 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_BOOKORBIT: 'false',
   ENABLE_IMMICH: 'false',
   ENABLE_ROMM: 'false',
+
   ENABLE_QUESTARR: 'false',
   QUESTARR_ROMM_IMPORT_ENABLED: 'false',
   QUESTARR_ROMM_TRANSFER_MODE: 'hardlink',
@@ -96,6 +100,23 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_AGREGARR: 'false',
   ENABLE_TRACEARR: 'false',
   ENABLE_BACKUP: 'true',
+  STACKARR_PG_BACKUP_ENABLED: 'false',
+  STACKARR_PG_BACKUP_URL: '',
+  STACKARR_PG_BACKUP_RETENTION_COUNT: '4',
+  STACKARR_PG_BACKUP_SOURCE_HOST: '',
+  STACKARR_PG_BACKUP_SOURCE_PORT: '',
+  STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID: '',
+  STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN: '',
+  STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR: '',
+  STACKARR_PG_BACKUP_SOURCE_USER: '',
+  STACKARR_PG_BACKUP_SOURCE_PASSWORD: '',
+  STACKARR_PG_BACKUP_SOURCE_TLS_MODE: '',
+  STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT: '',
+  STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS: '',
+  STACKARR_PG_BACKUP_SCHEDULE: 'daily',
+  STACKARR_PG_BACKUP_TIME: '03:00',
+  STACKARR_PG_BACKUP_WEEKDAY: 'Sun',
+  STACKARR_PG_BACKUP_TIMEZONE: 'Etc/UTC',
   STACKARR_MOVIE_PROFILE_PRESET: 'lite',
   STACKARR_MOVIE_4K_PROFILE_PRESET: 'lite',
   STACKARR_TV_PROFILE_PRESET: 'lite',
@@ -246,8 +267,10 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_URL: 'http://127.0.0.1:7583',
   ROMM_BIND_IP: '127.0.0.1',
   ROMM_WEB_PORT: '7583',
+  ROMM_WEB_SERVER_CONCURRENCY: '',
   ROMM_CONTAINER_PORT: '8080',
   ROMM_LIBRARY_ROOT: defaultGamesRoot,
+  ROMM_ADDITIONAL_GAMES_ROOT: '',
   ROMM_STEAM_LIBRARY_ENABLED: 'false',
   ROMM_STEAM_MAC_LIBRARY_ROOT: '',
   ROMM_STEAM_WINDOWS_LIBRARY_ROOT: '',
@@ -407,6 +430,17 @@ export const managedEnvDefaults: StackarrEnv = {
   YOUTARR_DB_IMAGE: 'mariadb:10.11',
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
+  POSTGRES_DEPLOYMENT_MODE: 'managed',
+  POSTGRES_HOST_ADDRESS: '',
+  POSTGRES_HOST_PORT: '',
+  POSTGRES_INSTANCE_ID: '',
+  POSTGRES_HOST_CLIENT_BIN: '',
+  POSTGRES_HOST: '',
+  POSTGRES_PORT: '',
+  REDIS_DEPLOYMENT_MODE: 'managed',
+  REDIS_HOST: '',
+  REDIS_PORT: '',
+  YOUTARR_DATABASE_DEPLOYMENT_MODE: 'managed',
   DATABASE_IMAGE: 'timescale/timescaledb-ha:pg18.1-ts2.25.0',
   DATABASE_PGDATA: '',
   DATABASE_BIND_IP: '127.0.0.1',
@@ -549,7 +583,32 @@ export function readEnv(): StackarrEnv {
 }
 
 export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
-  const merged = mergeEditableEnv(readEnv(), next);
+  const current = readEnv();
+  const merged = projectDatabaseEndpoints(mergeEditableEnv(current, next));
+  if (
+    merged.STACKARR_PG_BACKUP_ENABLED === 'true' &&
+    current.STACKARR_PG_BACKUP_ENABLED === 'true' &&
+    (merged.POSTGRES_DEPLOYMENT_MODE !== current.POSTGRES_DEPLOYMENT_MODE ||
+      Object.keys(merged).some(
+        (key) =>
+          (key.startsWith('STACKARR_PG_BACKUP_SOURCE_') ||
+            (merged.POSTGRES_DEPLOYMENT_MODE === 'independent' &&
+              [
+                'POSTGRES_HOST_ADDRESS',
+                'POSTGRES_HOST_PORT',
+                'POSTGRES_INSTANCE_ID',
+                'POSTGRES_HOST_CLIENT_BIN',
+                'DATABASE_SUPERUSER',
+                'DATABASE_SUPERUSER_PASSWORD'
+              ].includes(key))) &&
+          merged[key] !== current[key]
+      ))
+  )
+    throw new Error('Disable scheduled PostgreSQL backup before changing its source mode or capabilities.');
+  validatePostgresBackupConfig(merged);
+  if (merged.ROMM_WEB_SERVER_CONCURRENCY && !/^(?:[1-9]|1[0-6])$/.test(merged.ROMM_WEB_SERVER_CONCURRENCY)) {
+    throw new Error('ROMM_WEB_SERVER_CONCURRENCY must be an integer from 1 to 16 or empty.');
+  }
   if (merged.ENABLE_FRIGATE === 'true' || merged.ENABLE_HOMEASSISTANT === 'true') merged.ENABLE_MOSQUITTO = 'true';
   if (merged.ENABLE_MOSQUITTO === 'true') {
     for (const key of ['MOSQUITTO_FRIGATE_PASSWORD', 'MOSQUITTO_HOMEASSISTANT_PASSWORD']) {
@@ -562,7 +621,16 @@ export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
 
 export function redactEnv(env: StackarrEnv): StackarrEnv {
   return Object.fromEntries(
-    Object.entries(env).map(([key, value]) => [key, isSecretKey(key) && value ? redactSecretValue(value) : value])
+    Object.entries(env).map(([key, value]) => [
+      key,
+      key === 'STACKARR_PG_BACKUP_URL' || key === 'STACKARR_PG_BACKUP_SOURCE_PASSWORD'
+        ? value
+          ? '********'
+          : ''
+        : isSecretKey(key) && value
+          ? redactSecretValue(value)
+          : value
+    ])
   ) as StackarrEnv;
 }
 
@@ -601,7 +669,12 @@ function envConfigChanged(config: StackarrEnv, current: StackarrEnv, protectedKe
 }
 
 export function isCurrentPasswordProtectedConfigKey(key: string) {
-  return isCredentialConfigKey(key) || isControlPlaneBoundaryConfigKey(key);
+  return (
+    key.startsWith('STACKARR_PG_BACKUP_SOURCE_') ||
+    ['POSTGRES_HOST_ADDRESS', 'POSTGRES_HOST_PORT', 'POSTGRES_INSTANCE_ID', 'POSTGRES_HOST_CLIENT_BIN'].includes(key) ||
+    isCredentialConfigKey(key) ||
+    isControlPlaneBoundaryConfigKey(key)
+  );
 }
 
 export function isCredentialConfigKey(key: string) {
@@ -678,6 +751,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
   merged.IMMICH_DB_VECTOR_EXTENSION = merged.IMMICH_DB_VECTOR_EXTENSION || 'pgvector';
   if (!env.DOWNLOADS_ROOT) merged.DOWNLOADS_ROOT = `${appRoot}/downloads`;
+  if (!env.TORRENT_ARCHIVE_ROOT) merged.TORRENT_ARCHIVE_ROOT = `${merged.STATE_ROOT}/torrent-archive`;
   if (!env.BACKUP_ROOT) merged.BACKUP_ROOT = `${appRoot}/backups`;
   if (!env.DATABASE_PGDATA) merged.DATABASE_PGDATA = detectDatabasePgdata(merged.CONFIG_ROOT);
   merged.PUID = merged.PUID || defaultUid();
@@ -738,7 +812,7 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   merged.TDARR_MEDIA_ROOT ||= merged.MEDIA_ROOT;
   if (flagValue(merged.ENABLE_TDARR)) merged.TDARR_API_KEY ||= `tapi_${nodeCrypto.randomBytes(24).toString('hex')}`;
 
-  return merged;
+  return projectDatabaseEndpoints(merged);
 }
 
 function applyAppDependencyRules(env: StackarrEnv) {
@@ -897,11 +971,12 @@ function applyTracearrSecretDefaults(env: StackarrEnv, databasePassword: string)
 
   env.TRACEARR_DB_PASSWORD = env.TRACEARR_DB_PASSWORD || databasePassword || nodeCrypto.randomBytes(24).toString('hex');
   env.TRACEARR_POSTGRES_PASSWORD = env.TRACEARR_POSTGRES_PASSWORD || env.TRACEARR_DB_PASSWORD;
-  env.TRACEARR_DATABASE_URL = buildPostgresUrl(
-    env.TRACEARR_POSTGRES_USER || 'tracearr',
-    env.TRACEARR_POSTGRES_PASSWORD,
-    env.TRACEARR_POSTGRES_DATABASE || 'tracearr'
-  );
+  if (!env.TRACEARR_DATABASE_URL || !['external', 'independent'].includes(env.POSTGRES_DEPLOYMENT_MODE || 'managed'))
+    env.TRACEARR_DATABASE_URL = buildPostgresUrl(
+      env.TRACEARR_POSTGRES_USER || 'tracearr',
+      env.TRACEARR_POSTGRES_PASSWORD,
+      env.TRACEARR_POSTGRES_DATABASE || 'tracearr'
+    );
   env.TRACEARR_JWT_SECRET = env.TRACEARR_JWT_SECRET || nodeCrypto.randomBytes(32).toString('hex');
   env.TRACEARR_COOKIE_SECRET = env.TRACEARR_COOKIE_SECRET || nodeCrypto.randomBytes(32).toString('hex');
   env.TRACEARR_ADMIN_USERNAME = env.TRACEARR_ADMIN_USERNAME || env.USERNAME || 'stackarr';
@@ -1041,11 +1116,13 @@ function isHostPathKey(key: string) {
     'MEDIA_ROOT',
     'MUSIC_ROOT',
     'DOWNLOADS_ROOT',
+    'TORRENT_ARCHIVE_ROOT',
     'BACKUP_ROOT',
     'BACKUP_STAGING_ROOT',
     'BOOKS_ROOT',
     'GAMES_ROOT',
     'ROMM_LIBRARY_ROOT',
+    'ROMM_ADDITIONAL_GAMES_ROOT',
     'ROMM_STEAM_MAC_LIBRARY_ROOT',
     'ROMM_STEAM_WINDOWS_LIBRARY_ROOT',
     'ROMM_STEAM_LINUX_LIBRARY_ROOT',
@@ -1085,9 +1162,11 @@ export function isSecretKey(key: string): boolean {
 
   return (
     secretKeys.some((fragment) => normalized.includes(fragment)) ||
+    normalized === 'STACKARR_PG_BACKUP_URL' ||
     normalized === 'DATABASE_URL' ||
     normalized.endsWith('_DATABASE_URL') ||
-    normalized.endsWith('_DB_URL')
+    normalized.endsWith('_DB_URL') ||
+    normalized === 'TRACEARR_REDIS_URL'
   );
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -32,6 +32,9 @@ test('Cloudflare start uses only the Stackarr-managed app-data binary', async ()
     await mkdir(path.dirname(managedCloudflared), { recursive: true });
     await mkdir(stateRoot, { recursive: true });
     await mkdir(binDir, { recursive: true });
+    // The common endpoint loader uses Node. Keep the managed-binary test PATH
+    // hermetic without accidentally admitting Homebrew cloudflared.
+    await symlink(process.execPath, path.join(binDir, 'node'));
     await mkdir(home, { recursive: true });
     await writeFile(path.join(stateRoot, 'cloudflared-token'), 'test-token\n', { mode: 0o600 });
     await writeExecutable(managedCloudflared, '#!/bin/sh\nexit 0\n');

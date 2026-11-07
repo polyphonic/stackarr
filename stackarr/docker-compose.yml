@@ -167,21 +167,17 @@ services:
     ports:
       - "${DATABASE_BIND_IP:-127.0.0.1}:${DATABASE_HOST_PORT:-5433}:5432"
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${DATABASE_SUPERUSER:-postgres} -d ${DATABASE_NAME:-postgres}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_SUPERUSER:-postgres} -d ${DATABASE_NAME:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
     restart: unless-stopped
 
-  app:
+  stackarr:
     profiles:
       - stackarr
-    container_name: app
+    container_name: stackarr
     image: ${STACKARR_IMAGE:-polyphonic/stackarr:alpha}
     group_add:
       - "${STACKARR_DOCKER_GID:-0}"
@@ -205,7 +201,7 @@ services:
       STACKARR_POSTGRES_MAIN_DATABASE: ${STACKARR_POSTGRES_MAIN_DATABASE:-stackarr-main}
       STACKARR_POSTGRES_LOG_DATABASE: ${STACKARR_POSTGRES_LOG_DATABASE:-stackarr-log}
       STACKARR_RUNTIME: docker
-      STACKARR_CONTAINER_NAME: app
+      STACKARR_CONTAINER_NAME: stackarr
       STACKARR_SCHEDULER_ENABLED: ${STACKARR_SCHEDULER_ENABLED:-true}
       STACKARR_MCP_HTTP_ENABLED: ${STACKARR_MCP_HTTP_ENABLED:-false}
       STACKARR_MCP_HTTP_PORT: ${STACKARR_MCP_HTTP_PORT:-7780}
@@ -220,14 +216,17 @@ services:
       - "${STATE_ROOT:-./.stackarr/state}:${STATE_ROOT:-/stackarr-runtime-state}"
       - "${LOG_ROOT:-./.stackarr/logs}:${LOG_ROOT:-/stackarr-logs}"
       - "${MEDIA_ROOT:-./.stackarr/media}:${MEDIA_ROOT:-/stackarr-media}:ro"
+      # Configure/restore provision archive directories; backup reads this same bind.
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:${TORRENT_ARCHIVE_ROOT:-/stackarr-torrent-archive}"
       - "${MUSIC_ROOT:-./.stackarr/media/Music}:${MUSIC_ROOT:-/stackarr-music}:ro"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:${DOWNLOADS_ROOT:-/stackarr-downloads}"
       # The secure game importer only reads completed downloads and writes to RomM's library.
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads:ro"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/stackarr-romm-library:${QUESTARR_ROMM_LIBRARY_MOUNT_MODE:-ro}"
-      - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/Steam:ro"
-      - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamWindows:ro"
-      - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/stackarr-romm-library/SteamLinux:ro"
+      # Peer mounts preserve ../../Steam symlinks and never require new mountpoints inside the read-only library.
+      - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/Steam:ro"
+      - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/SteamWindows:ro"
+      - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/SteamLinux:ro"
       - "${BACKUP_ROOT:-./.stackarr/backups}:${BACKUP_ROOT:-/stackarr-backups}"
       - "${PLEX_CONFIG_PATH:-/dev/null}:${PLEX_CONFIG_PATH:-/native-plex-config}:ro"
       - "${PLEX_PREFS_PATH:-/dev/null}:${PLEX_PREFS_PATH:-/native-plex-prefs}:ro"
@@ -270,7 +269,7 @@ services:
       TRANSMISSION_RPC_HOST_WHITELIST_ENABLED: "false"
       TRANSMISSION_RPC_BIND_ADDRESS: 0.0.0.0
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/transmission:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission:/config"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
       - "${TRANSMISSION_BIND_IP:-127.0.0.1}:9091:9091"
@@ -290,7 +289,7 @@ services:
       WEBUI_PORT: ${QBITTORRENT_WEBUI_PORT:-8081}
       TORRENTING_PORT: ${QBITTORRENT_TORRENT_PORT:-6881}
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent:/config"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
       - "${QBITTORRENT_BIND_IP:-127.0.0.1}:${QBITTORRENT_WEBUI_PORT:-8081}:${QBITTORRENT_WEBUI_PORT:-8081}"
@@ -341,11 +340,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/sonarr:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/sonarr:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -373,11 +372,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/sonarr4k:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/sonarr4k:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/TV Shows:/tv"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -405,11 +404,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/radarr:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/radarr:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -435,11 +434,11 @@ services:
       - 1.1.1.1
       - 1.0.0.1
     volumes:
-      - "${APP_ROOT:-./.stackarr}/config/hooks:/stackarr-hooks:ro"
-      - "${APP_ROOT:-./.stackarr}/config/radarr4k:/config"
-      - "${APP_ROOT:-./.stackarr}/config/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
-      - "${APP_ROOT:-./.stackarr}/config/transmission/torrents:/torrent-client-state/transmission:ro"
-      - "${APP_ROOT:-./.stackarr}/state/torrent-archive:/torrent-archive"
+      - "${CONFIG_ROOT:-./.stackarr/config}/hooks:/stackarr-hooks:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/radarr4k:/config"
+      - "${CONFIG_ROOT:-./.stackarr/config}/qbittorrent/qBittorrent/BT_backup:/torrent-client-state/qbittorrent:ro"
+      - "${CONFIG_ROOT:-./.stackarr/config}/transmission/torrents:/torrent-client-state/transmission:ro"
+      - "${TORRENT_ARCHIVE_ROOT:-${STATE_ROOT:-./.stackarr/state}/torrent-archive}:/torrent-archive"
       - "${MEDIA_ROOT:-./.stackarr/media}/Movies:/movies"
       - "${DOWNLOADS_ROOT:-./.stackarr/downloads}:/downloads"
     ports:
@@ -533,7 +532,7 @@ services:
     restart: unless-stopped
 
   tdarr:
-    profiles: ['tdarr']
+    profiles: ["tdarr"]
     container_name: tdarr
     image: ${TDARR_IMAGE:-ghcr.io/haveagitgat/tdarr:latest}
     environment:
@@ -578,7 +577,11 @@ services:
       homepage.description: Media transcoding and health checks
       homepage.href: http://127.0.0.1:${TDARR_WEB_PORT:-8265}
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8266/api/v2/status',{headers:{'x-api-key':process.env.apiKey||''}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:8266/api/v2/status'',{headers:{''x-api-key'':process.env.apiKey||''''}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -617,7 +620,7 @@ services:
     restart: unless-stopped
 
   cleanuparr:
-    profiles: ['cleanuparr']
+    profiles: ["cleanuparr"]
     image: ${CLEANUPARR_IMAGE:-ghcr.io/cleanuparr/cleanuparr:latest}
     container_name: cleanuparr
     restart: unless-stopped
@@ -627,7 +630,7 @@ services:
       UMASK: ${UMASK:-002}
       TZ: ${TIMEZONE:-Etc/UTC}
       PORT: 11011
-      BASE_PATH: ''
+      BASE_PATH: ""
       DATABASE_PROVIDER: ${CLEANUPARR_DATABASE_PROVIDER:-sqlite}
       POSTGRES_HOST: ${CLEANUPARR_POSTGRES_HOST:-database}
       POSTGRES_PORT: ${CLEANUPARR_POSTGRES_PORT:-5432}
@@ -635,7 +638,7 @@ services:
       POSTGRES_PASS: ${CLEANUPARR_POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${CLEANUPARR_POSTGRES_DATABASE:-cleanuparr}
     ports:
-      - '${CLEANUPARR_BIND_IP:-127.0.0.1}:${CLEANUPARR_PORT:-11011}:11011'
+      - "${CLEANUPARR_BIND_IP:-127.0.0.1}:${CLEANUPARR_PORT:-11011}:11011"
     volumes:
       - ${APP_ROOT:-./.stackarr}/config/cleanuparr:/config
     depends_on:
@@ -644,7 +647,11 @@ services:
         required: false
     healthcheck:
       # A login challenge proves liveness, not credential correctness.
-      test: ["CMD-SHELL", "code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:11011/api/health); test \"$$code\" = 200 || test \"$$code\" = 401"]
+      test:
+        [
+          "CMD-SHELL",
+          'code=$$(curl -s -o /dev/null -w ''%{http_code}'' --max-time 5 http://127.0.0.1:11011/api/health); test "$$code" = 200 || test "$$code" = 401',
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -653,7 +660,7 @@ services:
       - no-new-privileges:true
 
   mosquitto:
-    profiles: ['mosquitto', 'homeassistant', 'frigate']
+    profiles: ["mosquitto", "homeassistant", "frigate"]
     container_name: mosquitto
     image: ${MOSQUITTO_IMAGE:-eclipse-mosquitto:2}
     mem_limit: 64m
@@ -693,14 +700,18 @@ services:
       - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/data:/mosquitto/data"
       - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/log:/mosquitto/log"
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$MOSQUITTO_HOMEASSISTANT_USERNAME\" -P \"$$MOSQUITTO_HOMEASSISTANT_PASSWORD\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          'mosquitto_sub -h 127.0.0.1 -p 1883 -u "$$MOSQUITTO_HOMEASSISTANT_USERNAME" -P "$$MOSQUITTO_HOMEASSISTANT_PASSWORD" -t ''$$SYS/broker/version'' -C 1 -W 5 >/dev/null',
+        ]
       interval: 15s
       timeout: 8s
       retries: 5
     restart: unless-stopped
 
   homeassistant:
-    profiles: ['homeassistant']
+    profiles: ["homeassistant"]
     container_name: homeassistant
     image: ${HOMEASSISTANT_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}
     mem_limit: 1g
@@ -717,7 +728,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/', timeout=5)\""]
+      test:
+        [
+          "CMD-SHELL",
+          'python3 -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8123/'', timeout=5)"',
+        ]
       interval: 30s
       timeout: 8s
       retries: 10
@@ -725,7 +740,7 @@ services:
     restart: unless-stopped
 
   frigate:
-    profiles: ['frigate']
+    profiles: ["frigate"]
     container_name: frigate
     image: ${FRIGATE_IMAGE:-ghcr.io/blakeblackshear/frigate:0.18.0}
     shm_size: 128mb
@@ -847,7 +862,7 @@ services:
       HOST: 0.0.0.0
       TZ: ${TIMEZONE:-Etc/UTC}
       DATABASE_URL: ${TRACEARR_DATABASE_URL:-postgres://tracearr:stackarr@database:5432/tracearr}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${TRACEARR_REDIS_URL:-redis://redis:6379}
       JWT_SECRET: ${TRACEARR_JWT_SECRET:-}
       COOKIE_SECRET: ${TRACEARR_COOKIE_SECRET:-}
       CORS_ORIGIN: ${TRACEARR_CORS_ORIGIN:-*}
@@ -870,7 +885,13 @@ services:
       homepage.description: Media-server monitoring
       homepage.href: http://127.0.0.1:${TRACEARR_PORT:-3000}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(4000)}).then(async r=>{const h=await r.json();process.exit(r.ok&&h.status==='ok'?0:1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(4000)}).then(async r=>{const h=await r.json();process.exit(r.ok&&h.status==='ok'?0:1)}).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       start_period: 120s
@@ -905,7 +926,7 @@ services:
       TZ: ${TIMEZONE:-Etc/UTC}
       DB_TYPE: ${SEERR_DB_TYPE:-postgres}
       DB_HOST: ${SEERR_POSTGRES_HOST:-database}
-      DB_PORT: 5432
+      DB_PORT: ${SEERR_POSTGRES_PORT:-5432}
       DB_NAME: ${SEERR_POSTGRES_DATABASE:-seerr}
       DB_USER: ${SEERR_POSTGRES_USER:-seerr}
       DB_PASS: ${SEERR_POSTGRES_PASSWORD:-stackarr}
@@ -1111,6 +1132,7 @@ services:
     image: ${ROMM_IMAGE:-rommapp/romm:latest}
     restart: unless-stopped
     environment:
+      WEB_SERVER_CONCURRENCY: "${ROMM_WEB_SERVER_CONCURRENCY:-4}"
       ROMM_DB_DRIVER: ${ROMM_DB_DRIVER:-postgresql}
       DB_HOST: ${ROMM_DB_HOST:-database}
       DB_PORT: ${ROMM_DB_PORT:-5432}
@@ -1143,6 +1165,12 @@ services:
       - romm-root:/romm
       - "${ROMM_RESOURCES_ROOT:-./.stackarr/config/romm/resources}:/romm/resources"
       - "${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}:/romm/library"
+      - type: bind
+        source: ${ROMM_ADDITIONAL_GAMES_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}
+        target: /romm/additional-games
+        read_only: true
+        bind:
+          create_host_path: false
       - "${ROMM_STEAM_MAC_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/Steam"
       - "${ROMM_STEAM_WINDOWS_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamWindows"
       - "${ROMM_STEAM_LINUX_LIBRARY_ROOT:-${ROMM_LIBRARY_ROOT:-./.stackarr/media/Games}}:/romm/SteamLinux"
@@ -1227,11 +1255,7 @@ services:
     volumes:
       - youtarr-db-data:/var/lib/mysql
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mariadb-admin ping -h 127.0.0.1 --silent",
-        ]
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -1304,14 +1328,14 @@ services:
     image: ${IMMICH_SERVER_IMAGE:-ghcr.io/immich-app/immich-server}:${IMMICH_VERSION:-release}
     environment:
       TZ: ${TIMEZONE:-Etc/UTC}
-      DB_HOSTNAME: database
-      DB_PORT: 5432
+      DB_HOSTNAME: ${IMMICH_DB_HOSTNAME:-database}
+      DB_PORT: ${IMMICH_DB_PORT:-5432}
       DB_USERNAME: ${IMMICH_DB_USERNAME:-immich}
       DB_PASSWORD: ${IMMICH_DB_PASSWORD:-stackarr}
       DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME:-immich}
       DB_VECTOR_EXTENSION: ${IMMICH_DB_VECTOR_EXTENSION:-pgvector}
-      REDIS_HOSTNAME: redis
-      REDIS_PORT: 6379
+      REDIS_HOSTNAME: ${IMMICH_REDIS_HOST:-redis}
+      REDIS_PORT: ${IMMICH_REDIS_PORT:-6379}
       IMMICH_MACHINE_LEARNING_URL: http://immich-ml:3003
     volumes:
       - "${IMMICH_UPLOAD_LOCATION:-./.stackarr/media/Pictures}:/data"

@@ -22,6 +22,8 @@ import {
   diagnoseServiceAction,
   downloadLidarrAlbumWithStreamripAction,
   ensureAgregarrCollectionPresetAction,
+  executeAuditedInstanceMutation,
+  executeInstanceOperation,
   getAgregarrCollectionAction,
   getAgregarrHomeOrderAction,
   getAgregarrOverviewAction,
@@ -52,6 +54,7 @@ import {
   getPlexServerStatusAction,
   getPlexSessionsAction,
   getPlexWatchSummaryAction,
+  getPostgresBackupStatusAction,
   getPulsarrUserDiagnosticsAction,
   getQuestarrDownloadsAction,
   getRecentlyAddedAction,
@@ -72,6 +75,9 @@ import {
   getWantedMoviesAction,
   getYoutarrHealthAction,
   getYoutarrVideosAction,
+  InstanceActionError,
+  instanceAuditEvidence,
+  instanceOperations,
   listAgentActivityRecords,
   listBackupsAction,
   listLidarrStreamripAlbumsAction,
@@ -93,7 +99,9 @@ import {
   pauseTdarrNodeAction,
   prepareLidarrStreamripAlbumAction,
   previewTelemetryPayloadAction,
+  queueStackarrCommandAction,
   queueYoutarrDownloadAction,
+  readEnv,
   readNativeAppAction,
   readTasks,
   reconcileQuestarrRommImportsAction,
@@ -154,20 +162,34 @@ import {
   updateCloudflareRoutesAction,
   updateLidarrMusicMountAction,
   updateMcpConnectionPolicyAction,
-  updateServiceConfigAction,
-  updateStackConfigAction,
   updateStreamripConfigAction,
   updateTelemetryConfigAction,
   validateBackupAction,
   validateSqliteDbAction
 } from '@stackarr/core';
 import { z } from 'zod';
+import {
+  discoverConfigurationAction,
+  getNativeDatabaseGuidanceAction,
+  previewServiceConfigurationAction,
+  previewStackConfigurationAction,
+  readConfigurationAction,
+  updateSafeServiceConfigurationAction,
+  updateSafeStackConfigurationAction
+} from './configurationControl';
 import { serializeError } from './errors';
 import { jsonContent } from './format';
 
 type Handler = (input: any) => Promise<unknown> | unknown;
-type ToolDef = { name: string; description: string; shape: z.ZodRawShape; handler: Handler };
+type ToolDef = {
+  name: string;
+  description: string;
+  shape: z.ZodRawShape;
+  strictInput?: z.ZodObject<z.ZodRawShape>;
+  handler: Handler;
+};
 const empty = {};
+const draftId = z.string().uuid();
 const service = { service: z.string() };
 const dangerous = { reason: z.string().optional() };
 const downloader = { downloader: z.enum(['transmission', 'qbittorrent']).optional() };
@@ -222,6 +244,70 @@ const routineStep = z.object({
 });
 
 const tools: ToolDef[] = [
+  {
+    name: 'stackarr_list_app_definitions',
+    description: 'List canonical app definitions; not installed apps.',
+    shape: empty,
+    strictInput: z.strictObject(empty),
+    handler: () => executeInstanceOperation('catalog')
+  },
+  {
+    name: 'stackarr_list_instance_drafts',
+    description: 'List draft instance metadata.',
+    shape: { limit: z.number().int().min(1).max(100).optional(), cursor: draftId.optional() },
+    strictInput: z.strictObject({ limit: z.number().int().min(1).max(100).optional(), cursor: draftId.optional() }),
+    handler: (input) => executeInstanceOperation('list', input)
+  },
+  {
+    name: 'stackarr_create_instance_draft',
+    description: 'Create a draft metadata record, without installing an app.',
+    shape: { definitionId: z.string(), displayName: z.string(), ownership: z.enum(['managed', 'external', 'native']) },
+    strictInput: z.strictObject({
+      definitionId: z.string(),
+      displayName: z.string(),
+      ownership: z.enum(['managed', 'external', 'native'])
+    }),
+    handler: (input) => executeInstanceOperation('create', input)
+  },
+  {
+    name: 'stackarr_rename_instance_draft',
+    description: 'Rename draft metadata only.',
+    shape: { id: draftId, displayName: z.string() },
+    strictInput: z.strictObject({ id: draftId, displayName: z.string() }),
+    handler: (input) => executeInstanceOperation('rename', input)
+  },
+  {
+    name: 'stackarr_remove_instance_draft',
+    description: 'Remove a draft metadata record only; no runtime deletion.',
+    shape: { id: draftId },
+    strictInput: z.strictObject({ id: draftId }),
+    handler: (input) => executeInstanceOperation('remove', input)
+  },
+  {
+    name: 'stackarr_list_instance_connections',
+    description: 'List incident draft downloader connections with a bounded cursor.',
+    shape: { instanceId: draftId, limit: z.number().int().min(1).max(100).optional(), cursor: z.string().optional() },
+    strictInput: z.strictObject({
+      instanceId: draftId,
+      limit: z.number().int().min(1).max(100).optional(),
+      cursor: z.string().optional()
+    }),
+    handler: (input) => executeInstanceOperation('connections', input)
+  },
+  {
+    name: 'stackarr_connect_instance_drafts',
+    description: 'Connect a draft Arr instance to an optional draft downloader.',
+    shape: { sourceId: draftId, targetId: draftId, kind: z.literal('download-client') },
+    strictInput: z.strictObject({ sourceId: draftId, targetId: draftId, kind: z.literal('download-client') }),
+    handler: (input) => executeInstanceOperation('connect', input)
+  },
+  {
+    name: 'stackarr_disconnect_instance_drafts',
+    description: 'Disconnect one optional draft downloader edge.',
+    shape: { sourceId: draftId, targetId: draftId, kind: z.literal('download-client') },
+    strictInput: z.strictObject({ sourceId: draftId, targetId: draftId, kind: z.literal('download-client') }),
+    handler: (input) => executeInstanceOperation('disconnect', input)
+  },
   {
     name: 'stackarr_get_setup_profile',
     description: 'Get opinionated setup questions/defaults and browser port.',
@@ -288,6 +374,7 @@ const tools: ToolDef[] = [
       mediaRoot: z.string().optional(),
       musicRoot: z.string().optional(),
       downloadsRoot: z.string().optional(),
+      torrentArchiveRoot: z.string().optional(),
       backupRoot: z.string().optional(),
       backupRetentionCount: z.number().int().positive().optional(),
       plexInstallMode: z.enum(['disabled', 'existing', 'docker']).optional(),
@@ -779,9 +866,72 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_update_service_config',
-    description: 'Update service config values using UI field ids.',
-    shape: { service: z.string(), values: z.record(z.string(), z.unknown()) },
-    handler: updateServiceConfigAction
+    description:
+      'Unavailable: generic MCP service configuration mutation is disabled; use authenticated settings or specialized tools.',
+    shape: empty,
+    handler: updateSafeServiceConfigurationAction
+  },
+  {
+    name: 'stackarr_discover_configuration',
+    description:
+      'Read initialized SQLite settings inventory; generic MCP writes and service catalog discovery are unavailable.',
+    shape: empty,
+    handler: discoverConfigurationAction
+  },
+  {
+    name: 'stackarr_read_configuration',
+    description:
+      'Read initialized SQLite managed environment and settings without initializing defaults; service catalog unavailable.',
+    shape: empty,
+    handler: readConfigurationAction
+  },
+  {
+    name: 'stackarr_preview_stack_configuration',
+    description:
+      'Provisional read-only SQLite snapshot comparison for limited non-secret settings; no generic MCP commit exists.',
+    shape: {
+      settings: z
+        .object({
+          ui: z
+            .object({
+              theme: z.enum(['light', 'dark', 'system']).optional(),
+              showAdvanced: z.boolean().optional(),
+              refreshIntervalSeconds: z.number().int().optional(),
+              diskWarningThresholdPercent: z.number().int().optional(),
+              unifyServiceUrls: z.boolean().optional(),
+              serviceFavorites: z.array(z.string()).optional()
+            })
+            .strict()
+            .optional(),
+          connect: z
+            .object({ exposeSeerrOnly: z.boolean().optional(), warnBeforePublicExposure: z.boolean().optional() })
+            .strict()
+            .optional(),
+          metadata: z
+            .object({
+              tinyMediaManagerEnabled: z.boolean().optional(),
+              plexMetadataMonitoring: z.boolean().optional(),
+              jellyfinMetadataMonitoring: z.boolean().optional()
+            })
+            .strict()
+            .optional()
+        })
+        .strict()
+    },
+    handler: previewStackConfigurationAction
+  },
+  {
+    name: 'stackarr_get_native_database_guidance',
+    description:
+      'Explain managed versus external connection, migration prerequisites and backup coverage limits without probing or writing.',
+    shape: empty,
+    handler: getNativeDatabaseGuidanceAction
+  },
+  {
+    name: 'stackarr_preview_service_configuration',
+    description: 'Unavailable: generic service catalog preview is disabled pending safe non-initializing validation.',
+    shape: empty,
+    handler: previewServiceConfigurationAction
   },
   {
     name: 'stackarr_get_container_overview',
@@ -851,9 +1001,10 @@ const tools: ToolDef[] = [
   },
   {
     name: 'stackarr_update_stack_config',
-    description: 'Update DB-backed Stackarr runtime config by env key.',
-    shape: { values: z.record(z.string(), z.unknown()) },
-    handler: updateStackConfigAction
+    description:
+      'Unavailable: generic MCP stack configuration mutation is disabled; use authenticated settings or specialized tools.',
+    shape: empty,
+    handler: updateSafeStackConfigurationAction
   },
   {
     name: 'stackarr_get_telemetry_status',
@@ -1372,6 +1523,24 @@ const tools: ToolDef[] = [
     handler: getRequestStatusAction
   },
   { name: 'stackarr_run_backup', description: 'Run backup.', shape: empty, handler: runBackupWorkflowAction },
+  {
+    name: 'stackarr_get_postgres_backup_status',
+    description: 'Read cached PostgreSQL archive backup status without waking the target.',
+    shape: empty,
+    handler: () => getPostgresBackupStatusAction(readEnv())
+  },
+  {
+    name: 'stackarr_test_postgres_backup',
+    description: 'Queue a PostgreSQL backup target test.',
+    shape: empty,
+    handler: () => queueStackarrCommandAction({ command: 'PostgresBackupTest' })
+  },
+  {
+    name: 'stackarr_run_postgres_backup',
+    description: 'Queue a PostgreSQL archive sync.',
+    shape: empty,
+    handler: () => queueStackarrCommandAction({ command: 'PostgresBackupSync' })
+  },
   { name: 'stackarr_list_backups', description: 'List backups.', shape: empty, handler: listBackupsAction },
   {
     name: 'stackarr_validate_backup',
@@ -1515,7 +1684,7 @@ export function registerStackarrTools(
       {
         title: toolTitle(tool.name),
         description: tool.description,
-        inputSchema: tool.shape,
+        inputSchema: tool.strictInput ?? tool.shape,
         annotations: toolAnnotations(meta),
         _meta: {
           'stackarr/category': meta.category,
@@ -1523,41 +1692,146 @@ export function registerStackarrTools(
           'stackarr/profile': profile
         }
       },
-      async (input) => {
+      async (input: Record<string, unknown>) => {
+        const draftOperation = instanceOperations.find((entry) => entry.mcp === tool.name)?.operation;
+        if (
+          draftOperation === 'create' ||
+          draftOperation === 'rename' ||
+          draftOperation === 'remove' ||
+          draftOperation === 'connect' ||
+          draftOperation === 'disconnect'
+        ) {
+          try {
+            const authorization = await authorizeToolCall(server, profile, meta, input);
+            if (!authorization.approved) {
+              try {
+                const activity = await auditStarted({
+                  caller: options.caller ?? 'mcp-local',
+                  toolName: tool.name,
+                  category: meta.category,
+                  scopes: meta.scopes,
+                  risk: meta.risk,
+                  inputSummary: instanceAuditEvidence(
+                    draftOperation,
+                    input.sourceId ?? input.id,
+                    'denied',
+                    input.targetId
+                  )
+                });
+                await auditFinished(activity.id, {
+                  status: 'denied',
+                  resultSummary: instanceAuditEvidence(
+                    draftOperation,
+                    input.sourceId ?? input.id,
+                    'denied',
+                    input.targetId
+                  ),
+                  error: 'Approval required.'
+                });
+              } catch {
+                return {
+                  ...jsonContent({ error: { code: 'store_unavailable', message: 'Instance store unavailable.' } }),
+                  isError: true
+                };
+              }
+              return jsonContent(authorization.result);
+            }
+            return jsonContent(
+              await executeAuditedInstanceMutation(draftOperation, input, options.caller ?? 'mcp-local')
+            );
+          } catch (error) {
+            const safe =
+              error instanceof InstanceActionError
+                ? error
+                : new InstanceActionError('store_unavailable', 'Instance store unavailable.');
+            return { ...jsonContent({ error: { code: safe.code, message: safe.message } }), isError: true };
+          }
+        }
         const started = Date.now();
-        const activity = await auditStarted({
-          caller: options.caller ?? 'mcp-local',
-          toolName: tool.name,
-          category: meta.category,
-          scopes: meta.scopes,
-          risk: meta.risk,
-          inputSummary: input
-        });
+        const draftEvidence = (outcome: 'started' | 'success' | 'error' | 'denied', id?: string) =>
+          draftOperation
+            ? instanceAuditEvidence(
+                draftOperation,
+                id ??
+                  (typeof input.instanceId === 'string'
+                    ? input.instanceId
+                    : typeof input.id === 'string'
+                      ? input.id
+                      : undefined),
+                outcome
+              )
+            : undefined;
+        let activity: Awaited<ReturnType<typeof auditStarted>>;
+        try {
+          activity = await auditStarted({
+            caller: options.caller ?? 'mcp-local',
+            toolName: tool.name,
+            category: meta.category,
+            scopes: meta.scopes,
+            risk: meta.risk,
+            inputSummary: draftOperation ? draftEvidence('started') : input
+          });
+        } catch (error) {
+          if (draftOperation)
+            return {
+              ...jsonContent({ error: { code: 'store_unavailable', message: 'Instance store unavailable.' } }),
+              isError: true
+            };
+          throw error;
+        }
         try {
           const authorization = await authorizeToolCall(server, profile, meta, input);
           if (!authorization.approved) {
             await auditFinished(activity.id, {
               status: 'denied',
               durationMs: Date.now() - started,
-              resultSummary: summarize(authorization.result),
+              resultSummary: draftOperation ? draftEvidence('denied') : summarize(authorization.result),
               error: denialReason(authorization.result)
             });
             return jsonContent(authorization.result);
           }
 
-          const result = await tool.handler({
-            ...authorization.input,
-            __stackarrCallerProfile: profile,
-            __stackarrGroups: options.groups
-          });
+          const result = await tool.handler(
+            draftOperation
+              ? input
+              : {
+                  ...authorization.input,
+                  __stackarrCallerProfile: profile,
+                  __stackarrGroups: options.groups
+                }
+          );
           await auditFinished(activity.id, {
             status: 'success',
             durationMs: Date.now() - started,
-            resultSummary: summarize(result)
+            resultSummary: draftOperation
+              ? draftEvidence(
+                  'success',
+                  result && typeof result === 'object' && 'id' in result && typeof result.id === 'string'
+                    ? result.id
+                    : undefined
+                )
+              : summarize(result)
           });
           return jsonContent(result);
         } catch (error) {
           const status = error instanceof DangerousActionError ? 'denied' : 'error';
+          if (draftOperation) {
+            const safe =
+              error instanceof InstanceActionError
+                ? error
+                : new InstanceActionError('store_unavailable', 'Instance store unavailable.');
+            try {
+              await auditFinished(activity.id, {
+                status: 'error',
+                durationMs: Date.now() - started,
+                resultSummary: draftEvidence('error'),
+                error: safe.message
+              });
+            } catch {
+              /* Audit failure must never replace the sanitized action error. */
+            }
+            return { ...jsonContent({ error: { code: safe.code, message: safe.message } }), isError: true };
+          }
           await auditFinished(activity.id, {
             status,
             durationMs: Date.now() - started,
@@ -1645,7 +1919,7 @@ async function authorizeToolCall(
   return { approved: true, input: withInternalApproval(input) };
 }
 
-function credentialKeysInConfigurationCall(toolName: string, input: Record<string, unknown>) {
+export function credentialKeysInConfigurationCall(toolName: string, input: Record<string, unknown>) {
   if (
     toolName !== 'stackarr_update_service_config' &&
     toolName !== 'stackarr_update_stack_config' &&
@@ -1654,14 +1928,24 @@ function credentialKeysInConfigurationCall(toolName: string, input: Record<strin
     return [];
   }
 
-  const values = input.values;
-  if (!values || typeof values !== 'object' || Array.isArray(values)) return [];
-
-  return Object.keys(values).filter((key) =>
-    /(password|passwd|token|secret|credential|username|email|claim|api[_-]?key|apikey|(^|[._-])arl$|app[_-]?id|client[_-]?id)/i.test(
-      key
-    )
-  );
+  const blocked: string[] = [];
+  const credentialKey =
+    /(password|passwd|token|secret|credential|username|email|claim|api[_-]?key|apikey|(^|[._-])arl$|app[_-]?id|client[_-]?id)/i;
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > 8 || blocked.length >= 30) return;
+    if (typeof value === 'string') {
+      // Reject userinfo even when the containing field has an innocuous name.
+      if (/(?:[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/i.test(value)) blocked.push(path);
+    } else if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value)) {
+        const next = path ? `${path}.${key}` : key;
+        if (credentialKey.test(key)) blocked.push(next);
+        else visit(child, next, depth + 1);
+      }
+    }
+  };
+  visit(toolName === 'stackarr_update_stack_config' ? input : input.values, '', 0);
+  return blocked;
 }
 
 function requiresInteractiveApproval(meta: ToolCatalogEntry, input: Record<string, unknown>) {

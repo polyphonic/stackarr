@@ -23,7 +23,10 @@ export function createStackarrMcpServer(
         `Next step: ${summary.nextStep}`,
         'Use stackarr_get_mcp_control_plane to inspect enabled service groups and available actions.',
         'Dry-run setup, migration, and restore operations before executing them. Never ask for passwords or API keys through MCP elicitation.',
-        'After enabling or disabling services, restart the MCP connection so the advertised tool catalog is refreshed.'
+        'After enabling or disabling services, restart the MCP connection so the advertised tool catalog is refreshed.',
+        'Native/external database mode connects to an existing reachable server; it does not provision databases, move data, restore backups, or migrate applications. Keep managed unified TimescaleDB as the default unless prerequisites are met.',
+        'Before choosing external PostgreSQL, verify engine/version/extensions, per-app roles/databases, connectivity/TLS, and a tested matching-engine restore. Record original endpoints and a rollback plan. Backups cover configured source and reachable archive target only when enabled, credentials and schedules work, and local/full-file plus remote archive captures and restores have been verified; saving a URL is not backup coverage.',
+        'Use read-only database diagnostics and preview before changing an endpoint. Never infer a successful migration from connection success. General settings writes and secrets remain on authenticated settings UI until shared route validators are available.'
       ].join('\n')
     }
   );

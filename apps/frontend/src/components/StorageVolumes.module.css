@@ -1,0 +1,95 @@
+.volumes {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.volume {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-subtle);
+  min-width: 0;
+}
+.trigger {
+  width: 100%;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.heading {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+.heading strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.heading > span {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.usageTrack {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--glass-border);
+}
+.usageTrack[data-unknown="true"] {
+  background: repeating-linear-gradient(135deg, var(--glass-border) 0 4px, transparent 4px 8px);
+}
+.usageFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.locations {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+.locations li {
+  border-top: 1px solid var(--glass-border);
+  padding-top: 9px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12px;
+}
+.locationTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.locationTitle strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.locationTitle > span {
+  flex-shrink: 0;
+}
+.locations code {
+  color: var(--text);
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.reason {
+  color: var(--muted);
+}
+.available {
+  color: var(--success);
+  font-weight: 600;
+}
+.unavailable {
+  color: var(--danger);
+  font-weight: 600;
+}

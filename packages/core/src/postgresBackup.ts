@@ -1,0 +1,368 @@
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { StackarrEnv } from './env';
+
+export type PostgresBackupCoverage = { name: string; schema: string; extensions: string[] };
+export type PostgresBackupStatus = {
+  state: 'idle' | 'running' | 'succeeded' | 'failed';
+  lastAttempt: string | null;
+  lastSuccess: string | null;
+  lastError: string | null;
+  coverage: PostgresBackupCoverage[];
+  generation: string | null;
+  bytes: number | null;
+  durationSeconds: number | null;
+  lastTest: string | null;
+  nextRun: string | null;
+};
+
+const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const sourceFields = [
+  'HOST',
+  'PORT',
+  'INSTANCE_ID',
+  'CLIENT_BIN',
+  'CLIENT_MAJOR',
+  'USER',
+  'PASSWORD',
+  'TLS_MODE',
+  'TLS_ROOT_CERT',
+  'EXCLUSIONS'
+] as const;
+const sourceKeys = sourceFields.map((field) => `STACKARR_PG_BACKUP_SOURCE_${field}`);
+const configKeys = [
+  'STACKARR_PG_BACKUP_ENABLED',
+  'STACKARR_PG_BACKUP_URL',
+  'STACKARR_PG_BACKUP_RETENTION_COUNT',
+  'STACKARR_PG_BACKUP_SCHEDULE',
+  'STACKARR_PG_BACKUP_TIME',
+  'STACKARR_PG_BACKUP_WEEKDAY',
+  'STACKARR_PG_BACKUP_TIMEZONE',
+  ...sourceKeys
+] as const;
+
+export function validatePostgresBackupConfig(env: StackarrEnv): void {
+  const mode = env.POSTGRES_DEPLOYMENT_MODE || 'managed';
+  if (!['managed', 'independent', 'external'].includes(mode))
+    throw new Error('Unsupported PostgreSQL backup source mode.');
+  const source = (field: string) => env[`STACKARR_PG_BACKUP_SOURCE_${field}`] ?? '';
+  if (source('TLS_MODE') && source('TLS_MODE') !== 'verify-full')
+    throw new Error('External PostgreSQL backup source requires verify-full TLS.');
+  if (source('EXCLUSIONS')) {
+    let exclusions: unknown;
+    try {
+      exclusions = JSON.parse(source('EXCLUSIONS'));
+    } catch {
+      throw new Error('Invalid explicit PostgreSQL source exclusion policy.');
+    }
+    if (
+      !Array.isArray(exclusions) ||
+      exclusions.length > 1 ||
+      exclusions.some(
+        (item) =>
+          !item ||
+          typeof item !== 'object' ||
+          Array.isArray(item) ||
+          Object.keys(item).sort().join(',') !== 'name,owner,reason' ||
+          Object.values(item).some((value) => typeof value !== 'string' || !value) ||
+          ['postgres', 'template0', 'template1'].includes(item.name)
+      )
+    )
+      throw new Error('Invalid explicit PostgreSQL source exclusion policy.');
+  }
+  if (mode === 'external' && env.STACKARR_PG_BACKUP_ENABLED === 'true') {
+    if (sourceFields.filter((field) => field !== 'EXCLUSIONS').some((field) => !source(field)))
+      throw new Error(
+        'External PostgreSQL backup source capabilities are incomplete; managed Docker fallback is forbidden.'
+      );
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9.:-]{0,252}$/.test(source('HOST')) ||
+      !/^[1-9][0-9]{0,4}$/.test(source('PORT')) ||
+      Number(source('PORT')) > 65535 ||
+      !/^[1-9][0-9]{5,19}$/.test(source('INSTANCE_ID')) ||
+      !path.posix.isAbsolute(source('CLIENT_BIN')) ||
+      /[\u0000-\u001f\u007f]/.test(source('CLIENT_BIN')) ||
+      !/^[1-9][0-9]?$/.test(source('CLIENT_MAJOR')) ||
+      !/^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/.test(source('USER')) ||
+      !path.posix.isAbsolute(source('TLS_ROOT_CERT')) ||
+      /[\u0000-\u001f\u007f]/.test(source('TLS_ROOT_CERT'))
+    )
+      throw new Error('Invalid external PostgreSQL backup source capabilities.');
+  }
+  if (mode === 'independent' && env.STACKARR_PG_BACKUP_ENABLED === 'true') {
+    if (
+      [
+        'POSTGRES_HOST_ADDRESS',
+        'POSTGRES_HOST_PORT',
+        'POSTGRES_INSTANCE_ID',
+        'POSTGRES_HOST_CLIENT_BIN',
+        'DATABASE_SUPERUSER',
+        'DATABASE_SUPERUSER_PASSWORD'
+      ].some((key) => !env[key])
+    )
+      throw new Error('Independent PostgreSQL backup source capabilities are incomplete.');
+    if (
+      !['127.0.0.1', 'localhost', '::1'].includes(env.POSTGRES_HOST_ADDRESS) ||
+      !/^[1-9][0-9]{0,4}$/.test(env.POSTGRES_HOST_PORT) ||
+      Number(env.POSTGRES_HOST_PORT) > 65535 ||
+      !/^[1-9][0-9]{5,19}$/.test(env.POSTGRES_INSTANCE_ID) ||
+      !path.posix.isAbsolute(env.POSTGRES_HOST_CLIENT_BIN) ||
+      /[\u0000-\u001f\u007f]/.test(env.POSTGRES_HOST_CLIENT_BIN) ||
+      !/^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/.test(env.DATABASE_SUPERUSER)
+    )
+      throw new Error('Invalid independent PostgreSQL backup source capabilities.');
+  }
+  if (!/^(?:[2-9]|[12][0-9]|30)$/.test(env.STACKARR_PG_BACKUP_RETENTION_COUNT ?? '4'))
+    throw new Error('PostgreSQL backup retention must be an integer from 2 to 30.');
+  if (!['true', 'false'].includes(env.STACKARR_PG_BACKUP_ENABLED ?? 'false'))
+    throw new Error('Invalid PostgreSQL backup enabled flag.');
+  if (!['daily', 'weekly'].includes(env.STACKARR_PG_BACKUP_SCHEDULE ?? 'daily'))
+    throw new Error('Invalid PostgreSQL backup schedule.');
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(env.STACKARR_PG_BACKUP_TIME ?? ''))
+    throw new Error('Invalid PostgreSQL backup time.');
+  if (!weekdays.includes(env.STACKARR_PG_BACKUP_WEEKDAY ?? '')) throw new Error('Invalid PostgreSQL backup weekday.');
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: env.STACKARR_PG_BACKUP_TIMEZONE }).format();
+  } catch {
+    throw new Error('Invalid PostgreSQL backup timezone.');
+  }
+  const raw = env.STACKARR_PG_BACKUP_URL ?? '';
+  if (!raw) {
+    if (env.STACKARR_PG_BACKUP_ENABLED === 'true') throw new Error('PostgreSQL backup requires a target URL.');
+    return;
+  }
+  // Never include a connection string or its parsed components in validation errors.
+  const invalid = () => {
+    throw new Error(
+      'Invalid PostgreSQL backup target URL. Use a direct, verified-TLS PostgreSQL connection with explicit host, user, password and database.'
+    );
+  };
+  if (/[\x00-\x20\x7f#]/.test(raw) || /%(?![0-9a-fA-F]{2})/.test(raw)) invalid();
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    invalid();
+    return;
+  }
+  if (
+    !['postgres:', 'postgresql:'].includes(url.protocol) ||
+    !url.hostname ||
+    !url.username ||
+    !url.password ||
+    !url.pathname ||
+    url.pathname === '/' ||
+    url.hash ||
+    /-pooler(?:\.|$)/i.test(url.hostname) ||
+    /[,%]/.test(url.hostname)
+  )
+    invalid();
+  try {
+    if (
+      /[\x00-\x1f\x7f]/.test(decodeURIComponent(url.username)) ||
+      /[\x00-\x1f\x7f]/.test(decodeURIComponent(url.password))
+    )
+      invalid();
+  } catch {
+    invalid();
+  }
+  let database: string;
+  try {
+    database = decodeURIComponent(url.pathname.slice(1));
+  } catch {
+    invalid();
+    return;
+  }
+  if (!database || database.includes('/') || /[\x00-\x1f\x7f]/.test(database)) invalid();
+  const query = raw.split('?')[1] ?? '';
+  if (query && query.split('&').some((part) => !part.includes('=') || part.startsWith('='))) invalid();
+  const seen = new Set<string>();
+  for (const [key, value] of url.searchParams) {
+    if (seen.has(key) || !['sslmode', 'channel_binding'].includes(key)) invalid();
+    seen.add(key);
+    if (key === 'sslmode' && !['require', 'verify-full'].includes(value)) invalid();
+    if (key === 'channel_binding' && !['require', 'prefer'].includes(value)) invalid();
+  }
+}
+
+export function postgresBackupTargetIdentity(env: StackarrEnv): string | null {
+  if (!env.STACKARR_PG_BACKUP_URL) return null;
+  try {
+    const url = new URL(env.STACKARR_PG_BACKUP_URL);
+    const scope = [
+      url.hostname.replace(/^\[|\]$/g, '').toLowerCase(),
+      Number(url.port || 5432),
+      decodeURIComponent(url.pathname.slice(1)),
+      decodeURIComponent(url.username)
+    ];
+    return createHash('sha256').update(JSON.stringify(scope)).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+// Stable cross-language identity: compact UTF-8 JSON array of effective, nonsecret source fields.
+export function postgresBackupSourceIdentity(env: StackarrEnv): string {
+  const mode = env.POSTGRES_DEPLOYMENT_MODE || 'managed';
+  const get = (key: string) => env[key] ?? '';
+  const fields =
+    mode === 'external'
+      ? [
+          'HOST',
+          'PORT',
+          'INSTANCE_ID',
+          'CLIENT_BIN',
+          'CLIENT_MAJOR',
+          'USER',
+          'TLS_MODE',
+          'TLS_ROOT_CERT',
+          'EXCLUSIONS'
+        ].map((field) => get(`STACKARR_PG_BACKUP_SOURCE_${field}`))
+      : mode === 'independent'
+        ? ['POSTGRES_HOST_ADDRESS', 'POSTGRES_HOST_PORT', 'POSTGRES_INSTANCE_ID', 'POSTGRES_HOST_CLIENT_BIN']
+            .map(get)
+            .concat(['', get('DATABASE_SUPERUSER'), '', '', get('STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS')])
+        : Array(9).fill('');
+  return createHash('sha256')
+    .update(JSON.stringify([mode, ...fields]), 'utf8')
+    .digest('hex');
+}
+
+export function postgresBackupPublicConfig(env: StackarrEnv): Record<string, string> {
+  const config: Record<string, string> = Object.fromEntries(
+    configKeys.map((key) => [
+      key,
+      ['STACKARR_PG_BACKUP_URL', 'STACKARR_PG_BACKUP_SOURCE_PASSWORD'].includes(key)
+        ? env[key]
+          ? '********'
+          : ''
+        : (env[key] ?? '')
+    ])
+  );
+  const raw = env.STACKARR_PG_BACKUP_URL;
+  let preview = raw ? 'Saved secret' : '';
+  if (raw) {
+    try {
+      validatePostgresBackupConfig({ ...env, STACKARR_PG_BACKUP_ENABLED: 'false' });
+      const url = new URL(raw);
+      url.password = '********';
+      preview = url.toString();
+    } catch {
+      // Legacy or malformed saved URLs must not disclose potentially secret components.
+    }
+  }
+  return { ...config, postgresDeploymentMode: env.POSTGRES_DEPLOYMENT_MODE ?? 'managed', targetUrlPreview: preview };
+}
+
+export function nextPostgresBackupRun(env: StackarrEnv, now = new Date()): string | null {
+  if (env.STACKARR_PG_BACKUP_ENABLED !== 'true') return null;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: env.STACKARR_PG_BACKUP_TIMEZONE ?? 'Etc/UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    weekday: 'short'
+  });
+  const [hour, minute] = (env.STACKARR_PG_BACKUP_TIME ?? '03:00').split(':');
+  // Search UTC minutes to resolve local DST gaps and folds to the first actual occurrence.
+  const start = Math.floor(now.getTime() / 60000) * 60000 + 60000;
+  for (let offset = 0; offset < 15 * 24 * 60; offset++) {
+    const candidate = new Date(start + offset * 60000);
+    const parts = Object.fromEntries(formatter.formatToParts(candidate).map((part) => [part.type, part.value]));
+    if (
+      parts.hour === hour &&
+      parts.minute === minute &&
+      (env.STACKARR_PG_BACKUP_SCHEDULE !== 'weekly' || parts.weekday === env.STACKARR_PG_BACKUP_WEEKDAY)
+    ) {
+      // A fall-back hour has two UTC instants. Never schedule the second occurrence.
+      const repeated = Array.from(
+        { length: 180 },
+        (_, index) => new Date(candidate.getTime() - (index + 1) * 60000)
+      ).some((earlier) => {
+        const previous = Object.fromEntries(formatter.formatToParts(earlier).map((part) => [part.type, part.value]));
+        return (
+          previous.year === parts.year &&
+          previous.month === parts.month &&
+          previous.day === parts.day &&
+          previous.hour === hour &&
+          previous.minute === minute
+        );
+      });
+      if (!repeated) return candidate.toISOString();
+    }
+  }
+  return null;
+}
+
+export function getPostgresBackupStatusAction(env: StackarrEnv, now = new Date()): PostgresBackupStatus {
+  const empty: PostgresBackupStatus = {
+    state: 'idle',
+    lastAttempt: null,
+    lastSuccess: null,
+    lastError: null,
+    coverage: [],
+    generation: null,
+    bytes: null,
+    durationSeconds: null,
+    lastTest: null,
+    nextRun: null
+  };
+  let cached: Record<string, unknown> = {};
+  try {
+    const file = path.join(env.STATE_ROOT ?? '', 'postgres-backup', 'status.json');
+    const stat = fs.lstatSync(file);
+    if (stat.isFile() && !stat.isSymbolicLink() && stat.size < 1024 * 1024)
+      cached = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    /* Missing or malformed cache is an idle status, never a remote probe. */
+  }
+  if (
+    !cached ||
+    Array.isArray(cached) ||
+    cached.targetIdentity !== postgresBackupTargetIdentity(env) ||
+    (cached.sourceIdentity !== postgresBackupSourceIdentity(env) &&
+      !(Object.hasOwn(cached, 'sourceIdentity') === false && (env.POSTGRES_DEPLOYMENT_MODE || 'managed') === 'managed'))
+  )
+    cached = {};
+  if (cached.state === 'running') {
+    // Probe the local kernel lock, not a PID that may have been reused after restart.
+    const probe = spawnSync(
+      'python3',
+      [
+        '-c',
+        `import fcntl,sys
+try:
+    with open(sys.argv[1], 'r') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    sys.exit(3)
+except FileNotFoundError:
+    pass
+`,
+        path.join(env.STATE_ROOT ?? '', 'postgres-backup', 'active.lock')
+      ],
+      { timeout: 1000, encoding: 'utf8' }
+    );
+    if (probe.status !== 3)
+      cached = { ...cached, state: 'failed', lastError: 'Previous attempt stopped or cannot be verified.' };
+  }
+  const status = {
+    ...empty,
+    ...Object.fromEntries(
+      Object.keys(empty)
+        .filter((key) => key !== 'nextRun' && Object.hasOwn(cached, key))
+        .map((key) => [key, cached[key]])
+    ),
+    nextRun: nextPostgresBackupRun(env, now)
+  } as PostgresBackupStatus;
+  if (!['idle', 'running', 'succeeded', 'failed'].includes(status.state)) status.state = 'idle';
+  if (!Array.isArray(status.coverage)) status.coverage = [];
+  // Driver exceptions can embed a full URL or only credentials. Do not expose raw errors.
+  if (status.lastError) status.lastError = 'Backup failed; inspect local backup logs.';
+  return status;
+}

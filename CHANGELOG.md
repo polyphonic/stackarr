@@ -1,269 +1,297 @@
 # Changelog
 
-## [0.3.0-alpha.20](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.19...v0.3.0-alpha.20) (2026-10-10)
+## [0.3.0-alpha.25](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.24...v0.3.0-alpha.25) (2026-10-28)
 
+### Documentation
 
-### Added
+- **backup:** clarify dedicated PostgreSQL target guidance ([a918bb7](https://github.com/polyphonic/stackarr/commit/a918bb701d12d4a19c21cd06f841a38a370a562e))
+- **backup:** clarify dedicated PostgreSQL target guidance ([862cf1e](https://github.com/polyphonic/stackarr/commit/862cf1e8b61da5bb62f8f6ac55a10b61cb67aa4a))
 
-* **docs:** deploy with vinext on Cloudflare Workers ([77dcc70](https://github.com/polyphonic/stackarr/commit/77dcc704c935c6ab220a4a862ed10b6d92c1afb8))
-* **docs:** deploy with vinext on Cloudflare Workers ([94e12d1](https://github.com/polyphonic/stackarr/commit/94e12d13016a44e91218e24205167758325826bd))
-* integrate pending Stackarr work and dependency branches ([385a38e](https://github.com/polyphonic/stackarr/commit/385a38ec09f5295b6ab76fd95da27dfb268e0ea1))
-* **questarr:** add secure RomM game workflow ([80d53dd](https://github.com/polyphonic/stackarr/commit/80d53dda01f5e3ea92aa03e161dceba519fc8104))
-* **questarr:** add secure RomM game workflow ([bd43521](https://github.com/polyphonic/stackarr/commit/bd43521c754fa021297bcad94677f238a343b2ea))
-* **services:** integrate Tdarr and harden app lifecycle ([63ad2f8](https://github.com/polyphonic/stackarr/commit/63ad2f8e42362bc990be777c00ebac02c9c06c17))
-* **ui:** configure disk warning threshold ([3f43fb1](https://github.com/polyphonic/stackarr/commit/3f43fb1a805001a93ee0448910cec9a1c365d6b1))
-* **web:** unify homepage design system ([6325744](https://github.com/polyphonic/stackarr/commit/63257440f607ac32b481ee4c31aa8b0b7345cd11))
-* **web:** unify homepage design system ([0c6996f](https://github.com/polyphonic/stackarr/commit/0c6996f22ee15e1b00e44ecabf3f41af5dc449f6))
-
+## [0.3.0-alpha.24](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.23...v0.3.0-alpha.24) (2026-10-28)
 
 ### Fixed
 
-* **backup:** preserve game integration state ([001b08b](https://github.com/polyphonic/stackarr/commit/001b08b89d4ac03f69011d8d11948af600293469))
-* **bookorbit:** move host traffic to port 42873 ([b009296](https://github.com/polyphonic/stackarr/commit/b0092960ebca4b578b3ff4f803b68ce6348070ff))
-* **bookorbit:** move host traffic to port 42873 ([64a9c4e](https://github.com/polyphonic/stackarr/commit/64a9c4e798308e1662437e1eabbf8967ae3f4edf))
-* **cleanuparr:** exempt game downloads from media blocklist ([0116c04](https://github.com/polyphonic/stackarr/commit/0116c04aa5f30fad9468bdd265596c33cd46055c))
-* **cms:** classify Home Assistant tailnet guides ([c4c2d69](https://github.com/polyphonic/stackarr/commit/c4c2d69f331966430c071bd52bfa039d79028889))
-* **cms:** integrate homelab classification improvements ([b9642ff](https://github.com/polyphonic/stackarr/commit/b9642ff1a4981659e1e8e9eabeea91899129ad3b))
-* **control-plane:** repair health diagnostics and docs build ([318fd24](https://github.com/polyphonic/stackarr/commit/318fd24e6b2f58edb2e922abb94bb28c31a9adaa))
-* **database:** migrate cleanuparr safely to postgres ([98eeddf](https://github.com/polyphonic/stackarr/commit/98eeddf685ec0d45a36ec4cc93755a899cd5f723))
-* **deps:** align merged dependency peer requirements ([10f03ef](https://github.com/polyphonic/stackarr/commit/10f03efb5970a6e925b8159c1e0b5b7ee5456074))
-* **docs:** center header action labels ([ed3c38a](https://github.com/polyphonic/stackarr/commit/ed3c38a44f4688d436893e9a80c636fe62b508fc))
-* **docs:** center header action labels ([d5acfc8](https://github.com/polyphonic/stackarr/commit/d5acfc8d9250cd0a8e3afd181b342b7fc5697fc9))
-* **docs:** keep Sanity queries compatible with standalone CMS types ([403ac63](https://github.com/polyphonic/stackarr/commit/403ac630ef2b7e23b0e40782bc7ace3b69f699b5))
-* **docs:** restore mobile theme label ([0b1e53f](https://github.com/polyphonic/stackarr/commit/0b1e53feed82c678051da28680cdbc3037be1614))
-* **docs:** restore mobile theme label ([0d905c5](https://github.com/polyphonic/stackarr/commit/0d905c50236960ee0d53c79649715d4fd12e29a4))
-* **health:** complete service probes and consolidate maintenance updates ([5729bf6](https://github.com/polyphonic/stackarr/commit/5729bf64c62f36495a29f854f0da47c0639912e6))
-* **health:** repair integration diagnostics ([1b7d66d](https://github.com/polyphonic/stackarr/commit/1b7d66d1d37655d6107486de95a635018f0aec5c))
-* **indexers:** keep archive searches interactive ([a6fac06](https://github.com/polyphonic/stackarr/commit/a6fac06c1cd1395da5a3b7d7def699e7e5661ea5))
-* **questarr:** describe controller-owned game mount ([4539bfd](https://github.com/polyphonic/stackarr/commit/4539bfd6f1e073196e6b09f002b73dd0205e5cb6))
-* **questarr:** harden game workflow boundaries ([4d9a6c4](https://github.com/polyphonic/stackarr/commit/4d9a6c42427da5f8dcf82e60196ac9e525aafe2c))
-* **questarr:** verify external RomM library mounts ([0e38bf3](https://github.com/polyphonic/stackarr/commit/0e38bf3d4ff54441047df53627d4ff8703386477))
-* **runtime:** harden restart recovery and service operations ([eeaffc0](https://github.com/polyphonic/stackarr/commit/eeaffc003b9ebae8e0e0434c77e207e6df5d39ba))
-* **runtime:** harden storage, backups and service reconciliation ([8612dfe](https://github.com/polyphonic/stackarr/commit/8612dfe2e35c030ce75a87dee460dd318bec4cbe))
-* **runtime:** integrate non-beta reliability improvements ([2359422](https://github.com/polyphonic/stackarr/commit/2359422a015121178927542934ac26734d7e1b4d))
-* **runtime:** keep host agents in app data ([2cbd0ca](https://github.com/polyphonic/stackarr/commit/2cbd0ca7344ad20323a195575b2ae86459e47545))
-* **runtime:** prevent stale credentials and route torrents ([298683a](https://github.com/polyphonic/stackarr/commit/298683abc135d1ba532e0afa934a725274fb509c))
-* **runtime:** recover safely after host restarts ([1fd2c38](https://github.com/polyphonic/stackarr/commit/1fd2c38484cf7b3d0d84c07620a756dd7777f006))
-* **sonarr:** score multi-episode x265 releases correctly ([952b89a](https://github.com/polyphonic/stackarr/commit/952b89a1a26a88c9afcde7e92fae3dab1d51a534))
-* **ui:** reserve app card action column ([c08b351](https://github.com/polyphonic/stackarr/commit/c08b3515b1663fc0587c4a00a3a8b7b5a20119c1))
-* **updater:** preserve successful image pulls ([a27fdbc](https://github.com/polyphonic/stackarr/commit/a27fdbc38958a92fd064663ce624a55a9137b852))
-* **web:** repair responsive visual regressions ([0a1a3bb](https://github.com/polyphonic/stackarr/commit/0a1a3bb122d8b2f16cf2aa112aa12404a23282bc))
-* **web:** repair responsive visual regressions ([286cb49](https://github.com/polyphonic/stackarr/commit/286cb49bae9bfe2cc84388cb40c3ed5a705dc228))
+- **backup:** accept public default ACL metadata on empty targets ([e17d041](https://github.com/polyphonic/stackarr/commit/e17d0417116b0a35a5dc162a0447474c097fc184))
+- **backup:** accept public default ACL metadata on empty targets ([b80e74d](https://github.com/polyphonic/stackarr/commit/b80e74d4f1e67cc4fe11185cba4a9fed60c6c65b))
+
+## [0.3.0-alpha.23](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.22...v0.3.0-alpha.23) (2026-10-27)
+
+### Added
+
+- **backup:** add complete PostgreSQL archive sync settings ([abc7c06](https://github.com/polyphonic/stackarr/commit/abc7c068fc46affc3f1ba7903c1d7b7493e9f1d3))
+- **backup:** preserve managed PostgreSQL estates in scheduled archives ([78ad87c](https://github.com/polyphonic/stackarr/commit/78ad87c9454e89013a8fa58bdb51399c3b60496f))
+
+### Fixed
+
+- **backup:** bind recovery status to its target and active lease ([72bee50](https://github.com/polyphonic/stackarr/commit/72bee5066e817e8100ddd8809a3c6f9efe09ea0b))
+- **backup:** reject stale settings with explicit database URLs ([beafd8c](https://github.com/polyphonic/stackarr/commit/beafd8cb763f4e62b88e25186916cb4f45f32109))
+- **romm:** integrate durable worker configuration ([8909e8c](https://github.com/polyphonic/stackarr/commit/8909e8c52ffffa111ff6e0820d815ca5e5b24174))
+- **romm:** persist API worker count in managed runtime ([8b3cabf](https://github.com/polyphonic/stackarr/commit/8b3cabf5e773eb84c96573e072b8e39eb3a39bbe))
+- **runtime:** retry controller workers and absent storage proof ([23ca944](https://github.com/polyphonic/stackarr/commit/23ca944893cd86a23039e39376a5a63f9f01162d))
+- **runtime:** retry nonessential controller workers and host proof ([c9db3c0](https://github.com/polyphonic/stackarr/commit/c9db3c0c0cbf49d89f24b32b3ceaa15b3b4642e3))
+- **storage:** align disk reports with host metrics ([29af351](https://github.com/polyphonic/stackarr/commit/29af351b76a60dfd7ad54b22e25d1b1e6cff529e))
+- **storage:** integrate host-aware disk reporting ([07885ef](https://github.com/polyphonic/stackarr/commit/07885eff1198837f6ca922e08971c7cbd6b8081a))
+
+## [0.3.0-alpha.22](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.21...v0.3.0-alpha.22) (2026-10-26)
+
+### Added
+
+- **archive:** preserve current torrent sources and verified magnet metadata ([36947f0](https://github.com/polyphonic/stackarr/commit/36947f053a4ef259862ba56202c9518aa39b1fec))
+- **archive:** track current torrent sources and capture magnet metadata ([f578080](https://github.com/polyphonic/stackarr/commit/f578080e1ad1644feb0987ec364e7d9306847e70))
+- **storage:** add guarded external config migration ([ea6c951](https://github.com/polyphonic/stackarr/commit/ea6c951c2a2bb0c0b9eeaf2d244e9134007a83f7))
+- **storage:** add guarded external config migration and verified disk metrics ([4fe0e6d](https://github.com/polyphonic/stackarr/commit/4fe0e6df2eee98be1b20e2755e3554a942d34a33))
+
+### Fixed
+
+- **archive:** validate effective root on every storage save ([6221c94](https://github.com/polyphonic/stackarr/commit/6221c945f9f8d9d749cbf665330c51312d1b2429))
+- **metrics:** preserve verified capacity when grouping disks ([b39336c](https://github.com/polyphonic/stackarr/commit/b39336c4102e53d18a8d7f46c1cbc8259ec25414))
+- **storage:** guard legacy service and archive mount cutovers ([b209905](https://github.com/polyphonic/stackarr/commit/b2099050056122b06d54c0cd1725c18c5ae0a493))
+- **storage:** resolve independent installation roots before moving ([4fae2f7](https://github.com/polyphonic/stackarr/commit/4fae2f7051e69bc52e105c5f06ba63c6657cac66))
+
+### Documentation
+
+- **downloads:** clarify Transmission shared incomplete staging ([0d6be18](https://github.com/polyphonic/stackarr/commit/0d6be18f87fce6fbaf969e92760e710b319422f0))
+- **storage:** explain guarded migration and maintenance safety ([95305f9](https://github.com/polyphonic/stackarr/commit/95305f958060020c0554348c814e629b9b229f1e))
+
+## [0.3.0-alpha.21](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.20...v0.3.0-alpha.21) (2026-10-12)
+
+### Fixed
+
+- **runtime:** recover cleanly after Docker engine restarts ([6a3800c](https://github.com/polyphonic/stackarr/commit/6a3800c7f0aaaa7dd02d42c8980cdef8d7ee819d))
+
+## [0.3.0-alpha.20](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.19...v0.3.0-alpha.20) (2026-10-10)
+
+### Added
+
+- **docs:** deploy with vinext on Cloudflare Workers ([77dcc70](https://github.com/polyphonic/stackarr/commit/77dcc704c935c6ab220a4a862ed10b6d92c1afb8))
+- **docs:** deploy with vinext on Cloudflare Workers ([94e12d1](https://github.com/polyphonic/stackarr/commit/94e12d13016a44e91218e24205167758325826bd))
+- integrate pending Stackarr work and dependency branches ([385a38e](https://github.com/polyphonic/stackarr/commit/385a38ec09f5295b6ab76fd95da27dfb268e0ea1))
+- **questarr:** add secure RomM game workflow ([80d53dd](https://github.com/polyphonic/stackarr/commit/80d53dda01f5e3ea92aa03e161dceba519fc8104))
+- **questarr:** add secure RomM game workflow ([bd43521](https://github.com/polyphonic/stackarr/commit/bd43521c754fa021297bcad94677f238a343b2ea))
+- **services:** integrate Tdarr and harden app lifecycle ([63ad2f8](https://github.com/polyphonic/stackarr/commit/63ad2f8e42362bc990be777c00ebac02c9c06c17))
+- **ui:** configure disk warning threshold ([3f43fb1](https://github.com/polyphonic/stackarr/commit/3f43fb1a805001a93ee0448910cec9a1c365d6b1))
+- **web:** unify homepage design system ([6325744](https://github.com/polyphonic/stackarr/commit/63257440f607ac32b481ee4c31aa8b0b7345cd11))
+- **web:** unify homepage design system ([0c6996f](https://github.com/polyphonic/stackarr/commit/0c6996f22ee15e1b00e44ecabf3f41af5dc449f6))
+
+### Fixed
+
+- **backup:** preserve game integration state ([001b08b](https://github.com/polyphonic/stackarr/commit/001b08b89d4ac03f69011d8d11948af600293469))
+- **bookorbit:** move host traffic to port 42873 ([b009296](https://github.com/polyphonic/stackarr/commit/b0092960ebca4b578b3ff4f803b68ce6348070ff))
+- **bookorbit:** move host traffic to port 42873 ([64a9c4e](https://github.com/polyphonic/stackarr/commit/64a9c4e798308e1662437e1eabbf8967ae3f4edf))
+- **cleanuparr:** exempt game downloads from media blocklist ([0116c04](https://github.com/polyphonic/stackarr/commit/0116c04aa5f30fad9468bdd265596c33cd46055c))
+- **cms:** classify Home Assistant tailnet guides ([c4c2d69](https://github.com/polyphonic/stackarr/commit/c4c2d69f331966430c071bd52bfa039d79028889))
+- **cms:** integrate homelab classification improvements ([b9642ff](https://github.com/polyphonic/stackarr/commit/b9642ff1a4981659e1e8e9eabeea91899129ad3b))
+- **control-plane:** repair health diagnostics and docs build ([318fd24](https://github.com/polyphonic/stackarr/commit/318fd24e6b2f58edb2e922abb94bb28c31a9adaa))
+- **database:** migrate cleanuparr safely to postgres ([98eeddf](https://github.com/polyphonic/stackarr/commit/98eeddf685ec0d45a36ec4cc93755a899cd5f723))
+- **deps:** align merged dependency peer requirements ([10f03ef](https://github.com/polyphonic/stackarr/commit/10f03efb5970a6e925b8159c1e0b5b7ee5456074))
+- **docs:** center header action labels ([ed3c38a](https://github.com/polyphonic/stackarr/commit/ed3c38a44f4688d436893e9a80c636fe62b508fc))
+- **docs:** center header action labels ([d5acfc8](https://github.com/polyphonic/stackarr/commit/d5acfc8d9250cd0a8e3afd181b342b7fc5697fc9))
+- **docs:** keep Sanity queries compatible with standalone CMS types ([403ac63](https://github.com/polyphonic/stackarr/commit/403ac630ef2b7e23b0e40782bc7ace3b69f699b5))
+- **docs:** restore mobile theme label ([0b1e53f](https://github.com/polyphonic/stackarr/commit/0b1e53feed82c678051da28680cdbc3037be1614))
+- **docs:** restore mobile theme label ([0d905c5](https://github.com/polyphonic/stackarr/commit/0d905c50236960ee0d53c79649715d4fd12e29a4))
+- **health:** complete service probes and consolidate maintenance updates ([5729bf6](https://github.com/polyphonic/stackarr/commit/5729bf64c62f36495a29f854f0da47c0639912e6))
+- **health:** repair integration diagnostics ([1b7d66d](https://github.com/polyphonic/stackarr/commit/1b7d66d1d37655d6107486de95a635018f0aec5c))
+- **indexers:** keep archive searches interactive ([a6fac06](https://github.com/polyphonic/stackarr/commit/a6fac06c1cd1395da5a3b7d7def699e7e5661ea5))
+- **questarr:** describe controller-owned game mount ([4539bfd](https://github.com/polyphonic/stackarr/commit/4539bfd6f1e073196e6b09f002b73dd0205e5cb6))
+- **questarr:** harden game workflow boundaries ([4d9a6c4](https://github.com/polyphonic/stackarr/commit/4d9a6c42427da5f8dcf82e60196ac9e525aafe2c))
+- **questarr:** verify external RomM library mounts ([0e38bf3](https://github.com/polyphonic/stackarr/commit/0e38bf3d4ff54441047df53627d4ff8703386477))
+- **runtime:** harden restart recovery and service operations ([eeaffc0](https://github.com/polyphonic/stackarr/commit/eeaffc003b9ebae8e0e0434c77e207e6df5d39ba))
+- **runtime:** harden storage, backups and service reconciliation ([8612dfe](https://github.com/polyphonic/stackarr/commit/8612dfe2e35c030ce75a87dee460dd318bec4cbe))
+- **runtime:** integrate non-beta reliability improvements ([2359422](https://github.com/polyphonic/stackarr/commit/2359422a015121178927542934ac26734d7e1b4d))
+- **runtime:** keep host agents in app data ([2cbd0ca](https://github.com/polyphonic/stackarr/commit/2cbd0ca7344ad20323a195575b2ae86459e47545))
+- **runtime:** prevent stale credentials and route torrents ([298683a](https://github.com/polyphonic/stackarr/commit/298683abc135d1ba532e0afa934a725274fb509c))
+- **runtime:** recover safely after host restarts ([1fd2c38](https://github.com/polyphonic/stackarr/commit/1fd2c38484cf7b3d0d84c07620a756dd7777f006))
+- **sonarr:** score multi-episode x265 releases correctly ([952b89a](https://github.com/polyphonic/stackarr/commit/952b89a1a26a88c9afcde7e92fae3dab1d51a534))
+- **ui:** reserve app card action column ([c08b351](https://github.com/polyphonic/stackarr/commit/c08b3515b1663fc0587c4a00a3a8b7b5a20119c1))
+- **updater:** preserve successful image pulls ([a27fdbc](https://github.com/polyphonic/stackarr/commit/a27fdbc38958a92fd064663ce624a55a9137b852))
+- **web:** repair responsive visual regressions ([0a1a3bb](https://github.com/polyphonic/stackarr/commit/0a1a3bb122d8b2f16cf2aa112aa12404a23282bc))
+- **web:** repair responsive visual regressions ([286cb49](https://github.com/polyphonic/stackarr/commit/286cb49bae9bfe2cc84388cb40c3ed5a705dc228))
 
 ## [0.3.0-alpha.19](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.18...v0.3.0-alpha.19) (2026-08-23)
 
-
 ### Fixed
 
-* **release:** avoid emulated pnpm installs ([f92a4fe](https://github.com/polyphonic/stackarr/commit/f92a4fe97857bcc1635e415fa8b159b019ce6ab5))
-* **release:** avoid emulated pnpm installs ([#69](https://github.com/polyphonic/stackarr/issues/69)) ([2cbed6e](https://github.com/polyphonic/stackarr/commit/2cbed6e97479b3ab868ec5e35954574b0810e7ce))
+- **release:** avoid emulated pnpm installs ([f92a4fe](https://github.com/polyphonic/stackarr/commit/f92a4fe97857bcc1635e415fa8b159b019ce6ab5))
+- **release:** avoid emulated pnpm installs ([#69](https://github.com/polyphonic/stackarr/issues/69)) ([2cbed6e](https://github.com/polyphonic/stackarr/commit/2cbed6e97479b3ab868ec5e35954574b0810e7ce))
 
 ## [0.3.0-alpha.18](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.17...v0.3.0-alpha.18) (2026-08-23)
 
-
 ### Added
 
-* **lidarr:** add manual library controls ([8a7f8df](https://github.com/polyphonic/stackarr/commit/8a7f8dff974efb35a970ae85817a2f93007380b1))
-* **lidarr:** add safe manual-library controls and update guards ([#67](https://github.com/polyphonic/stackarr/issues/67)) ([832c5b8](https://github.com/polyphonic/stackarr/commit/832c5b871b706aa8d92f11ecedb28dcb780061c2))
-
+- **lidarr:** add manual library controls ([8a7f8df](https://github.com/polyphonic/stackarr/commit/8a7f8dff974efb35a970ae85817a2f93007380b1))
+- **lidarr:** add safe manual-library controls and update guards ([#67](https://github.com/polyphonic/stackarr/issues/67)) ([832c5b8](https://github.com/polyphonic/stackarr/commit/832c5b871b706aa8d92f11ecedb28dcb780061c2))
 
 ### Fixed
 
-* **indexers:** return redacted failure details ([2820ed3](https://github.com/polyphonic/stackarr/commit/2820ed34d3f68a2c1f35944ba447fb6fd03bb704))
-* **lidarr:** keep mount updates read-only ([c7a0840](https://github.com/polyphonic/stackarr/commit/c7a0840fb450e79e180dc71235f4b94c488232b8))
-* **romm:** defer scheduled rescans to upstream ([dca6f24](https://github.com/polyphonic/stackarr/commit/dca6f24a58ec150c83c0d57ea1be21f46da14c07))
-* **runtime:** keep sqlite state outside source ([5d7992b](https://github.com/polyphonic/stackarr/commit/5d7992b66c75cebc3cf4fd8ff925c31e15b60a38))
-* **runtime:** preserve legacy sqlite state ([82a692b](https://github.com/polyphonic/stackarr/commit/82a692bfde9549aedf05ae8ba66bc471b8898789))
-* **tasks:** retry transient persistence failures ([fa0ee6f](https://github.com/polyphonic/stackarr/commit/fa0ee6f532d0f7dbf5df7e5ab5da19cd60fe91e4))
-* **update:** retry bounded image pulls ([80246ae](https://github.com/polyphonic/stackarr/commit/80246ae4b69a275fe161c713bf4978bfafd6dddf))
-
+- **indexers:** return redacted failure details ([2820ed3](https://github.com/polyphonic/stackarr/commit/2820ed34d3f68a2c1f35944ba447fb6fd03bb704))
+- **lidarr:** keep mount updates read-only ([c7a0840](https://github.com/polyphonic/stackarr/commit/c7a0840fb450e79e180dc71235f4b94c488232b8))
+- **romm:** defer scheduled rescans to upstream ([dca6f24](https://github.com/polyphonic/stackarr/commit/dca6f24a58ec150c83c0d57ea1be21f46da14c07))
+- **runtime:** keep sqlite state outside source ([5d7992b](https://github.com/polyphonic/stackarr/commit/5d7992b66c75cebc3cf4fd8ff925c31e15b60a38))
+- **runtime:** preserve legacy sqlite state ([82a692b](https://github.com/polyphonic/stackarr/commit/82a692bfde9549aedf05ae8ba66bc471b8898789))
+- **tasks:** retry transient persistence failures ([fa0ee6f](https://github.com/polyphonic/stackarr/commit/fa0ee6f532d0f7dbf5df7e5ab5da19cd60fe91e4))
+- **update:** retry bounded image pulls ([80246ae](https://github.com/polyphonic/stackarr/commit/80246ae4b69a275fe161c713bf4978bfafd6dddf))
 
 ### Documentation
 
-* **agent:** distinguish personal and product work ([ed91a85](https://github.com/polyphonic/stackarr/commit/ed91a85d3c59cab9b1297e4335615084212caa63))
+- **agent:** distinguish personal and product work ([ed91a85](https://github.com/polyphonic/stackarr/commit/ed91a85d3c59cab9b1297e4335615084212caa63))
 
 ## [0.3.0-alpha.17](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.16...v0.3.0-alpha.17) (2026-08-23)
 
-
 ### Fixed
 
-* **config:** reconcile pending runtime integrations ([3ddc1ba](https://github.com/polyphonic/stackarr/commit/3ddc1ba4b8513f8183c2b9d6d570e0d21a8d38be))
+- **config:** reconcile pending runtime integrations ([3ddc1ba](https://github.com/polyphonic/stackarr/commit/3ddc1ba4b8513f8183c2b9d6d570e0d21a8d38be))
 
 ## [0.3.0-alpha.16](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.15...v0.3.0-alpha.16) (2026-08-23)
 
-
 ### Added
 
-* **romm:** expose metadata provider status ([3b59564](https://github.com/polyphonic/stackarr/commit/3b5956425c6388866a325838c5cbc14b3b75976a))
-* **romm:** expose metadata provider status ([0c2d303](https://github.com/polyphonic/stackarr/commit/0c2d3033424e71ae5104ec5d3f4a421dc95aa33c))
+- **romm:** expose metadata provider status ([3b59564](https://github.com/polyphonic/stackarr/commit/3b5956425c6388866a325838c5cbc14b3b75976a))
+- **romm:** expose metadata provider status ([0c2d303](https://github.com/polyphonic/stackarr/commit/0c2d3033424e71ae5104ec5d3f4a421dc95aa33c))
 
 ## [0.3.0-alpha.15](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.14...v0.3.0-alpha.15) (2026-08-15)
 
-
 ### Added
 
-* **stack:** harden Docker updates and provenance ([#54](https://github.com/polyphonic/stackarr/issues/54)) ([eb9ba67](https://github.com/polyphonic/stackarr/commit/eb9ba674a9cb574610a85da33b5d6807f931c97d))
+- **stack:** harden Docker updates and provenance ([#54](https://github.com/polyphonic/stackarr/issues/54)) ([eb9ba67](https://github.com/polyphonic/stackarr/commit/eb9ba674a9cb574610a85da33b5d6807f931c97d))
 
 ## [0.3.0-alpha.14](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.13...v0.3.0-alpha.14) (2026-08-14)
 
-
 ### Added
 
-* **blog:** add guarded homelab publishing system ([4f056a7](https://github.com/polyphonic/stackarr/commit/4f056a7bf3f0e3b6ea46bcc7beef46782d6b1476))
-* **blog:** add guarded homelab publishing system ([fb23439](https://github.com/polyphonic/stackarr/commit/fb23439a0afaaf1de59ac2d435a0a83d6fb4acd8))
-* **blog:** refine publishing and reading experience ([592d48b](https://github.com/polyphonic/stackarr/commit/592d48b77749ad73750a806c92ebfa6b428d06c8))
-* **blog:** refine publishing and reading experience ([c0f7186](https://github.com/polyphonic/stackarr/commit/c0f7186a24fc86f648563e2a3a459429673538fd))
-
+- **blog:** add guarded homelab publishing system ([4f056a7](https://github.com/polyphonic/stackarr/commit/4f056a7bf3f0e3b6ea46bcc7beef46782d6b1476))
+- **blog:** add guarded homelab publishing system ([fb23439](https://github.com/polyphonic/stackarr/commit/fb23439a0afaaf1de59ac2d435a0a83d6fb4acd8))
+- **blog:** refine publishing and reading experience ([592d48b](https://github.com/polyphonic/stackarr/commit/592d48b77749ad73750a806c92ebfa6b428d06c8))
+- **blog:** refine publishing and reading experience ([c0f7186](https://github.com/polyphonic/stackarr/commit/c0f7186a24fc86f648563e2a3a459429673538fd))
 
 ### Fixed
 
-* **blog:** align category window with public posts ([#49](https://github.com/polyphonic/stackarr/issues/49)) ([2a0aa08](https://github.com/polyphonic/stackarr/commit/2a0aa08034feaeb7a59c1582e5114c3fecfa1185))
-* **blog:** harden publishing guardrails ([a2cb34b](https://github.com/polyphonic/stackarr/commit/a2cb34b7384e6cde8760eb0d7bc39d97a9893ea4))
-* **blog:** keep the latest dispatch visually current ([#48](https://github.com/polyphonic/stackarr/issues/48)) ([cb5a4df](https://github.com/polyphonic/stackarr/commit/cb5a4df54b455e43accfb4b98c5cbc0edbadf235))
-* **ci:** run license-free secret scan ([1efedad](https://github.com/polyphonic/stackarr/commit/1efedad175a47e1d3a427432223fc6bd8b6f0ed5))
-* **cms:** accept Markdown source documents ([#50](https://github.com/polyphonic/stackarr/issues/50)) ([d2b3e16](https://github.com/polyphonic/stackarr/commit/d2b3e16388e0f3f238c895ef761470fc03856b09))
-* **cms:** publish articles through Sanity MCP ([#51](https://github.com/polyphonic/stackarr/issues/51)) ([10eb831](https://github.com/polyphonic/stackarr/commit/10eb831da0f0b9931eadb69b1f34aba5dc95516e))
-* **docs:** bound blog feed cache ([#52](https://github.com/polyphonic/stackarr/issues/52)) ([287be7a](https://github.com/polyphonic/stackarr/commit/287be7a35b30c776d7a846f8a93e06029cd8643c))
-* **docs:** keep blog menu available on mobile ([21a9aa6](https://github.com/polyphonic/stackarr/commit/21a9aa647d3a7563191e7d6d27673cab02c55a5d))
+- **blog:** align category window with public posts ([#49](https://github.com/polyphonic/stackarr/issues/49)) ([2a0aa08](https://github.com/polyphonic/stackarr/commit/2a0aa08034feaeb7a59c1582e5114c3fecfa1185))
+- **blog:** harden publishing guardrails ([a2cb34b](https://github.com/polyphonic/stackarr/commit/a2cb34b7384e6cde8760eb0d7bc39d97a9893ea4))
+- **blog:** keep the latest dispatch visually current ([#48](https://github.com/polyphonic/stackarr/issues/48)) ([cb5a4df](https://github.com/polyphonic/stackarr/commit/cb5a4df54b455e43accfb4b98c5cbc0edbadf235))
+- **ci:** run license-free secret scan ([1efedad](https://github.com/polyphonic/stackarr/commit/1efedad175a47e1d3a427432223fc6bd8b6f0ed5))
+- **cms:** accept Markdown source documents ([#50](https://github.com/polyphonic/stackarr/issues/50)) ([d2b3e16](https://github.com/polyphonic/stackarr/commit/d2b3e16388e0f3f238c895ef761470fc03856b09))
+- **cms:** publish articles through Sanity MCP ([#51](https://github.com/polyphonic/stackarr/issues/51)) ([10eb831](https://github.com/polyphonic/stackarr/commit/10eb831da0f0b9931eadb69b1f34aba5dc95516e))
+- **docs:** bound blog feed cache ([#52](https://github.com/polyphonic/stackarr/issues/52)) ([287be7a](https://github.com/polyphonic/stackarr/commit/287be7a35b30c776d7a846f8a93e06029cd8643c))
+- **docs:** keep blog menu available on mobile ([21a9aa6](https://github.com/polyphonic/stackarr/commit/21a9aa647d3a7563191e7d6d27673cab02c55a5d))
 
 ## [0.3.0-alpha.13](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.12...v0.3.0-alpha.13) (2026-08-10)
 
-
 ### Fixed
 
-* **ui:** keep integrations grouped and alphabetical ([d0b897e](https://github.com/polyphonic/stackarr/commit/d0b897e02277870b9e44b364783eeec764f3256f))
-* **ui:** keep integrations grouped and alphabetical ([b855701](https://github.com/polyphonic/stackarr/commit/b855701648f47363b96ee93dc0b19d91a2027ab9))
+- **ui:** keep integrations grouped and alphabetical ([d0b897e](https://github.com/polyphonic/stackarr/commit/d0b897e02277870b9e44b364783eeec764f3256f))
+- **ui:** keep integrations grouped and alphabetical ([b855701](https://github.com/polyphonic/stackarr/commit/b855701648f47363b96ee93dc0b19d91a2027ab9))
 
 ## [0.3.0-alpha.12](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.11...v0.3.0-alpha.12) (2026-08-10)
 
-
 ### Fixed
 
-* **docs:** expose Youtarr and consolidate updates ([d9e0e64](https://github.com/polyphonic/stackarr/commit/d9e0e646d86ec0dfdaeec066cb3c7a503c40fb80))
-* **docs:** expose Youtarr in navigation ([90a8679](https://github.com/polyphonic/stackarr/commit/90a867921019ed9dfb24370ca940ecf4a00d043a))
+- **docs:** expose Youtarr and consolidate updates ([d9e0e64](https://github.com/polyphonic/stackarr/commit/d9e0e646d86ec0dfdaeec066cb3c7a503c40fb80))
+- **docs:** expose Youtarr in navigation ([90a8679](https://github.com/polyphonic/stackarr/commit/90a867921019ed9dfb24370ca940ecf4a00d043a))
 
 ## [0.3.0-alpha.11](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.10...v0.3.0-alpha.11) (2026-08-10)
 
-
 ### Added
 
-* **agregarr:** add top new releases rows ([93d163b](https://github.com/polyphonic/stackarr/commit/93d163bf44e063335cef05e55e1a9f73e577e228))
-* **questarr:** add end-to-end integration ([c9c9cf2](https://github.com/polyphonic/stackarr/commit/c9c9cf2e54d513b97ae998ec2d2f293f761fd20d))
-* **romm:** add opt-in desktop Steam libraries ([1c7d435](https://github.com/polyphonic/stackarr/commit/1c7d435f78c37b1ff8d91d713e653ac432da1f31))
-* **stack:** add Questarr, Youtarr, and release rows ([ea279a7](https://github.com/polyphonic/stackarr/commit/ea279a704552fd10034100a638d27005c9e2a632))
-
+- **agregarr:** add top new releases rows ([93d163b](https://github.com/polyphonic/stackarr/commit/93d163bf44e063335cef05e55e1a9f73e577e228))
+- **questarr:** add end-to-end integration ([c9c9cf2](https://github.com/polyphonic/stackarr/commit/c9c9cf2e54d513b97ae998ec2d2f293f761fd20d))
+- **romm:** add opt-in desktop Steam libraries ([1c7d435](https://github.com/polyphonic/stackarr/commit/1c7d435f78c37b1ff8d91d713e653ac432da1f31))
+- **stack:** add Questarr, Youtarr, and release rows ([ea279a7](https://github.com/polyphonic/stackarr/commit/ea279a704552fd10034100a638d27005c9e2a632))
 
 ### Fixed
 
-* **agregarr:** name release rows by media ([353b75e](https://github.com/polyphonic/stackarr/commit/353b75ed3412648dde5e96cbc8a032c60d51a94c))
-* **youtarr:** restore standard persistent paths ([b5a84bd](https://github.com/polyphonic/stackarr/commit/b5a84bd0a3357b639bc83e53e83816ef9f1af816))
+- **agregarr:** name release rows by media ([353b75e](https://github.com/polyphonic/stackarr/commit/353b75ed3412648dde5e96cbc8a032c60d51a94c))
+- **youtarr:** restore standard persistent paths ([b5a84bd](https://github.com/polyphonic/stackarr/commit/b5a84bd0a3357b639bc83e53e83816ef9f1af816))
 
 ## [0.3.0-alpha.10](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.9...v0.3.0-alpha.10) (2026-07-28)
 
-
 ### Added
 
-* **agregarr:** move collection controls to CLI and MCP ([fff2fb9](https://github.com/polyphonic/stackarr/commit/fff2fb9c686482c0ec5a6107db502c7dd628b01a))
-* **stack:** secure backups and managed app settings ([7d88fcb](https://github.com/polyphonic/stackarr/commit/7d88fcb0b66bf78121232f90939ce033e09cc690))
-* **stack:** secure recovery and managed app operations ([01165a8](https://github.com/polyphonic/stackarr/commit/01165a8f523324e04b6d6d6967c91613cff80fcf))
-
+- **agregarr:** move collection controls to CLI and MCP ([fff2fb9](https://github.com/polyphonic/stackarr/commit/fff2fb9c686482c0ec5a6107db502c7dd628b01a))
+- **stack:** secure backups and managed app settings ([7d88fcb](https://github.com/polyphonic/stackarr/commit/7d88fcb0b66bf78121232f90939ce033e09cc690))
+- **stack:** secure recovery and managed app operations ([01165a8](https://github.com/polyphonic/stackarr/commit/01165a8f523324e04b6d6d6967c91613cff80fcf))
 
 ### Fixed
 
-* **portless:** hand host operations off explicitly ([82e2cad](https://github.com/polyphonic/stackarr/commit/82e2cada3ac00e8217142354df152bb0cbc6dc65))
-* **portless:** present host commands as neutral guidance ([4c353f4](https://github.com/polyphonic/stackarr/commit/4c353f4b833fbd8720176cd7b83abd34e4f3e349))
-
+- **portless:** hand host operations off explicitly ([82e2cad](https://github.com/polyphonic/stackarr/commit/82e2cada3ac00e8217142354df152bb0cbc6dc65))
+- **portless:** present host commands as neutral guidance ([4c353f4](https://github.com/polyphonic/stackarr/commit/4c353f4b833fbd8720176cd7b83abd34e4f3e349))
 
 ### Documentation
 
-* **stack:** document recovery and managed integrations ([0f04b49](https://github.com/polyphonic/stackarr/commit/0f04b49b9e90371af10cbdceeaf6f58268289d4b))
+- **stack:** document recovery and managed integrations ([0f04b49](https://github.com/polyphonic/stackarr/commit/0f04b49b9e90371af10cbdceeaf6f58268289d4b))
 
 ## [0.3.0-alpha.9](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.8...v0.3.0-alpha.9) (2026-07-23)
 
-
 ### Fixed
 
-* **updates:** preserve database during controller refresh ([#26](https://github.com/polyphonic/stackarr/issues/26)) ([b056ea1](https://github.com/polyphonic/stackarr/commit/b056ea139d7544ded6573303c265d4dd00c239d3))
+- **updates:** preserve database during controller refresh ([#26](https://github.com/polyphonic/stackarr/issues/26)) ([b056ea1](https://github.com/polyphonic/stackarr/commit/b056ea139d7544ded6573303c265d4dd00c239d3))
 
 ## [0.3.0-alpha.8](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.7...v0.3.0-alpha.8) (2026-07-23)
 
-
 ### Fixed
 
-* **updates:** harden controller self-update ([#24](https://github.com/polyphonic/stackarr/issues/24)) ([f5d7215](https://github.com/polyphonic/stackarr/commit/f5d7215cd774ff8b537b3d7d11f229622a1c06ac))
+- **updates:** harden controller self-update ([#24](https://github.com/polyphonic/stackarr/issues/24)) ([f5d7215](https://github.com/polyphonic/stackarr/commit/f5d7215cd774ff8b537b3d7d11f229622a1c06ac))
 
 ## [0.3.0-alpha.7](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.6...v0.3.0-alpha.7) (2026-07-23)
 
-
 ### Added
 
-* **stack:** integrate Agregarr and harden operations UX ([#22](https://github.com/polyphonic/stackarr/issues/22)) ([3274147](https://github.com/polyphonic/stackarr/commit/3274147708b3cbe72941969d5ab404e48fb19146))
+- **stack:** integrate Agregarr and harden operations UX ([#22](https://github.com/polyphonic/stackarr/issues/22)) ([3274147](https://github.com/polyphonic/stackarr/commit/3274147708b3cbe72941969d5ab404e48fb19146))
 
 ## [0.3.0-alpha.6](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.5...v0.3.0-alpha.6) (2026-07-14)
 
-
 ### Fixed
 
-* **cli:** delegate telemetry from docker hosts ([69fd69b](https://github.com/polyphonic/stackarr/commit/69fd69b0e355887215dc0d5d8e69b49d5891936c))
-
+- **cli:** delegate telemetry from docker hosts ([69fd69b](https://github.com/polyphonic/stackarr/commit/69fd69b0e355887215dc0d5d8e69b49d5891936c))
 
 ### Continuous integration
 
-* **release:** streamline container publishing ([c2542b5](https://github.com/polyphonic/stackarr/commit/c2542b58b4ced016b29353dbc3ce2848e2da823b))
+- **release:** streamline container publishing ([c2542b5](https://github.com/polyphonic/stackarr/commit/c2542b58b4ced016b29353dbc3ce2848e2da823b))
 
 ## [0.3.0-alpha.5](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.4...v0.3.0-alpha.5) (2026-07-14)
 
-
 ### Fixed
 
-* **telemetry:** unify CLI heartbeat reporting ([308314c](https://github.com/polyphonic/stackarr/commit/308314c8ef930d8b22d7ea37b8d182800979f094))
+- **telemetry:** unify CLI heartbeat reporting ([308314c](https://github.com/polyphonic/stackarr/commit/308314c8ef930d8b22d7ea37b8d182800979f094))
 
 ## [0.3.0-alpha.4](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.3...v0.3.0-alpha.4) (2026-07-14)
 
-
 ### Fixed
 
-* **docker:** harden pinned runtime download ([f3daef7](https://github.com/polyphonic/stackarr/commit/f3daef7d14218934675ea6475fd0ec078610cb73))
+- **docker:** harden pinned runtime download ([f3daef7](https://github.com/polyphonic/stackarr/commit/f3daef7d14218934675ea6475fd0ec078610cb73))
 
 ## [0.3.0-alpha.3](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.2...v0.3.0-alpha.3) (2026-07-14)
 
-
 ### Fixed
 
-* **dashboard:** label live resource charts ([f77cf4f](https://github.com/polyphonic/stackarr/commit/f77cf4ffd8ddca6d4c9ac2fd2cb9ae25c384028e))
-* **release:** align telemetry and image traceability ([a1f090f](https://github.com/polyphonic/stackarr/commit/a1f090fca96b21cb1600ce6248ead82c24107c3c))
-
+- **dashboard:** label live resource charts ([f77cf4f](https://github.com/polyphonic/stackarr/commit/f77cf4ffd8ddca6d4c9ac2fd2cb9ae25c384028e))
+- **release:** align telemetry and image traceability ([a1f090f](https://github.com/polyphonic/stackarr/commit/a1f090fca96b21cb1600ce6248ead82c24107c3c))
 
 ### Documentation
 
-* **ui:** refresh product screenshots ([4d6cd17](https://github.com/polyphonic/stackarr/commit/4d6cd172d9c08ac0d4ad4b808a411c43cb4ccc92))
+- **ui:** refresh product screenshots ([4d6cd17](https://github.com/polyphonic/stackarr/commit/4d6cd172d9c08ac0d4ad4b808a411c43cb4ccc92))
 
 ## [0.3.0-alpha.2](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.1...v0.3.0-alpha.2) (2026-07-14)
 
-
 ### Added
 
-* **app:** stabilize sessions and add opt-in telemetry ([ee1ae76](https://github.com/polyphonic/stackarr/commit/ee1ae7693d5204f444193ea9e7134e7cd05f12cc))
-* **media:** scrape Arr imports with tinyMediaManager ([7e68a8c](https://github.com/polyphonic/stackarr/commit/7e68a8c4a7413854ab0df0c5878303fec3727f74))
-* **telemetry:** add protected collector infrastructure ([aada769](https://github.com/polyphonic/stackarr/commit/aada76987fe6db03ae617b549791922c4bb16e5f))
-
+- **app:** stabilize sessions and add opt-in telemetry ([ee1ae76](https://github.com/polyphonic/stackarr/commit/ee1ae7693d5204f444193ea9e7134e7cd05f12cc))
+- **media:** scrape Arr imports with tinyMediaManager ([7e68a8c](https://github.com/polyphonic/stackarr/commit/7e68a8c4a7413854ab0df0c5878303fec3727f74))
+- **telemetry:** add protected collector infrastructure ([aada769](https://github.com/polyphonic/stackarr/commit/aada76987fe6db03ae617b549791922c4bb16e5f))
 
 ### Fixed
 
-* **build:** finalize production telemetry image ([bd275c8](https://github.com/polyphonic/stackarr/commit/bd275c8f34b5b310ab52ceab09d2801d725293fd))
-* **docs:** generate sources before typecheck ([5dbe2d3](https://github.com/polyphonic/stackarr/commit/5dbe2d3a75ce56592659c85836cf5cb4508f6451))
-* **release:** validate and gate alpha releases ([9de0f90](https://github.com/polyphonic/stackarr/commit/9de0f90d9001183f8fbafa2899e71cfbfcc5e749))
-
+- **build:** finalize production telemetry image ([bd275c8](https://github.com/polyphonic/stackarr/commit/bd275c8f34b5b310ab52ceab09d2801d725293fd))
+- **docs:** generate sources before typecheck ([5dbe2d3](https://github.com/polyphonic/stackarr/commit/5dbe2d3a75ce56592659c85836cf5cb4508f6451))
+- **release:** validate and gate alpha releases ([9de0f90](https://github.com/polyphonic/stackarr/commit/9de0f90d9001183f8fbafa2899e71cfbfcc5e749))
 
 ### Changed
 
-* streamline app workflows and state handling ([aa8f019](https://github.com/polyphonic/stackarr/commit/aa8f019e7e95d9cdea32d91d8ea5d0ce509c010f))
-
+- streamline app workflows and state handling ([aa8f019](https://github.com/polyphonic/stackarr/commit/aa8f019e7e95d9cdea32d91d8ea5d0ce509c010f))
 
 ### Continuous integration
 
-* **release:** add alpha container release pipeline ([79ac1b1](https://github.com/polyphonic/stackarr/commit/79ac1b1e8a2f654600bd15c3c4d9706bace2b882))
-* **release:** configure Docker Hub username ([d96afc1](https://github.com/polyphonic/stackarr/commit/d96afc1ec0e93e5e59382b686eae940a49b71bce))
+- **release:** add alpha container release pipeline ([79ac1b1](https://github.com/polyphonic/stackarr/commit/79ac1b1e8a2f654600bd15c3c4d9706bace2b882))
+- **release:** configure Docker Hub username ([d96afc1](https://github.com/polyphonic/stackarr/commit/d96afc1ec0e93e5e59382b686eae940a49b71bce))
 
 All notable Stackarr releases are documented here. This file is maintained by Release Please from Conventional Commits; released image digests and upgrade guidance are published with the matching GitHub Release.
 

@@ -85,6 +85,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPath('mediaRoot', 'Media Root', 'MEDIA_ROOT'),
       envPath('musicRoot', 'Music Root', 'MUSIC_ROOT'),
       envPath('downloadsRoot', 'Downloads Root', 'DOWNLOADS_ROOT'),
+      envPath(
+        'torrentArchiveRoot',
+        'Torrent Archive Root',
+        'TORRENT_ARCHIVE_ROOT',
+        'Saved torrent metadata from Arr grabs and imports. Move existing archives before switching paths.'
+      ),
       envPath('backupRoot', 'Backup Root', 'BACKUP_ROOT'),
       envPath('booksRoot', 'Books Root', 'BOOKS_ROOT'),
       envPath('immichUploadLocation', 'Pictures Root', 'IMMICH_UPLOAD_LOCATION'),
@@ -101,6 +107,62 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envPassword('stackarrPostgresPassword', 'Database Password', 'STACKARR_POSTGRES_PASSWORD'),
       envPassword('stackarrDatabaseUrl', 'Database URL', 'STACKARR_DATABASE_URL')
     ]),
+    group(
+      'Advanced · External database endpoints',
+      [
+        envSelect(
+          'postgresDeploymentMode',
+          'PostgreSQL source',
+          'POSTGRES_DEPLOYMENT_MODE',
+          ['managed', 'external'],
+          'Managed uses the unified TimescaleDB container. External changes connection endpoints only; migrate data and provision roles separately.'
+        ),
+        envText('postgresHost', 'PostgreSQL host (from containers)', 'POSTGRES_HOST'),
+        envNumber('postgresPort', 'PostgreSQL port', 'POSTGRES_PORT'),
+        envSelect(
+          'redisDeploymentMode',
+          'Redis source',
+          'REDIS_DEPLOYMENT_MODE',
+          ['managed', 'external'],
+          'External Redis currently supports unauthenticated connections only.'
+        ),
+        envText('redisHost', 'Redis host (from containers)', 'REDIS_HOST'),
+        envNumber('redisPort', 'Redis port', 'REDIS_PORT'),
+        envSelect(
+          'mariadbDatabaseDeploymentMode',
+          'Youtarr MariaDB database source',
+          'YOUTARR_DATABASE_DEPLOYMENT_MODE',
+          ['managed', 'external']
+        ),
+        envText('mariadbDatabaseHost', 'MariaDB database host (from containers)', 'YOUTARR_DB_HOST'),
+        envNumber('mariadbDatabasePort', 'MariaDB database port', 'YOUTARR_DB_PORT'),
+        envPassword('tracearrDatabaseUrl', 'Tracearr PostgreSQL URL', 'TRACEARR_DATABASE_URL'),
+        ...[
+          'SEERR',
+          'BOOKORBIT',
+          'PULSARR',
+          'CLEANUPARR',
+          'BAZARR',
+          'PROWLARR',
+          'RADARR',
+          'RADARR4K',
+          'SONARR',
+          'SONARR4K',
+          'LIDARR',
+          'TRACEARR'
+        ].flatMap((prefix) => [
+          envText(`${prefix.toLowerCase()}PgUser`, `${prefix} database user`, `${prefix}_POSTGRES_USER`),
+          envPassword(`${prefix.toLowerCase()}PgPassword`, `${prefix} database password`, `${prefix}_POSTGRES_PASSWORD`)
+        ]),
+        envText('rommDbUser', 'RomM database user', 'ROMM_DB_USER'),
+        envPassword('rommDbPassword', 'RomM database password', 'ROMM_DB_PASSWORD'),
+        envText('immichDbUser', 'Immich database user', 'IMMICH_DB_USERNAME'),
+        envPassword('immichDbPassword', 'Immich database password', 'IMMICH_DB_PASSWORD'),
+        envText('youtarrDbUser', 'Youtarr database user', 'YOUTARR_DB_USER'),
+        envPassword('youtarrDbPassword', 'Youtarr database password', 'YOUTARR_DB_PASSWORD')
+      ],
+      'Advanced connection routing, not database file location. Use a host reachable from Docker containers; localhost is not the host.'
+    ),
     group('Browser Links', [
       settingsSelect(
         'serviceUrlMode',
@@ -321,6 +383,12 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envNumber('rommContainerPort', 'Container Port', 'ROMM_CONTAINER_PORT'),
       envPath('gamesRoot', 'Games Root', 'GAMES_ROOT'),
       envPath('rommLibraryRoot', 'RomM Library Root', 'ROMM_LIBRARY_ROOT'),
+      envPath(
+        'rommAdditionalGamesRoot',
+        'Additional Games Folder (read-only)',
+        'ROMM_ADDITIONAL_GAMES_ROOT',
+        'Optional staging folder available at /romm/additional-games. It does not change or automatically scan the active library. Leave blank to use the library folder here too.'
+      ),
       envCheckbox(
         'rommSteamLibraryEnabled',
         'Enable Steam desktop libraries',
@@ -948,6 +1016,15 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
     ])
   ]
 };
+
+// Definitions only: do not load secret values or application config while discovering storage.
+export function serviceStorageFields(service: string) {
+  return (serviceGroups[service] ?? [])
+    .flatMap((group) => group.fields)
+    .flatMap((field) =>
+      field.type === 'path' && field.source.source === 'env' ? [{ key: field.source.key, label: field.label }] : []
+    );
+}
 
 export function listServiceConfigsAction() {
   return getServices().map((service) => buildModel(service));

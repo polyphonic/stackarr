@@ -19,6 +19,33 @@ function sqliteTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return env;
 }
 
+test('RomM worker setting survives generated Compose regeneration', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-romm-workers-'));
+  const projectDir = path.join(root, 'compose');
+  try {
+    const env = sqliteTestEnv({
+      APP_ROOT: path.join(root, 'app'),
+      STATE_ROOT: path.join(root, 'state'),
+      CONFIG_ROOT: path.join(root, 'config'),
+      STACKARR_COMPOSE_PROJECT_DIR: projectDir,
+      STACKARR_DATABASE_FILE: path.join(root, 'absent.db'),
+      ROMM_WEB_SERVER_CONCURRENCY: '2'
+    });
+    for (let run = 0; run < 2; run++) {
+      await execFile('bash', ['-c', 'source "$1"; load_env; write_compose_env_file', 'bash', commonScript], {
+        cwd: repoRoot,
+        env
+      });
+      const compose = await readFile(path.join(projectDir, 'docker-compose.yml'), 'utf8');
+      const generatedEnv = await readFile(path.join(projectDir, '.env'), 'utf8');
+      assert.match(compose, /WEB_SERVER_CONCURRENCY: "\$\{ROMM_WEB_SERVER_CONCURRENCY:-4\}"/);
+      assert.match(generatedEnv, /^ROMM_WEB_SERVER_CONCURRENCY="2"$/m);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('installed runtime paths take precedence over a legacy checkout database', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-installed-paths-'));
   const appRoot = path.join(root, 'installed');
@@ -136,7 +163,7 @@ test('host runtime reload reads current PostgreSQL settings through the Stackarr
       [
         '#!/bin/sh',
         'case " $* " in',
-        '  *" exec -T app sh -lc "*)',
+        '  *" exec -T stackarr sh -lc "*)',
         '    printf "%s\\n" "export USERNAME=\u0027fresh-user\u0027" "export PASSWORD=\u0027fresh-password\u0027" "export TRANSMISSION_PASSWORD=\u0027fresh-password\u0027"',
         '    exit 0',
         '    ;;',
@@ -176,6 +203,7 @@ test('host runtime reload reads current PostgreSQL settings through the Stackarr
           PATH: `${binDir}:${process.env.PATH}`,
           HOME: process.env.HOME,
           TMPDIR: process.env.TMPDIR,
+          APP_ROOT_DEFAULT_OVERRIDE: path.join(root, 'app'),
           STACKARR_COMPOSE_ENV_FILE: composeEnvFile,
           STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db')
         }
@@ -276,7 +304,7 @@ test('host runtime reload reads PostgreSQL through the database container socket
       [
         '#!/bin/sh',
         'case " $* " in',
-        '  *" exec -T app "*) exit 1 ;;',
+        '  *" exec -T stackarr "*) exit 1 ;;',
         '  *" exec -T database psql "*)',
         '    printf "%s\\n" "{\\"APP_ROOT\\":\\"/app/stackarr/.stackarr\\",\\"USERNAME\\":\\"socket-user\\",\\"RECYCLARR_IMAGE\\":\\"ghcr.io/recyclarr/recyclarr:8\\"}"',
         '    exit 0',
@@ -308,6 +336,7 @@ test('host runtime reload reads PostgreSQL through the database container socket
           STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
           STACKARR_COMPOSE_PROJECT_DIR: path.join(root, 'compose'),
           STACKARR_COMPOSE_FILE: path.join(repoRoot, 'stackarr/docker-compose.yml'),
+          APP_ROOT_DEFAULT_OVERRIDE: appRoot,
           USERNAME: '',
           RECYCLARR_IMAGE: ''
         }
@@ -386,13 +415,19 @@ test('legacy image-declared volume data is copied to the stable Compose volume b
       [
         '#!/bin/sh',
         'printf "%s\\n" "$*" >> "$STACKARR_DOCKER_LOG"',
+        'if [ "$1" = info ]; then printf "%s\\n" fixture-daemon; exit 0; fi',
+        'if [ "$1" = ps ]; then printf "%s\\n" abcdefabcdef; exit 0; fi',
+        `if [ "$1" = inspect ] && [ "$2" = --type=image ]; then printf '%s\\n' '[{"Id":"sha256:${'a'.repeat(64)}"}]'; exit 0; fi`,
+        `if [ "$1" = inspect ] && [ "$2" = abcdefabcdef ]; then printf '%s\\n' '[{"Config":{"Labels":{"com.docker.compose.project":"fixture","com.docker.compose.service":"app"},"Image":"polyphonic/stackarr:test"},"Image":"sha256:${'a'.repeat(64)}"}]'; exit 0; fi`,
         'case "$1 $2 $3 $4" in',
         '  "inspect --format "*)',
         '    case "$3" in',
         '      *Mounts*) printf "%s\\n" "volume|legacy-romm-volume" ;;',
+        '      *com.docker.compose.project*) printf "%s\\n" fixture ;;',
         '      *State.Running*) printf "%s\\n" "true" ;;',
         '    esac',
         '    ;;',
+        '  "volume inspect legacy-romm-volume "*) exit 0 ;;',
         '  "volume inspect fixture_romm-root "*) exit 1 ;;',
         'esac',
         'exit 0',
@@ -441,13 +476,19 @@ test('failed legacy volume copies retain the source and roll back the empty targ
       [
         '#!/bin/sh',
         'printf "%s\\n" "$*" >> "$STACKARR_DOCKER_LOG"',
+        'if [ "$1" = info ]; then printf "%s\\n" fixture-daemon; exit 0; fi',
+        'if [ "$1" = ps ]; then printf "%s\\n" abcdefabcdef; exit 0; fi',
+        `if [ "$1" = inspect ] && [ "$2" = --type=image ]; then printf '%s\\n' '[{"Id":"sha256:${'a'.repeat(64)}"}]'; exit 0; fi`,
+        `if [ "$1" = inspect ] && [ "$2" = abcdefabcdef ]; then printf '%s\\n' '[{"Config":{"Labels":{"com.docker.compose.project":"fixture","com.docker.compose.service":"app"},"Image":"polyphonic/stackarr:test"},"Image":"sha256:${'a'.repeat(64)}"}]'; exit 0; fi`,
         'case "$1 $2 $3 $4" in',
         '  "inspect --format "*)',
         '    case "$3" in',
         '      *Mounts*) printf "%s\\n" "volume|legacy-romm-volume" ;;',
+        '      *com.docker.compose.project*) printf "%s\\n" fixture ;;',
         '      *State.Running*) printf "%s\\n" "true" ;;',
         '    esac',
         '    ;;',
+        '  "volume inspect legacy-romm-volume "*) exit 0 ;;',
         '  "volume inspect fixture_romm-root "*) exit 1 ;;',
         'esac',
         'case "$*" in',
@@ -494,8 +535,12 @@ test('a verified legacy volume copy can resume Compose after an interrupted recr
       [
         '#!/bin/sh',
         'printf "%s\\n" "$*" >> "$STACKARR_DOCKER_LOG"',
+        'if [ "$1" = info ]; then printf "%s\\n" fixture-daemon; exit 0; fi',
+        'if [ "$1" = ps ]; then printf "%s\\n" abcdefabcdef; exit 0; fi',
+        `if [ "$1" = inspect ] && [ "$2" = --type=image ]; then printf '%s\\n' '[{"Id":"sha256:${'a'.repeat(64)}"}]'; exit 0; fi`,
+        `if [ "$1" = inspect ] && [ "$2" = abcdefabcdef ]; then printf '%s\\n' '[{"Config":{"Labels":{"com.docker.compose.project":"fixture","com.docker.compose.service":"app"},"Image":"polyphonic/stackarr:test"},"Image":"sha256:${'a'.repeat(64)}"}]'; exit 0; fi`,
         'case "$1 $2 $3 $4" in',
-        '  "inspect --format "*) printf "%s\\n" "volume|legacy-romm-volume" ;;',
+        '  "inspect --format "*) case "$3" in *Mounts*) printf "%s\\n" "volume|legacy-romm-volume" ;; *com.docker.compose.project*) printf "%s\\n" fixture ;; esac ;;',
         'esac',
         'case "$*" in',
         '  *"test -z"*) exit 1 ;;',
@@ -594,11 +639,12 @@ test('Questarr inherits RomM IGDB credentials and portable game paths at runtime
     assert.match(content, /^QUESTARR_ROMM_LIBRARY_MOUNT_MODE="ro"$/m);
 
     const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
-    const appService = compose.match(/\n  app:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+    const appService = compose.match(/\n  stackarr:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
     assert.match(appService, /:\/stackarr-romm-library:\$\{QUESTARR_ROMM_LIBRARY_MOUNT_MODE:-ro\}"/);
-    assert.match(appService, /:\/stackarr-romm-library\/Steam:ro"/);
-    assert.match(appService, /:\/stackarr-romm-library\/SteamWindows:ro"/);
-    assert.match(appService, /:\/stackarr-romm-library\/SteamLinux:ro"/);
+    assert.match(appService, /:\/Steam:ro"/);
+    assert.match(appService, /:\/SteamWindows:ro"/);
+    assert.match(appService, /:\/SteamLinux:ro"/);
+    assert.doesNotMatch(appService, /:\/stackarr-romm-library\/[^:]+:ro"/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -850,7 +896,7 @@ test('PostgreSQL mode reaches the controller and cannot silently fall back to SQ
   const composeSource = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
   const databaseSource = await readFile(path.join(repoRoot, 'packages/core/src/database.ts'), 'utf8');
   const wizardSource = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SetupWizard.tsx'), 'utf8');
-  const appService = composeSource.match(/\n  app:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+  const appService = composeSource.match(/\n  stackarr:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
   const updaterService = composeSource.match(/\n  app-updater:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
 
   assert.match(appService, /STACKARR_DATABASE_MODE: \$\{STACKARR_DATABASE_MODE:-app-default\}/);

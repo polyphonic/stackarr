@@ -54,6 +54,7 @@ type SetupState = {
   mediaRoot: string;
   musicRoot: string;
   downloadsRoot: string;
+  torrentArchiveRoot: string;
   backupRoot: string;
   plexInstallMode: string;
   plexToken: string;
@@ -116,6 +117,7 @@ const defaults: SetupState = {
   mediaRoot: '/stackarr/media',
   musicRoot: '/stackarr/media/Music',
   downloadsRoot: '/stackarr/downloads',
+  torrentArchiveRoot: '/stackarr/state/torrent-archive',
   backupRoot: '/stackarr/backups',
   plexInstallMode: 'docker',
   plexToken: '',
@@ -237,6 +239,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
       MEDIA_ROOT: state.mediaRoot,
       MUSIC_ROOT: state.musicRoot,
       DOWNLOADS_ROOT: state.downloadsRoot,
+      TORRENT_ARCHIVE_ROOT: state.torrentArchiveRoot,
       BACKUP_ROOT: state.backupRoot,
       ENABLE_BACKUP: String(state.installBackup),
       BACKUP_TIME: '02:00',
@@ -936,6 +939,10 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               <PathInput value={state.downloadsRoot} onChange={(value) => update('downloadsRoot', value)} />
             </label>
             <label>
+              Torrent Archive Root
+              <PathInput value={state.torrentArchiveRoot} onChange={(value) => update('torrentArchiveRoot', value)} />
+            </label>
+            <label>
               Backup Root
               <PathInput value={state.backupRoot} onChange={(value) => update('backupRoot', value)} />
             </label>
@@ -1430,7 +1437,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               Connect Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client from the Docker host after
               setup. Every client receives the same actions and safety policy.
             </p>
-            <pre>{`docker exec app /app/bin/stackarr mcp config codex --profile admin`}</pre>
+            <pre>{`docker exec stackarr /app/bin/stackarr mcp config codex --profile admin`}</pre>
             <p>Use the admin profile while setting up infrastructure, then switch to manage for everyday use.</p>
           </div>
         )}
