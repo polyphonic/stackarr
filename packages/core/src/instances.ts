@@ -1,13 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import {
+  connectInstanceRows,
+  disconnectInstanceRows,
+  InstanceConnectionConflict,
+  type InstanceConnectionRow,
   type InstanceDbRow,
   type InstanceOwnership,
   insertInstanceRow,
+  listInstanceConnectionRows,
+  readConnectionInstanceDefinitions,
   readInstanceRowsPage,
   removeInstanceRow,
   renameInstanceRow
 } from './database';
-import { isCanonicalDefinition } from './instanceCatalog';
+import { isCanonicalDefinition, isOptionalDownloadClientPair } from './instanceCatalog';
 
 export type DraftInstance = {
   schemaVersion: 1;
@@ -19,9 +25,10 @@ export type DraftInstance = {
   createdAt: string;
   updatedAt: string;
 };
+export type DraftInstanceConnection = { schemaVersion: 1; sourceId: string; targetId: string; kind: 'download-client' };
 export class InstanceActionError extends Error {
   constructor(
-    public readonly code: 'invalid_input' | 'not_found' | 'store_unavailable',
+    public readonly code: 'invalid_input' | 'not_found' | 'conflict' | 'store_unavailable',
     message: string
   ) {
     super(message);
@@ -32,6 +39,8 @@ export function safeInstanceAction<T>(action: () => T): T {
     return action();
   } catch (error) {
     if (error instanceof InstanceActionError) throw error;
+    if (error instanceof InstanceConnectionConflict)
+      throw new InstanceActionError('conflict', 'Disconnect instance connections before removal.');
     throw new InstanceActionError('store_unavailable', 'Instance store unavailable.');
   }
 }
@@ -85,6 +94,66 @@ function dto(row: InstanceDbRow): DraftInstance {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+function connectionInput(value: unknown): InstanceConnectionRow {
+  const input = exact(value, ['sourceId', 'targetId', 'kind']);
+  if (!Object.hasOwn(input, 'sourceId') || !Object.hasOwn(input, 'targetId') || !Object.hasOwn(input, 'kind'))
+    invalid('Unexpected or missing fields.');
+  const source_id = idValue(input.sourceId);
+  const target_id = idValue(input.targetId);
+  if (source_id === target_id || input.kind !== 'download-client') invalid('Unsupported instance connection.');
+  return { source_id, target_id, kind: 'download-client' };
+}
+function connectionDto(row: InstanceConnectionRow): DraftInstanceConnection {
+  return { schemaVersion: 1, sourceId: row.source_id, targetId: row.target_id, kind: row.kind };
+}
+export function listDraftInstanceConnectionsAction(value: unknown): {
+  schemaVersion: 1;
+  items: DraftInstanceConnection[];
+  nextCursor: string | null;
+} {
+  const input = exact(value, ['instanceId', 'limit', 'cursor']);
+  if (!Object.hasOwn(input, 'instanceId')) invalid('Unexpected or missing fields.');
+  const id = idValue(input.instanceId);
+  const limit = input.limit === undefined ? 100 : input.limit;
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 100)
+    invalid('limit must be between 1 and 100.');
+  let cursor: [string, string] | undefined;
+  if (input.cursor !== undefined) {
+    if (typeof input.cursor !== 'string' || input.cursor.split(':').length !== 2) invalid('Invalid connection cursor.');
+    const [source, target] = input.cursor.split(':');
+    cursor = [idValue(source), idValue(target)];
+  }
+  const rows = safeInstanceAction(() => readConnectionInstanceDefinitions(id, id));
+  if (!rows.some((row) => row.id === id)) throw new InstanceActionError('not_found', 'Draft instance not found.');
+  const page = safeInstanceAction(() => listInstanceConnectionRows(id, limit + 1, cursor));
+  return {
+    schemaVersion: 1,
+    items: page.slice(0, limit).map(connectionDto),
+    nextCursor: page.length > limit ? `${page[limit - 1].source_id}:${page[limit - 1].target_id}` : null
+  };
+}
+export function connectDraftInstancesAction(value: unknown): DraftInstanceConnection {
+  const row = connectionInput(value);
+  const parents = safeInstanceAction(() => readConnectionInstanceDefinitions(row.source_id, row.target_id));
+  if (!parents.some((p) => p.id === row.source_id) || !parents.some((p) => p.id === row.target_id))
+    throw new InstanceActionError('not_found', 'Draft instance not found.');
+  if (
+    !isOptionalDownloadClientPair(
+      parents.find((p) => p.id === row.source_id)!.definition_id,
+      parents.find((p) => p.id === row.target_id)!.definition_id
+    )
+  )
+    invalid('Unsupported instance connection.');
+  if (!safeInstanceAction(() => connectInstanceRows(row)))
+    throw new InstanceActionError('not_found', 'Draft instance not found.');
+  return connectionDto(row);
+}
+export function disconnectDraftInstancesAction(value: unknown): DraftInstanceConnection {
+  const row = connectionInput(value);
+  if (!safeInstanceAction(() => disconnectInstanceRows(row)))
+    throw new InstanceActionError('not_found', 'Draft connection not found.');
+  return connectionDto(row);
 }
 export function listDraftInstancesAction(input: { limit?: number; cursor?: string } = {}) {
   const limit = input.limit ?? 100;

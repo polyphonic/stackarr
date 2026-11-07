@@ -98,18 +98,26 @@ async function runInstancesCli(args: string[]) {
   if (!operation)
     throw new InstanceActionError(
       'invalid_input',
-      'Usage: stackarr instances catalog|list [--limit N] [--cursor UUID]|create|rename UUID|remove UUID --yes'
+      'Usage: stackarr instances catalog|list [--limit N] [--cursor UUID]|connections UUID [--limit N] [--cursor SOURCE:TARGET]|create|rename UUID|remove UUID --yes|connect SOURCE TARGET --yes|disconnect SOURCE TARGET --yes'
     );
   let input: Record<string, unknown> = {};
   if (subcommand === 'catalog' || subcommand === 'create') {
     if (rest.length) throw new InstanceActionError('invalid_input', 'Unexpected arguments.');
     if (subcommand === 'create') input = (await readDraftStdin()) as Record<string, unknown>;
-  } else if (subcommand === 'list') {
+  } else if (subcommand === 'list' || subcommand === 'connections') {
+    if (subcommand === 'connections') {
+      if (!rest.length) throw new InstanceActionError('invalid_input', 'connections requires UUID.');
+      input.instanceId = rest.shift();
+    }
     for (let i = 0; i < rest.length; i += 2) {
       if (rest[i] === '--limit' && /^\d+$/.test(rest[i + 1] ?? '')) input.limit = Number(rest[i + 1]);
       else if (rest[i] === '--cursor' && rest[i + 1]) input.cursor = rest[i + 1];
       else throw new InstanceActionError('invalid_input', 'Invalid list arguments.');
     }
+  } else if (subcommand === 'connect' || subcommand === 'disconnect') {
+    if (rest.length !== 3 || rest[2] !== '--yes')
+      throw new InstanceActionError('invalid_input', `${subcommand} requires SOURCE_ID TARGET_ID --yes.`);
+    input = { sourceId: rest[0], targetId: rest[1], kind: 'download-client' };
   } else if (subcommand === 'rename') {
     if (rest.length !== 1) throw new InstanceActionError('invalid_input', 'rename requires one UUID.');
     const body = await readDraftStdin();
@@ -123,7 +131,13 @@ async function runInstancesCli(args: string[]) {
       throw new InstanceActionError('invalid_input', 'remove requires UUID --yes.');
     input.id = rest[0];
   }
-  if (operation.operation === 'create' || operation.operation === 'rename' || operation.operation === 'remove')
+  if (
+    operation.operation === 'create' ||
+    operation.operation === 'rename' ||
+    operation.operation === 'remove' ||
+    operation.operation === 'connect' ||
+    operation.operation === 'disconnect'
+  )
     printJson(await executeAuditedInstanceMutation(operation.operation, input, 'mcp-local'));
   else printJson(executeInstanceOperation(operation.operation, input));
 }

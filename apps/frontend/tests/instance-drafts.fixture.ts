@@ -18,13 +18,180 @@ const { createDraftInstanceAction, listDraftInstancesAction, renameDraftInstance
 const { GET, POST } = await import('../src/app/api/v1/instances/route');
 const { PATCH, DELETE } = await import('../src/app/api/v1/instances/[id]/route');
 const { GET: catalogGET } = await import('../src/app/api/v1/app-definitions/route');
-const api = (url: string, method = 'GET', body?: unknown, key = 'test-key') =>
+const {
+  GET: connectionsGET,
+  POST: connectionsPOST,
+  DELETE: connectionsDELETE
+} = await import('../src/app/api/v1/instances/[id]/connections/route');
+const api = (url: string, method = 'GET', body?: unknown, key = 'test-key', confirm = false) =>
   new NextRequest(`http://localhost${url}`, {
     method,
-    headers: { 'x-api-key': key, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: {
+      'x-api-key': key,
+      ...(confirm ? { 'X-Stackarr-Confirm': 'true' } : {}),
+      ...(body === undefined ? {} : { 'content-type': 'application/json' })
+    },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+
+test('connection route authenticates, binds source to path, bounds reads and permits disconnect before removal', async () => {
+  writeEnvConfig({ STACKARR_API_KEY: 'test-key' });
+  const source = createDraftInstanceAction({ definitionId: 'radarr', displayName: 'Movie', ownership: 'managed' });
+  const target = createDraftInstanceAction({
+    definitionId: 'transmission',
+    displayName: 'Downloader',
+    ownership: 'external'
+  });
+  const route = `/api/v1/instances/${source.id}/connections`;
+  const body = { targetId: target.id, kind: 'download-client' };
+  assert.equal((await connectionsGET(api(route, 'GET', undefined, 'wrong'), ctx(source.id))).status, 401);
+  assert.equal((await connectionsPOST(api(route, 'POST', body, 'wrong'), ctx(source.id))).status, 401);
+  assert.equal((await connectionsDELETE(api(route, 'DELETE', body, 'wrong'), ctx(source.id))).status, 401);
+  for (const value of [{ ...body, sourceId: source.id }, { ...body, kind: 'required' }, { kind: 'download-client' }])
+    assert.equal((await connectionsPOST(api(route, 'POST', value), ctx(source.id))).status, 400);
+  const crossOrigin = new NextRequest(`http://localhost${route}`, {
+    method: 'POST',
+    headers: { 'x-api-key': 'test-key', origin: 'https://elsewhere.invalid' },
+    body: JSON.stringify(body)
+  });
+  assert.equal((await connectionsPOST(crossOrigin, ctx(source.id))).status, 400);
+  const crossOriginDelete = api(route, 'DELETE', body, 'test-key', true);
+  crossOriginDelete.headers.set('origin', 'https://elsewhere.invalid');
+  assert.equal((await connectionsDELETE(crossOriginDelete, ctx(source.id))).status, 400);
+  assert.equal((await connectionsPOST(api(route, 'POST', body), ctx(target.id))).status, 400);
+  assert.equal((await connectionsGET(api(`${route}?limit=101`), ctx(source.id))).status, 400);
+  assert.equal((await connectionsGET(api(`${route}?cursor=invalid`), ctx(source.id))).status, 400);
+  assert.equal((await connectionsGET(api(`${route}?extra=1`), ctx(source.id))).status, 400);
+  for (const query of [
+    'limit=1&limit=2',
+    'cursor=x&cursor=y',
+    'limit=',
+    'cursor=',
+    'limit=0x10',
+    'limit=1e2',
+    'limit=+1',
+    'limit=-1',
+    'limit=1.5'
+  ])
+    assert.equal((await connectionsGET(api(`${route}?${query}`), ctx(source.id))).status, 400, query);
+  assert.equal((await connectionsGET(api(route), ctx('00000000-0000-4000-8000-000000000000'))).status, 404);
+  const created = await connectionsPOST(api(route, 'POST', body), ctx(source.id));
+  assert.equal(created.status, 200);
+  assert.equal((await created.json()).audit.status, 'recorded');
+  const listed = await (await connectionsGET(api(`${route}?limit=1`), ctx(source.id))).json();
+  assert.equal(listed.items[0].targetId, target.id);
+  assert.equal(listed.nextCursor, null);
+  assert.equal(
+    (await DELETE(api(`/api/v1/instances/${source.id}`, 'DELETE', undefined, 'test-key', true), ctx(source.id))).status,
+    409
+  );
+  assert.equal(
+    (await connectionsDELETE(api(route, 'DELETE', { ...body, sourceId: source.id }), ctx(source.id))).status,
+    400
+  );
+  for (const header of [undefined, 'TRUE', 'false']) {
+    const request = api(route, 'DELETE', body);
+    if (header) request.headers.set('x-stackarr-confirm', header);
+    assert.equal((await connectionsDELETE(request, ctx(source.id))).status, 400);
+    assert.equal((await connectionsGET(api(route), ctx(source.id))).status, 200);
+    assert.equal((await DELETE(api(`/api/v1/instances/${source.id}`, 'DELETE'), ctx(source.id))).status, 400);
+    assert.equal(
+      await connectionsGET(api(route), ctx(source.id))
+        .then((response) => response.json())
+        .then((page) => page.items.length),
+      1
+    );
+  }
+  assert.equal((await connectionsDELETE(api(route, 'DELETE', body, 'test-key', true), ctx(source.id))).status, 200);
+  assert.equal(
+    (await DELETE(api(`/api/v1/instances/${source.id}`, 'DELETE', undefined, 'test-key', true), ctx(source.id))).status,
+    200
+  );
+  assert.equal(
+    (await DELETE(api(`/api/v1/instances/${target.id}`, 'DELETE', undefined, 'test-key', true), ctx(target.id))).status,
+    200
+  );
+});
+
+test('JSONB-like reordered audit readback accepts existing and connection mutations', async () => {
+  const db = new DatabaseSync(path.join(root, 'draft.db'));
+  let sourceId: string | undefined;
+  let targetId: string | undefined;
+  try {
+    db.exec(`create trigger reorder_audit_start after insert on agent_activity begin
+      update agent_activity set input_summary = case when json_type(new.input_summary, '$.sourceId') is null then json_remove(json_object('outcome', json_extract(new.input_summary, '$.outcome'), 'targetId', json_extract(new.input_summary, '$.targetId'), 'sourceId', null, 'action', json_extract(new.input_summary, '$.action')), '$.sourceId') else json_object('outcome', json_extract(new.input_summary, '$.outcome'), 'targetId', json_extract(new.input_summary, '$.targetId'), 'sourceId', json_extract(new.input_summary, '$.sourceId'), 'action', json_extract(new.input_summary, '$.action')) end where id = new.id;
+    end;
+    create trigger reorder_audit_finish after update of result_summary on agent_activity when new.result_summary is not null begin
+      update agent_activity set result_summary = case when json_type(new.result_summary, '$.sourceId') is null then json_remove(json_object('outcome', json_extract(new.result_summary, '$.outcome'), 'targetId', json_extract(new.result_summary, '$.targetId'), 'sourceId', null, 'action', json_extract(new.result_summary, '$.action')), '$.sourceId') else json_object('outcome', json_extract(new.result_summary, '$.outcome'), 'targetId', json_extract(new.result_summary, '$.targetId'), 'sourceId', json_extract(new.result_summary, '$.sourceId'), 'action', json_extract(new.result_summary, '$.action')) end where id = new.id;
+    end;`);
+    const source = await POST(
+      api('/api/v1/instances', 'POST', { definitionId: 'sonarr', displayName: 'Audit source', ownership: 'managed' })
+    );
+    assert.equal(source.status, 201);
+    const created = await source.json();
+    sourceId = created.id;
+    assert.equal(created.audit.status, 'recorded');
+    const target = createDraftInstanceAction({
+      definitionId: 'qbittorrent',
+      displayName: 'Audit target',
+      ownership: 'managed'
+    });
+    targetId = target.id;
+    const response = await connectionsPOST(
+      api(`/api/v1/instances/${created.id}/connections`, 'POST', { targetId: target.id, kind: 'download-client' }),
+      ctx(created.id)
+    );
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).audit.status, 'recorded');
+    db.exec(`drop trigger reorder_audit_start; drop trigger reorder_audit_finish;
+      create trigger wrong_audit_start after insert on agent_activity begin
+        update agent_activity set input_summary = json_set(new.input_summary, '$.targetId', 'wrong-endpoint') where id = new.id;
+      end;`);
+    const renameRoute = `/api/v1/instances/${created.id}`;
+    assert.equal(
+      (await PATCH(api(renameRoute, 'PATCH', { displayName: 'Must not rename' }), ctx(created.id))).status,
+      503
+    );
+    assert.equal(listDraftInstancesAction().items.find((item) => item.id === created.id)?.displayName, 'Audit source');
+    for (const mutation of [
+      "json_remove(new.input_summary, '$.targetId')",
+      "json_set(new.input_summary, '$.unexpected', 'value')"
+    ]) {
+      db.exec('drop trigger wrong_audit_start');
+      db.exec(`create trigger wrong_audit_start after insert on agent_activity begin
+        update agent_activity set input_summary = ${mutation} where id = new.id; end;`);
+      assert.equal(
+        (await PATCH(api(renameRoute, 'PATCH', { displayName: 'Must not rename' }), ctx(created.id))).status,
+        503
+      );
+      assert.equal(
+        listDraftInstancesAction().items.find((item) => item.id === created.id)?.displayName,
+        'Audit source'
+      );
+    }
+    db.exec(`drop trigger wrong_audit_start;
+      create trigger wrong_audit_finish after update of result_summary on agent_activity when new.result_summary is not null begin
+        update agent_activity set result_summary = json_set(new.result_summary, '$.targetId', 'wrong-endpoint') where id = new.id;
+      end;`);
+    const degraded = await PATCH(api(renameRoute, 'PATCH', { displayName: 'Committed but degraded' }), ctx(created.id));
+    assert.equal(degraded.status, 200);
+    assert.equal((await degraded.json()).audit.status, 'degraded');
+    assert.equal(
+      listDraftInstancesAction().items.find((item) => item.id === created.id)?.displayName,
+      'Committed but degraded'
+    );
+  } finally {
+    db.exec(
+      'drop trigger if exists reorder_audit_start; drop trigger if exists reorder_audit_finish; drop trigger if exists wrong_audit_start; drop trigger if exists wrong_audit_finish'
+    );
+    if (sourceId && targetId) {
+      db.prepare('delete from app_instance_connections where source_id=? and target_id=?').run(sourceId, targetId);
+      db.prepare('delete from app_instances where id in (?,?)').run(sourceId, targetId);
+    }
+    db.close();
+  }
+});
 
 test('draft actions and actual route handlers persist, paginate, and reject unsafe inputs', async () => {
   try {
@@ -131,8 +298,14 @@ test('draft actions and actual route handlers persist, paginate, and reject unsa
       assert.equal((await DELETE(api(`/api/v1/instances/${first.id}`, 'DELETE', body), ctx(first.id))).status, 400);
       assert.equal(listDraftInstancesAction().items.length, 2);
     }
-    assert.equal((await DELETE(api(`/api/v1/instances/${first.id}`, 'DELETE'), ctx(first.id))).status, 200);
-    assert.equal((await DELETE(api(`/api/v1/instances/${first.id}`, 'DELETE'), ctx(first.id))).status, 404);
+    assert.equal(
+      (await DELETE(api(`/api/v1/instances/${first.id}`, 'DELETE', undefined, 'test-key', true), ctx(first.id))).status,
+      200
+    );
+    assert.equal(
+      (await DELETE(api(`/api/v1/instances/${first.id}`, 'DELETE', undefined, 'test-key', true), ctx(first.id))).status,
+      404
+    );
     assert.equal(listDraftInstancesAction().items[0].id, second.id);
     const db = new DatabaseSync(path.join(root, 'draft.db'));
     try {
@@ -268,7 +441,7 @@ printf '%s\n--CALL--\n' "$sql" >> "$PSQL_CAPTURE"
 case "$sql" in
   *"with mutated as (update app_instances"*) exit 1;;
   *"with mutated as (insert into app_instances"*) printf '%s' '{"id":"test-id","definition_id":"sonarr","display_name":"TV","ownership":"managed","state":"draft","configuration":"{}","secret_references":"{}","created_at":"2026-01-01","updated_at":"2026-01-01"}';;
-  *"delete from app_instances"*) printf '%s' 'test-id';;
+  *"removed as (delete from app_instances"*) printf '%s' 'removed';;
   *"from app_instances where id >"*) printf '[]';;
 esac
 `
@@ -284,7 +457,12 @@ esac
     assert.match(sql, /with mutated as \(insert into app_instances[\s\S]*returning \*\)/);
     assert.match(sql, /with mutated as \(update app_instances[\s\S]*state = 'draft' returning \*\)/);
     assert.match(sql, /row_to_json\(item\)/);
-    assert.match(sql, /delete from app_instances where id = 'test-id' and state = 'draft' returning id/);
+    assert.match(
+      sql,
+      /delete from app_instances where id = 'test-id' and state = 'draft'\s+and not exists\(select 1 from blocked\) returning id/
+    );
+    assert.match(sql, /perform id from app_instances where id = 'test-id' and state = 'draft' for update/);
+    assert.match(sql, /select 1 from app_instance_connections where source_id = 'test-id' or target_id = 'test-id'/);
     assert.match(sql, /from app_instances where id > '' order by id limit 2/);
     assert.doesNotMatch(sql, /from app_instances\s+order by created_at/);
     assert.equal(existsSync(sqlite), false);

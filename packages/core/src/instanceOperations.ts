@@ -1,9 +1,13 @@
 import { getAgentActivityRecord } from './actions/agentActivity';
 import { listAppDefinitionsAction } from './instanceCatalog';
 import {
+  connectDraftInstancesAction,
   createDraftInstanceAction,
   type DraftInstance,
+  type DraftInstanceConnection,
+  disconnectDraftInstancesAction,
   InstanceActionError,
+  listDraftInstanceConnectionsAction,
   listDraftInstancesAction,
   removeDraftInstanceAction,
   renameDraftInstanceAction
@@ -11,8 +15,16 @@ import {
 import type { ToolCatalogEntry } from './mcp/types';
 import { auditFinished, auditStarted } from './safety/audit';
 
-export type InstanceOperationName = 'catalog' | 'list' | 'create' | 'rename' | 'remove';
-export type InstanceMutation = 'create' | 'rename' | 'remove';
+export type InstanceOperationName =
+  | 'catalog'
+  | 'list'
+  | 'create'
+  | 'rename'
+  | 'remove'
+  | 'connections'
+  | 'connect'
+  | 'disconnect';
+export type InstanceMutation = 'create' | 'rename' | 'remove' | 'connect' | 'disconnect';
 export const instanceOperations: ReadonlyArray<{
   operation: InstanceOperationName;
   cli: string;
@@ -66,6 +78,33 @@ export const instanceOperations: ReadonlyArray<{
     risk: 'dangerous',
     scopes: ['services:dangerous'],
     dtoVersion: 1
+  },
+  {
+    operation: 'connections',
+    cli: 'connections',
+    mcp: 'stackarr_list_instance_connections',
+    http: { method: 'GET', path: '/api/v1/instances/{id}/connections' },
+    risk: 'read',
+    scopes: ['services:read'],
+    dtoVersion: 1
+  },
+  {
+    operation: 'connect',
+    cli: 'connect',
+    mcp: 'stackarr_connect_instance_drafts',
+    http: { method: 'POST', path: '/api/v1/instances/{id}/connections' },
+    risk: 'write',
+    scopes: ['services:write'],
+    dtoVersion: 1
+  },
+  {
+    operation: 'disconnect',
+    cli: 'disconnect',
+    mcp: 'stackarr_disconnect_instance_drafts',
+    http: { method: 'DELETE', path: '/api/v1/instances/{id}/connections' },
+    risk: 'dangerous',
+    scopes: ['services:dangerous'],
+    dtoVersion: 1
   }
 ];
 const invalid = (): never => {
@@ -98,12 +137,19 @@ export function executeInstanceOperation(
 export function executeInstanceOperation(operation: 'create' | 'rename', input: unknown): DraftInstance;
 export function executeInstanceOperation(operation: 'remove', input: unknown): { id: string };
 export function executeInstanceOperation(
+  operation: 'connections',
+  input: unknown
+): ReturnType<typeof listDraftInstanceConnectionsAction>;
+export function executeInstanceOperation(operation: 'connect' | 'disconnect', input: unknown): DraftInstanceConnection;
+export function executeInstanceOperation(
   operation: InstanceOperationName,
   input?: unknown
 ):
   | { schemaVersion: 1; items: ReturnType<typeof listAppDefinitionsAction> }
   | ReturnType<typeof listDraftInstancesAction>
   | DraftInstance
+  | DraftInstanceConnection
+  | ReturnType<typeof listDraftInstanceConnectionsAction>
   | { id: string };
 export function executeInstanceOperation(operation: InstanceOperationName, input: unknown = {}) {
   switch (operation) {
@@ -123,24 +169,65 @@ export function executeInstanceOperation(operation: InstanceOperationName, input
     }
     case 'remove':
       return removeDraftInstanceAction(exact(input, ['id']).id);
+    case 'connections':
+      return listDraftInstanceConnectionsAction(exact(input, ['instanceId', 'limit', 'cursor']));
+    case 'connect':
+      return connectDraftInstancesAction(exact(input, ['sourceId', 'targetId', 'kind']));
+    case 'disconnect':
+      return disconnectDraftInstancesAction(exact(input, ['sourceId', 'targetId', 'kind']));
   }
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function instanceAuditEvidence(
   operation: InstanceOperationName,
   id: unknown,
-  outcome: 'started' | 'success' | 'error' | 'denied'
+  outcome: 'started' | 'success' | 'error' | 'denied',
+  relatedTargetId?: unknown
 ) {
+  if (operation === 'connect' || operation === 'disconnect')
+    return {
+      action: operation,
+      sourceId: typeof id === 'string' && uuid.test(id) ? id : null,
+      targetId: typeof relatedTargetId === 'string' && uuid.test(relatedTargetId) ? relatedTargetId : null,
+      outcome
+    };
   return { action: operation, targetId: typeof id === 'string' && uuid.test(id) ? id : null, outcome };
 }
 export type InstanceAudit = { id: string; status: 'recorded' | 'degraded' };
+function matchesAuditEvidence(actual: unknown, expected: ReturnType<typeof instanceAuditEvidence>): boolean {
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false;
+  const fields = Object.keys(expected);
+  const received = Object.keys(actual);
+  return (
+    received.length === fields.length &&
+    fields.every(
+      (field) =>
+        Object.hasOwn(actual, field) &&
+        (actual as Record<string, unknown>)[field] === (expected as Record<string, unknown>)[field]
+    )
+  );
+}
 export async function executeAuditedInstanceMutation(
   operation: InstanceMutation,
   input: unknown,
   caller: 'dashboard' | 'mcp-local' | `mcp-local:${string}` | `mcp-remote:${string}` = 'dashboard'
-): Promise<(DraftInstance & { audit: InstanceAudit }) | { id: string; audit: InstanceAudit }> {
+): Promise<
+  | (DraftInstance & { audit: InstanceAudit })
+  | (DraftInstanceConnection & { audit: InstanceAudit })
+  | { id: string; audit: InstanceAudit }
+> {
   const entry = instanceOperations.find((item) => item.operation === operation)!;
-  const targetId = input && typeof input === 'object' && 'id' in input ? input.id : null;
+  const connection = operation === 'connect' || operation === 'disconnect';
+  const targetId =
+    input && typeof input === 'object' && (connection ? 'sourceId' in input : 'id' in input)
+      ? connection
+        ? (input as { sourceId: unknown }).sourceId
+        : (input as { id: unknown }).id
+      : null;
+  const relatedTargetId =
+    connection && input && typeof input === 'object' && 'targetId' in input ? input.targetId : undefined;
+  const evidence = (outcome: 'started' | 'success' | 'error') =>
+    instanceAuditEvidence(operation, targetId, outcome, relatedTargetId);
   const started = Date.now();
   let activity: Awaited<ReturnType<typeof auditStarted>>;
   try {
@@ -150,38 +237,38 @@ export async function executeAuditedInstanceMutation(
       category: 'services',
       scopes: entry.scopes,
       risk: entry.risk,
-      inputSummary: instanceAuditEvidence(operation, targetId, 'started')
+      inputSummary: evidence('started')
     });
     const readback = await getAgentActivityRecord(activity.id);
-    const evidence = instanceAuditEvidence(operation, targetId, 'started');
     if (
       !readback ||
       readback.id !== activity.id ||
       readback.status !== 'started' ||
       readback.toolName !== entry.mcp ||
-      (readback.inputSummary as { action?: string; targetId?: string | null; outcome?: string } | undefined)?.action !==
-        evidence.action ||
-      (readback.inputSummary as { targetId?: string | null } | undefined)?.targetId !== evidence.targetId ||
-      (readback.inputSummary as { outcome?: string } | undefined)?.outcome !== 'started'
+      !matchesAuditEvidence(readback.inputSummary, evidence('started'))
     )
       throw new Error('Audit start not persisted.');
   } catch {
     throw new InstanceActionError('store_unavailable', 'Instance store unavailable.');
   }
-  let result: DraftInstance | { id: string };
+  let result: DraftInstance | DraftInstanceConnection | { id: string };
   try {
     result =
       operation === 'create'
         ? executeInstanceOperation('create', input)
         : operation === 'rename'
           ? executeInstanceOperation('rename', input)
-          : executeInstanceOperation('remove', input);
+          : operation === 'remove'
+            ? executeInstanceOperation('remove', input)
+            : operation === 'connect'
+              ? executeInstanceOperation('connect', input)
+              : executeInstanceOperation('disconnect', input);
   } catch (error) {
     try {
       await auditFinished(activity.id, {
         status: 'error',
         durationMs: Date.now() - started,
-        resultSummary: instanceAuditEvidence(operation, targetId, 'error'),
+        resultSummary: evidence('error'),
         error: error instanceof InstanceActionError ? error.message : 'Instance store unavailable.'
       });
     } catch {
@@ -195,17 +282,19 @@ export async function executeAuditedInstanceMutation(
     await auditFinished(activity.id, {
       status: 'success',
       durationMs: Date.now() - started,
-      resultSummary: instanceAuditEvidence(operation, result.id, 'success')
+      resultSummary: connection
+        ? evidence('success')
+        : instanceAuditEvidence(operation, (result as { id: string }).id, 'success')
     });
     const readback = await getAgentActivityRecord(activity.id);
     if (
       readback?.id === activity.id &&
       readback.status === 'success' &&
       readback.toolName === entry.mcp &&
-      (readback.resultSummary as { action?: string; targetId?: string; outcome?: string } | undefined)?.action ===
-        operation &&
-      (readback.resultSummary as { targetId?: string }).targetId === result.id &&
-      (readback.resultSummary as { outcome?: string }).outcome === 'success'
+      matchesAuditEvidence(
+        readback.resultSummary,
+        connection ? evidence('success') : instanceAuditEvidence(operation, (result as { id: string }).id, 'success')
+      )
     )
       status = 'recorded';
   } catch {

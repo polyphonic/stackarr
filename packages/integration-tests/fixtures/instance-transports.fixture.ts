@@ -10,6 +10,7 @@ import {
   executeInstanceOperation,
   instanceOperations
 } from '../../core/src/instanceOperations';
+import { InstanceActionError } from '../../core/src/instances';
 import { Client } from '../../mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
 import { InMemoryTransport } from '../../mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/inMemory.js';
 import { ElicitRequestSchema } from '../../mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js';
@@ -17,13 +18,17 @@ import { createStackarrMcpServer } from '../../mcp/src/server';
 
 const repo = path.resolve(import.meta.dirname, '../../..');
 const cli = (args: string[], body?: object | string) => {
-  const result = spawnSync(process.execPath, [path.join(repo, 'packages/mcp/dist/index.js'), 'instances', ...args], {
-    input: typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined,
-    encoding: 'utf8',
-    cwd: repo,
-    env: process.env,
-    timeout: 20000
-  });
+  const result = spawnSync(
+    path.join(repo, 'packages/integration-tests/node_modules/.bin/tsx'),
+    [path.join(repo, 'packages/mcp/src/index.ts'), 'instances', ...args],
+    {
+      input: typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined,
+      encoding: 'utf8',
+      cwd: repo,
+      env: process.env,
+      timeout: 20000
+    }
+  );
   return { ...result, payload: result.status === 0 ? JSON.parse(result.stdout) : undefined };
 };
 async function connect(profile: 'observe' | 'manage' | 'admin', approve = false) {
@@ -266,5 +271,117 @@ test('offline PostgreSQL failure is sanitized at CLI and MCP boundaries', async 
     process.env.PATH = oldPath;
     process.env.STACKARR_DATABASE_MODE = 'sqlite';
     delete process.env.STACKARR_DATABASE_URL;
+  }
+});
+
+test('connections through SDK and source CLI enforce scope, approval, audit and removal conflict', async () => {
+  const observe = await connect('observe');
+  const manage = await connect('manage');
+  const admin = await connect('admin');
+  const approved = await connect('admin', true);
+  try {
+    const readNames = (await observe.client.listTools()).tools.map((x) => x.name);
+    assert.ok(readNames.includes('stackarr_list_instance_connections'));
+    assert.ok(!readNames.includes('stackarr_connect_instance_drafts'));
+    assert.ok((await manage.client.listTools()).tools.some((x) => x.name === 'stackarr_connect_instance_drafts'));
+    assert.ok(!(await manage.client.listTools()).tools.some((x) => x.name === 'stackarr_disconnect_instance_drafts'));
+    assert.ok((await admin.client.listTools()).tools.some((x) => x.name === 'stackarr_disconnect_instance_drafts'));
+    const source = await call(manage.client, 'stackarr_create_instance_draft', {
+      definitionId: 'sonarr',
+      displayName: 'Source',
+      ownership: 'managed'
+    });
+    const target = await call(manage.client, 'stackarr_create_instance_draft', {
+      definitionId: 'qbittorrent',
+      displayName: 'Target',
+      ownership: 'external'
+    });
+    const edge = { sourceId: source.id, targetId: target.id, kind: 'download-client' };
+    for (const [name, args] of [
+      ['stackarr_list_instance_connections', { instanceId: source.id, limit: 1000 }],
+      ['stackarr_list_instance_connections', { instanceId: source.id, cursor: 'bad' }],
+      ['stackarr_connect_instance_drafts', { ...edge, configuration: { password: 'private' } }],
+      ['stackarr_disconnect_instance_drafts', { ...edge, kind: 'other' }]
+    ] as const) {
+      const response = await approved.client.callTool({ name, arguments: args });
+      assert.equal(response.isError, true, name);
+    }
+    assert.equal(
+      (await call(observe.client, 'stackarr_list_instance_connections', { instanceId: source.id })).items.length,
+      0
+    );
+    const linked = await call(manage.client, 'stackarr_connect_instance_drafts', edge);
+    assert.equal(linked.audit.status, 'recorded');
+    assert.deepEqual((await getAgentActivityRecord(linked.audit.id))?.inputSummary, {
+      action: 'connect',
+      sourceId: source.id,
+      targetId: target.id,
+      outcome: 'started'
+    });
+    assert.equal(
+      (await call(observe.client, 'stackarr_list_instance_connections', { instanceId: target.id, limit: 1 })).items[0]
+        .sourceId,
+      source.id
+    );
+    assert.equal(
+      (await call(approved.client, 'stackarr_remove_instance_draft', { id: target.id })).error.code,
+      'conflict'
+    );
+    assert.equal((await call(admin.client, 'stackarr_disconnect_instance_drafts', edge)).approvalRequired, true);
+    assert.notEqual(cli(['disconnect', source.id, target.id]).status, 0);
+    const disconnected = cli(['disconnect', source.id, target.id, '--yes']);
+    assert.equal(disconnected.status, 0, disconnected.stderr);
+    assert.equal(disconnected.payload.audit.status, 'recorded');
+    assert.equal(
+      (await call(observe.client, 'stackarr_list_instance_connections', { instanceId: source.id })).items.length,
+      0
+    );
+    const reconnect = cli(['connect', source.id, target.id, '--yes']);
+    assert.equal(reconnect.status, 0, reconnect.stderr);
+    assert.equal(cli(['connections', source.id]).payload.items.length, 1);
+    const conflict = cli(['remove', target.id, '--yes']);
+    assert.equal(JSON.parse(conflict.stderr).error.code, 'conflict');
+    assert.doesNotMatch(conflict.stderr, /private|\n\s+at /);
+    const unlinked = await call(approved.client, 'stackarr_disconnect_instance_drafts', edge);
+    assert.equal(unlinked.audit.status, 'recorded');
+    assert.equal((await call(approved.client, 'stackarr_remove_instance_draft', { id: target.id })).id, target.id);
+  } finally {
+    await Promise.all([observe.close(), manage.close(), admin.close(), approved.close()]);
+  }
+});
+
+test('connection audit start must persist and failed finish reports committed edge as degraded', async () => {
+  const db = new DatabaseSync(process.env.STACKARR_DATABASE_FILE!);
+  const source = executeInstanceOperation('create', {
+    definitionId: 'lidarr',
+    displayName: 'Music audit',
+    ownership: 'managed'
+  });
+  const target = executeInstanceOperation('create', {
+    definitionId: 'qbittorrent',
+    displayName: 'Download audit',
+    ownership: 'native'
+  });
+  const edge = { sourceId: source.id, targetId: target.id, kind: 'download-client' };
+  try {
+    db.exec('create trigger connection_audit_start before insert on agent_activity begin select raise(ignore); end;');
+    await assert.rejects(
+      executeAuditedInstanceMutation('connect', edge),
+      (error: unknown) => error instanceof InstanceActionError && error.code === 'store_unavailable'
+    );
+    assert.equal(executeInstanceOperation('connections', { instanceId: source.id }).items.length, 0);
+    db.exec('drop trigger connection_audit_start');
+    db.exec(
+      "create trigger connection_audit_finish before update on agent_activity when new.status = 'success' begin select raise(ignore); end;"
+    );
+    const linked = await executeAuditedInstanceMutation('connect', edge);
+    assert.equal(linked.audit.status, 'degraded');
+    assert.equal(executeInstanceOperation('connections', { instanceId: source.id }).items.length, 1);
+    const unlinked = await executeAuditedInstanceMutation('disconnect', edge);
+    assert.equal(unlinked.audit.status, 'degraded');
+    assert.equal(executeInstanceOperation('connections', { instanceId: source.id }).items.length, 0);
+    db.exec('drop trigger connection_audit_finish');
+  } finally {
+    db.close();
   }
 });

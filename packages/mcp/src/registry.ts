@@ -277,6 +277,31 @@ const tools: ToolDef[] = [
     handler: (input) => executeInstanceOperation('remove', input)
   },
   {
+    name: 'stackarr_list_instance_connections',
+    description: 'List incident draft downloader connections with a bounded cursor.',
+    shape: { instanceId: draftId, limit: z.number().int().min(1).max(100).optional(), cursor: z.string().optional() },
+    strictInput: z.strictObject({
+      instanceId: draftId,
+      limit: z.number().int().min(1).max(100).optional(),
+      cursor: z.string().optional()
+    }),
+    handler: (input) => executeInstanceOperation('connections', input)
+  },
+  {
+    name: 'stackarr_connect_instance_drafts',
+    description: 'Connect a draft Arr instance to an optional draft downloader.',
+    shape: { sourceId: draftId, targetId: draftId, kind: z.literal('download-client') },
+    strictInput: z.strictObject({ sourceId: draftId, targetId: draftId, kind: z.literal('download-client') }),
+    handler: (input) => executeInstanceOperation('connect', input)
+  },
+  {
+    name: 'stackarr_disconnect_instance_drafts',
+    description: 'Disconnect one optional draft downloader edge.',
+    shape: { sourceId: draftId, targetId: draftId, kind: z.literal('download-client') },
+    strictInput: z.strictObject({ sourceId: draftId, targetId: draftId, kind: z.literal('download-client') }),
+    handler: (input) => executeInstanceOperation('disconnect', input)
+  },
+  {
     name: 'stackarr_get_setup_profile',
     description: 'Get opinionated setup questions/defaults and browser port.',
     shape: empty,
@@ -1598,7 +1623,13 @@ export function registerStackarrTools(
       },
       async (input: Record<string, unknown>) => {
         const draftOperation = instanceOperations.find((entry) => entry.mcp === tool.name)?.operation;
-        if (draftOperation === 'create' || draftOperation === 'rename' || draftOperation === 'remove') {
+        if (
+          draftOperation === 'create' ||
+          draftOperation === 'rename' ||
+          draftOperation === 'remove' ||
+          draftOperation === 'connect' ||
+          draftOperation === 'disconnect'
+        ) {
           try {
             const authorization = await authorizeToolCall(server, profile, meta, input);
             if (!authorization.approved) {
@@ -1609,11 +1640,21 @@ export function registerStackarrTools(
                   category: meta.category,
                   scopes: meta.scopes,
                   risk: meta.risk,
-                  inputSummary: instanceAuditEvidence(draftOperation, input.id, 'denied')
+                  inputSummary: instanceAuditEvidence(
+                    draftOperation,
+                    input.sourceId ?? input.id,
+                    'denied',
+                    input.targetId
+                  )
                 });
                 await auditFinished(activity.id, {
                   status: 'denied',
-                  resultSummary: instanceAuditEvidence(draftOperation, input.id, 'denied'),
+                  resultSummary: instanceAuditEvidence(
+                    draftOperation,
+                    input.sourceId ?? input.id,
+                    'denied',
+                    input.targetId
+                  ),
                   error: 'Approval required.'
                 });
               } catch {
@@ -1640,7 +1681,12 @@ export function registerStackarrTools(
           draftOperation
             ? instanceAuditEvidence(
                 draftOperation,
-                id ?? (typeof input.id === 'string' ? input.id : undefined),
+                id ??
+                  (typeof input.instanceId === 'string'
+                    ? input.instanceId
+                    : typeof input.id === 'string'
+                      ? input.id
+                      : undefined),
                 outcome
               )
             : undefined;
