@@ -45,6 +45,43 @@ test('archive path save rejects unsafe lexical paths and overlapping storage', (
   assert.match(validate('/srv/stackarr') ?? '', /root/);
   assert.match(validate('/srv/alternate:archive') ?? '', /Compose separators/);
   assert.match(validate('/Volumes/ExampleStorage/archive') ?? '', /enrolled storage policy/);
+  assert.match(validate('/mnt/storage/archive') ?? '', /enrolled storage policy/);
+  assert.match(validate('/media/storage/archive') ?? '', /enrolled storage policy/);
+});
+
+test('archive root validation accepts enrolled external paths on Linux /mnt and /media and macOS /Volumes', () => {
+  const tmpPolicyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-archive-policy-'));
+  const policyFile = path.join(tmpPolicyDir, 'storage-policy.json');
+  fs.writeFileSync(
+    policyFile,
+    JSON.stringify({
+      roots: [
+        { path: '/Volumes/BackupDrive' },
+        { path: '/mnt/storage' },
+        { path: '/media/usb' }
+      ]
+    })
+  );
+
+  const roots = {
+    config: '/srv/stackarr/config',
+    state: '/srv/stackarr/state',
+    logs: '/srv/stackarr/logs',
+    backup: '/srv/backups',
+    staging: '/srv/staging'
+  };
+
+  try {
+    assert.equal(validateTorrentArchiveRoot('/Volumes/BackupDrive/archive', undefined, roots, policyFile), null);
+    assert.equal(validateTorrentArchiveRoot('/mnt/storage/torrents', undefined, roots, policyFile), null);
+    assert.equal(validateTorrentArchiveRoot('/media/usb/archive', undefined, roots, policyFile), null);
+    assert.match(
+      validateTorrentArchiveRoot('/mnt/other/archive', undefined, roots, policyFile) ?? '',
+      /enrolled storage policy/
+    );
+  } finally {
+    fs.rmSync(tmpPolicyDir, { recursive: true, force: true });
+  }
 });
 
 test('unchanged and omitted archive fields still validate proposed storage roots', () => {

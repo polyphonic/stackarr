@@ -1136,11 +1136,14 @@ function parseOptionalJson(value: string | null | undefined) {
   }
 }
 
-function runPsql(
+const DEFAULT_PSQL_TIMEOUT_MS = 5_000;
+
+export function runPsql(
   sql: string,
   variables: Record<string, string> = {},
   tuplesOnly = true,
-  target: StackarrDatabaseTarget = 'main'
+  target: StackarrDatabaseTarget = 'main',
+  timeoutMs = DEFAULT_PSQL_TIMEOUT_MS
 ) {
   const connection = parsePostgresUrl(target);
   const queryArgs = [
@@ -1154,13 +1157,14 @@ function runPsql(
   const env = {
     ...process.env,
     PGPASSWORD: connection.password,
-    PGSSLMODE: connection.sslmode
+    PGSSLMODE: connection.sslmode,
+    PGCONNECT_TIMEOUT: String(Math.max(1, Math.ceil(timeoutMs / 1000)))
   };
 
   return execFileSync(
     'psql',
     ['-h', connection.host, '-p', connection.port, '-U', connection.user, '-d', connection.database, ...queryArgs],
-    { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'] }
+    { encoding: 'utf8', env, input: sql, stdio: ['pipe', 'pipe', 'pipe'], timeout: timeoutMs }
   ).trim();
 }
 

@@ -81,55 +81,63 @@ export function validateStackarrLogin(identifier: string, password: string) {
 }
 
 export function checkStackarrLoginRateLimit(request: NextRequest, identifier: string) {
-  const key = loginRateLimitKey(request, identifier);
-  const bucket = loginAttemptBuckets.get(key);
+  const keys = loginRateLimitKeys(request, identifier);
   const now = Date.now();
 
-  if (!bucket) {
-    return null;
-  }
+  for (const key of keys) {
+    const bucket = loginAttemptBuckets.get(key);
+    if (!bucket) {
+      continue;
+    }
 
-  if (bucket.resetAt <= now) {
-    loginAttemptBuckets.delete(key);
-    return null;
-  }
+    if (bucket.resetAt <= now && bucket.blockedUntil <= now) {
+      loginAttemptBuckets.delete(key);
+      continue;
+    }
 
-  if (bucket.blockedUntil > now) {
-    const retryAfter = Math.max(1, Math.ceil((bucket.blockedUntil - now) / 1000));
-    return {
-      retryAfter,
-      message: 'Too many failed sign-in attempts. Try again later.'
-    };
+    if (bucket.blockedUntil > now) {
+      const retryAfter = Math.max(1, Math.ceil((bucket.blockedUntil - now) / 1000));
+      return {
+        retryAfter,
+        message: 'Too many failed sign-in attempts. Try again later.'
+      };
+    }
   }
 
   return null;
 }
 
 export function recordStackarrLoginAttempt(request: NextRequest, identifier: string, ok: boolean) {
-  const key = loginRateLimitKey(request, identifier);
+  const keys = loginRateLimitKeys(request, identifier);
 
   if (ok) {
-    loginAttemptBuckets.delete(key);
+    for (const key of keys) {
+      loginAttemptBuckets.delete(key);
+    }
     return;
   }
 
   const now = Date.now();
-  const existing = loginAttemptBuckets.get(key);
-  const bucket =
-    existing && existing.resetAt > now
-      ? existing
-      : {
-          failures: 0,
-          resetAt: now + loginWindowMs,
-          blockedUntil: 0
-        };
+  for (const key of keys) {
+    const existing = loginAttemptBuckets.get(key);
+    const bucket =
+      existing && existing.resetAt > now
+        ? existing
+        : {
+            failures: 0,
+            resetAt: now + loginWindowMs,
+            blockedUntil: 0
+          };
 
-  bucket.failures += 1;
-  if (bucket.failures >= loginMaxFailures) {
-    bucket.blockedUntil = now + loginBlockMs;
+    bucket.failures += 1;
+    if (bucket.failures >= loginMaxFailures) {
+      bucket.blockedUntil = now + loginBlockMs;
+      bucket.resetAt = Math.max(bucket.resetAt, bucket.blockedUntil);
+    }
+
+    loginAttemptBuckets.set(key, bucket);
   }
 
-  loginAttemptBuckets.set(key, bucket);
   pruneLoginAttemptBuckets(now);
 }
 
@@ -287,12 +295,14 @@ function readSettingsSafe() {
   }
 }
 
-function loginRateLimitKey(request: NextRequest, identifier: string) {
+function loginRateLimitKeys(request: NextRequest, identifier: string): string[] {
   const userPart = identifier.trim().toLowerCase().slice(0, 128) || '<empty>';
-  return crypto
-    .createHash('sha256')
-    .update(`${clientAddress(request)}:${userPart}`)
-    .digest('hex');
+  const ip = clientAddress(request);
+  const keys = [crypto.createHash('sha256').update(`user:${userPart}`).digest('hex')];
+  if (ip && ip !== 'unknown') {
+    keys.push(crypto.createHash('sha256').update(`ip:${ip}`).digest('hex'));
+  }
+  return keys;
 }
 
 function clientAddress(request: NextRequest) {
@@ -303,13 +313,13 @@ function clientAddress(request: NextRequest) {
   );
 }
 
-function pruneLoginAttemptBuckets(now: number) {
+export function pruneLoginAttemptBuckets(now: number) {
   if (loginAttemptBuckets.size <= 500) {
     return;
   }
 
   for (const [key, bucket] of loginAttemptBuckets) {
-    if (bucket.resetAt <= now || bucket.blockedUntil <= now) {
+    if (bucket.resetAt <= now && bucket.blockedUntil <= now) {
       loginAttemptBuckets.delete(key);
     }
 
@@ -318,3 +328,6 @@ function pruneLoginAttemptBuckets(now: number) {
     }
   }
 }
+
+export { loginAttemptBuckets };
+

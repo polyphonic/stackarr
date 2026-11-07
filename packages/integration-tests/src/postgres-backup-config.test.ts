@@ -178,6 +178,22 @@ test('local schedule runs a fall-back hour only on its first occurrence', () => 
   assert.equal(nextPostgresBackupRun(configured, new Date('2026-11-01T05:40:00Z')), '2026-11-02T06:30:00.000Z');
 });
 
+test('nextPostgresBackupRun calculates next run within 15ms across DST transitions', () => {
+  const configured = {
+    ...env,
+    STACKARR_PG_BACKUP_ENABLED: 'true',
+    STACKARR_PG_BACKUP_SCHEDULE: 'weekly',
+    STACKARR_PG_BACKUP_WEEKDAY: 'Sun',
+    STACKARR_PG_BACKUP_TIME: '02:30',
+    STACKARR_PG_BACKUP_TIMEZONE: 'America/New_York'
+  };
+  const start = performance.now();
+  const next = nextPostgresBackupRun(configured, new Date('2026-03-08T06:00:00Z'));
+  const duration = performance.now() - start;
+  assert.equal(next, '2026-03-15T06:30:00.000Z');
+  assert.ok(duration < 15, `Expected calculation under 15ms, took ${duration.toFixed(2)}ms`);
+});
+
 test('authoritative merged writes reject invalid backup and RomM settings atomically', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-pg-config-'));
   try {

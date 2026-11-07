@@ -1,1 +1,0 @@
-export { registerStackarrTools } from '../registry';

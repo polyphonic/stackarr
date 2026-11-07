@@ -36,10 +36,13 @@ export async function PUT(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const requestedApiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+  const shouldRotate = Boolean(body.rotateApiKey || body.rotate);
   const nextApiKey =
-    requestedApiKey && requestedApiKey !== redactSecretValue(existingApiKey) && requestedApiKey !== '********'
-      ? requestedApiKey
-      : existingApiKey || crypto.randomBytes(24).toString('hex');
+    shouldRotate
+      ? crypto.randomBytes(24).toString('hex')
+      : requestedApiKey && requestedApiKey !== redactSecretValue(existingApiKey) && requestedApiKey !== '********'
+        ? requestedApiKey
+        : existingApiKey || crypto.randomBytes(24).toString('hex');
   env.STACKARR_API_KEY = nextApiKey;
 
   writeSettings({
@@ -59,6 +62,6 @@ export async function PUT(request: NextRequest) {
 
   return json({
     authenticationMethod: body.authenticationMethod ?? 'forms',
-    apiKey: existingApiKey ? redactSecretValue(existingApiKey) : nextApiKey
+    apiKey: nextApiKey !== existingApiKey ? nextApiKey : redactSecretValue(existingApiKey)
   });
 }
