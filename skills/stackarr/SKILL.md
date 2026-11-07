@@ -38,18 +38,18 @@ I can use Stackarr defaults: app-default databases, native Plex when found, Tran
 
 ## Useful MCP Tools
 
-| Tool | Use |
-| --- | --- |
-| `stackarr_get_setup_profile` | Get supported options, defaults, and required questions. |
-| `stackarr_setup_media_server` | Dry-run or apply onboarding choices. |
-| `stackarr_get_system_status` | Inspect services, paths, health, and storage. |
-| `stackarr_get_recent_activity` | Review recorded agent actions and audit events. |
-| `stackarr_get_tasks` | Inspect queued, running, and recent tasks with progress output. |
-| `stackarr_start_stack` / `stackarr_stop_stack` | Start or stop the stack. Stop actions require explicit user approval. |
-| `stackarr_run_backup` / `stackarr_get_backup_status` | Run and inspect backups. |
-| `stackarr_restore_backup` | Restore a backup with dangerous-action confirmation. |
-| `stackarr_add_cloudflare_access_email` | Add one email without replacing the allowlist, then publish the Access policy. |
-| `stackarr_update_cloudflare_routes` | Map public hostnames to Stackarr-managed services. |
+| Tool                                                 | Use                                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `stackarr_get_setup_profile`                         | Get supported options, defaults, and required questions.                       |
+| `stackarr_setup_media_server`                        | Dry-run or apply onboarding choices.                                           |
+| `stackarr_get_system_status`                         | Inspect services, paths, health, and storage.                                  |
+| `stackarr_get_recent_activity`                       | Review recorded agent actions and audit events.                                |
+| `stackarr_get_tasks`                                 | Inspect queued, running, and recent tasks with progress output.                |
+| `stackarr_start_stack` / `stackarr_stop_stack`       | Start or stop the stack. Stop actions require explicit user approval.          |
+| `stackarr_run_backup` / `stackarr_get_backup_status` | Run and inspect backups.                                                       |
+| `stackarr_restore_backup`                            | Restore a backup with dangerous-action confirmation.                           |
+| `stackarr_add_cloudflare_access_email`               | Add one email without replacing the allowlist, then publish the Access policy. |
+| `stackarr_update_cloudflare_routes`                  | Map public hostnames to Stackarr-managed services.                             |
 
 If a requested adapter is not implemented, return that honestly and fall back to Stackarr CLI commands.
 

@@ -10,14 +10,14 @@ The release workflow uses [Release Please](https://github.com/googleapis/release
 
 Stackarr is in alpha, so every tester-facing build must be a SemVer prerelease such as `0.3.0-alpha.2`. Releasable changes increment the alpha counter for the current milestone; intentionally start a new milestone with a Conventional Commit footer such as `Release-As: 0.4.0-alpha.0`.
 
-| Purpose | Example | Mutability | Use |
-| --- | --- | --- | --- |
-| Exact alpha version | `0.3.0-alpha.2` | Never intentionally overwritten | Support, rollback, reproducibility |
-| Alpha channel | `alpha` | Moves to the newest alpha release | Opt-in feedback and early testing |
-| Commit trace | `sha-<40-character Git commit>` | Immutable in normal release flow | Forensics and exact build identification |
-| Stable version | `1.2.3` | Never intentionally overwritten | Production pin |
-| Rolling release stream | `latest` | Moves on each published release, including alpha/beta prereleases | Explicit opt-in to the newest published build |
-| Stable convenience tags | `1.2`, `1` | Move only on a stable release | Stable version channels |
+| Purpose                 | Example                         | Mutability                                                        | Use                                           |
+| ----------------------- | ------------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
+| Exact alpha version     | `0.3.0-alpha.2`                 | Never intentionally overwritten                                   | Support, rollback, reproducibility            |
+| Alpha channel           | `alpha`                         | Moves to the newest alpha release                                 | Opt-in feedback and early testing             |
+| Commit trace            | `sha-<40-character Git commit>` | Immutable in normal release flow                                  | Forensics and exact build identification      |
+| Stable version          | `1.2.3`                         | Never intentionally overwritten                                   | Production pin                                |
+| Rolling release stream  | `latest`                        | Moves on each published release, including alpha/beta prereleases | Explicit opt-in to the newest published build |
+| Stable convenience tags | `1.2`, `1`                      | Move only on a stable release                                     | Stable version channels                       |
 
 `latest` is **not** a stable channel or an assertion of production readiness. It follows the current published release stream, including prereleases, and is never promoted to a fictitious stable version. Installations default to `polyphonic/stackarr:alpha`; operators who want the full rolling stream can explicitly set `STACKARR_IMAGE=polyphonic/stackarr:latest` (or `ghcr.io/polyphonic/stackarr:latest`) in their managed runtime configuration. Use an exact version or registry-specific `@sha256:<digest>` for reproducible deployments and rollback. The app updater pulls the configured image reference; this policy does not change any installation's image selection by itself. Enable immutable tags in Docker Hub when the plan supports it, protect `v*` tags in GitHub, and never retag a released commit to different content.
 
@@ -36,12 +36,12 @@ The release workflow builds once from the release tag and publishes the same mul
 
 The distributed container targets Linux only, with both `linux/amd64` and `linux/arm64` manifests:
 
-| Host | Container selected | Notes |
-| --- | --- | --- |
-| Linux x64 | `linux/amd64` | Native Docker Engine or compatible runtime |
-| Linux ARM64 / NAS | `linux/arm64` | Includes Apple Silicon-capable images and ARM NAS support |
-| macOS Docker Desktop | Linux image matching Mac CPU | No `darwin/*` container image is required |
-| Windows Docker Desktop / WSL2 | Linux image matching host/VM CPU | No `windows/*` container image is required |
+| Host                          | Container selected               | Notes                                                     |
+| ----------------------------- | -------------------------------- | --------------------------------------------------------- |
+| Linux x64                     | `linux/amd64`                    | Native Docker Engine or compatible runtime                |
+| Linux ARM64 / NAS             | `linux/arm64`                    | Includes Apple Silicon-capable images and ARM NAS support |
+| macOS Docker Desktop          | Linux image matching Mac CPU     | No `darwin/*` container image is required                 |
+| Windows Docker Desktop / WSL2 | Linux image matching host/VM CPU | No `windows/*` container image is required                |
 
 Native macOS and Windows launchers, installers, or CLI binaries are future GitHub Release assets. They share the same Stackarr version and release notes, but are separate artifacts from the OCI image.
 

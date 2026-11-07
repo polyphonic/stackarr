@@ -167,11 +167,7 @@ services:
     ports:
       - "${DATABASE_BIND_IP:-127.0.0.1}:${DATABASE_HOST_PORT:-5433}:5432"
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${DATABASE_SUPERUSER:-postgres} -d ${DATABASE_NAME:-postgres}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_SUPERUSER:-postgres} -d ${DATABASE_NAME:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -536,7 +532,7 @@ services:
     restart: unless-stopped
 
   tdarr:
-    profiles: ['tdarr']
+    profiles: ["tdarr"]
     container_name: tdarr
     image: ${TDARR_IMAGE:-ghcr.io/haveagitgat/tdarr:latest}
     environment:
@@ -581,7 +577,11 @@ services:
       homepage.description: Media transcoding and health checks
       homepage.href: http://127.0.0.1:${TDARR_WEB_PORT:-8265}
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8266/api/v2/status',{headers:{'x-api-key':process.env.apiKey||''}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:8266/api/v2/status'',{headers:{''x-api-key'':process.env.apiKey||''''}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -620,7 +620,7 @@ services:
     restart: unless-stopped
 
   cleanuparr:
-    profiles: ['cleanuparr']
+    profiles: ["cleanuparr"]
     image: ${CLEANUPARR_IMAGE:-ghcr.io/cleanuparr/cleanuparr:latest}
     container_name: cleanuparr
     restart: unless-stopped
@@ -630,7 +630,7 @@ services:
       UMASK: ${UMASK:-002}
       TZ: ${TIMEZONE:-Etc/UTC}
       PORT: 11011
-      BASE_PATH: ''
+      BASE_PATH: ""
       DATABASE_PROVIDER: ${CLEANUPARR_DATABASE_PROVIDER:-sqlite}
       POSTGRES_HOST: ${CLEANUPARR_POSTGRES_HOST:-database}
       POSTGRES_PORT: ${CLEANUPARR_POSTGRES_PORT:-5432}
@@ -638,7 +638,7 @@ services:
       POSTGRES_PASS: ${CLEANUPARR_POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${CLEANUPARR_POSTGRES_DATABASE:-cleanuparr}
     ports:
-      - '${CLEANUPARR_BIND_IP:-127.0.0.1}:${CLEANUPARR_PORT:-11011}:11011'
+      - "${CLEANUPARR_BIND_IP:-127.0.0.1}:${CLEANUPARR_PORT:-11011}:11011"
     volumes:
       - ${APP_ROOT:-./.stackarr}/config/cleanuparr:/config
     depends_on:
@@ -647,7 +647,11 @@ services:
         required: false
     healthcheck:
       # A login challenge proves liveness, not credential correctness.
-      test: ["CMD-SHELL", "code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:11011/api/health); test \"$$code\" = 200 || test \"$$code\" = 401"]
+      test:
+        [
+          "CMD-SHELL",
+          'code=$$(curl -s -o /dev/null -w ''%{http_code}'' --max-time 5 http://127.0.0.1:11011/api/health); test "$$code" = 200 || test "$$code" = 401',
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -656,7 +660,7 @@ services:
       - no-new-privileges:true
 
   mosquitto:
-    profiles: ['mosquitto', 'homeassistant', 'frigate']
+    profiles: ["mosquitto", "homeassistant", "frigate"]
     container_name: mosquitto
     image: ${MOSQUITTO_IMAGE:-eclipse-mosquitto:2}
     mem_limit: 64m
@@ -696,14 +700,18 @@ services:
       - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/data:/mosquitto/data"
       - "${MOSQUITTO_CONFIG_ROOT:-${CONFIG_ROOT:-./.stackarr/config}/mosquitto}/log:/mosquitto/log"
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$$MOSQUITTO_HOMEASSISTANT_USERNAME\" -P \"$$MOSQUITTO_HOMEASSISTANT_PASSWORD\" -t '$$SYS/broker/version' -C 1 -W 5 >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          'mosquitto_sub -h 127.0.0.1 -p 1883 -u "$$MOSQUITTO_HOMEASSISTANT_USERNAME" -P "$$MOSQUITTO_HOMEASSISTANT_PASSWORD" -t ''$$SYS/broker/version'' -C 1 -W 5 >/dev/null',
+        ]
       interval: 15s
       timeout: 8s
       retries: 5
     restart: unless-stopped
 
   homeassistant:
-    profiles: ['homeassistant']
+    profiles: ["homeassistant"]
     container_name: homeassistant
     image: ${HOMEASSISTANT_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}
     mem_limit: 1g
@@ -720,7 +728,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/', timeout=5)\""]
+      test:
+        [
+          "CMD-SHELL",
+          'python3 -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8123/'', timeout=5)"',
+        ]
       interval: 30s
       timeout: 8s
       retries: 10
@@ -728,7 +740,7 @@ services:
     restart: unless-stopped
 
   frigate:
-    profiles: ['frigate']
+    profiles: ["frigate"]
     container_name: frigate
     image: ${FRIGATE_IMAGE:-ghcr.io/blakeblackshear/frigate:0.18.0}
     shm_size: 128mb
@@ -873,7 +885,13 @@ services:
       homepage.description: Media-server monitoring
       homepage.href: http://127.0.0.1:${TRACEARR_PORT:-3000}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(4000)}).then(async r=>{const h=await r.json();process.exit(r.ok&&h.status==='ok'?0:1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(4000)}).then(async r=>{const h=await r.json();process.exit(r.ok&&h.status==='ok'?0:1)}).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       start_period: 120s
@@ -1237,11 +1255,7 @@ services:
     volumes:
       - youtarr-db-data:/var/lib/mysql
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mariadb-admin ping -h 127.0.0.1 --silent",
-        ]
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 --silent"]
       interval: 10s
       timeout: 5s
       retries: 10

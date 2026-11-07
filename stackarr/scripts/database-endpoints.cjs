@@ -2,7 +2,11 @@
 'use strict';
 // Endpoint selection only. No engine installation, migration, or credential discovery.
 const { URL } = require('node:url');
-const engines = { postgres: ['POSTGRES', 'database'], redis: ['REDIS', 'redis'], mariadb: ['YOUTARR_DATABASE', 'youtarr-db'] };
+const engines = {
+  postgres: ['POSTGRES', 'database'],
+  redis: ['REDIS', 'redis'],
+  mariadb: ['YOUTARR_DATABASE', 'youtarr-db']
+};
 function mode(env, engine) {
   const value = env[`${engines[engine][0]}_DEPLOYMENT_MODE`] || 'managed';
   if (value === 'managed') return 'managed';
@@ -10,16 +14,26 @@ function mode(env, engine) {
   throw Error(`Invalid ${engine} deployment mode`);
 }
 function endpoint(env, prefix, hostKey = 'HOST', portKey = 'PORT') {
-  const host = env[`${prefix}_${hostKey}`], port = env[`${prefix}_${portKey}`];
-  if (!host || !/^[a-z0-9.-]+$/i.test(host) || !/^[1-9]\d{0,4}$/.test(port || '') || Number(port) > 65535 ||
-      ['localhost', '127.0.0.1', 'database', 'redis', 'youtarr-db'].includes(host.toLowerCase()))
+  const host = env[`${prefix}_${hostKey}`],
+    port = env[`${prefix}_${portKey}`];
+  if (
+    !host ||
+    !/^[a-z0-9.-]+$/i.test(host) ||
+    !/^[1-9]\d{0,4}$/.test(port || '') ||
+    Number(port) > 65535 ||
+    ['localhost', '127.0.0.1', 'database', 'redis', 'youtarr-db'].includes(host.toLowerCase())
+  )
     throw Error(`Invalid ${prefix} external container endpoint`);
   return { host, port };
 }
 function rewrite(value, oldHost, target, key, protocols) {
   if (!value) return value;
   let url;
-  try { url = new URL(value); } catch { throw Error(`Invalid ${key} URL`); }
+  try {
+    url = new URL(value);
+  } catch {
+    throw Error(`Invalid ${key} URL`);
+  }
   if (!protocols.includes(url.protocol)) throw Error(`Invalid ${key} URL protocol`);
   // An explicit URL is allowed only when it already names the selected endpoint.
   // Never reinterpret an old external URL as an instruction to migrate its data.
@@ -46,7 +60,11 @@ function managed(env, engine, selector, hostKeys, urlKeys) {
   for (const [key, alias, protocols] of urlKeys) {
     if (!env[key]) continue;
     let url;
-    try { url = new URL(env[key]); } catch { throw Error(`Invalid ${key} URL`); }
+    try {
+      url = new URL(env[key]);
+    } catch {
+      throw Error(`Invalid ${key} URL`);
+    }
     if (!protocols.includes(url.protocol) || url.hostname !== alias)
       throw Error(`${key} must target ${alias} in managed mode`);
     if (url.port && url.port !== port) throw Error(`${key} must use port ${port} in managed mode`);
@@ -55,16 +73,40 @@ function managed(env, engine, selector, hostKeys, urlKeys) {
 function project(env) {
   const result = { ...env };
   for (const engine of Object.keys(engines)) mode(env, engine);
-  const pgPrefixes = ['SEERR', 'CLEANUPARR', 'BAZARR', 'PROWLARR', 'RADARR', 'RADARR4K', 'SONARR', 'SONARR4K', 'LIDARR'];
-  const pgHosts = [
-    ...pgPrefixes.map(prefix => [`${prefix}_POSTGRES_HOST`, 'database']),
-    ['PULSARR_DB_HOST', 'database'], ['ROMM_DB_HOST', 'database'], ['IMMICH_DB_HOSTNAME', 'database']
+  const pgPrefixes = [
+    'SEERR',
+    'CLEANUPARR',
+    'BAZARR',
+    'PROWLARR',
+    'RADARR',
+    'RADARR4K',
+    'SONARR',
+    'SONARR4K',
+    'LIDARR'
   ];
-  const pgUrls = ['STACKARR_DATABASE_URL', 'STACKARR_LOG_DATABASE_URL', 'BOOKORBIT_DATABASE_URL', 'TRACEARR_DATABASE_URL']
-    .map(key => [key, 'database', ['postgres:', 'postgresql:']]);
+  const pgHosts = [
+    ...pgPrefixes.map((prefix) => [`${prefix}_POSTGRES_HOST`, 'database']),
+    ['PULSARR_DB_HOST', 'database'],
+    ['ROMM_DB_HOST', 'database'],
+    ['IMMICH_DB_HOSTNAME', 'database']
+  ];
+  const pgUrls = [
+    'STACKARR_DATABASE_URL',
+    'STACKARR_LOG_DATABASE_URL',
+    'BOOKORBIT_DATABASE_URL',
+    'TRACEARR_DATABASE_URL'
+  ].map((key) => [key, 'database', ['postgres:', 'postgresql:']]);
   managed(env, 'postgres', 'POSTGRES_HOST', pgHosts, pgUrls);
-  managed(env, 'redis', 'REDIS_HOST', [['ROMM_REDIS_HOST', 'redis'], ['IMMICH_REDIS_HOST', 'redis']],
-    [['TRACEARR_REDIS_URL', 'redis', ['redis:', 'rediss:']]]);
+  managed(
+    env,
+    'redis',
+    'REDIS_HOST',
+    [
+      ['ROMM_REDIS_HOST', 'redis'],
+      ['IMMICH_REDIS_HOST', 'redis']
+    ],
+    [['TRACEARR_REDIS_URL', 'redis', ['redis:', 'rediss:']]]
+  );
   managed(env, 'mariadb', 'YOUTARR_DATABASE_HOST', [['YOUTARR_DB_HOST', 'youtarr-db']], []);
   if (env.PULSARR_DB_TYPE === 'postgres') {
     result.PULSARR_DB_NAME = env.PULSARR_POSTGRES_DATABASE || env.PULSARR_DB_NAME;
@@ -73,7 +115,17 @@ function project(env) {
   }
   if (mode(env, 'postgres') === 'external') {
     const target = endpoint(env, 'POSTGRES');
-    for (const prefix of ['SEERR', 'CLEANUPARR', 'BAZARR', 'PROWLARR', 'RADARR', 'RADARR4K', 'SONARR', 'SONARR4K', 'LIDARR']) {
+    for (const prefix of [
+      'SEERR',
+      'CLEANUPARR',
+      'BAZARR',
+      'PROWLARR',
+      'RADARR',
+      'RADARR4K',
+      'SONARR',
+      'SONARR4K',
+      'LIDARR'
+    ]) {
       result[`${prefix}_POSTGRES_HOST`] = target.host;
       result[`${prefix}_POSTGRES_PORT`] = target.port;
     }
@@ -83,7 +135,12 @@ function project(env) {
     }
     result.IMMICH_DB_HOSTNAME = target.host;
     result.IMMICH_DB_PORT = target.port;
-    for (const key of ['STACKARR_DATABASE_URL', 'STACKARR_LOG_DATABASE_URL', 'BOOKORBIT_DATABASE_URL', 'TRACEARR_DATABASE_URL'])
+    for (const key of [
+      'STACKARR_DATABASE_URL',
+      'STACKARR_LOG_DATABASE_URL',
+      'BOOKORBIT_DATABASE_URL',
+      'TRACEARR_DATABASE_URL'
+    ])
       result[key] = rewrite(env[key], 'database', target, key, ['postgres:', 'postgresql:']);
     if (env.ENABLE_TRACEARR === 'true') {
       if (!result.TRACEARR_DATABASE_URL) throw Error('Tracearr requires a PostgreSQL URL at the selected endpoint');
@@ -104,7 +161,13 @@ function project(env) {
       result[`${prefix}_REDIS_HOST`] = target.host;
       result[`${prefix}_REDIS_PORT`] = target.port;
     }
-    result.TRACEARR_REDIS_URL = rewrite(env.TRACEARR_REDIS_URL || 'redis://redis:6379', 'redis', target, 'TRACEARR_REDIS_URL', ['redis:']);
+    result.TRACEARR_REDIS_URL = rewrite(
+      env.TRACEARR_REDIS_URL || 'redis://redis:6379',
+      'redis',
+      target,
+      'TRACEARR_REDIS_URL',
+      ['redis:']
+    );
   }
   if (mode(env, 'mariadb') === 'external') {
     const target = endpoint(env, 'YOUTARR_DB');
@@ -115,7 +178,11 @@ function project(env) {
 }
 function override(model, env) {
   project(env);
-  const removed = Object.fromEntries(Object.entries(engines).filter(([engine]) => mode(env, engine) === 'external').map(([engine, [, name]]) => [name, engine]));
+  const removed = Object.fromEntries(
+    Object.entries(engines)
+      .filter(([engine]) => mode(env, engine) === 'external')
+      .map(([engine, [, name]]) => [name, engine])
+  );
   if (!Object.keys(removed).length) return '{}\n';
   const services = {};
   for (const [name, engine] of Object.entries(removed)) {
@@ -125,14 +192,26 @@ function override(model, env) {
   for (const [name, service] of Object.entries(model.services || {})) {
     if (removed[name]) continue;
     const dependencies = service.depends_on || {};
-    if (Object.keys(dependencies).some(key => removed[key]))
-      services[name] = { ...services[name], depends_on: Object.fromEntries(Object.entries(dependencies).filter(([key]) => !removed[key])) };
-    if (Object.values(service.environment || {}).some(value => typeof value === 'string' && value.includes('host.docker.internal')))
-      services[name] = { ...services[name], extra_hosts: [
-        ...(Array.isArray(service.extra_hosts) ? service.extra_hosts : Object.entries(service.extra_hosts || {}).map(([host, address]) => `${host}=${address}`))
-          .filter(value => !String(value).startsWith('host.docker.internal=')),
-        'host.docker.internal=host-gateway'
-      ] };
+    if (Object.keys(dependencies).some((key) => removed[key]))
+      services[name] = {
+        ...services[name],
+        depends_on: Object.fromEntries(Object.entries(dependencies).filter(([key]) => !removed[key]))
+      };
+    if (
+      Object.values(service.environment || {}).some(
+        (value) => typeof value === 'string' && value.includes('host.docker.internal')
+      )
+    )
+      services[name] = {
+        ...services[name],
+        extra_hosts: [
+          ...(Array.isArray(service.extra_hosts)
+            ? service.extra_hosts
+            : Object.entries(service.extra_hosts || {}).map(([host, address]) => `${host}=${address}`)
+          ).filter((value) => !String(value).startsWith('host.docker.internal=')),
+          'host.docker.internal=host-gateway'
+        ]
+      };
   }
   const lines = ['services:'];
   for (const [name, entry] of Object.entries(services)) {
@@ -150,8 +229,8 @@ if (require.main === module) {
     const action = process.argv[2];
     if (action === 'env') {
       const projected = project(process.env);
-      for (const [key, value] of Object.entries(projected)) if (value !== process.env[key])
-        console.log(`export ${key}='${String(value).replaceAll("'", "'\\''")}'`);
+      for (const [key, value] of Object.entries(projected))
+        if (value !== process.env[key]) console.log(`export ${key}='${String(value).replaceAll("'", "'\\''")}'`);
     } else if (action === 'override') {
       const model = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
       process.stdout.write(override(model, process.env));

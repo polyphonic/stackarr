@@ -2,7 +2,7 @@
 
 Stackarr updates favor new features. The update pipeline checks **known** incompatibilities before pulling and then uses its existing per-service pull retry, scoped recreation, and health/readiness checks. An undocumented range is a warning, not a global freeze. Initial installation, same-image recovery, read-only commands, configuration apply, storage migration and ephemeral maintenance do not require release enrollment. This does not change the storage guard or authorize database/cache image upgrades; managed engine version changes remain a separate manual migration.
 
-Optionally set `STACKARR_RELEASE_COMPATIBILITY_FILE` to an absolute regular JSON file on the updater's shared config/state mount (maximum 1 MiB). Keep entries keyed by **service and exact candidate image reference**, with actual release evidence, not guesses based on `latest` tags. Do not create empty fictional records to make a gate pass. Example *schema only*, not a claim about any real product's compatibility:
+Optionally set `STACKARR_RELEASE_COMPATIBILITY_FILE` to an absolute regular JSON file on the updater's shared config/state mount (maximum 1 MiB). Keep entries keyed by **service and exact candidate image reference**, with actual release evidence, not guesses based on `latest` tags. Do not create empty fictional records to make a gate pass. Example _schema only_, not a claim about any real product's compatibility:
 
 ```json
 {
@@ -18,13 +18,23 @@ Optionally set `STACKARR_RELEASE_COMPATIBILITY_FILE` to an absolute regular JSON
           "clientRuntimeConstraints": ["Cited driver/client/runtime requirement or unknown"],
           "evidence": { "citation": "https://vendor.example/release-notes", "confidence": "verified or provisional" },
           "requirements": [
-            { "engine": "postgresql", "version": { "min": "DOCUMENTED_MIN", "max": "DOCUMENTED_MAX" }, "extensions": [
-              { "name": "extension_name", "version": { "min": "DOCUMENTED_MIN", "max": "DOCUMENTED_MAX" } }
-            ] },
+            {
+              "engine": "postgresql",
+              "version": { "min": "DOCUMENTED_MIN", "max": "DOCUMENTED_MAX" },
+              "extensions": [
+                { "name": "extension_name", "version": { "min": "DOCUMENTED_MIN", "max": "DOCUMENTED_MAX" } }
+              ]
+            },
             { "engine": "mariadb", "version": { "min": "DOCUMENTED_MIN", "max": "DOCUMENTED_MAX" } },
             { "engine": "redis", "version": { "min": "DOCUMENTED_MIN", "max": "DOCUMENTED_MAX" } }
           ],
-          "incompatibilities": [ { "engine": "postgresql", "version": { "min": "KNOWN_BAD_MIN", "max": "KNOWN_BAD_MAX" }, "reason": "Cited advisory" } ],
+          "incompatibilities": [
+            {
+              "engine": "postgresql",
+              "version": { "min": "KNOWN_BAD_MIN", "max": "KNOWN_BAD_MAX" },
+              "reason": "Cited advisory"
+            }
+          ],
           "requiresEngineChange": false
         }
       }

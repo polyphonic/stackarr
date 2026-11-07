@@ -14,11 +14,14 @@ for (const key of ['POSTGRES_DEPLOYMENT_MODE', 'REDIS_DEPLOYMENT_MODE', 'YOUTARR
         fs.mkdirSync(path.join(root, 'scripts'));
         fs.mkdirSync(path.join(root, 'lib'));
         fs.copyFileSync(source, path.join(root, 'scripts/backup-run.sh'));
-        fs.writeFileSync(path.join(root, 'lib/common.sh'), `
+        fs.writeFileSync(
+          path.join(root, 'lib/common.sh'),
+          `
 fail() { printf '%s\\n' "$*" >&2; exit 1; }
 load_env() { printf 'load\\n' >> "$EVENTS"; }
 maintenance_lock_enter() { printf 'lock\\n' >> "$EVENTS"; exit 74; }
-`);
+`
+        );
         const events = path.join(root, 'events');
         const result = spawnSync('bash', [path.join(root, 'scripts/backup-run.sh')], {
           encoding: 'utf8',

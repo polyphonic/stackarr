@@ -58,7 +58,7 @@ jobs:
       - name: Build public docs and blog
         run: pnpm --filter @stackarr/docs build
         env:
-          SKIP_ENV_VALIDATION: '1'
+          SKIP_ENV_VALIDATION: "1"
 
   docker-smoke:
     name: Build linux/amd64 image

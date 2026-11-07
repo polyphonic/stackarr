@@ -1,5 +1,5 @@
-import { getDatabaseDiagnostics } from '@stackarr/core/databaseDiagnostics';
 import { readEnv } from '@stackarr/core';
+import { getDatabaseDiagnostics } from '@stackarr/core/databaseDiagnostics';
 import type { NextRequest } from 'next/server';
 import { json, requireApiKey } from '../../../../../lib/api';
 
@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
   try {
     return json(await getDatabaseDiagnostics(readEnv()), { headers: { 'Cache-Control': 'no-store' } });
   } catch {
-    return json({ message: 'Database diagnostics unavailable.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    return json(
+      { message: 'Database diagnostics unavailable.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 }

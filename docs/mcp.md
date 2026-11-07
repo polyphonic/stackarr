@@ -4,12 +4,12 @@ Stackarr exposes a local stdio MCP server from inside its Docker container. The 
 
 ## Authority profiles
 
-| Profile | Use |
-| --- | --- |
-| `observe` | Read-only status and diagnostics |
-| `manage` | Everyday requests, downloads, backups, and safe repairs |
-| `admin` | Setup, configuration, networking, migrations, and restores |
-| `unrestricted` | Complete control without per-action approval prompts |
+| Profile        | Use                                                        |
+| -------------- | ---------------------------------------------------------- |
+| `observe`      | Read-only status and diagnostics                           |
+| `manage`       | Everyday requests, downloads, backups, and safe repairs    |
+| `admin`        | Setup, configuration, networking, migrations, and restores |
+| `unrestricted` | Complete control without per-action approval prompts       |
 
 Agents cannot change their own profile.
 

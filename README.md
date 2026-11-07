@@ -53,14 +53,14 @@ Use `admin` during setup and `manage` for everyday operation. `observe` is read-
 
 ## What Stackarr manages
 
-| Area | Examples |
-| --- | --- |
-| Movies and TV | Radarr, Sonarr, Seerr, Plex, Jellyfin |
-| Downloads and indexers | Transmission, qBittorrent, Prowlarr, Cleanuparr |
-| Music, books, photos, games, and YouTube | Lidarr, BookOrbit, Immich, RomM, Youtarr |
-| Supporting services | Bazarr, Recyclarr, Maintainerr, Tdarr, Tracearr, FlareSolverr |
-| Operations | Setup, health, backups, restores, updates, and migrations |
-| Access | Local-only defaults and optional Cloudflare routes |
+| Area                                     | Examples                                                      |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Movies and TV                            | Radarr, Sonarr, Seerr, Plex, Jellyfin                         |
+| Downloads and indexers                   | Transmission, qBittorrent, Prowlarr, Cleanuparr               |
+| Music, books, photos, games, and YouTube | Lidarr, BookOrbit, Immich, RomM, Youtarr                      |
+| Supporting services                      | Bazarr, Recyclarr, Maintainerr, Tdarr, Tracearr, FlareSolverr |
+| Operations                               | Setup, health, backups, restores, updates, and migrations     |
+| Access                                   | Local-only defaults and optional Cloudflare routes            |
 
 Stackarr advertises only the agent actions relevant to the apps selected during setup.
 

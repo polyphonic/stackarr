@@ -8,16 +8,27 @@ let capacityWorker = null;
 function startCapacityWorker(file, request) {
   if (capacityWorker) return;
   const child = spawn(process.execPath, [path.join(__dirname, 'storage-capacity.cjs'), file, request], {
-    stdio: 'ignore', detached: true
+    stdio: 'ignore',
+    detached: true
   });
   capacityWorker = child;
   const timer = setTimeout(() => {
-    try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Already exited. */ }
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      /* Already exited. */
+    }
   }, 9000);
   const clear = () => {
     // exec timeouts may kill a shell before its descendants. Reap the entire
     // dedicated worker group even on an early exit, never an unrelated process.
-    if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Already exited. */ } }
+    if (child.pid) {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        /* Already exited. */
+      }
+    }
     clearTimeout(timer);
     if (capacityWorker === child) capacityWorker = null;
   };
@@ -153,14 +164,19 @@ function protect(file, root) {
 const within = (child, parent) => child === parent || child.startsWith(`${parent.replace(/\/$/, '')}/`);
 function capacityRoot(current, requested) {
   return [...current.roots, ...(current.observations || [])]
-    .filter(entry => within(requested, entry.path))
+    .filter((entry) => within(requested, entry.path))
     .sort((a, b) => b.path.length - a.path.length)[0];
 }
 // An enrolled ancestor authorizes inspection, but is never proof of a child.
 // A nested mount or escaping symlink needs its own explicit enrollment.
 function usageForRoot(file, requested, run = execFileSync, verify = policy.verifyRoot) {
-  if (typeof requested !== 'string' || !path.isAbsolute(requested) || /[\0\r\n]/.test(requested) ||
-      requested.split('/').some(part => part === '.' || part === '..')) throw new Error('Unenrolled capacity path');
+  if (
+    typeof requested !== 'string' ||
+    !path.isAbsolute(requested) ||
+    /[\0\r\n]/.test(requested) ||
+    requested.split('/').some((part) => part === '.' || part === '..')
+  )
+    throw new Error('Unenrolled capacity path');
   const current = policy.readPolicy(file);
   const state = path.dirname(file);
   const record = capacityRoot(current, requested);
@@ -169,8 +185,12 @@ function usageForRoot(file, requested, run = execFileSync, verify = policy.verif
   if (record) verify(record, { allowReadOnly: (current.observations || []).includes(record) });
   const exactRecord = () => {
     const exact = requested === record.path ? record : policy.captureRoot(requested, { allowReadOnly: true });
-    if (!within(exact.realPath, record.realPath) || exact.mountPoint !== record.mountPoint ||
-        exact.uuid !== record.uuid || exact.filesystem !== record.filesystem)
+    if (
+      !within(exact.realPath, record.realPath) ||
+      exact.mountPoint !== record.mountPoint ||
+      exact.uuid !== record.uuid ||
+      exact.filesystem !== record.filesystem
+    )
       throw new Error('capacity path identity changed or escaped enrollment');
     return exact;
   };
@@ -218,7 +238,7 @@ function observe(file, root) {
   const record = policy.captureRoot(root, { allowReadOnly: true });
   policy.writePolicy(file, {
     ...current,
-    observations: [...(current.observations || []).filter(entry => entry.path !== record.path), record]
+    observations: [...(current.observations || []).filter((entry) => entry.path !== record.path), record]
   });
 }
 function capacityFailure(error, record) {
@@ -236,9 +256,15 @@ function capacityFailure(error, record) {
       // supported filesystem: an unmounted disk may leave its directory on
       // tmpfs or another filesystem that cannot supply a volume identity.
       const output = execFileSync(process.platform === 'darwin' ? '/bin/df' : 'df', ['-kP', record.mountPoint], {
-        encoding: 'utf8', timeout: 2500, stdio: ['ignore', 'pipe', 'ignore']
+        encoding: 'utf8',
+        timeout: 2500,
+        stdio: ['ignore', 'pipe', 'ignore']
       });
-      const mountedAt = output.trim().split(/\r?\n/).at(-1)?.match(/\d+%\s+(.+)$/)?.[1];
+      const mountedAt = output
+        .trim()
+        .split(/\r?\n/)
+        .at(-1)
+        ?.match(/\d+%\s+(.+)$/)?.[1];
       if (!mountedAt || !path.isAbsolute(mountedAt)) return 'probe-unavailable';
       if (mountedAt !== record.mountPoint) return 'unmounted';
       const actual = policy.inspectVolume(record.mountPoint);
@@ -253,7 +279,8 @@ function capacityFailure(error, record) {
   }
   if (error.code === 'ENOENT') return 'missing';
   if (/Unenrolled/.test(error.message)) return 'not-enrolled';
-  if (/symlink retargeted|identity changed|path does not belong to reported mount/.test(error.message)) return 'stale-identity';
+  if (/symlink retargeted|identity changed|path does not belong to reported mount/.test(error.message))
+    return 'stale-identity';
   return 'probe-unavailable';
 }
 function respond(file, check = checkHost, now = Date.now) {
@@ -366,14 +393,18 @@ async function checkGuestAttempt(file, timeout, now) {
 // even when its enrolled media parent is invisible in the updater container.
 async function checkGuestArchive(file, requested, { timeout = 3500, attempts = 2, now = Date.now } = {}) {
   const current = policy.readPolicy(file);
-  const record = current.roots.filter(entry => within(requested, entry.path))
+  const record = current.roots
+    .filter((entry) => within(requested, entry.path))
     .sort((a, b) => b.path.length - a.path.length)[0];
-  if (!record || !path.isAbsolute(requested) || /[\0\r\n]/.test(requested) ||
-      requested.split('/').some(part => part === '.' || part === '..'))
+  if (
+    !record ||
+    !path.isAbsolute(requested) ||
+    /[\0\r\n]/.test(requested) ||
+    requested.split('/').some((part) => part === '.' || part === '..')
+  )
     throw new Error('Archive ancestor is not enrolled');
   const dir = bridgeDir(file);
-  if (!fs.existsSync(dir) || fs.lstatSync(dir).isSymbolicLink())
-    throw new Error('Host storage bridge unavailable');
+  if (!fs.existsSync(dir) || fs.lstatSync(dir).isSymbolicLink()) throw new Error('Host storage bridge unavailable');
   for (let attempt = 0; attempt < attempts; attempt++) {
     const nonce = crypto.randomBytes(16).toString('hex');
     const hash = digest(file);
@@ -385,20 +416,28 @@ async function checkGuestArchive(file, requested, { timeout = 3500, attempts = 2
       while (now() - at < timeout) {
         if (fs.existsSync(response)) {
           const stat = fs.lstatSync(response);
-          if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096)
-            throw new Error('Invalid archive proof');
+          if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw new Error('Invalid archive proof');
           const reply = JSON.parse(fs.readFileSync(response, 'utf8'));
           const usage = reply.usage;
           const expected = path.join(record.realPath, path.relative(record.path, requested));
-          if (reply.nonce !== nonce || reply.digest !== hash || digest(file) !== hash ||
-              reply.ready !== true || !Number.isFinite(reply.at) || reply.at < at ||
-              reply.at > now() || now() - reply.at > 10000 ||
-              usage?.requestedPath !== requested || usage.realPath !== expected ||
-              usage.mountPoint !== record.mountPoint || usage.volumeId !== record.uuid)
+          if (
+            reply.nonce !== nonce ||
+            reply.digest !== hash ||
+            digest(file) !== hash ||
+            reply.ready !== true ||
+            !Number.isFinite(reply.at) ||
+            reply.at < at ||
+            reply.at > now() ||
+            now() - reply.at > 10000 ||
+            usage?.requestedPath !== requested ||
+            usage.realPath !== expected ||
+            usage.mountPoint !== record.mountPoint ||
+            usage.volumeId !== record.uuid
+          )
             throw new Error('Host archive identity denied or invalid');
           return;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     } finally {
       for (const entry of [request, response]) fs.rmSync(entry, { force: true });
@@ -490,8 +529,8 @@ module.exports = {
   respond,
   composeOverride,
   bridgeDir,
-  usageForRoot
-  ,observe,
+  usageForRoot,
+  observe,
   capacityFailure
 };
 if (require.main === module) {
