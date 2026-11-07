@@ -87,29 +87,8 @@ def target_identity(env):
     return hashlib.sha256(json.dumps(scope, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
 
 
-def source_identity(env):
-    """Compact JSON of ordered effective nonsecret capabilities, shared with the API."""
-    mode = env.get('POSTGRES_DEPLOYMENT_MODE') or 'managed'
-    if mode == 'external':
-        fields = [env.get('STACKARR_PG_BACKUP_SOURCE_' + key, '') for key in
-                  ('HOST', 'PORT', 'INSTANCE_ID', 'CLIENT_BIN', 'CLIENT_MAJOR', 'USER',
-                   'TLS_MODE', 'TLS_ROOT_CERT', 'EXCLUSIONS')]
-    elif mode == 'independent':
-        fields = [env.get(key, '') for key in
-                  ('POSTGRES_HOST_ADDRESS', 'POSTGRES_HOST_PORT', 'POSTGRES_INSTANCE_ID', 'POSTGRES_HOST_CLIENT_BIN')]
-        fields += ['', env.get('DATABASE_SUPERUSER', ''), '', '', env.get('STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS', '')]
-    else:
-        fields = [''] * 9
-    scope = [mode, *fields]
-    return hashlib.sha256(json.dumps(scope, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
-
-
 def matching_status(env, status):
-    if status.get('targetIdentity') != target_identity(env):
-        return {}
-    if status.get('sourceIdentity') == source_identity(env):
-        return status
-    return status if 'sourceIdentity' not in status and (env.get('POSTGRES_DEPLOYMENT_MODE') or 'managed') == 'managed' else {}
+    return status if status.get('targetIdentity') == target_identity(env) else {}
 
 
 def utcnow():
@@ -404,7 +383,7 @@ class NativeSource(Source):
             if not path.is_file() or not os.access(path, os.X_OK):
                 raise BackupError('Native PostgreSQL client tools are unavailable.')
             self.tools[name] = str(path)
-        self.user = env.get('STACKARR_PG_BACKUP_SOURCE_USER', '') if external else env.get('DATABASE_SUPERUSER', '')
+        self.user = env.get('STACKARR_PG_BACKUP_SOURCE_USER', '') if external else env.get('DATABASE_SUPERUSER', 'postgres')
         self.maintenance = 'postgres'
         if not re.fullmatch(r'[a-zA-Z_][a-zA-Z0-9_]{0,62}', self.user):
             raise BackupError('Native PostgreSQL backup user is invalid.')
@@ -811,7 +790,6 @@ def main():
         raw = env.get('STACKARR_PG_BACKUP_URL', '')
         target_parameters(raw)
         status['targetIdentity'] = target_identity(env)
-        status['sourceIdentity'] = source_identity(env)
         started = time.monotonic()
         if args.operation in ('run', 'run-due'):
             status.update(state='running', lastAttempt=iso(), lastError=None)

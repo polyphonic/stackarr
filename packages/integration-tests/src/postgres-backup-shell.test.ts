@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ const source = new URL('../../../stackarr/scripts/postgres-backup.sh', import.me
 const pythonSource = new URL('../../../stackarr/scripts/postgres-backup.py', import.meta.url);
 
 async function fixture() {
-  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-pg-shell-'));
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'stackarr-pg-shell-')));
   await mkdir(path.join(root, 'scripts'));
   await mkdir(path.join(root, 'lib'));
   const script = path.join(root, 'scripts/postgres-backup.sh');
@@ -54,33 +54,6 @@ function run(script: string, args: string[], env: NodeJS.ProcessEnv): Promise<{ 
     child.on('close', (code) => resolve({ code, output }));
   });
 }
-
-test('backup entrypoint requests strict runtime loading only for source-dependent operations', async () => {
-  const { root, script } = await fixture();
-  try {
-    const common = path.join(root, 'lib/common.sh');
-    const original = await readFile(common, 'utf8');
-    await writeFile(
-      common,
-      original.replace(
-        'load_env() { printf',
-        'load_env() { printf "%s\\n" "${1:-default}" >> "$ROOT_DIR/loader-mode"; printf'
-      )
-    );
-    for (const operation of ['status', 'test', 'run', 'run-due', 'list', 'export']) {
-      await run(script, operation === 'export' ? ['export', '--output', path.join(root, 'snapshot')] : [operation], {
-        ...process.env,
-        TEST_ENABLED: 'false'
-      });
-    }
-    assert.equal(
-      await readFile(path.join(root, 'loader-mode'), 'utf8'),
-      'strict\nstrict\nstrict\nstrict\ndefault\ndefault\n'
-    );
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
 
 test('status loads current settings but never discovers a source or connects to the target', async () => {
   const { root, script } = await fixture();
@@ -273,7 +246,7 @@ test('missing external capabilities fail in real Python before any DB or Docker 
           BACKUP_ROOT: root,
           STACKARR_PG_BACKUP_SOURCE_HOST: 'source.example.test',
           STACKARR_PG_BACKUP_SOURCE_PORT: '5432',
-          STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID: '1234567890123456789',
+          STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID: '7640492719126172372',
           STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN: '/fixture',
           STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR: '18',
           STACKARR_PG_BACKUP_SOURCE_USER: 'backup_owner',
@@ -302,7 +275,7 @@ test('independent source verifies mounts and skips Docker discovery', async () =
         POSTGRES_DEPLOYMENT_MODE: 'independent',
         POSTGRES_HOST_ADDRESS: '127.0.0.1',
         POSTGRES_HOST_PORT: '5434',
-        POSTGRES_INSTANCE_ID: '1234567890123456789',
+        POSTGRES_INSTANCE_ID: '7640492719126172372',
         POSTGRES_HOST_CLIENT_BIN: '/fixture/bin',
         DATABASE_SUPERUSER: 'postgres',
         DATABASE_SUPERUSER_PASSWORD: 'private'

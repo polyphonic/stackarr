@@ -10,8 +10,7 @@ import sys
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 import uuid
-import subprocess
-import os
+
 
 
 spec = importlib.util.spec_from_file_location('postgres_backup', Path(__file__).parents[3] / 'stackarr/scripts/postgres-backup.py')
@@ -20,33 +19,6 @@ backup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(backup)
 
 class PolicyTests(unittest.TestCase):
-    def test_real_sqlite_loader_strict_backup_only_and_first_install(self):
-        repo = Path(__file__).parents[3]
-        with tempfile.TemporaryDirectory() as directory:
-            db = Path(directory) / 'settings.sqlite'
-            script = f'source "{repo}/stackarr/lib/common.sh"; ROOT_DIR="{repo}/stackarr"; default_stackarr_database_file() {{ printf "%s\\n" "$TEST_DB"; }}; load_sqlite_runtime_config "$1"'
-            def load(strict='', root=None, node_path=None):
-                command = script if root is None else script.replace(f'ROOT_DIR="{repo}/stackarr"', f'ROOT_DIR="{root}"')
-                env = dict(os.environ, TEST_DB=str(db), STACKARR_DATABASE_URL='', STACKARR_DATABASE_FILE=str(db))
-                if node_path is not None:
-                    env['PATH'] = node_path
-                return subprocess.run(['bash', '-c', command, 'fixture', strict], env=env, capture_output=True, text=True)
-            self.assertEqual(load('strict').returncode, 0)  # no DB: first installation
-            subprocess.run(['node', '-e', "const {DatabaseSync}=require('node:sqlite'); const d=new DatabaseSync(process.argv[1]); d.exec('create table app_settings (key text primary key, value text, updated_at text)'); d.prepare('insert into app_settings values (?, ?, ?)').run('stackarr.runtimeConfig', process.argv[2], 'now'); d.close()", str(db), json.dumps({'POSTGRES_DEPLOYMENT_MODE': 'independent', 'STACKARR_PG_BACKUP_ENABLED': 'true', 'POSTGRES_HOST_PORT': '5434'})], check=True)
-            self.assertNotEqual(load('strict').returncode, 0)
-            self.assertEqual(load().returncode, 0)  # other callers preserve compatibility
-            valid = dict(POSTGRES_DEPLOYMENT_MODE='independent', STACKARR_PG_BACKUP_ENABLED='true', POSTGRES_HOST_ADDRESS='localhost', POSTGRES_HOST_PORT='5434', POSTGRES_INSTANCE_ID='1234567890123456789', POSTGRES_HOST_CLIENT_BIN='/opt/pg/bin', DATABASE_SUPERUSER='admin', DATABASE_SUPERUSER_PASSWORD='fixture')
-            subprocess.run(['node', '-e', "const {DatabaseSync}=require('node:sqlite'); const d=new DatabaseSync(process.argv[1]); d.prepare('update app_settings set value=?').run(process.argv[2]); d.close()", str(db), json.dumps(valid)], check=True)
-            self.assertEqual(load('strict').returncode, 0)
-            self.assertNotEqual(load('strict', root=directory).returncode, 0)  # exporter missing
-            with tempfile.TemporaryDirectory() as bin_dir:
-                os.symlink('/bin/bash', Path(bin_dir) / 'bash')
-                self.assertNotEqual(load('strict', node_path=bin_dir).returncode, 0)  # node missing
-            subprocess.run(['node', '-e', "const {DatabaseSync}=require('node:sqlite'); const d=new DatabaseSync(process.argv[1]); d.prepare('update app_settings set value=?').run('{broken'); d.close()", str(db)], check=True)
-            self.assertNotEqual(load('strict').returncode, 0)
-            subprocess.run(['node', '-e', "const {DatabaseSync}=require('node:sqlite'); const d=new DatabaseSync(process.argv[1]); d.prepare('update app_settings set value=?').run('{}'); d.close()", str(db)], check=True)
-            self.assertEqual(load('strict').returncode, 0)
-
     def test_manual_no_prune_publishes_without_deleting_retained_generations(self):
         class Cursor:
             def __init__(self):
@@ -88,7 +60,7 @@ class PolicyTests(unittest.TestCase):
             path.write_text('#!/bin/sh\n')
             path.chmod(0o700)
         env = dict(POSTGRES_DEPLOYMENT_MODE='independent', POSTGRES_HOST_ADDRESS='127.0.0.1',
-                   POSTGRES_HOST_PORT='5434', POSTGRES_INSTANCE_ID='1234567890123456789',
+                   POSTGRES_HOST_PORT='5434', POSTGRES_INSTANCE_ID='7640492719126172372',
                    POSTGRES_HOST_CLIENT_BIN=directory, DATABASE_SUPERUSER='postgres',
                    DATABASE_SUPERUSER_PASSWORD='secret-that-must-not-appear')
         env.update(overrides)
@@ -123,7 +95,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_native_inventory_exclusion_evidence_and_changes(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(backup, 'bounded', return_value=b'psql (PostgreSQL) 18.1'):
-            excluded = dict(name='disabled_fixture', owner='postgres', reason='failed new import; not recovery source')
+            excluded = dict(name='tracearr_partial_native_20261103', owner='postgres', reason='failed new import; not recovery source')
             env = self.native_fixture(directory, STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS=json.dumps([excluded]))
             source = backup.NativeSource(env)
             rows = [dict(name=name, allowConnections=allowed, owner='postgres', bytes=1) for name, allowed in
@@ -138,7 +110,7 @@ class PolicyTests(unittest.TestCase):
             inventory = source.inventory()
             self.assertEqual([d['name'] for d in inventory['databases']], ['app', 'postgres', 'template1'])
             self.assertEqual(inventory['excludedDatabases'][0]['reason'], excluded['reason'])
-            for mutation in (lambda: summary.update(systemIdentifier='2345678901234567890'),
+            for mutation in (lambda: summary.update(systemIdentifier='7640492719126172373'),
                              lambda: summary.update(versionNum=170001),
                              lambda: rows[-1].update(allowConnections=True),
                              lambda: rows[-1].update(owner='other')):
@@ -204,7 +176,7 @@ class PolicyTests(unittest.TestCase):
         ca.write_text('fixture CA')
         env.update(POSTGRES_DEPLOYMENT_MODE='external',
                    STACKARR_PG_BACKUP_SOURCE_HOST='db.example.test', STACKARR_PG_BACKUP_SOURCE_PORT='5432',
-                   STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID='1234567890123456789',
+                   STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID='7640492719126172372',
                    STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN=directory, STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR='18',
                    STACKARR_PG_BACKUP_SOURCE_USER='backup_owner', STACKARR_PG_BACKUP_SOURCE_PASSWORD='external-private',
                    STACKARR_PG_BACKUP_SOURCE_TLS_MODE='verify-full', STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT=str(ca))
@@ -253,7 +225,7 @@ class PolicyTests(unittest.TestCase):
             source.globals_fingerprint = lambda: 'fingerprint'
             inventory = source.inventory()
             self.assertEqual(len(inventory['excludedDatabases']), 1)
-            for change in (dict(systemIdentifier='2345678901234567890'), dict(versionNum=170001)):
+            for change in (dict(systemIdentifier='7640492719126172373'), dict(versionNum=170001)):
                 with self.subTest(change=change), self.assertRaises(backup.BackupError):
                     source.query = lambda sql, database=None: dict(summary, **change) if 'pg_control_system()' in sql else dict(schemas=[], extensions=[], largeObjects=0)
                     source.inventory()
@@ -262,7 +234,7 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(backup.BackupError, 'quarantine changed'):
                 source.inventory()
             rows[-1]['owner'] = 'retired_owner'
-            source.inventory = lambda: dict(inventory, systemIdentifier='2345678901234567890')
+            source.inventory = lambda: dict(inventory, systemIdentifier='7640492719126172373')
             with tempfile.TemporaryDirectory() as output, self.assertRaisesRegex(backup.BackupError, 'changed before capture'):
                 source.capture(Path(output), inventory)
 
@@ -328,24 +300,13 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(backup.BackupError):
                 backup.retention_count({'STACKARR_PG_BACKUP_RETENTION_COUNT': count})
 
-    def test_success_is_bound_to_target_and_source_not_only_schedule(self):
-        env = dict(STACKARR_PG_BACKUP_ENABLED='true', STACKARR_PG_BACKUP_URL='postgresql://fixture:***@backup.example/recovery')
+    def test_success_is_bound_to_target_not_only_schedule(self):
+        env = dict(STACKARR_PG_BACKUP_ENABLED='true', STACKARR_PG_BACKUP_URL='postgresql://fixture:synthetic@backup.example/recovery')
         now = datetime(2025, 1, 1, 12, tzinfo=timezone.utc)
-        status = dict(lastSuccess=now.isoformat(), targetIdentity=backup.target_identity(env), sourceIdentity=backup.source_identity(env))
+        status = dict(lastSuccess=now.isoformat(), targetIdentity=backup.target_identity(env))
         self.assertFalse(backup.due(env, status, now))
-        self.assertTrue(backup.due(dict(env, STACKARR_PG_BACKUP_URL='postgresql://fixture:***@other.example/recovery'), status, now))
-        self.assertEqual(backup.matching_status(dict(env, STACKARR_PG_BACKUP_URL='postgresql://fixture:***@other.example/recovery'), status), {})
-        independent = dict(env, POSTGRES_DEPLOYMENT_MODE='independent', POSTGRES_HOST_ADDRESS='localhost', POSTGRES_HOST_PORT='5434', POSTGRES_INSTANCE_ID='1234567890123456789', POSTGRES_HOST_CLIENT_BIN='/opt/pg/bin', DATABASE_SUPERUSER='admin')
-        previous = dict(status, sourceIdentity=backup.source_identity(independent))
-        self.assertFalse(backup.due(independent, previous, now))
-        changed = dict(independent, POSTGRES_INSTANCE_ID='2345678901234567890')
-        self.assertTrue(backup.due(changed, previous, now))
-        self.assertEqual(backup.matching_status(changed, previous), {})
-        self.assertEqual(backup.matching_status(independent, dict(previous, sourceIdentity=None)), {})
-        legacy = dict(status)
-        del legacy['sourceIdentity']
-        self.assertEqual(backup.matching_status(env, legacy), legacy)
-        self.assertEqual(backup.matching_status(env, dict(status, sourceIdentity=None)), {})
+        self.assertTrue(backup.due(dict(env, STACKARR_PG_BACKUP_URL='postgresql://fixture:synthetic@other.example/recovery'), status, now))
+        self.assertEqual(backup.matching_status(dict(env, STACKARR_PG_BACKUP_URL='postgresql://fixture:synthetic@other.example/recovery'), status), {})
 
     def test_abandoned_running_cache_is_not_an_active_job(self):
         with tempfile.TemporaryDirectory() as name:

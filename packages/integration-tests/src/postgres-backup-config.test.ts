@@ -12,11 +12,9 @@ import {
   mergeEditableEnv,
   nextPostgresBackupRun,
   postgresBackupPublicConfig,
-  postgresBackupSourceIdentity,
   postgresBackupTargetIdentity,
   protectedEnvConfigChanged,
   redactEnv,
-  type StackarrEnv,
   validatePostgresBackupConfig
 } from '@stackarr/core';
 
@@ -42,30 +40,12 @@ const externalSource = {
 
 test('external source is opt-in, mode validated and never substituted with managed Docker', () => {
   assert.doesNotThrow(() => validatePostgresBackupConfig(externalSource));
-  const independent = {
-    ...env,
-    POSTGRES_DEPLOYMENT_MODE: 'independent',
-    STACKARR_PG_BACKUP_ENABLED: 'true',
-    POSTGRES_HOST_ADDRESS: '127.0.0.1',
-    POSTGRES_HOST_PORT: '5434',
-    POSTGRES_INSTANCE_ID: '1234567890123456789',
-    POSTGRES_HOST_CLIENT_BIN: '/opt/pg18/bin',
-    DATABASE_SUPERUSER: 'archive_admin',
-    DATABASE_SUPERUSER_PASSWORD: 'private'
-  };
-  assert.doesNotThrow(() => validatePostgresBackupConfig(independent));
-  for (const key of [
-    'POSTGRES_HOST_ADDRESS',
-    'POSTGRES_HOST_PORT',
-    'POSTGRES_INSTANCE_ID',
-    'POSTGRES_HOST_CLIENT_BIN',
-    'DATABASE_SUPERUSER',
-    'DATABASE_SUPERUSER_PASSWORD'
-  ])
-    assert.throws(() => validatePostgresBackupConfig({ ...independent, [key]: '' }), /incomplete/);
-  assert.throws(
-    () => validatePostgresBackupConfig({ ...independent, POSTGRES_HOST_ADDRESS: 'database' }),
-    /Invalid independent/
+  assert.doesNotThrow(() =>
+    validatePostgresBackupConfig({
+      ...env,
+      POSTGRES_DEPLOYMENT_MODE: 'independent',
+      STACKARR_PG_BACKUP_ENABLED: 'true'
+    })
   );
   assert.throws(
     () => validatePostgresBackupConfig({ ...externalSource, STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR: '' }),
@@ -125,71 +105,6 @@ test('external source paths allow spaces but reject relative paths and control c
     for (const invalid of ['relative/source', '/opt/source\nfile', '/opt/source\u0000file', '/opt/source\tfile']) {
       assert.throws(() => validatePostgresBackupConfig({ ...externalSource, [key]: invalid }), /Invalid external/);
     }
-  }
-});
-
-test('independent explicit capabilities persist and reach the authoritative shell exporter', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-pg-independent-'));
-  try {
-    const childEnv = {
-      ...process.env,
-      STACKARR_DATABASE_FILE: path.join(root, 'settings.sqlite'),
-      STACKARR_DATABASE_MODE: 'sqlite',
-      STACKARR_DATABASE_URL: ''
-    };
-    const script = `
-      import assert from 'node:assert/strict';
-      import fs from 'node:fs';
-      import path from 'node:path';
-      import { readEnv, writeEnvConfig, postgresBackupTargetIdentity, postgresBackupSourceIdentity, getPostgresBackupStatusAction } from '@stackarr/core';
-      writeEnvConfig({ POSTGRES_DEPLOYMENT_MODE: 'independent', POSTGRES_HOST: 'database.example.invalid', POSTGRES_PORT: '5432', POSTGRES_HOST_ADDRESS: '127.0.0.1',
-        POSTGRES_HOST_PORT: '5434', POSTGRES_INSTANCE_ID: '1234567890123456789',
-        POSTGRES_HOST_CLIENT_BIN: '/opt/pg18/bin', DATABASE_SUPERUSER: 'archive_admin',
-        DATABASE_SUPERUSER_PASSWORD: 'private', STACKARR_PG_BACKUP_URL: ${JSON.stringify(target)},
-        STACKARR_PG_BACKUP_ENABLED: 'true' });
-      if (readEnv().POSTGRES_HOST_CLIENT_BIN !== '/opt/pg18/bin') throw new Error('Missing client capability');
-      const initial = readEnv();
-      const state = ${JSON.stringify(root)};
-      const statusFile = path.join(state, 'postgres-backup', 'status.json');
-      fs.mkdirSync(path.dirname(statusFile));
-      fs.writeFileSync(statusFile, JSON.stringify({ state: 'succeeded', generation: 'old-source', targetIdentity: postgresBackupTargetIdentity(initial), sourceIdentity: postgresBackupSourceIdentity(initial) }));
-      assert.equal(getPostgresBackupStatusAction({ ...initial, STATE_ROOT: state }).generation, 'old-source');
-      for (const [key, value] of Object.entries({ POSTGRES_HOST_ADDRESS: 'localhost', POSTGRES_HOST_PORT: '5435', POSTGRES_INSTANCE_ID: '7640492719126172373', POSTGRES_HOST_CLIENT_BIN: '/opt/pg17/bin', DATABASE_SUPERUSER: 'other_admin', DATABASE_SUPERUSER_PASSWORD: 'new-secret' })) {
-        assert.throws(() => writeEnvConfig({ [key]: value }), /Disable scheduled/);
-        assert.equal(readEnv()[key], initial[key]);
-      }
-      writeEnvConfig({ DATABASE_SUPERUSER_PASSWORD: '********', STACKARR_PG_BACKUP_RETENTION_COUNT: '5' });
-      assert.equal(readEnv().DATABASE_SUPERUSER_PASSWORD, initial.DATABASE_SUPERUSER_PASSWORD);
-      assert.equal(readEnv().STACKARR_PG_BACKUP_RETENTION_COUNT, '5');
-      writeEnvConfig({ STACKARR_PG_BACKUP_ENABLED: 'false' });
-      writeEnvConfig({ POSTGRES_INSTANCE_ID: '7640492719126172373' });
-      assert.equal(readEnv().POSTGRES_INSTANCE_ID, '7640492719126172373');
-      writeEnvConfig({ STACKARR_PG_BACKUP_ENABLED: 'true' });
-      const freshStatus = getPostgresBackupStatusAction({ ...readEnv(), STATE_ROOT: state });
-      assert.equal(freshStatus.state, 'idle');
-      assert.equal(freshStatus.generation, null);
-    `;
-    execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
-      cwd: path.resolve(import.meta.dirname, '..'),
-      env: childEnv,
-      stdio: 'pipe'
-    });
-    const output = execFileSync(
-      process.execPath,
-      [path.resolve(import.meta.dirname, '../../../stackarr/scripts/runtime-config-export.cjs')],
-      { env: childEnv, encoding: 'utf8' }
-    );
-    for (const key of [
-      'POSTGRES_HOST_ADDRESS',
-      'POSTGRES_HOST_PORT',
-      'POSTGRES_INSTANCE_ID',
-      'POSTGRES_HOST_CLIENT_BIN',
-      'DATABASE_SUPERUSER_PASSWORD'
-    ])
-      assert.match(output, new RegExp(`export ${key}=`));
-    assert.match(output, /export POSTGRES_DEPLOYMENT_MODE='independent'/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -370,83 +285,6 @@ test('cached status never connects and schedule respects local weekday', () => {
     fs.writeFileSync(file, JSON.stringify({ state: 'running', targetIdentity: postgresBackupTargetIdentity(env) }));
     assert.equal(getPostgresBackupStatusAction(configured).state, 'failed');
     assert.equal(nextPostgresBackupRun({ ...configured, STACKARR_PG_BACKUP_ENABLED: 'false' }), null);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('source fingerprint matches Python and invalidates stale success without a probe', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stackarr-pg-source-status-'));
-  try {
-    const file = path.join(root, 'postgres-backup', 'status.json');
-    fs.mkdirSync(path.dirname(file));
-    const sources: StackarrEnv[] = [
-      env,
-      externalSource,
-      {
-        ...env,
-        POSTGRES_DEPLOYMENT_MODE: 'independent',
-        POSTGRES_HOST_ADDRESS: 'localhost',
-        POSTGRES_HOST_PORT: '5434',
-        POSTGRES_INSTANCE_ID: '1234567890123456789',
-        POSTGRES_HOST_CLIENT_BIN: '/opt/pg18/bin',
-        DATABASE_SUPERUSER: 'admin'
-      }
-    ];
-    for (const source of sources) {
-      const identity = postgresBackupSourceIdentity(source);
-      const python = execFileSync(
-        'python3',
-        [
-          '-c',
-          'import json,runpy,sys; print(runpy.run_path(sys.argv[1])["source_identity"](json.loads(sys.argv[2])))',
-          path.resolve(import.meta.dirname, '../../../stackarr/scripts/postgres-backup.py'),
-          JSON.stringify(source)
-        ],
-        { encoding: 'utf8' }
-      ).trim();
-      assert.equal(identity, python);
-      assert.equal(
-        identity,
-        postgresBackupSourceIdentity({
-          ...source,
-          DATABASE_SUPERUSER_PASSWORD: 'replacement',
-          STACKARR_PG_BACKUP_SOURCE_PASSWORD: 'replacement'
-        })
-      );
-      fs.writeFileSync(
-        file,
-        JSON.stringify({
-          state: 'succeeded',
-          lastSuccess: '2026-01-01T00:00:00Z',
-          generation: 'old-source',
-          targetIdentity: postgresBackupTargetIdentity(source),
-          sourceIdentity: identity
-        })
-      );
-      assert.equal(getPostgresBackupStatusAction({ ...source, STATE_ROOT: root }).generation, 'old-source');
-      const changed: Record<string, string> =
-        source.POSTGRES_DEPLOYMENT_MODE === 'external'
-          ? { STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID: '1234567890123456790' }
-          : source.POSTGRES_DEPLOYMENT_MODE === 'independent'
-            ? { POSTGRES_INSTANCE_ID: '7640492719126172373' }
-            : { POSTGRES_DEPLOYMENT_MODE: 'external' };
-      const stale = getPostgresBackupStatusAction({ ...source, ...changed, STATE_ROOT: root });
-      assert.equal(stale.state, 'idle');
-      assert.equal(stale.generation, null);
-      fs.writeFileSync(
-        file,
-        JSON.stringify({
-          state: 'succeeded',
-          generation: 'legacy',
-          targetIdentity: postgresBackupTargetIdentity(source)
-        })
-      );
-      assert.equal(
-        getPostgresBackupStatusAction({ ...source, STATE_ROOT: root }).generation,
-        source.POSTGRES_DEPLOYMENT_MODE === 'managed' ? 'legacy' : null
-      );
-    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

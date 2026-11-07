@@ -207,7 +207,7 @@ case "$cmd" in
                 exec "$ROOT_DIR/scripts/restore.sh" "$@"
                 ;;
             *)
-                fail "Usage: stackarr backup install|uninstall|permissions|run|postgres status|test|run|run-due|export --output PATH|restore <archive>"
+                fail "Usage: stackarr backup install|uninstall|permissions|run|postgres status|test|run|run-due|list|export --output PATH|restore <archive>"
                 ;;
         esac
         ;;

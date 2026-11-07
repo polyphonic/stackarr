@@ -1,5 +1,5 @@
 {
   "title": "Operate Stackarr",
   "defaultOpen": false,
-  "pages": ["backups", "updates", "troubleshooting", "telemetry", "database", "image-cleanup"]
+  "pages": ["backups", "updates", "troubleshooting", "telemetry", "database", "custom-database", "database-bundles", "image-cleanup"]
 }

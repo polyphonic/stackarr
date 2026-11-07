@@ -257,7 +257,8 @@ def main():
             assert sql(source, "SELECT count(*) FROM pg_namespace WHERE nspname='stackarr_backup_v1'").strip() == b'0'
             report['tests'].append('same-cluster source destination rejected without writes')
             generations = [manifest['generation']]
-            for _ in range(3):
+            # Existing v1 schema upgrades in place: no migration or rewrite.
+            for _ in range(5):
                 updated = dict(manifest, generation=str(uuid.uuid4()))
                 with backup.target(url) as connection:
                     backup.publish(connection, capture, updated)
@@ -267,8 +268,68 @@ def main():
                         cur.execute('SELECT current_generation::text FROM stackarr_backup_v1.identity')
                         assert cur.fetchone()[0] == generations[-1]
                         cur.execute('SELECT id::text FROM stackarr_backup_v1.generations ORDER BY id')
-                        assert sorted(row[0] for row in cur.fetchall()) == sorted(generations[-2:])
-            report['tests'].append('retries rotate current and previous generations only')
+                        assert sorted(row[0] for row in cur.fetchall()) == sorted(generations[-4:])
+                        cur.execute('SELECT format FROM stackarr_backup_v1.identity')
+                        assert cur.fetchone()[0] == 1
+            report['tests'].append('six publications in unchanged v1 schema retain four successful generations')
+            with backup.target(url) as connection:
+                connection.set_session(isolation_level='REPEATABLE READ', readonly=True)
+                listed = backup.list_generations(connection)
+                assert [row['generation'] for row in listed] == list(reversed(generations[-4:]))
+                assert [row['current'] for row in listed] == [True, False, False, False]
+                for generation in generations[-4:]:
+                    recovery = temp/('export-'+generation)
+                    recovery.mkdir()
+                    recovered = backup.export_backup(connection, recovery, generation=generation)
+                    assert recovered['generation'] == generation
+                    for artifact in recovered['artifacts']:
+                        assert hashlib.sha256((recovery/artifact['file']).read_bytes()).hexdigest() == artifact['sha256']
+            report['tests'].append('list and explicit export verify checksums of all four retained generations')
+            cli_env = {**os.environ, 'STACKARR_PG_BACKUP_URL': url,
+                       'STATE_ROOT': str(temp/'state'), 'BACKUP_ROOT': str(temp/'backups')}
+            (temp/'backups').mkdir(exist_ok=True)
+            cli = ROOT/'stackarr/scripts/postgres-backup.py'
+            cli_list = json.loads(run(['python3', str(cli), 'list'], env=cli_env))
+            assert [row['generation'] for row in cli_list] == list(reversed(generations[-4:]))
+            selected = temp/'backups/selected'
+            selected_result = json.loads(run(['python3', str(cli), 'export', '--generation', generations[-3],
+                                              '--output', str(selected)], env=cli_env))
+            assert selected_result['generation'] == generations[-3]
+            assert json.loads((selected/'manifest.json').read_text())['generation'] == generations[-3]
+            rejected = subprocess.run(['python3', str(cli), 'export', '--generation', 'invalid-secret-selector',
+                                       '--output', str(temp/'backups/rejected')], env=cli_env, capture_output=True)
+            assert rejected.returncode != 0 and b'invalid-secret-selector' not in rejected.stderr
+            assert not (temp/'backups/rejected').exists()
+            report['tests'].append('CLI list and generation export; malformed selector rejected without output')
+            broken = json.loads(json.dumps(manifest))
+            broken['generation'] = str(uuid.uuid4())
+            broken['artifacts'][0]['sha256'] = '0'*64
+            try:
+                with backup.target(url) as connection:
+                    backup.publish(connection, capture, broken)
+                raise AssertionError('failed publication removed recovery points')
+            except backup.BackupError:
+                pass
+            with backup.target(url) as connection:
+                connection.set_session(isolation_level='REPEATABLE READ', readonly=True)
+                assert [row['generation'] for row in backup.list_generations(connection)] == list(reversed(generations[-4:]))
+            report['tests'].append('failed seventh publication preserves all four previous recovery points')
+            # A pre-existing v1 row can carry a future clock; new publication
+            # must still become latest and remain protected by retention.
+            with backup.target(url) as connection:
+                with connection.cursor() as cur:
+                    cur.execute("UPDATE stackarr_backup_v1.generations SET created_at='2099-01-01T00:00:00Z' WHERE id=%s",
+                                (generations[-1],))
+                connection.commit()
+            clock_recovery = dict(manifest, generation=str(uuid.uuid4()))
+            with backup.target(url) as connection:
+                backup.publish(connection, capture, clock_recovery)
+            with backup.target(url) as connection:
+                connection.set_session(isolation_level='REPEATABLE READ', readonly=True)
+                assert backup.list_generations(connection)[0]['generation'] == clock_recovery['generation']
+                assert len(backup.list_generations(connection)) == 4
+            generations.append(clock_recovery['generation'])
+            report['tests'].append('clock regression cannot prune or demote the just-published point')
             previous_export = temp/'previous-export'
             previous_export.mkdir()
             with backup.target(url) as connection:
