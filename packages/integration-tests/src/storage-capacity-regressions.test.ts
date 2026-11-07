@@ -262,13 +262,22 @@ for (const mutation of ['nonce', 'digest', 'stale', 'future', 'policy-change', '
       fs.mkdirSync(bridge);
       const result = readHostCapacityReport(file, 1000);
       let names: string[] = [];
+      let request: { nonce: string; digest: string; at: number } | undefined;
       for (let i = 0; i < 30; i++) {
         names = fs.readdirSync(bridge).filter((v) => v.endsWith('.request'));
-        if (names.length) break;
+        if (names.length === 1) {
+          try {
+            request = JSON.parse(fs.readFileSync(path.join(bridge, names[0]), 'utf8'));
+            break;
+          } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+            // The producer creates the request before filling its JSON payload.
+          }
+        }
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       assert.equal(names.length, 1);
-      const request = JSON.parse(fs.readFileSync(path.join(bridge, names[0]), 'utf8'));
+      assert.ok(request, 'request payload must become readable before the deadline');
       const reply: any = {
         nonce: request.nonce,
         digest: request.digest,

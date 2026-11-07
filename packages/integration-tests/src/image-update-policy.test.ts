@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
@@ -71,7 +72,7 @@ test('major and non-semver transitions prompt assessment, not blanket bans', () 
   );
 });
 test('gate reads optional release matrix and holds known incompatible release', async () => {
-  const dir = mkdtempSync(path.join(process.env.TMPDIR!, 'stackarr-release-matrix-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'stackarr-release-matrix-'));
   try {
     const file = path.join(dir, 'matrix.json');
     writeFileSync(

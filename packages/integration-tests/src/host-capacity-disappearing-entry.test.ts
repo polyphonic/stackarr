@@ -55,7 +55,7 @@ for (const phase of ['before-stat', 'before-expired-cleanup']) {
         assert.equal(fs.existsSync(path.join(bridge, nonce + '.request')), false);
       `,
           root,
-          path.resolve('stackarr/scripts/storage-control.cjs'),
+          path.resolve(import.meta.dirname, '../../../stackarr/scripts/storage-control.cjs'),
           phase
         ],
         {

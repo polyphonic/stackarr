@@ -13,7 +13,7 @@ import { discoverServiceStorage } from '../../core/src/serviceStorage';
 
 const require = createRequire(import.meta.url);
 const policy = require('../../../stackarr/scripts/storage-policy.cjs');
-const script = path.resolve('stackarr/scripts/storage-control.cjs');
+const script = path.resolve(import.meta.dirname, '../../../stackarr/scripts/storage-control.cjs');
 
 test('real host bridge proves each enrolled descendant and rejects nested mount or symlink escapes', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'stackarr-capacity-descendant-'));

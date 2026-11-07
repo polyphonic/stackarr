@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { readHostCapacity } from '../../core/src/hostCapacity';
 
-const script = path.resolve('stackarr/scripts/storage-control.cjs');
+const script = path.resolve(import.meta.dirname, '../../../stackarr/scripts/storage-control.cjs');
 
 test('host responder distinguishes absent portable mounts, parent fallback, missing leaves and replaced identities', async () => {
   const state = realpathSync(mkdtempSync(path.join(tmpdir(), 'stackarr-mount-state-')));

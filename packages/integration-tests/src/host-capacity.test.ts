@@ -9,7 +9,7 @@ import { readHostCapacity } from '../../core/src/hostCapacity';
 
 const require = createRequire(import.meta.url);
 const control = require('../../../stackarr/scripts/storage-control.cjs');
-const script = path.resolve('stackarr/scripts/storage-control.cjs');
+const script = path.resolve(import.meta.dirname, '../../../stackarr/scripts/storage-control.cjs');
 
 test('host bridge returns nonce-bound capacity for state and denies unregistered roots', async () => {
   const state = mkdtempSync(path.join(tmpdir(), 'stackarr-capacity-fixture-'));

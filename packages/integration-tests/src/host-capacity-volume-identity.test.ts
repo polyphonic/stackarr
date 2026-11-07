@@ -68,7 +68,7 @@ test('configured report separates cloned UUID devices while deduping same-device
     const c=require(process.argv[1]);
     setInterval(()=>c.respond(process.argv[2]),15);process.stdout.write('ready');
   `,
-      path.resolve('stackarr/scripts/storage-control.cjs'),
+      path.resolve(import.meta.dirname, '../../../stackarr/scripts/storage-control.cjs'),
       file,
       a,
       b,
