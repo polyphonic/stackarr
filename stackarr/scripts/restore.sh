@@ -23,6 +23,7 @@ CONSTRAIN_RUNTIME_ROOTS=false
 RESTORE_APP_ROOT=""
 RESTORE_TORRENT_ARCHIVE_ROOT=""
 RESTORE_ARCHIVE_DESTINATION=""
+RESTORE_STAGING_ROOT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -92,6 +93,11 @@ while [[ $# -gt 0 ]]; do
             [[ $# -gt 0 && -n "$1" ]] || fail "--torrent-archive-root requires an absolute path"
             RESTORE_TORRENT_ARCHIVE_ROOT="$1"
             ;;
+        --staging-root)
+            shift
+            [[ $# -gt 0 && "$1" == /* && -d "$1" ]] || fail "--staging-root requires an existing absolute directory"
+            RESTORE_STAGING_ROOT="$1"
+            ;;
         --help|-h)
             cat <<'EOF'
 Usage: stackarr backup restore <archive.tar.gz|archive.tar.gz.enc|archive.tgz|archive.zip> [options]
@@ -118,6 +124,8 @@ Options:
                               Delete the input archive after the restore attempt.
   --constrain-runtime-roots   Remap restored runtime roots under the current app root.
   --restore-app-root <path>   App root to use with --constrain-runtime-roots.
+  --staging-root <path>       Existing current-host backup filesystem for extraction.
+                              Use for fresh-install recovery; never stage in /tmp.
   --torrent-archive-root <path>
                               Explicit current-host destination for an archived custom tree.
                               Otherwise use the current runtime archive root, not the archived source path.
@@ -144,7 +152,26 @@ fi
 
 [[ -f "$ARCHIVE" ]] || fail "Archive not found: $ARCHIVE"
 
-TMP_DIR="$(mktemp -d)"
+# Resolve placement from the current host, never from archived configuration.
+# A fresh installation can supply an existing destination without a running DB.
+if [[ -n "$RESTORE_STAGING_ROOT" ]]; then
+    load_compose_runtime_env
+    STATE_ROOT="${STATE_ROOT:-$(default_app_root)/state}"
+    BACKUP_ROOT="$RESTORE_STAGING_ROOT"
+    BACKUP_STAGING_ROOT="$RESTORE_STAGING_ROOT/.stackarr-staging"
+else
+    load_env
+    if database_mode_is_postgres; then
+        load_postgres_runtime_config || fail 'Current runtime settings unavailable; use an explicit verified --staging-root'
+    fi
+fi
+case "${POSTGRES_DEPLOYMENT_MODE:-managed}:${REDIS_DEPLOYMENT_MODE:-managed}:${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" in
+    managed:managed:managed) ;;
+    *) fail 'Independent or external database restore requires a reviewed native workflow; retained source containers must not be modified' ;;
+esac
+verify_backup_mounts
+TMP_DIR="$(mktemp -d "$BACKUP_STAGING_ROOT/stackarr-restore.XXXXXX")"
+export TMPDIR="$TMP_DIR" TMP="$TMP_DIR" TEMP="$TMP_DIR"
 cleanup() {
     rm -rf "$TMP_DIR"
     if [[ "$DELETE_ARCHIVE_AFTER_RESTORE" == true ]]; then
@@ -290,6 +317,12 @@ fi
 # Select the destination from this host before an archived runtime database can
 # replace it. The manifest path is provenance, never an instruction to write there.
 load_env
+# Explicit fresh-install staging may bypass the first runtime-settings read.
+# Recheck the authoritative placement after extraction and before any write.
+case "${POSTGRES_DEPLOYMENT_MODE:-managed}:${REDIS_DEPLOYMENT_MODE:-managed}:${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" in
+    managed:managed:managed) ;;
+    *) fail 'Independent or external database restore requires a reviewed native workflow; retained source containers must not be modified' ;;
+esac
 if [[ -d "$RESTORE_ROOT/torrent-archive" ]]; then
     if [[ "$CONSTRAIN_RUNTIME_ROOTS" == true ]]; then
         APP_ROOT="$TRUSTED_RESTORE_APP_ROOT"

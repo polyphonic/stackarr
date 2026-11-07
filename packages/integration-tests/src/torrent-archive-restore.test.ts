@@ -64,6 +64,8 @@ test('custom archive restore uses current destination, retains old state and rej
           'fixture',
           restore,
           archive,
+          '--staging-root',
+          base,
           '--yes',
           '--skip-postgres',
           '--skip-youtarr',

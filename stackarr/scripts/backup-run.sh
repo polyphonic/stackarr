@@ -7,6 +7,12 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 
 load_env
+# The full archive still captures bundled engine stores. A native PostgreSQL
+# capture alone cannot make an independent multi-engine installation restorable.
+case "${POSTGRES_DEPLOYMENT_MODE:-managed}:${REDIS_DEPLOYMENT_MODE:-managed}:${YOUTARR_DATABASE_DEPLOYMENT_MODE:-managed}" in
+    managed:managed:managed) ;;
+    *) fail 'Independent or external database full backup requires complete engine integration; no full-protection archive created' ;;
+esac
 maintenance_lock_enter "$ROOT_DIR/scripts/backup-run.sh" "$@"
 # Fail before task logging, directory creation, or copying state into staging.
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-$BACKUP_ROOT/.stackarr-staging}"
