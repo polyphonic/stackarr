@@ -28,12 +28,9 @@ export async function checkTelemetryRateLimit(
   config: TelemetryRateLimitConfig,
   policy: TelemetryRateLimitPolicy
 ) {
-  const address =
-    (process.env.VERCEL !== '1' &&
-      process.env.DEPLOYMENT_PLATFORM === 'cloudflare' &&
-      request.headers.get('cf-connecting-ip')?.trim()) ||
-    ipAddress(request) ||
-    fallbackAddress(request);
+  // The public collector runs on Vercel. Never trust a client-supplied
+  // cf-connecting-ip header, even when stale deployment variables are set.
+  const address = ipAddress(request) || fallbackAddress(request);
   const identifier = telemetryRateLimitIdentifier(policy, address, config.ingestKey);
   const limiter = telemetryLimiters(config)[policy];
   const result = await limiter.limit(identifier);

@@ -2,7 +2,7 @@
 
 import Script from 'next/script';
 
-// Use the ESM Script import supported by both Next.js and vinext.
+// Use the ESM Script import supported by Next.js.
 export function GoogleTagManager({ gtmId }: { gtmId: string }) {
   return (
     <>

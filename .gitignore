@@ -32,12 +32,8 @@ stackarr/agregarr-placeholder-guard.cjs
 stackarr/scripts/storage-discovery.cjs
 tmp/
 
-# Local deployment credentials and Worker artifacts
+# Historical encrypted environment key custody (not deployed)
 .env.keys
-.dev.vars*
-.wrangler/
-apps/docs/.source-cloudflare/
-.vinext/
 
 # Local Vercel project links and downloaded environment files
 .vercel/

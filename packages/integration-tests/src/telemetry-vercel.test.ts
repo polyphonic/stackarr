@@ -65,7 +65,7 @@ test('Vercel limiter returns without waiting for analytics and retains throttlin
   await Promise.all(background);
 });
 
-test('Cloudflare still uses its connecting IP and waits for pending work', async (t) => {
+test('non-Vercel fallback ignores a spoofed Cloudflare IP and waits for pending work', async (t) => {
   const previousVercel = process.env.VERCEL;
   const previousPlatform = process.env.DEPLOYMENT_PLATFORM;
   delete process.env.VERCEL;
@@ -97,7 +97,7 @@ test('Cloudflare still uses its connecting IP and waits for pending work', async
     request,
     {
       ...config,
-      rateLimit: { ...config.rateLimit, token: 'cloudflare-test-token' }
+      rateLimit: { ...config.rateLimit, token: 'fallback-test-token' }
     },
     'ingest'
   ).then((result) => {
@@ -111,7 +111,7 @@ test('Cloudflare still uses its connecting IP and waits for pending work', async
   assert.equal(result.allowed, true);
   assert.equal(result.headers['RateLimit-Limit'], '60');
   assert.equal(result.headers['Retry-After'], undefined);
-  assert.ok(identifier.endsWith(telemetryRateLimitIdentifier('ingest', '198.51.100.9', config.ingestKey)));
+  assert.ok(identifier.endsWith(telemetryRateLimitIdentifier('ingest', '203.0.113.7', config.ingestKey)));
 });
 
 test('Upstash timeouts fail closed even when analytics has not completed', async (t) => {

@@ -16,23 +16,12 @@ Configure environment variables separately for Production and Preview before dep
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`: the existing Upstash Redis REST credentials.
 - `NEXT_PUBLIC_STACKARR_TELEMETRY_REGISTRATION_ENABLED=true` if the public registration flow should be shown. This does not opt installations into telemetry.
 
-Store credentials as sensitive Vercel environment variables, never as public variables or committed plaintext. The encrypted files under `src/env` are used by the Cloudflare deployment scripts; Next.js does not decrypt them automatically. Migrate their values with the matching dotenvx private key into Vercel's environment settings. Local development credentials point at local services and must not be copied into cloud deployments.
+Store credentials as sensitive Vercel environment variables, never as public variables or committed plaintext. The tracked encrypted files under `src/env` are retained only as historical custody during migration; the Next.js deployment does not decrypt or use them. Transfer production values to Vercel through an approved secret-management process without committing plaintext or copying local-development credentials into cloud deployments. Retire the encrypted snapshots and their keys only after the owner verifies custody and migration separately.
 
 The collector rejects incomplete configuration and unavailable rate limiting. Registration is limited to 10 requests per hour and ingest to 60 per minute, with HMAC-hashed client identifiers. Vercel keeps Upstash analytics alive with `waitUntil` after returning the rate-limit result.
 
-Before moving the custom domain, verify landing and docs navigation, blog articles/categories/feeds, Open Graph images, Markdown rewrites, discovery routes, download redirects, registration, authenticated event ingestion, and HTTP 429 with retry headers. Use a dedicated test identity and keep the Cloudflare deployment available until Vercel passes these checks. DNS should point directly to Vercel so rate limiting receives individual client addresses.
+Before moving the custom domain, verify landing and docs navigation, blog articles/categories/feeds, Open Graph images, Markdown rewrites, discovery routes, download redirects, registration, authenticated event ingestion, and HTTP 429 with retry headers. Use a dedicated test identity. DNS should point directly to Vercel so rate limiting receives individual client addresses. This public site hosting is separate from customers' optional Stackarr-managed Cloudflare tunnel, DNS, and Access routes.
 
-## Local key custody
+## Historical encrypted file custody
 
-Private keys can live in macOS Keychain instead of a plaintext key file. From the repository root, move each key with dotenvx:
-
-```sh
-pnpm --filter @stackarr/docs exec dotenvx native up -f src/env/.env.production -fk ../../.env.keys
-pnpm --filter @stackarr/docs exec dotenvx native up -f src/env/.env.preview -fk ../../.env.keys
-```
-
-The deployment loader supports dotenvx's native secret store, explicit private-key environment variables, and an ignored `.env.keys` file. Run local builds under the same OS user that stored the keys. CI still needs its environment-specific private key in the CI secret store. Storing a private key does not populate empty encrypted application settings; configure the real database and Redis credentials separately.
-
-## Cloudflare fallback
-
-The existing `build:cloudflare`, `deploy:cloudflare`, and preview scripts remain available for rollback. They use encrypted environment files and the matching private key supplied outside Git. Do not enable two production deployment pipelines against the same public domain during cutover.
+The former Cloudflare deployment's encrypted `src/env/.env.production` and `src/env/.env.preview` remain tracked for deliberate owner review. Keep any corresponding private keys in secure storage, never commit `.env.keys`, and do not treat these snapshots as Vercel configuration. The Cloudflare site deployment scripts and fallback pipeline have been removed; customer-managed Cloudflare routing remains supported.
