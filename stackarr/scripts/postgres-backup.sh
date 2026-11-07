@@ -22,7 +22,12 @@ case "$operation" in
     *) fail "Usage: stackarr postgres-backup status|test|run [--no-prune]|run-due|list|export --output PATH [--previous | --generation UUID]" ;;
 esac
 
-load_env
+# List/export retain target-only recovery even without a readable source configuration.
+if [[ "$operation" == list || "$operation" == export ]]; then
+    load_env
+else
+    load_env strict
+fi
 # Only configuration is read from the controller. Status never contacts the target.
 if [[ "$operation" != export && "$operation" != list ]] && { database_mode_is_postgres || [[ -n "${STACKARR_DATABASE_URL:-}" ]]; } && ! load_postgres_runtime_config; then
     fail "Unable to load authoritative PostgreSQL runtime settings; backup cancelled"

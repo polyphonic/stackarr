@@ -91,6 +91,29 @@ export function validatePostgresBackupConfig(env: StackarrEnv): void {
     )
       throw new Error('Invalid external PostgreSQL backup source capabilities.');
   }
+  if (mode === 'independent' && env.STACKARR_PG_BACKUP_ENABLED === 'true') {
+    if (
+      [
+        'POSTGRES_HOST_ADDRESS',
+        'POSTGRES_HOST_PORT',
+        'POSTGRES_INSTANCE_ID',
+        'POSTGRES_HOST_CLIENT_BIN',
+        'DATABASE_SUPERUSER',
+        'DATABASE_SUPERUSER_PASSWORD'
+      ].some((key) => !env[key])
+    )
+      throw new Error('Independent PostgreSQL backup source capabilities are incomplete.');
+    if (
+      !['127.0.0.1', 'localhost', '::1'].includes(env.POSTGRES_HOST_ADDRESS) ||
+      !/^[1-9][0-9]{0,4}$/.test(env.POSTGRES_HOST_PORT) ||
+      Number(env.POSTGRES_HOST_PORT) > 65535 ||
+      !/^[1-9][0-9]{5,19}$/.test(env.POSTGRES_INSTANCE_ID) ||
+      !path.posix.isAbsolute(env.POSTGRES_HOST_CLIENT_BIN) ||
+      /[\u0000-\u001f\u007f]/.test(env.POSTGRES_HOST_CLIENT_BIN) ||
+      !/^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/.test(env.DATABASE_SUPERUSER)
+    )
+      throw new Error('Invalid independent PostgreSQL backup source capabilities.');
+  }
   if (!/^(?:[2-9]|[12][0-9]|30)$/.test(env.STACKARR_PG_BACKUP_RETENTION_COUNT ?? '4'))
     throw new Error('PostgreSQL backup retention must be an integer from 2 to 30.');
   if (!['true', 'false'].includes(env.STACKARR_PG_BACKUP_ENABLED ?? 'false'))
@@ -178,6 +201,33 @@ export function postgresBackupTargetIdentity(env: StackarrEnv): string | null {
   } catch {
     return null;
   }
+}
+
+// Stable cross-language identity: compact UTF-8 JSON array of effective, nonsecret source fields.
+export function postgresBackupSourceIdentity(env: StackarrEnv): string {
+  const mode = env.POSTGRES_DEPLOYMENT_MODE || 'managed';
+  const get = (key: string) => env[key] ?? '';
+  const fields =
+    mode === 'external'
+      ? [
+          'HOST',
+          'PORT',
+          'INSTANCE_ID',
+          'CLIENT_BIN',
+          'CLIENT_MAJOR',
+          'USER',
+          'TLS_MODE',
+          'TLS_ROOT_CERT',
+          'EXCLUSIONS'
+        ].map((field) => get(`STACKARR_PG_BACKUP_SOURCE_${field}`))
+      : mode === 'independent'
+        ? ['POSTGRES_HOST_ADDRESS', 'POSTGRES_HOST_PORT', 'POSTGRES_INSTANCE_ID', 'POSTGRES_HOST_CLIENT_BIN']
+            .map(get)
+            .concat(['', get('DATABASE_SUPERUSER'), '', '', get('STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS')])
+        : Array(9).fill('');
+  return createHash('sha256')
+    .update(JSON.stringify([mode, ...fields]), 'utf8')
+    .digest('hex');
 }
 
 export function postgresBackupPublicConfig(env: StackarrEnv): Record<string, string> {
@@ -271,7 +321,14 @@ export function getPostgresBackupStatusAction(env: StackarrEnv, now = new Date()
   } catch {
     /* Missing or malformed cache is an idle status, never a remote probe. */
   }
-  if (!cached || Array.isArray(cached) || cached.targetIdentity !== postgresBackupTargetIdentity(env)) cached = {};
+  if (
+    !cached ||
+    Array.isArray(cached) ||
+    cached.targetIdentity !== postgresBackupTargetIdentity(env) ||
+    (cached.sourceIdentity !== postgresBackupSourceIdentity(env) &&
+      !(Object.hasOwn(cached, 'sourceIdentity') === false && (env.POSTGRES_DEPLOYMENT_MODE || 'managed') === 'managed'))
+  )
+    cached = {};
   if (cached.state === 'running') {
     // Probe the local kernel lock, not a PID that may have been reused after restart.
     const probe = spawnSync(

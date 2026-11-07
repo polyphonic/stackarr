@@ -267,7 +267,7 @@ export function PostgresBackupSettings() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-        <small>Required when changing the target URL.</small>
+        <small>Required when changing the target URL, source connection or credentials.</small>
       </label>
       <div className={styles.actions}>
         <Button
