@@ -1,6 +1,16 @@
+import { instanceOperations } from '../instanceOperations';
 import type { ToolCatalogEntry } from './types';
 
 export const stackarrToolCatalog: ToolCatalogEntry[] = [
+  ...instanceOperations.map((entry) => ({
+    name: entry.mcp,
+    category: 'services' as const,
+    scopes: entry.scopes,
+    risk: entry.risk,
+    enabledForLocalMcp: true,
+    remoteReadyDefault: true,
+    description: `${entry.operation} draft-only instance metadata.`
+  })),
   {
     name: 'stackarr_get_setup_profile',
     category: 'stack',

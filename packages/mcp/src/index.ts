@@ -2,11 +2,15 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   ensureAgregarrCollectionPresetAction,
+  executeAuditedInstanceMutation,
+  executeInstanceOperation,
   getAgregarrCollectionAction,
   getAgregarrHomeOrderAction,
   getAgregarrOverviewAction,
   getMcpConnectionKit,
   getTelemetryStatusAction,
+  InstanceActionError,
+  instanceOperations,
   isMcpClientId,
   type McpProfile,
   previewTelemetryPayloadAction,
@@ -52,12 +56,76 @@ if (command === 'config') {
   await runTelemetryCli(process.argv.slice(3));
 } else if (command === 'agregarr') {
   await runAgregarrCli(process.argv.slice(3));
+} else if (command === 'instances') {
+  try {
+    await runInstancesCli(process.argv.slice(3));
+  } catch (error) {
+    const safe =
+      error instanceof InstanceActionError
+        ? error
+        : new InstanceActionError('store_unavailable', 'Instance store unavailable.');
+    process.stderr.write(`${JSON.stringify({ error: { code: safe.code, message: safe.message } })}\n`);
+    process.exitCode = 1;
+  }
 } else if (command === 'serve-http') {
   await startStackarrMcpHttpServer();
 } else {
   throw new Error(
     'Usage: stackarr mcp serve | stackarr mcp serve-http | stackarr mcp config <client> [--profile PROFILE] [--groups GROUPS] | stackarr mcp routines run-due | stackarr mcp media-reconcile run | stackarr mcp questarr-romm-import run [--yes] | stackarr mcp romm-owned-sync run [--yes] [--limit 20] | stackarr telemetry status|preview|enable|disable|send | stackarr agregarr overview|collection|home-order|sync|sync-group|ensure-preset|update-group|job'
   );
+}
+
+async function readDraftStdin(): Promise<unknown> {
+  let length = 0;
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    const bytes = Buffer.from(chunk);
+    length += bytes.length;
+    if (length > 16384) throw new InstanceActionError('invalid_input', 'JSON body exceeds 16 KiB.');
+    chunks.push(bytes);
+  }
+  if (!length) throw new InstanceActionError('invalid_input', 'JSON body required on stdin.');
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
+  } catch {
+    throw new InstanceActionError('invalid_input', 'Malformed JSON.');
+  }
+}
+
+async function runInstancesCli(args: string[]) {
+  const [subcommand, ...rest] = args;
+  const operation = instanceOperations.find((item) => item.cli === subcommand);
+  if (!operation)
+    throw new InstanceActionError(
+      'invalid_input',
+      'Usage: stackarr instances catalog|list [--limit N] [--cursor UUID]|create|rename UUID|remove UUID --yes'
+    );
+  let input: Record<string, unknown> = {};
+  if (subcommand === 'catalog' || subcommand === 'create') {
+    if (rest.length) throw new InstanceActionError('invalid_input', 'Unexpected arguments.');
+    if (subcommand === 'create') input = (await readDraftStdin()) as Record<string, unknown>;
+  } else if (subcommand === 'list') {
+    for (let i = 0; i < rest.length; i += 2) {
+      if (rest[i] === '--limit' && /^\d+$/.test(rest[i + 1] ?? '')) input.limit = Number(rest[i + 1]);
+      else if (rest[i] === '--cursor' && rest[i + 1]) input.cursor = rest[i + 1];
+      else throw new InstanceActionError('invalid_input', 'Invalid list arguments.');
+    }
+  } else if (subcommand === 'rename') {
+    if (rest.length !== 1) throw new InstanceActionError('invalid_input', 'rename requires one UUID.');
+    const body = await readDraftStdin();
+    if (!body || typeof body !== 'object' || Array.isArray(body))
+      throw new InstanceActionError('invalid_input', 'JSON object required.');
+    if (Object.keys(body).some((key) => key !== 'displayName') || !Object.hasOwn(body, 'displayName'))
+      throw new InstanceActionError('invalid_input', 'Unexpected or missing fields.');
+    input = { ...body, id: rest[0] };
+  } else if (subcommand === 'remove') {
+    if (rest.length !== 2 || rest[1] !== '--yes')
+      throw new InstanceActionError('invalid_input', 'remove requires UUID --yes.');
+    input.id = rest[0];
+  }
+  if (operation.operation === 'create' || operation.operation === 'rename' || operation.operation === 'remove')
+    printJson(await executeAuditedInstanceMutation(operation.operation, input, 'mcp-local'));
+  else printJson(executeInstanceOperation(operation.operation, input));
 }
 
 async function runTelemetryCli(args: string[]) {

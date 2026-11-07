@@ -22,6 +22,8 @@ import {
   diagnoseServiceAction,
   downloadLidarrAlbumWithStreamripAction,
   ensureAgregarrCollectionPresetAction,
+  executeAuditedInstanceMutation,
+  executeInstanceOperation,
   getAgregarrCollectionAction,
   getAgregarrHomeOrderAction,
   getAgregarrOverviewAction,
@@ -73,6 +75,9 @@ import {
   getWantedMoviesAction,
   getYoutarrHealthAction,
   getYoutarrVideosAction,
+  InstanceActionError,
+  instanceAuditEvidence,
+  instanceOperations,
   listAgentActivityRecords,
   listBackupsAction,
   listLidarrStreamripAlbumsAction,
@@ -169,8 +174,15 @@ import { serializeError } from './errors';
 import { jsonContent } from './format';
 
 type Handler = (input: any) => Promise<unknown> | unknown;
-type ToolDef = { name: string; description: string; shape: z.ZodRawShape; handler: Handler };
+type ToolDef = {
+  name: string;
+  description: string;
+  shape: z.ZodRawShape;
+  strictInput?: z.ZodObject<z.ZodRawShape>;
+  handler: Handler;
+};
 const empty = {};
+const draftId = z.string().uuid();
 const service = { service: z.string() };
 const dangerous = { reason: z.string().optional() };
 const downloader = { downloader: z.enum(['transmission', 'qbittorrent']).optional() };
@@ -225,6 +237,45 @@ const routineStep = z.object({
 });
 
 const tools: ToolDef[] = [
+  {
+    name: 'stackarr_list_app_definitions',
+    description: 'List canonical app definitions; not installed apps.',
+    shape: empty,
+    strictInput: z.strictObject(empty),
+    handler: () => executeInstanceOperation('catalog')
+  },
+  {
+    name: 'stackarr_list_instance_drafts',
+    description: 'List draft instance metadata.',
+    shape: { limit: z.number().int().min(1).max(100).optional(), cursor: draftId.optional() },
+    strictInput: z.strictObject({ limit: z.number().int().min(1).max(100).optional(), cursor: draftId.optional() }),
+    handler: (input) => executeInstanceOperation('list', input)
+  },
+  {
+    name: 'stackarr_create_instance_draft',
+    description: 'Create a draft metadata record, without installing an app.',
+    shape: { definitionId: z.string(), displayName: z.string(), ownership: z.enum(['managed', 'external', 'native']) },
+    strictInput: z.strictObject({
+      definitionId: z.string(),
+      displayName: z.string(),
+      ownership: z.enum(['managed', 'external', 'native'])
+    }),
+    handler: (input) => executeInstanceOperation('create', input)
+  },
+  {
+    name: 'stackarr_rename_instance_draft',
+    description: 'Rename draft metadata only.',
+    shape: { id: draftId, displayName: z.string() },
+    strictInput: z.strictObject({ id: draftId, displayName: z.string() }),
+    handler: (input) => executeInstanceOperation('rename', input)
+  },
+  {
+    name: 'stackarr_remove_instance_draft',
+    description: 'Remove a draft metadata record only; no runtime deletion.',
+    shape: { id: draftId },
+    strictInput: z.strictObject({ id: draftId }),
+    handler: (input) => executeInstanceOperation('remove', input)
+  },
   {
     name: 'stackarr_get_setup_profile',
     description: 'Get opinionated setup questions/defaults and browser port.',
@@ -1537,7 +1588,7 @@ export function registerStackarrTools(
       {
         title: toolTitle(tool.name),
         description: tool.description,
-        inputSchema: tool.shape,
+        inputSchema: tool.strictInput ?? tool.shape,
         annotations: toolAnnotations(meta),
         _meta: {
           'stackarr/category': meta.category,
@@ -1545,41 +1596,125 @@ export function registerStackarrTools(
           'stackarr/profile': profile
         }
       },
-      async (input) => {
+      async (input: Record<string, unknown>) => {
+        const draftOperation = instanceOperations.find((entry) => entry.mcp === tool.name)?.operation;
+        if (draftOperation === 'create' || draftOperation === 'rename' || draftOperation === 'remove') {
+          try {
+            const authorization = await authorizeToolCall(server, profile, meta, input);
+            if (!authorization.approved) {
+              try {
+                const activity = await auditStarted({
+                  caller: options.caller ?? 'mcp-local',
+                  toolName: tool.name,
+                  category: meta.category,
+                  scopes: meta.scopes,
+                  risk: meta.risk,
+                  inputSummary: instanceAuditEvidence(draftOperation, input.id, 'denied')
+                });
+                await auditFinished(activity.id, {
+                  status: 'denied',
+                  resultSummary: instanceAuditEvidence(draftOperation, input.id, 'denied'),
+                  error: 'Approval required.'
+                });
+              } catch {
+                return {
+                  ...jsonContent({ error: { code: 'store_unavailable', message: 'Instance store unavailable.' } }),
+                  isError: true
+                };
+              }
+              return jsonContent(authorization.result);
+            }
+            return jsonContent(
+              await executeAuditedInstanceMutation(draftOperation, input, options.caller ?? 'mcp-local')
+            );
+          } catch (error) {
+            const safe =
+              error instanceof InstanceActionError
+                ? error
+                : new InstanceActionError('store_unavailable', 'Instance store unavailable.');
+            return { ...jsonContent({ error: { code: safe.code, message: safe.message } }), isError: true };
+          }
+        }
         const started = Date.now();
-        const activity = await auditStarted({
-          caller: options.caller ?? 'mcp-local',
-          toolName: tool.name,
-          category: meta.category,
-          scopes: meta.scopes,
-          risk: meta.risk,
-          inputSummary: input
-        });
+        const draftEvidence = (outcome: 'started' | 'success' | 'error' | 'denied', id?: string) =>
+          draftOperation
+            ? instanceAuditEvidence(
+                draftOperation,
+                id ?? (typeof input.id === 'string' ? input.id : undefined),
+                outcome
+              )
+            : undefined;
+        let activity: Awaited<ReturnType<typeof auditStarted>>;
+        try {
+          activity = await auditStarted({
+            caller: options.caller ?? 'mcp-local',
+            toolName: tool.name,
+            category: meta.category,
+            scopes: meta.scopes,
+            risk: meta.risk,
+            inputSummary: draftOperation ? draftEvidence('started') : input
+          });
+        } catch (error) {
+          if (draftOperation)
+            return {
+              ...jsonContent({ error: { code: 'store_unavailable', message: 'Instance store unavailable.' } }),
+              isError: true
+            };
+          throw error;
+        }
         try {
           const authorization = await authorizeToolCall(server, profile, meta, input);
           if (!authorization.approved) {
             await auditFinished(activity.id, {
               status: 'denied',
               durationMs: Date.now() - started,
-              resultSummary: summarize(authorization.result),
+              resultSummary: draftOperation ? draftEvidence('denied') : summarize(authorization.result),
               error: denialReason(authorization.result)
             });
             return jsonContent(authorization.result);
           }
 
-          const result = await tool.handler({
-            ...authorization.input,
-            __stackarrCallerProfile: profile,
-            __stackarrGroups: options.groups
-          });
+          const result = await tool.handler(
+            draftOperation
+              ? input
+              : {
+                  ...authorization.input,
+                  __stackarrCallerProfile: profile,
+                  __stackarrGroups: options.groups
+                }
+          );
           await auditFinished(activity.id, {
             status: 'success',
             durationMs: Date.now() - started,
-            resultSummary: summarize(result)
+            resultSummary: draftOperation
+              ? draftEvidence(
+                  'success',
+                  result && typeof result === 'object' && 'id' in result && typeof result.id === 'string'
+                    ? result.id
+                    : undefined
+                )
+              : summarize(result)
           });
           return jsonContent(result);
         } catch (error) {
           const status = error instanceof DangerousActionError ? 'denied' : 'error';
+          if (draftOperation) {
+            const safe =
+              error instanceof InstanceActionError
+                ? error
+                : new InstanceActionError('store_unavailable', 'Instance store unavailable.');
+            try {
+              await auditFinished(activity.id, {
+                status: 'error',
+                durationMs: Date.now() - started,
+                resultSummary: draftEvidence('error'),
+                error: safe.message
+              });
+            } catch {
+              /* Audit failure must never replace the sanitized action error. */
+            }
+            return { ...jsonContent({ error: { code: safe.code, message: safe.message } }), isError: true };
+          }
           await auditFinished(activity.id, {
             status,
             durationMs: Date.now() - started,

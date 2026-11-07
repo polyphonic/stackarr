@@ -436,9 +436,9 @@ load_postgres_runtime_config() {
 installed_managed_database() {
     [[ "${POSTGRES_DEPLOYMENT_MODE:-managed}" == managed ]] || return 1
     local project source
-    project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' database 2>/dev/null)" || return 1
+    project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' database </dev/null 2>/dev/null)" || return 1
     [[ "$project" == "${STACKARR_COMPOSE_PROJECT_NAME:-stackarr}" ]] || return 1
-    source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Source}}{{end}}{{end}}' database 2>/dev/null)" || return 1
+    source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Source}}{{end}}{{end}}' database </dev/null 2>/dev/null)" || return 1
     [[ "$source" == "${APP_ROOT:-$(default_app_root)}/config/database" ]]
 }
 
@@ -583,9 +583,9 @@ configure_docker_environment() {
     local current_context=""
 
     if [[ -z "$requested_context" && "$(uname -s 2>/dev/null || true)" == "Darwin" && "$(command -v docker || true)" ]]; then
-        current_context="$(docker context show 2>/dev/null || true)"
+        current_context="$(docker context show </dev/null 2>/dev/null || true)"
         if [[ "${DOCKER_HOST:-}" == *arcbox* || "$current_context" == *arcbox* ]]; then
-            if docker context inspect orbstack >/dev/null 2>&1; then
+            if docker context inspect orbstack </dev/null >/dev/null 2>&1; then
                 requested_context="orbstack"
             fi
         fi
@@ -2341,7 +2341,7 @@ ensure_docker_runtime() {
     require_command docker
     configure_docker_environment
 
-    docker info >/dev/null 2>&1 || fail "Docker runtime is not ready. Start a Docker-compatible engine before running Stackarr."
+    docker info </dev/null >/dev/null 2>&1 || fail "Docker runtime is not ready. Start a Docker-compatible engine before running Stackarr."
     ok "Docker runtime is ready"
 }
 
