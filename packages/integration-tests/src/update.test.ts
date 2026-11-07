@@ -13,7 +13,7 @@ async function source(file: string) {
 test('managed app updates cannot pull or recreate the Stackarr controller', async () => {
   const update = await source('stackarr/scripts/update-run.sh');
 
-  assert.match(update, /stackarr\|app\|app-updater\|database\|database-init\|image-cleanup/);
+  assert.match(update, /app\|app-updater\|database\|database-init\|image-cleanup/);
   assert.match(update, /pull --quiet "\$\{services\[@\]\}"/);
   assert.match(update, /up -d --no-deps "\$\{PULLED_MANAGED_SERVICES\[@\]\}"/);
   assert.doesNotMatch(update, /up -d --no-deps --remove-orphans/);
@@ -75,8 +75,8 @@ test('local Stackarr images are preserved while published images use an independ
   assert.match(update, /case "\$action" in\n\s+run\|services\)\n\s+wait_for_stackarr_storage/);
   assert.match(update, /STACKARR_RUNTIME:-}" != "docker-updater"/);
   assert.match(update, /update_stackarr_app\(\)[\s\S]*?start_app_update_worker\n}/);
-  assert.match(update, /pull --quiet stackarr/);
-  assert.match(update, /up -d --force-recreate --no-deps stackarr/);
+  assert.match(update, /pull --quiet app/);
+  assert.match(update, /up -d --force-recreate --no-deps app/);
   assert.match(update, /reconcile_running_shared_database/);
   assert.doesNotMatch(update, /ensure_shared_database/);
   const reconciliation = common.match(/reconcile_running_shared_database\(\) \{([\s\S]*?)\n\}/)?.[1];

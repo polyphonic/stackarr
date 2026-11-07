@@ -15,10 +15,14 @@ maintenance_lock_enter() { :; }
 database_mode_is_postgres() { return 1; }
 write_compose_env_file() { :; }
 ensure_docker_runtime() { :; }
-compose_profile_args() { :; }
+compose_profile_args() { printf '%s\n' '--profile maintenance'; }
 warn() { printf '%s\n' "$*"; }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 stackarr_compose() {
+    case "$*" in
+        *'config --format json') printf '%s\n' '{"services":{"app":{"image":"example/stackarr:stable"}}}'; return 0 ;;
+        *'ps --all -q app') return 0 ;;
+    esac
     printf '%s\n' "$*" >> "$FIXTURE_CALLS"
     case "$*" in
         *'run --pull'*) printf 'unknown flag: --pull\n' >&2; return 16 ;;
@@ -36,6 +40,8 @@ class WorkerLaunch(unittest.TestCase):
             (root/'scripts').mkdir()
             (root/'lib').mkdir()
             shutil.copyfile(REPO/'stackarr/scripts/update-run.sh', root/'scripts/update-run.sh')
+            shutil.copyfile(REPO/'stackarr/scripts/image-update-gate.cjs', root/'scripts/image-update-gate.cjs')
+            shutil.copyfile(REPO/'stackarr/scripts/image-update-policy.cjs', root/'scripts/image-update-policy.cjs')
             (root/'lib/common.sh').write_text(COMMON)
             calls = root/'calls'
             env = {'PATH': os.environ['PATH'], 'HOME': str(root), 'FIXTURE_CALLS': str(calls),
