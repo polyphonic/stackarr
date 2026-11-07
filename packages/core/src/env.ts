@@ -102,6 +102,17 @@ export const managedEnvDefaults: StackarrEnv = {
   ENABLE_BACKUP: 'true',
   STACKARR_PG_BACKUP_ENABLED: 'false',
   STACKARR_PG_BACKUP_URL: '',
+  STACKARR_PG_BACKUP_RETENTION_COUNT: '4',
+  STACKARR_PG_BACKUP_SOURCE_HOST: '',
+  STACKARR_PG_BACKUP_SOURCE_PORT: '',
+  STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID: '',
+  STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN: '',
+  STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR: '',
+  STACKARR_PG_BACKUP_SOURCE_USER: '',
+  STACKARR_PG_BACKUP_SOURCE_PASSWORD: '',
+  STACKARR_PG_BACKUP_SOURCE_TLS_MODE: '',
+  STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT: '',
+  STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS: '',
   STACKARR_PG_BACKUP_SCHEDULE: 'daily',
   STACKARR_PG_BACKUP_TIME: '03:00',
   STACKARR_PG_BACKUP_WEEKDAY: 'Sun',
@@ -420,6 +431,10 @@ export const managedEnvDefaults: StackarrEnv = {
   ROMM_DB_IMAGE: '',
   STACKARR_DATABASE_MODE: 'app-default',
   POSTGRES_DEPLOYMENT_MODE: 'managed',
+  POSTGRES_HOST_ADDRESS: '',
+  POSTGRES_HOST_PORT: '',
+  POSTGRES_INSTANCE_ID: '',
+  POSTGRES_HOST_CLIENT_BIN: '',
   POSTGRES_HOST: '',
   POSTGRES_PORT: '',
   REDIS_DEPLOYMENT_MODE: 'managed',
@@ -574,7 +589,20 @@ export function writeEnvConfig(next: StackarrEnv): StackarrEnv {
     merged.STACKARR_PG_BACKUP_ENABLED === 'true' &&
     current.STACKARR_PG_BACKUP_ENABLED === 'true' &&
     (merged.POSTGRES_DEPLOYMENT_MODE !== current.POSTGRES_DEPLOYMENT_MODE ||
-      Object.keys(merged).some((key) => key.startsWith('STACKARR_PG_BACKUP_SOURCE_') && merged[key] !== current[key]))
+      Object.keys(merged).some(
+        (key) =>
+          (key.startsWith('STACKARR_PG_BACKUP_SOURCE_') ||
+            (merged.POSTGRES_DEPLOYMENT_MODE === 'independent' &&
+              [
+                'POSTGRES_HOST_ADDRESS',
+                'POSTGRES_HOST_PORT',
+                'POSTGRES_INSTANCE_ID',
+                'POSTGRES_HOST_CLIENT_BIN',
+                'DATABASE_SUPERUSER',
+                'DATABASE_SUPERUSER_PASSWORD'
+              ].includes(key))) &&
+          merged[key] !== current[key]
+      ))
   )
     throw new Error('Disable scheduled PostgreSQL backup before changing its source mode or capabilities.');
   validatePostgresBackupConfig(merged);
@@ -595,7 +623,7 @@ export function redactEnv(env: StackarrEnv): StackarrEnv {
   return Object.fromEntries(
     Object.entries(env).map(([key, value]) => [
       key,
-      key === 'STACKARR_PG_BACKUP_URL'
+      key === 'STACKARR_PG_BACKUP_URL' || key === 'STACKARR_PG_BACKUP_SOURCE_PASSWORD'
         ? value
           ? '********'
           : ''
@@ -641,7 +669,12 @@ function envConfigChanged(config: StackarrEnv, current: StackarrEnv, protectedKe
 }
 
 export function isCurrentPasswordProtectedConfigKey(key: string) {
-  return isCredentialConfigKey(key) || isControlPlaneBoundaryConfigKey(key);
+  return (
+    key.startsWith('STACKARR_PG_BACKUP_SOURCE_') ||
+    ['POSTGRES_HOST_ADDRESS', 'POSTGRES_HOST_PORT', 'POSTGRES_INSTANCE_ID', 'POSTGRES_HOST_CLIENT_BIN'].includes(key) ||
+    isCredentialConfigKey(key) ||
+    isControlPlaneBoundaryConfigKey(key)
+  );
 }
 
 export function isCredentialConfigKey(key: string) {

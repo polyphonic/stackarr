@@ -266,16 +266,20 @@ default_stackarr_database_file() {
 }
 
 load_sqlite_runtime_config() {
+    local strict="${1:-}"
     local db_file
     db_file="$(default_stackarr_database_file)"
     local exporter="$ROOT_DIR/scripts/runtime-config-export.cjs"
     [[ -n "${STACKARR_DATABASE_URL:-}" || -f "$db_file" ]] || return 0
-    [[ -f "$exporter" ]] || return 0
-    command -v node >/dev/null 2>&1 || return 0
+    if [[ ! -f "$exporter" ]] || ! command -v node >/dev/null 2>&1; then
+        [[ "$strict" != strict ]]
+        return $?
+    fi
 
     local exports
     if ! exports="$(STACKARR_DATABASE_FILE="$db_file" node "$exporter")"; then
-        return 0
+        [[ "$strict" != strict ]]
+        return $?
     fi
 
     [[ -n "$exports" ]] || return 0
@@ -678,7 +682,9 @@ load_env() {
             # existing startup contract. External stores must already exist.
         fi
     else
-        load_sqlite_runtime_config
+        if ! load_sqlite_runtime_config "${1:-}"; then
+            fail "Unable to load authoritative SQLite runtime settings; backup cancelled"
+        fi
     fi
     load_browser_link_runtime_settings
 

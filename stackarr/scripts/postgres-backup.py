@@ -34,6 +34,13 @@ JOB_SECONDS = 7200
 SCHEMA = 'stackarr_backup_v1'
 
 
+def retention_count(env):
+    value = env.get('STACKARR_PG_BACKUP_RETENTION_COUNT', '4')
+    if not re.fullmatch(r'(?:[2-9]|[12][0-9]|30)', value):
+        raise BackupError('PostgreSQL backup retention must be an integer from 2 to 30.')
+    return int(value)
+
+
 class BackupError(Exception):
     """Only static, secret-free messages cross the CLI/status boundary."""
 
@@ -80,8 +87,29 @@ def target_identity(env):
     return hashlib.sha256(json.dumps(scope, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
 
 
+def source_identity(env):
+    """Compact JSON of ordered effective nonsecret capabilities, shared with the API."""
+    mode = env.get('POSTGRES_DEPLOYMENT_MODE') or 'managed'
+    if mode == 'external':
+        fields = [env.get('STACKARR_PG_BACKUP_SOURCE_' + key, '') for key in
+                  ('HOST', 'PORT', 'INSTANCE_ID', 'CLIENT_BIN', 'CLIENT_MAJOR', 'USER',
+                   'TLS_MODE', 'TLS_ROOT_CERT', 'EXCLUSIONS')]
+    elif mode == 'independent':
+        fields = [env.get(key, '') for key in
+                  ('POSTGRES_HOST_ADDRESS', 'POSTGRES_HOST_PORT', 'POSTGRES_INSTANCE_ID', 'POSTGRES_HOST_CLIENT_BIN')]
+        fields += ['', env.get('DATABASE_SUPERUSER', ''), '', '', env.get('STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS', '')]
+    else:
+        fields = [''] * 9
+    scope = [mode, *fields]
+    return hashlib.sha256(json.dumps(scope, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
+
+
 def matching_status(env, status):
-    return status if status.get('targetIdentity') == target_identity(env) else {}
+    if status.get('targetIdentity') != target_identity(env):
+        return {}
+    if status.get('sourceIdentity') == source_identity(env):
+        return status
+    return status if 'sourceIdentity' not in status and (env.get('POSTGRES_DEPLOYMENT_MODE') or 'managed') == 'managed' else {}
 
 
 def utcnow():
@@ -143,6 +171,50 @@ def private_directory(path):
     return path
 
 
+def backup_root(env):
+    root = Path(env.get('BACKUP_ROOT', ''))
+    if not root.is_absolute() or '..' in root.parts or not root.is_dir():
+        raise BackupError('An existing, verified backup root is required.')
+    for item in [*reversed(root.parents), root]:
+        if item.is_symlink():
+            raise BackupError('Symlinked backup paths are not supported.')
+    return root
+
+
+def checked_backup_path(root, path):
+    if (not path.is_absolute() or '..' in path.parts or
+            not path.is_relative_to(root) or path == root):
+        raise BackupError('PostgreSQL backup path must be beneath the verified backup root.')
+    device = root.stat().st_dev
+    for item in [root, *(root / part for part in reversed(path.relative_to(root).parents) if part != Path('.')), path]:
+        if item.is_symlink():
+            raise BackupError('Symlinked backup paths are not supported.')
+        if item.exists() and item.stat().st_dev != device:
+            raise BackupError('PostgreSQL backup path crosses a filesystem boundary.')
+    return path
+
+
+def staging_directory(env):
+    root = backup_root(env)
+    stage = Path(env.get('BACKUP_STAGING_ROOT') or str(root / '.stackarr-staging'))
+    checked_backup_path(root, stage)
+    private_directory(stage)
+    return checked_backup_path(root, stage)
+
+
+def source_mode(env):
+    mode = env.get('POSTGRES_DEPLOYMENT_MODE', 'managed')
+    if mode == 'external':
+        required = ('HOST', 'PORT', 'INSTANCE_ID', 'CLIENT_BIN', 'CLIENT_MAJOR',
+                    'USER', 'PASSWORD', 'TLS_MODE', 'TLS_ROOT_CERT')
+        if any(not env.get('STACKARR_PG_BACKUP_SOURCE_' + field) for field in required):
+            raise BackupError('External PostgreSQL source capabilities are incomplete; managed Docker backup is forbidden.')
+        return mode
+    if mode not in ('managed', 'independent'):
+        raise BackupError('Unsupported PostgreSQL deployment mode; backup cancelled.')
+    return mode
+
+
 def read_status(root):
     file = root / 'status.json'
     if not file.exists():
@@ -176,10 +248,10 @@ def write_status(root, status):
     os.replace(file.name, root / 'status.json')
 
 
-def bounded(command, input_data=None, output=None, timeout=900, input_file=None):
+def bounded(command, input_data=None, output=None, timeout=900, input_file=None, env=None):
     """Never surface child stderr: SQL/tool failures can contain secrets/data."""
     child = subprocess.Popen(command, stdin=input_file or subprocess.PIPE, stdout=output or subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, start_new_session=True)
+                             stderr=subprocess.DEVNULL, start_new_session=True, env=env)
     try:
         stdout, _ = child.communicate(input=input_data, timeout=timeout)
         if child.returncode:
@@ -289,9 +361,11 @@ class Source:
             size = file.stat().st_size
             if not size:
                 raise BackupError('Native dump is empty; no recovery point was promoted.')
-            if tool == 'pg_dump' and file.open('rb').read(5) != b'PGDMP':
-                raise BackupError('Native dump format is invalid.')
-            digest = hashlib.file_digest(file.open('rb'), 'sha256').hexdigest()
+            with file.open('rb') as captured:
+                if tool == 'pg_dump' and captured.read(5) != b'PGDMP':
+                    raise BackupError('Native dump format is invalid.')
+                captured.seek(0)
+                digest = hashlib.file_digest(captured, 'sha256').hexdigest()
             artifacts.append(dict(file=filename, database=database, bytes=size, sha256=digest,
                                   startedAt=started, finishedAt=iso()))
         dump('globals.sql', 'pg_dumpall', ['-w', '-U', self.user, '--globals-only', '-l', conninfo_db(self.maintenance)])
@@ -300,11 +374,146 @@ class Source:
             dump(f'database-{index:04d}.dump', 'pg_dump',
                  ['-w', '-U', self.user, '-d', conninfo_db(db['name']), '-Fc', '-Z6', '--create'], db['name'])
         after = self.query("SELECT json_agg(datname ORDER BY datname) FROM pg_database WHERE datname <> 'template0';")
-        if after != [d['name'] for d in inventory['databases']]:
+        expected = sorted([d['name'] for d in inventory['databases'] + inventory.get('excludedDatabases', [])])
+        if after != expected:
             raise BackupError('Source database inventory changed during capture; retry required.')
         if self.globals_fingerprint() != inventory['globalsFingerprint']:
             raise BackupError('Source roles or global settings changed during capture; retry required.')
         return artifacts
+
+
+class NativeSource(Source):
+    """Local libpq client of a pinned independent PostgreSQL instance."""
+    def __init__(self, env, external=False):
+        if env.get('POSTGRES_DEPLOYMENT_MODE') != ('external' if external else 'independent'):
+            raise BackupError('Independent PostgreSQL source mode is required.')
+        self.host = env.get('STACKARR_PG_BACKUP_SOURCE_HOST' if external else 'POSTGRES_HOST_ADDRESS', '')
+        port = env.get('STACKARR_PG_BACKUP_SOURCE_PORT' if external else 'POSTGRES_HOST_PORT', '')
+        self.expected_id = env.get('STACKARR_PG_BACKUP_SOURCE_INSTANCE_ID' if external else 'POSTGRES_INSTANCE_ID', '')
+        bin_dir = Path(env.get('STACKARR_PG_BACKUP_SOURCE_CLIENT_BIN' if external else 'POSTGRES_HOST_CLIENT_BIN') or '')
+        if ((not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.:-]{0,252}', self.host) if external
+             else self.host not in ('127.0.0.1', 'localhost', '::1')) or
+                not re.fullmatch(r'[1-9][0-9]{0,4}', port) or int(port) > 65535 or
+                not re.fullmatch(r'[1-9][0-9]{5,19}', self.expected_id) or
+                not bin_dir.is_absolute() or not bin_dir.is_dir()):
+            raise BackupError('Native PostgreSQL host, port, client directory and instance ID must be configured explicitly.')
+        self.port = port
+        self.tools = {}
+        for name in ('psql', 'pg_dump', 'pg_dumpall'):
+            path = bin_dir / name
+            if not path.is_file() or not os.access(path, os.X_OK):
+                raise BackupError('Native PostgreSQL client tools are unavailable.')
+            self.tools[name] = str(path)
+        self.user = env.get('STACKARR_PG_BACKUP_SOURCE_USER', '') if external else env.get('DATABASE_SUPERUSER', '')
+        self.maintenance = 'postgres'
+        if not re.fullmatch(r'[a-zA-Z_][a-zA-Z0-9_]{0,62}', self.user):
+            raise BackupError('Native PostgreSQL backup user is invalid.')
+        self.password = env.get('STACKARR_PG_BACKUP_SOURCE_PASSWORD', '') if external else env.get('DATABASE_SUPERUSER_PASSWORD', '')
+        if not self.password:
+            raise BackupError('Native PostgreSQL backup password must be configured explicitly.')
+        self.client_env = {k: v for k, v in os.environ.items() if not k.startswith('PG')}
+        self.client_env.update(PGHOST=self.host, PGPORT=self.port, PGCONNECT_TIMEOUT='10',
+                               PGOPTIONS='-c statement_timeout=120000 -c lock_timeout=5000 -c search_path=pg_catalog',
+                               PGPASSWORD=self.password, PGPASSFILE=os.devnull)
+        if external:
+            cert = Path(env.get('STACKARR_PG_BACKUP_SOURCE_TLS_ROOT_CERT', ''))
+            if (env.get('STACKARR_PG_BACKUP_SOURCE_TLS_MODE') != 'verify-full' or
+                    not cert.is_absolute() or not cert.is_file() or cert.is_symlink() or
+                    not os.access(cert, os.R_OK)):
+                raise BackupError('External PostgreSQL source requires verify-full TLS and a readable CA certificate.')
+            self.client_env.update(PGSSLMODE='verify-full', PGSSLROOTCERT=str(cert), PGCHANNELBINDING='require')
+        # A libpq service file, inherited socket override, or password file must
+        # not silently redirect the positively identified source.
+        versions = []
+        for name in ('psql', 'pg_dump', 'pg_dumpall'):
+            output = bounded([self.tools[name], '--version'], timeout=10, env=self.client_env)
+            match = re.search(rb'\(PostgreSQL\)\s+([0-9]+)(?:\.[0-9]+)?(?:\s|$)', output.strip())
+            if not match:
+                raise BackupError('Native PostgreSQL client version is unavailable.')
+            versions.append(int(match.group(1)))
+        if len(set(versions)) != 1:
+            raise BackupError('Native PostgreSQL client versions disagree.')
+        self.client_major = versions[0]
+        if external and (not re.fullmatch(r'[1-9][0-9]?', env.get('STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR', '')) or
+                         self.client_major != int(env['STACKARR_PG_BACKUP_SOURCE_CLIENT_MAJOR'])):
+            raise BackupError('External PostgreSQL source client major differs from the pinned version.')
+        raw_exclusions = env.get('STACKARR_PG_BACKUP_SOURCE_EXCLUSIONS', '')
+        try:
+            exclusions = json.loads(raw_exclusions) if raw_exclusions else []
+            if (not isinstance(exclusions, list) or len(exclusions) > 1 or
+                    any(not isinstance(item, dict) or set(item) != {'name', 'owner', 'reason'} or
+                        not all(isinstance(value, str) and value for value in item.values()) or
+                        item['name'] in ('postgres', 'template1', 'template0') for item in exclusions)):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise BackupError('Invalid explicit PostgreSQL source exclusion policy.') from None
+        self.exclusions = exclusions
+
+    def execute(self, tool, args, **kwargs):
+        # No credentials in argv, output, or exception; environment is private to child.
+        return bounded([self.tools[tool], *args], env=self.client_env, **kwargs)
+
+    def inventory(self):
+        summary = self.query("""SELECT json_build_object(
+          'systemIdentifier',(SELECT system_identifier::text FROM pg_control_system()),
+          'version',current_setting('server_version'), 'versionNum',current_setting('server_version_num')::int,
+          'startedAt',pg_postmaster_start_time(),
+          'databases',(SELECT json_agg(json_build_object('name',datname,'allowConnections',datallowconn,
+            'bytes',pg_database_size(oid),'encoding',pg_encoding_to_char(encoding),'collation',datcollate,'ctype',datctype,'isTemplate',datistemplate,
+            'owner',pg_get_userbyid(datdba),'acl',datacl) ORDER BY datname)
+            FROM pg_database WHERE datname <> 'template0'));""")
+        databases = summary.get('databases') or []
+        if (summary.get('systemIdentifier') != self.expected_id or
+                summary.get('versionNum', 0) // 10000 != self.client_major):
+            raise BackupError('Native PostgreSQL source identity or client major version differs from the pinned instance.')
+        if not databases or len(databases) > MAX_DATABASES:
+            raise BackupError('Native PostgreSQL source inventory is incomplete.')
+        excluded = []
+        for policy in self.exclusions:
+            matches = [d for d in databases if d['name'] == policy['name']]
+            if len(matches) != 1 or matches[0]['allowConnections'] or matches[0]['owner'] != policy['owner']:
+                raise BackupError('Configured PostgreSQL quarantine changed; review the source inventory.')
+            excluded.append(dict(matches[0], reason=policy['reason']))
+        included = [d for d in databases if d['name'] not in {e['name'] for e in excluded}]
+        if (any(not d['allowConnections'] for d in included) or
+                not {'postgres', 'template1'}.issubset({d['name'] for d in included})):
+            raise BackupError('Unapproved nonconnectable PostgreSQL database or missing bootstrap database.')
+        for db in included:
+            db.update(self.query("""SELECT json_build_object(
+              'schemas',ARRAY(SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema' ORDER BY 1),
+              'extensions',(SELECT json_agg(json_build_object('name',extname,'version',extversion,'schema',nspname))
+                  FROM pg_extension JOIN pg_namespace ON extnamespace=pg_namespace.oid),
+              'largeObjects',(SELECT count(*) FROM pg_largeobject_metadata));""", db['name']))
+        summary = dict(summary)
+        summary['databases'] = included
+        summary['excludedDatabases'] = excluded
+        summary['globalsFingerprint'] = self.globals_fingerprint()
+        return summary
+
+    def capture(self, directory, inventory):
+        # Compare the whole inventory, including quarantined names and attributes,
+        # before publishing. Recheck identity immediately before and after capture.
+        before = self.inventory()
+        if self._signature(before) != self._signature(inventory):
+            raise BackupError('Native PostgreSQL source inventory changed before capture.')
+        artifacts = super().capture(directory, inventory)
+        after = self.inventory()
+        if self._signature(after) != self._signature(inventory):
+            raise BackupError('Native PostgreSQL source inventory changed during capture.')
+        return artifacts
+
+    @staticmethod
+    def _signature(summary):
+        return (summary['systemIdentifier'], summary['versionNum'], summary['globalsFingerprint'],
+                json.dumps([{k: v for k, v in db.items() if k != 'bytes'}
+                            for db in summary['databases'] + summary['excludedDatabases']], sort_keys=True))
+
+
+class ExternalSource(NativeSource):
+    """Opt-in remote source; never consult managed container or global role defaults."""
+    def __init__(self, env):
+        source_mode(env)
+        super().__init__(env, external=True)
 
 
 @contextmanager
@@ -457,19 +666,28 @@ def verify_remote(cur, manifest, output=None):
                 file.close()
 
 
-def publish(connection, directory, manifest):
+def publish(connection, directory, manifest, retention=4, prune=True):
     validate_manifest(manifest)
+    if type(retention) is not int or not 2 <= retention <= 30:
+        raise BackupError('PostgreSQL backup retention must be an integer from 2 to 30.')
     preflight(connection, manifest['source'], claim=True)
     with connection.cursor() as cur:
         cur.execute('SELECT current_generation FROM stackarr_backup_v1.identity WHERE singleton=true FOR UPDATE')
-        previous = cur.fetchone()[0]
-        cur.execute('INSERT INTO stackarr_backup_v1.generations(id,manifest) VALUES(%s,%s::jsonb)',
+        if not cur.fetchone():
+            raise BackupError('Backup repository identity is missing.')
+        cur.execute('''INSERT INTO stackarr_backup_v1.generations(id,created_at,manifest)
+          VALUES(%s, (SELECT GREATEST(clock_timestamp(), coalesce(max(created_at) + interval '1 microsecond', clock_timestamp()))
+            FROM stackarr_backup_v1.generations), %s::jsonb)''',
                     (manifest['generation'], json.dumps(manifest)))
         cur.copy_expert('COPY stackarr_backup_v1.chunks(generation,artifact,ordinal,data) FROM STDIN WITH (FORMAT binary)', ChunkCopy(directory, manifest))
         verify_remote(cur, manifest)
         cur.execute('UPDATE stackarr_backup_v1.identity SET current_generation=%s WHERE singleton=true', (manifest['generation'],))
-        cur.execute('DELETE FROM stackarr_backup_v1.generations WHERE id <> %s AND (%s::uuid IS NULL OR id <> %s::uuid)',
-                    (manifest['generation'], previous, previous))
+        # Current is pinned even if the target clock moves backward. Ties use
+        # UUID solely as a deterministic tiebreaker, never as temporal order.
+        if prune:
+            cur.execute('''DELETE FROM stackarr_backup_v1.generations WHERE id IN (
+              SELECT id FROM stackarr_backup_v1.generations WHERE id <> %s
+              ORDER BY created_at DESC, id DESC OFFSET %s)''', (manifest['generation'], retention - 1))
     connection.commit()
 
 
@@ -496,20 +714,42 @@ def validate_manifest(manifest):
         raise BackupError('Remote recovery manifest is invalid.') from None
 
 
-def export_backup(connection, directory, previous=False):
+def list_generations(connection):
+    with connection.cursor() as cur:
+        cur.execute('SELECT format,current_generation FROM stackarr_backup_v1.identity WHERE singleton=true')
+        rows = cur.fetchall()
+        if len(rows) != 1 or rows[0][0] != FORMAT or not rows[0][1]:
+            raise BackupError('No published recovery point is available.')
+        current = rows[0][1]
+        cur.execute('''SELECT id, created_at FROM stackarr_backup_v1.generations
+          ORDER BY (id = %s) DESC, created_at DESC, id DESC''', (current,))
+        return [dict(generation=str(generation), createdAt=created.isoformat(), current=(generation == current))
+                for generation, created in cur.fetchall()]
+
+
+def export_backup(connection, directory, previous=False, generation=None):
     # Export deliberately does not require a working source server or matching installation UUID.
     with connection.cursor() as cur:
         cur.execute('SELECT format,current_generation FROM stackarr_backup_v1.identity WHERE singleton=true')
         rows = cur.fetchall()
         if len(rows) != 1 or rows[0][0] != FORMAT or not rows[0][1]:
             raise BackupError('No published recovery point is available.')
-        generation = rows[0][1]
+        current = rows[0][1]
+        if previous and generation is not None:
+            raise BackupError('Select either previous or a generation, not both.')
         if previous:
-            cur.execute('SELECT id FROM stackarr_backup_v1.generations WHERE id <> %s ORDER BY created_at DESC LIMIT 1', (generation,))
+            cur.execute('SELECT id FROM stackarr_backup_v1.generations WHERE id <> %s ORDER BY created_at DESC, id DESC LIMIT 1', (current,))
             row = cur.fetchone()
             if not row:
                 raise BackupError('No previous recovery point is available.')
             generation = row[0]
+        elif generation is not None:
+            try:
+                generation = str(uuid.UUID(generation))
+            except (ValueError, TypeError, AttributeError):
+                raise BackupError('Invalid recovery generation selector.') from None
+        else:
+            generation = current
         cur.execute('SELECT manifest FROM stackarr_backup_v1.generations WHERE id=%s', (generation,))
         row = cur.fetchone()
         if not row:
@@ -525,12 +765,24 @@ def export_backup(connection, directory, previous=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['status', 'test', 'run', 'run-due', 'export', 'due'])
+    parser.add_argument('operation', choices=['status', 'test', 'run', 'run-due', 'export', 'list', 'due', 'guard-staging'])
     parser.add_argument('--output')
     parser.add_argument('--previous', action='store_true')
+    parser.add_argument('--generation')
+    parser.add_argument('--no-prune', action='store_true', help='Preserve every retained remote generation during this capture')
     args = parser.parse_args()
+    if (args.previous or args.generation is not None) and args.operation != 'export':
+        parser.error('--previous and --generation are export options only')
+    if args.previous and args.generation is not None:
+        parser.error('select either --previous or --generation')
+    if args.no_prune and args.operation != 'run':
+        parser.error('--no-prune is supported only for a manual run')
     os.umask(0o077)
     env = os.environ
+    if args.operation == 'guard-staging':
+        root_backup = backup_root(env)
+        checked_backup_path(root_backup, Path(env.get('BACKUP_STAGING_ROOT') or str(root_backup / '.stackarr-staging')))
+        return
     root = Path(env.get('STATE_ROOT', '')) / 'postgres-backup'
     if not root.is_absolute():
         raise BackupError('STATE_ROOT is required.')
@@ -542,6 +794,8 @@ def main():
         sys.exit(0 if due(env, status) else 3)
     if args.operation == 'run-due' and not due(env, status):
         return
+    if args.operation in ('test', 'run', 'run-due'):
+        source_mode(env)
     private_directory(root)
     with (root / 'active.lock').open('a+') as lock:
         try:
@@ -557,31 +811,44 @@ def main():
         raw = env.get('STACKARR_PG_BACKUP_URL', '')
         target_parameters(raw)
         status['targetIdentity'] = target_identity(env)
+        status['sourceIdentity'] = source_identity(env)
         started = time.monotonic()
         if args.operation in ('run', 'run-due'):
             status.update(state='running', lastAttempt=iso(), lastError=None)
             write_status(root, status)
         try:
+            if args.operation == 'list':
+                with target(raw) as connection:
+                    connection.set_session(isolation_level='REPEATABLE READ', readonly=True)
+                    print(json.dumps(list_generations(connection)))
+                return
             if args.operation == 'export':
                 if not args.output or not Path(args.output).is_absolute() or Path(args.output).exists():
                     raise BackupError('Export requires a new absolute output directory.')
                 output = Path(args.output)
-                backup_root = Path(env.get('BACKUP_ROOT', ''))
-                if not backup_root.is_absolute() or not output.is_relative_to(backup_root) or output == backup_root:
-                    raise BackupError('Export output must be beneath the verified backup root.')
+                root_backup = backup_root(env)
+                checked_backup_path(root_backup, output)
                 private_directory(output.parent)
+                checked_backup_path(root_backup, output)
                 stage = Path(tempfile.mkdtemp(prefix='.postgres-export-', dir=output.parent))
                 try:
                     with target(raw) as connection:
                         connection.set_session(isolation_level='REPEATABLE READ', readonly=True)
-                        manifest = export_backup(connection, stage, args.previous)
+                        manifest = export_backup(connection, stage, args.previous, args.generation)
                     os.rename(stage, output)
                     print(json.dumps(dict(exported=True, generation=manifest['generation'], databases=len(manifest['source']['databases']))))
                 finally:
                     if stage.exists():
                         shutil.rmtree(stage)
                 return
-            source = Source(env)
+            mode = source_mode(env)
+            native = mode in ('independent', 'external')
+            staging = staging_directory(env) if native else None
+            if native:
+                source = ExternalSource(env) if mode == 'external' else NativeSource(env)
+                source.client_env.update(TMPDIR=str(staging), TMP=str(staging), TEMP=str(staging))
+            else:
+                source = Source(env)
             inventory = source.inventory()
             with target(raw) as connection:
                 capabilities = preflight(connection, inventory)
@@ -591,8 +858,7 @@ def main():
                 write_status(root, status)
                 print(json.dumps(dict(tested=True, coverage=coverage, target=capabilities)))
                 return
-            staging = Path(env.get('BACKUP_STAGING_ROOT') or str(Path(env['BACKUP_ROOT']) / '.stackarr-staging'))
-            private_directory(staging)
+            staging = staging or staging_directory(env)
             with tempfile.TemporaryDirectory(prefix='postgres-backup-', dir=staging) as name:
                 directory = Path(name)
                 artifacts = source.capture(directory, inventory)
@@ -600,7 +866,7 @@ def main():
                                 stackarrVersion=env.get('STACKARR_VERSION', 'unknown'), source=inventory, artifacts=artifacts,
                                 mode='native-archive', consistency='per-database snapshot; not a cross-database transaction')
                 with target(raw) as connection:
-                    publish(connection, directory, manifest)
+                    publish(connection, directory, manifest, retention_count(env), prune=not args.no_prune)
                 status.update(state='succeeded', lastSuccess=iso(), lastError=None, generation=manifest['generation'],
                               coverage=coverage, bytes=sum(a['bytes'] for a in artifacts),
                               durationSeconds=round(time.monotonic()-started, 3), preflight=capabilities)

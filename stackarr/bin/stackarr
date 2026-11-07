@@ -331,8 +331,8 @@ Stackarr commands:
   stackarr portless apply|install|status|uninstall
   stackarr cloudflare install|start|stop|status|delete|uninstall
   stackarr startup install|uninstall
-  stackarr backup install|uninstall|permissions|run|postgres status|test|run|run-due|export --output PATH
-  stackarr postgres-backup status|test|run|run-due|export --output PATH
+  stackarr backup install|uninstall|permissions|run|postgres status|test|run [--no-prune]|run-due|list|export --output PATH [--previous | --generation UUID]
+  stackarr postgres-backup status|test|run [--no-prune]|run-due|list|export --output PATH [--previous | --generation UUID]
   stackarr backup restore <archive>
   stackarr mcp serve
   stackarr mcp serve-http

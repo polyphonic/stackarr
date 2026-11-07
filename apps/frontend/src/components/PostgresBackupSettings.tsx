@@ -12,13 +12,25 @@ type Response = { config: Config; status: PostgresBackupStatus };
 type BackupCommand = 'PostgresBackupTest' | 'PostgresBackupSync';
 type ActiveTask = { id: string; command: BackupCommand };
 const prefix = 'STACKARR_PG_BACKUP_';
-const keys = ['ENABLED', 'SCHEDULE', 'WEEKDAY', 'TIME', 'TIMEZONE'] as const;
+const keys = ['ENABLED', 'SCHEDULE', 'WEEKDAY', 'TIME', 'TIMEZONE', 'RETENTION_COUNT'] as const;
+const sourceFields = [
+  'HOST',
+  'PORT',
+  'INSTANCE_ID',
+  'CLIENT_BIN',
+  'CLIENT_MAJOR',
+  'USER',
+  'TLS_MODE',
+  'TLS_ROOT_CERT',
+  'EXCLUSIONS'
+] as const;
 
 export function PostgresBackupSettings() {
   const [saved, setSaved] = useState<Config | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [status, setStatus] = useState<PostgresBackupStatus | null>(null);
   const [url, setUrl] = useState('');
+  const [sourcePassword, setSourcePassword] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState<'save' | BackupCommand | null>(null);
@@ -75,6 +87,10 @@ export function PostgresBackupSettings() {
     try {
       const patch: Config = Object.fromEntries(keys.map((key) => [prefix + key, config[prefix + key]]));
       if (url) patch[`${prefix}URL`] = url;
+      if (config.postgresDeploymentMode === 'external') {
+        for (const field of sourceFields) patch[`${prefix}SOURCE_${field}`] = config[`${prefix}SOURCE_${field}`] ?? '';
+        if (sourcePassword) patch[`${prefix}SOURCE_PASSWORD`] = sourcePassword;
+      }
       const response = await stackarrFetch('/api/v1/config/stackarr', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
@@ -86,6 +102,7 @@ export function PostgresBackupSettings() {
         return;
       }
       setUrl('');
+      setSourcePassword('');
       setPassword('');
       await refresh(true);
       setMessage('Saved. No remote connection was made.');
@@ -121,7 +138,12 @@ export function PostgresBackupSettings() {
   }
   if (!config || !saved) return <p role="status">{message || 'Loading PostgreSQL backup settings…'}</p>;
   const field = (key: string) => config[prefix + key] ?? '';
-  const dirty = Boolean(url) || keys.some((key) => field(key) !== (saved[prefix + key] ?? ''));
+  const fieldValue = (sourceField: string) => field(`SOURCE_${sourceField}`);
+  const dirty =
+    Boolean(url || sourcePassword) ||
+    [...keys, ...sourceFields.map((field) => `SOURCE_${field}`)].some(
+      (key) => field(key) !== (saved[prefix + key] ?? '')
+    );
   const canRun = !pending && !task && !dirty && !needsReload && Boolean(saved[`${prefix}URL`]);
   return (
     <div className={styles.editor}>
@@ -157,6 +179,46 @@ export function PostgresBackupSettings() {
           sleep and cost isolation, use a separate project/compute, not another database on the telemetry endpoint.
         </small>
       </label>
+      {saved.targetUrlPreview && <p className={styles.hint}>Saved target: {saved.targetUrlPreview}</p>}
+      {config.postgresDeploymentMode === 'external' && (
+        <details>
+          <summary>Advanced · External PostgreSQL archive source</summary>
+          <p className={styles.hint}>
+            Separate from the destination URL and application database endpoints. Configure all source credentials and
+            pinned cluster identity. Client executables and CA certificate paths must exist inside the backup runner;
+            saving does not install or mount them. A real Test target checks client/server major compatibility before
+            capture. Disable an existing schedule before changing source mode or capabilities, then test and re-enable.
+            Saving source fields alone does not enable scheduling or run a backup.
+          </p>
+          {sourceFields.map((field) => (
+            <label className={styles.field} key={field}>
+              <span>
+                {field === 'EXCLUSIONS'
+                  ? 'Audited quarantine policy JSON (no implicit disabled database exclusions)'
+                  : field.replaceAll('_', ' ')}
+              </span>
+              {field === 'TLS_MODE' ? (
+                <select value={fieldValue(field)} onChange={(event) => change(`SOURCE_${field}`, event.target.value)}>
+                  <option value="">Not configured</option>
+                  <option value="verify-full">verify-full</option>
+                </select>
+              ) : (
+                <input value={fieldValue(field)} onChange={(event) => change(`SOURCE_${field}`, event.target.value)} />
+              )}
+            </label>
+          ))}
+          <label className={styles.field}>
+            <span>Source backup role password</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={sourcePassword}
+              placeholder={field('SOURCE_PASSWORD') ? 'Saved secret, leave blank to keep' : 'Required before enabling'}
+              onChange={(event) => setSourcePassword(event.target.value)}
+            />
+          </label>
+        </details>
+      )}
       <label className={styles.field}>
         <span>Schedule</span>
         <select value={field('SCHEDULE')} onChange={(event) => change('SCHEDULE', event.target.value)}>
@@ -183,6 +245,21 @@ export function PostgresBackupSettings() {
         <input value={field('TIMEZONE')} onChange={(event) => change('TIMEZONE', event.target.value)} />
       </label>
       <label className={styles.field}>
+        <span>Successful generations to keep</span>
+        <input
+          type="number"
+          min={2}
+          max={30}
+          step={1}
+          value={field('RETENTION_COUNT')}
+          onChange={(event) => change('RETENTION_COUNT', event.target.value)}
+        />
+        <small>
+          Default 4. Each generation is a full native archive; check destination storage and history capacity before
+          increasing retention.
+        </small>
+      </label>
+      <label className={styles.field}>
         <span>Current Stackarr password</span>
         <input
           type="password"
@@ -190,7 +267,7 @@ export function PostgresBackupSettings() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-        <small>Required when changing the target URL.</small>
+        <small>Required when changing the target URL, source connection or credentials.</small>
       </label>
       <div className={styles.actions}>
         <Button
