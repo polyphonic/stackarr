@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0-alpha.27](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.26...v0.3.0-alpha.27) (2026-11-08)
+
+
+### Continuous integration
+
+* **release:** recover publication from an existing release tag ([206e92b](https://github.com/polyphonic/stackarr/commit/206e92b77de3d11e494d84e9a9022680e21dc1c8))
+* **release:** recover publication from an existing release tag ([48dfa44](https://github.com/polyphonic/stackarr/commit/48dfa442c6913d7d065720f9064766b922fbea90))
+
 ## [0.3.0-alpha.26](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.25...v0.3.0-alpha.26) (2026-11-08)
 
 
