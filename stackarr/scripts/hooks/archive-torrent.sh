@@ -2,7 +2,14 @@
 # Arr custom script: archive hash-identified torrent files, not download URLs.
 set -eu
 
-TORRENT_ARCHIVE_ROOT="${TORRENT_ARCHIVE_ROOT:-/torrent-archive}"
+# Arr does not inherit controller environment. The installed, read-only hook
+# snapshot supplies container paths; explicit hook environment still wins.
+if [ -f /stackarr-hooks/media-paths.env ]; then
+    . /stackarr-hooks/media-paths.env
+fi
+TORRENT_ARCHIVE_ROOT="${TORRENT_ARCHIVE_ROOT:-${CONTAINER_TORRENT_ARCHIVE_ROOT:-/torrent-archive}}"
+MOVIES_ROOT="${CONTAINER_MOVIES_ROOT:-/movies}"
+TV_ROOT="${CONTAINER_TV_ROOT:-/tv}"
 TORRENT_CAPTURE_ROOT="${TORRENT_CAPTURE_ROOT:-$TORRENT_ARCHIVE_ROOT/.metadata/_Captured}"
 QBITTORRENT_TORRENT_STATE_DIR="${QBITTORRENT_TORRENT_STATE_DIR:-/torrent-client-state/qbittorrent}"
 TRANSMISSION_TORRENT_STATE_DIR="${TRANSMISSION_TORRENT_STATE_DIR:-/torrent-client-state/transmission}"
@@ -272,12 +279,12 @@ verified "$staged" || { log 'staged torrent failed verification'; exit 1; }
 [ -n "$imported_path" ] || { log 'import event has no library path; retained unresolved'; exit 0; }
 
 case "$imported_path" in
-    /movies/*/*) [ "$service" = radarr ] || exit 0
-        relative="${imported_path#/movies/}"
+    "$MOVIES_ROOT/"*/*) [ "$service" = radarr ] || exit 0
+        relative="${imported_path#"$MOVIES_ROOT/"}"
         set -- Movies ;;
-    /tv/*/*) [ "$service" = sonarr ] || exit 0
-        relative="${imported_path#/tv/}"
-        show="${imported_path#/tv/}"
+    "$TV_ROOT/"*/*) [ "$service" = sonarr ] || exit 0
+        relative="${imported_path#"$TV_ROOT/"}"
+        show="${imported_path#"$TV_ROOT/"}"
         show="${show%%/*}"
         safe_component "$show" || { log 'unsafe show path; retained unresolved'; exit 0; }
         helper="${TORRENT_SEASONS_HELPER:-$(dirname "$0")/torrent-seasons.sh}"
@@ -318,7 +325,7 @@ case "$imported_path" in
                 [ "$episode_season" -eq "$season" ] 2>/dev/null || {
                     log 'import season conflicts with metainfo; retained unresolved'; exit 0;
                 }
-                relative="${imported_path#/tv/}" ;;
+                relative="${imported_path#"$TV_ROOT/"}" ;;
             *) log 'ambiguous metainfo; retained unresolved'; exit 0 ;;
         esac
         ;;
@@ -331,13 +338,13 @@ if [ "$service" = sonarr ]; then
         # The show comes from Arr's library path. Its season directory is
         # rendered from Sonarr's configured format, never a stale source dir.
         case "$imported_path" in
-            "/tv/$show/"*/*/*) log 'nested TV path; retained unresolved'; exit 0 ;;
-            "/tv/$show/"*/*) season_folder_present=true ;;
-            "/tv/$show/"*) season_folder_present=false ;;
+            "$TV_ROOT/$show/"*/*/*) log 'nested TV path; retained unresolved'; exit 0 ;;
+            "$TV_ROOT/$show/"*/*) season_folder_present=true ;;
+            "$TV_ROOT/$show/"*) season_folder_present=false ;;
             *) log 'unsafe TV path; retained unresolved'; exit 0 ;;
         esac
         if [ "$season_folder_present" = true ]; then
-            library_folder="${imported_path#"/tv/$show/"}"
+            library_folder="${imported_path#"$TV_ROOT/$show/"}"
             library_folder="${library_folder%%/*}"
             folder_season="$(printf '%s' "$library_folder" | sed -nE 's/^[Ss]eason[ ._-]*([0-9]{1,2})$/\1/p; s/^[Ss]([0-9]{1,2})$/\1/p')"
             case "$library_folder" in [Ss]pecials) folder_season=0 ;; esac

@@ -1,0 +1,73 @@
+.summary {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.heading {
+  display: grid;
+  gap: 0.25rem;
+}
+.heading span,
+.summary p,
+.appData span {
+  color: var(--mutedTextColor);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  max-width: 72ch;
+}
+.folders {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+.folders > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr);
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--borderColor);
+}
+.folders dt {
+  font-weight: 500;
+}
+.folders dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.summary code {
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.folders small {
+  color: var(--mutedTextColor);
+}
+.notice {
+  padding: 0.75rem;
+  border: 1px solid var(--borderColor);
+  border-radius: 0.5rem;
+  background: var(--inputBackground);
+}
+.appData {
+  display: grid;
+  gap: 0.35rem;
+  padding-top: 0.5rem;
+}
+.summary summary {
+  cursor: pointer;
+  padding: 0.75rem 0;
+  min-height: 44px;
+}
+.summary summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 480px) {
+  .folders > div {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}

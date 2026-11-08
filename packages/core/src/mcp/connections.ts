@@ -218,8 +218,8 @@ function uniqueGroups(groups: ToolCategory[] | undefined) {
 }
 
 function normalizeContainerName(value: string | undefined) {
-  const candidate = value?.trim() || process.env.STACKARR_CONTAINER_NAME?.trim() || 'app';
-  return /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(candidate) ? candidate : 'app';
+  const candidate = value?.trim() || process.env.STACKARR_CONTAINER_NAME?.trim() || 'stackarr';
+  return /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(candidate) ? candidate : 'stackarr';
 }
 
 function normalizeTunnelId(value: string | undefined) {

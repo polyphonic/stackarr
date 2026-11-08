@@ -41,7 +41,7 @@ class TorrentArchiveConfigTest(unittest.TestCase):
         services = self.render(STATE_ROOT='/internal/state', CONFIG_ROOT='/external/config',
                                TORRENT_ARCHIVE_ROOT='/external/downloads/torrent-archive')
         self.assert_mounts(services, '/external/downloads/torrent-archive', '/external/config')
-        app = {m['target']: m for m in services['app']['volumes'] if m['type'] == 'bind'}
+        app = {m['target']: m for m in services['stackarr']['volumes'] if m['type'] == 'bind'}
         self.assertEqual(app['/external/downloads/torrent-archive']['source'], '/external/downloads/torrent-archive')
         # Configure and restore must be able to provision this mounted archive.
         self.assertFalse(app['/external/downloads/torrent-archive'].get('read_only', False))

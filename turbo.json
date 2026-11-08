@@ -27,6 +27,7 @@
     },
     "test": {
       "dependsOn": ["^typecheck"],
+      "passThroughEnv": ["TMPDIR", "TMP", "TEMP"],
       "outputs": []
     },
     "dev": {

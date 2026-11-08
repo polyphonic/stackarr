@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readEnv } from '../env';
+import { readEnv, type StackarrEnv } from '../env';
 import { getServices, type ServiceSummary } from '../services';
 
 export type ArrInstance = 'sonarr' | 'sonarr4k' | 'radarr' | 'radarr4k' | 'lidarr';
@@ -109,8 +109,7 @@ function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, '');
 }
 
-export function serviceApiKey(service: string) {
-  const env = readEnv();
+export function serviceApiKey(service: string, env: StackarrEnv = readEnv()) {
   const authoritativeServarrKey = readServarrApiKey(service, env.CONFIG_ROOT);
   if (authoritativeServarrKey) return authoritativeServarrKey;
 

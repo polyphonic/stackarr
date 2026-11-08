@@ -174,7 +174,7 @@ export function addCloudflareAccessEmailAction(
   };
 }
 
-export function getDiskUsageAction() {
+export async function getDiskUsageAction() {
   return configuredDiskUsages(readEnv());
 }
 

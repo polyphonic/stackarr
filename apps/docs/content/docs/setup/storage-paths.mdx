@@ -4,29 +4,41 @@ title: Storage Paths
 
 # Storage Paths
 
-Stackarr separates media, downloads, config, state, logs, and backups.
+Choose the mounted logical volume, whether it is one drive or a software RAID mirror. Do not select RAID member disks. Stackarr does not create or format RAID arrays. Redundancy is not a backup.
+
+App data can remain on an SSD while Media lives on a hard drive or mounted RAID volume. Put downloads and transcode scratch below the same Media folder when you want same-mount imports. A separate download disk is supported, but imports then copy bytes. Shared folder names, matching device labels or a storage pool alone do not prove hardlink support: permissions, filesystem boundaries and application behavior still matter.
+
+Stackarr separates media, downloads, config, state, logs, and backups. On a new installation, choose one host **Media folder**. The shared layout mounts that folder at `/data` inside media apps; the movie and TV folders are `Movies` and `TV Shows` relative to Media, not separate host roots.
+
+For example, choosing `/srv/Media` gives host paths `/srv/Media/Movies` and `/srv/Media/TV Shows`. Apps use `/data/Movies` and `/data/TV Shows`. The `/data` path is an internal mount, not a folder to choose on the host.
+
+Existing installations without `MEDIA_PATH_LAYOUT=shared` keep their legacy paths. Stackarr does not move files, rewrite saved roots, or switch the layout automatically. Review mounts and library paths before any deliberate migration.
+
+A shared import root reduces actual Docker mounts, not just entries in the dashboard. Keep narrower mounts when an app does not need the whole tree: Agregarr receives the movie and TV libraries at `/data/Movies` and `/data/TV Shows`, without access to downloads or scratch. Separate disks, app configuration, and read-only versus writable folders remain distinct mounts. Grouping game libraries in an app does not require moving their files or granting writable access to the whole Games folder.
 
 For removable disks, use [External Drives and Safe Migration](/docs/setup/external-storage). It covers volume-identity checks, guarded startup, offline config migration and rollback. Changing a path alone does not install these protections.
 
 | Variable | Purpose |
 | --- | --- |
-| `MEDIA_ROOT` | Shared root for movie, TV, video, photo, and other media libraries. |
+| `MEDIA_ROOT` | Host Media folder. Shared layout mounts it at `/data`; movie and TV folders are relative to it. |
+| `MEDIA_PATH_LAYOUT` | `shared` for the new direct layout; `legacy` (or absent on existing installs) keeps existing mounts. |
 | `MUSIC_ROOT` | Music library root mounted read-only into Lidarr as `/music`. |
-| `DOWNLOADS_ROOT` | Completed/incomplete/download-client folders. |
+| `DOWNLOADS_ROOT` | Completed/incomplete/download-client folders. New installs default to a Downloads folder within Media; an independent host path remains available. |
 | `APP_ROOT` | Stackarr application config root. |
 | `CONFIG_ROOT` | Service configuration directories. |
 | `STATE_ROOT` | Runtime state and generated files. |
 | `LOG_ROOT` | Stackarr and helper logs. |
 | `BACKUP_ROOT` | Backup archives. |
 
-Keep downloads outside the media library. This helps hardlink/import behavior for movie and TV libraries and avoids Plex/Jellyfin scanning incomplete files.
+Keep download activity outside the scanned movie and TV folders. A `Media/Downloads` sibling of `Movies` and `TV Shows` keeps both on one filesystem for hardlinks while keeping incomplete files out of the libraries. An independent downloads folder is supported, but if it is on another filesystem, Arr imports copy rather than hardlink and consume additional space. Keep any existing downloads path unless you plan and verify a migration; editing a path does not move files.
 
 ### Transmission incomplete paths
 
 Transmission 4.1.3 has one **session-wide** incomplete directory. With the
 Stackarr preset, new unfinished Sonarr and Radarr torrents both stage under
-`/downloads/incomplete`; after completion, their Arr category selects
-`/downloads/complete/tv-sonarr` or `/downloads/complete/radarr` respectively
+`/data/Downloads/incomplete`; after completion, their Arr category selects
+`/data/Downloads/complete/tv-sonarr` or `/data/Downloads/complete/radarr` respectively
+in the shared layout (legacy installations retain `/downloads`)
 (or the configured category names). A category/label or per-torrent
 `download-dir` does **not** override the incomplete directory. Creating
 `incomplete/tv-sonarr` and `incomplete/radarr` alone does not route bytes there.

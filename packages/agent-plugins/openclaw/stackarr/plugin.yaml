@@ -10,7 +10,7 @@ mcp:
     - -i
     - -e
     - STACKARR_MCP_PROFILE=manage
-    - app
+    - stackarr
     - /app/bin/stackarr
     - mcp
     - serve

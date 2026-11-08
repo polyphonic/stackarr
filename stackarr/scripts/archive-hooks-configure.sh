@@ -28,6 +28,26 @@ install_hook_file torrent-seasons.py 644
 install_hook_file torrent-verify.awk 644
 install_hook_file torrent-verify.sh 755
 install_hook_file archive-torrent.sh 755
+# Snapshot canonical container paths for Arr custom scripts, which do not
+# inherit the controller's derived environment. Quote paths with shlex so
+# spaces and shell punctuation remain literal when sourced by /bin/sh.
+paths_file="$(mktemp "$hooks/.media-paths.XXXXXX")"
+python3 - "$paths_file" <<'PY'
+import os
+import shlex
+import sys
+
+with open(sys.argv[1], 'w', encoding='utf-8') as output:
+    for key, fallback in (
+        ('CONTAINER_MOVIES_ROOT', '/movies'),
+        ('CONTAINER_TV_ROOT', '/tv'),
+        ('CONTAINER_TORRENT_ARCHIVE_ROOT', '/torrent-archive'),
+    ):
+        value = shlex.quote(os.environ.get(key) or fallback)
+        output.write(f'if [ -z "${{{key}:-}}" ]; then {key}={value}; fi\n')
+PY
+chmod 644 "$paths_file"
+mv -f "$paths_file" "$hooks/media-paths.env"
 wrapper="$(mktemp "$hooks/.archive-wrapper.XXXXXX")"
 cat > "$wrapper" <<'EOF'
 #!/bin/sh

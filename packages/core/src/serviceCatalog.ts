@@ -82,9 +82,19 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
       envText('stackarrImage', 'Docker Image', 'STACKARR_IMAGE')
     ]),
     group('Storage', [
-      envPath('mediaRoot', 'Media Root', 'MEDIA_ROOT'),
-      envPath('musicRoot', 'Music Root', 'MUSIC_ROOT'),
-      envPath('downloadsRoot', 'Downloads Root', 'DOWNLOADS_ROOT'),
+      envPath(
+        'mediaRoot',
+        'Media folder on host',
+        'MEDIA_ROOT',
+        'Shared layout: mounted at /data in media apps; Movies and TV Shows are folders inside it.'
+      ),
+      envPath('musicRoot', 'Music folder on host', 'MUSIC_ROOT'),
+      envPath(
+        'downloadsRoot',
+        'Downloads folder on host',
+        'DOWNLOADS_ROOT',
+        'A separate filesystem makes imports copy files instead of hardlinking them.'
+      ),
       envPath(
         'torrentArchiveRoot',
         'Torrent Archive Root',
@@ -960,6 +970,15 @@ const serviceGroups: Record<string, GroupDefinition[]> = {
     ])
   ]
 };
+
+// Definitions only: do not load secret values or application config while discovering storage.
+export function serviceStorageFields(service: string) {
+  return (serviceGroups[service] ?? [])
+    .flatMap((group) => group.fields)
+    .flatMap((field) =>
+      field.type === 'path' && field.source.source === 'env' ? [{ key: field.source.key, label: field.label }] : []
+    );
+}
 
 export function listServiceConfigsAction() {
   return getServices().map((service) => buildModel(service));

@@ -34,6 +34,7 @@ export const managedEnvDefaults: StackarrEnv = {
   PGID: defaultGid(),
 
   MEDIA_ROOT: defaultMediaRoot,
+  MEDIA_PATH_LAYOUT: 'legacy',
   MUSIC_ROOT: defaultMusicRoot,
   DOWNLOADS_ROOT: defaultDownloadsRoot,
   TORRENT_ARCHIVE_ROOT: `${defaultStateRoot}/torrent-archive`,
@@ -539,7 +540,7 @@ const runtimeConfigKey = 'stackarr.runtimeConfig';
 
 export function readEnv(): StackarrEnv {
   if (!databaseExists()) {
-    const seeded = withRuntimeDefaults({});
+    const seeded = withRuntimeDefaults({ MEDIA_PATH_LAYOUT: 'shared' });
     writeJsonSetting(runtimeConfigKey, seeded);
     return seeded;
   }
@@ -553,7 +554,8 @@ export function readEnv(): StackarrEnv {
     return normalized;
   }
 
-  const seeded = withRuntimeDefaults({});
+  // A database predating runtimeConfig is an existing installation, not a fresh install.
+  const seeded = withRuntimeDefaults({ MEDIA_PATH_LAYOUT: 'legacy' });
   writeJsonSetting(runtimeConfigKey, seeded);
 
   return seeded;
@@ -664,7 +666,8 @@ export function mergeEditableEnv(current: StackarrEnv, next: StackarrEnv): Stack
   dropDeprecatedCloudflareHostnameKeys(merged);
   normalizeRommDatabaseDefaults(merged);
   applyYoutarrSecretDefaults(merged);
-  merged.TDARR_CACHE_ROOT ||= `${merged.APP_ROOT}/cache/tdarr`;
+  merged.TDARR_CACHE_ROOT ||=
+    merged.MEDIA_PATH_LAYOUT === 'shared' ? `${merged.DOWNLOADS_ROOT}/transcodes` : `${merged.APP_ROOT}/cache/tdarr`;
   merged.TDARR_MEDIA_ROOT ||= merged.MEDIA_ROOT;
   if (flagValue(merged.ENABLE_TDARR)) merged.TDARR_API_KEY ||= `tapi_${nodeCrypto.randomBytes(24).toString('hex')}`;
   applyAppDependencyRules(merged);
@@ -701,7 +704,9 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   if (!env.IMMICH_UPLOAD_LOCATION) merged.IMMICH_UPLOAD_LOCATION = `${merged.MEDIA_ROOT}/Pictures`;
   if (merged.IMMICH_DB_USERNAME === 'postgres') merged.IMMICH_DB_USERNAME = 'immich';
   merged.IMMICH_DB_VECTOR_EXTENSION = merged.IMMICH_DB_VECTOR_EXTENSION || 'pgvector';
-  if (!env.DOWNLOADS_ROOT) merged.DOWNLOADS_ROOT = `${appRoot}/downloads`;
+  if (!env.DOWNLOADS_ROOT)
+    merged.DOWNLOADS_ROOT =
+      merged.MEDIA_PATH_LAYOUT === 'shared' ? `${merged.MEDIA_ROOT}/Downloads` : `${appRoot}/downloads`;
   if (!env.TORRENT_ARCHIVE_ROOT) merged.TORRENT_ARCHIVE_ROOT = `${merged.STATE_ROOT}/torrent-archive`;
   if (!env.BACKUP_ROOT) merged.BACKUP_ROOT = `${appRoot}/backups`;
   if (!env.DATABASE_PGDATA) merged.DATABASE_PGDATA = detectDatabasePgdata(merged.CONFIG_ROOT);
@@ -759,7 +764,8 @@ function withRuntimeDefaults(env: StackarrEnv): StackarrEnv {
   applyRommSecretDefaults(merged);
   applyQuestarrSecretDefaults(merged);
   applyYoutarrSecretDefaults(merged);
-  merged.TDARR_CACHE_ROOT ||= `${merged.APP_ROOT}/cache/tdarr`;
+  merged.TDARR_CACHE_ROOT ||=
+    merged.MEDIA_PATH_LAYOUT === 'shared' ? `${merged.DOWNLOADS_ROOT}/transcodes` : `${merged.APP_ROOT}/cache/tdarr`;
   merged.TDARR_MEDIA_ROOT ||= merged.MEDIA_ROOT;
   if (flagValue(merged.ENABLE_TDARR)) merged.TDARR_API_KEY ||= `tapi_${nodeCrypto.randomBytes(24).toString('hex')}`;
 

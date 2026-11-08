@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -63,20 +72,112 @@ test('host capacity is limited to enrolled roots and internal control state', ()
       assert.deepEqual(args, ['-kP', root]);
       return `Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk9s1 11718883328 10801067928 916617768 93% ${root}\n`;
     };
-    const usage = control.usageForRoot(file, root, run);
+    const usage = control.usageForRoot(file, root, run, () => {});
     assert.equal(usage.totalKilobytes, 11718883328);
     assert.equal(usage.mountPoint, root);
     assert.throws(() => control.usageForRoot(file, '/etc', run), /Unenrolled/);
-    assert.throws(() => control.usageForRoot(file, `${root}/child`, run), /Unenrolled/);
+    assert.throws(() => control.usageForRoot(file, `${root}/child`, run, () => {}), /ENOENT/);
     assert.throws(
       () =>
         control.usageForRoot(
           file,
           root,
-          () => 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk9s1 100 50 50 50% /\n'
+          () => 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk9s1 100 50 50 50% /\n',
+          () => {}
         ),
       /Invalid host capacity/
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('symlinked configuration root is pinned to its original real path and UUID', () => {
+  const { dir, file } = fixture();
+  try {
+    const original = path.join(dir, 'original');
+    const replacement = path.join(dir, 'replacement');
+    const link = path.join(dir, 'config-link');
+    mkdirSync(original);
+    mkdirSync(replacement);
+    symlinkSync(original, link);
+    const { captureRoot, verifyRoot } = require('../../../stackarr/scripts/storage-policy.cjs');
+    let uuid = 'original-id';
+    const probe = () => ({ mountPoint: realpathSync(dir), uuid, filesystem: 'apfs', readOnly: false });
+    const record = captureRoot(link, { probe });
+    writeFileSync(file, JSON.stringify({ version: 1, project: 'fixture', roots: [], observations: [record] }));
+    const df = () =>
+      `Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk9 1000 200 800 20% ${realpathSync(dir)}\n`;
+    const verify = (value: unknown) => verifyRoot(value, { probe });
+    assert.equal(control.usageForRoot(file, link, df, verify).volumeId, 'original-id');
+    uuid = 'different-id';
+    assert.throws(() => control.usageForRoot(file, link, df, verify), /identity changed/);
+    uuid = 'original-id';
+    unlinkSync(link);
+    symlinkSync(replacement, link);
+    assert.throws(() => control.usageForRoot(file, link, df, verify), /symlink retargeted/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('observation supports read-only libraries but cannot weaken protected writable roots', () => {
+  const { dir, file } = fixture();
+  try {
+    const library = path.join(dir, 'read-only-library');
+    mkdirSync(library);
+    const probe = () => ({ mountPoint: realpathSync(dir), uuid: 'media-id', filesystem: 'apfs', readOnly: true });
+    const { captureRoot, verifyRoot } = require('../../../stackarr/scripts/storage-policy.cjs');
+    assert.throws(() => captureRoot(library, { probe }), /read-only/);
+    const record = captureRoot(library, { probe, allowReadOnly: true });
+    writeFileSync(file, JSON.stringify({ version: 1, project: 'fixture', roots: [], observations: [record] }));
+    control.checkHost(file);
+    const use = control.usageForRoot(
+      file,
+      library,
+      () =>
+        `Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk9 1000 200 800 20% ${realpathSync(dir)}\n`,
+      (value: unknown, options: object) => verifyRoot(value, { ...options, probe })
+    );
+    assert.equal(use.volumeId, 'media-id');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('capacity-only observations verify identity without becoming lifecycle dependencies', () => {
+  const { dir, file } = fixture();
+  try {
+    const root = path.join(dir, 'archive');
+    const record = { path: root, realPath: root, mountPoint: root, uuid: 'archive-id', filesystem: 'apfs' };
+    writeFileSync(file, JSON.stringify({ version: 1, project: 'fixture', roots: [], observations: [record] }));
+    // Observation root is absent, but normal application lifecycle checks still pass.
+    control.checkHost(file);
+    let verified = false;
+    const usage = control.usageForRoot(
+      file,
+      root,
+      () => `Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk9 1000 200 800 20% ${root}\n`,
+      (value: unknown) => {
+        assert.deepEqual(value, record);
+        verified = true;
+      }
+    );
+    assert.equal(verified, true);
+    assert.equal(usage.volumeId, 'archive-id');
+    assert.throws(
+      () =>
+        control.usageForRoot(
+          file,
+          root,
+          () => '',
+          () => {
+            throw new Error('identity changed');
+          }
+        ),
+      /identity changed/
+    );
+    assert.throws(() => control.usageForRoot(file, '/etc'), /Unenrolled/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -130,7 +231,7 @@ test('guarded Compose disables daemon restarts and carries proof policy into con
     const config = control.composeOverride(file, path.join(root, 'stackarr/docker-compose.yml'));
     assert.ok(Object.keys(config.services).length > 20);
     for (const service of Object.values(config.services) as { restart: string }[]) assert.equal(service.restart, 'no');
-    for (const name of ['app', 'app-updater']) {
+    for (const name of ['stackarr', 'app-updater']) {
       assert.equal(config.services[name].environment.STACKARR_STORAGE_POLICY, file);
       assert.equal(config.services[name].volumes[0].read_only, true);
       assert.equal(config.services[name].volumes[0].bind.create_host_path, false);

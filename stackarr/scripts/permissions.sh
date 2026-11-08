@@ -119,30 +119,30 @@ audit_docker_mounts() {
 
     case "$(selected_torrent_client)" in
         qbittorrent)
-            service_mount_check qbittorrent "qBittorrent downloads" /downloads rw || true
+            service_mount_check qbittorrent "qBittorrent downloads" "$CONTAINER_DOWNLOADS_ROOT" rw || true
             ;;
         *)
-            service_mount_check transmission "Transmission downloads" /downloads rw || true
+            service_mount_check transmission "Transmission downloads" "$CONTAINER_DOWNLOADS_ROOT" rw || true
             ;;
     esac
 
     if flag_enabled "${ENABLE_MOVIES:-true}"; then
-        service_mount_check radarr "Radarr movies" /movies rw || true
+        service_mount_check radarr "Radarr movies" "$CONTAINER_MOVIES_ROOT" rw || true
         if flag_enabled "${ENABLE_4K_SERVARR:-false}"; then
-            service_mount_check radarr4k "Radarr 4K movies" /movies rw || true
+            service_mount_check radarr4k "Radarr 4K movies" "$CONTAINER_MOVIES_ROOT" rw || true
         fi
     fi
 
     if flag_enabled "${ENABLE_TV_SHOWS:-true}"; then
-        service_mount_check sonarr "Sonarr TV" /tv rw || true
+        service_mount_check sonarr "Sonarr TV" "$CONTAINER_TV_ROOT" rw || true
         if flag_enabled "${ENABLE_4K_SERVARR:-false}"; then
-            service_mount_check sonarr4k "Sonarr 4K TV" /tv rw || true
+            service_mount_check sonarr4k "Sonarr 4K TV" "$CONTAINER_TV_ROOT" rw || true
         fi
     fi
 
     if flag_enabled "${ENABLE_LIDARR:-true}"; then
         service_mount_check lidarr "Lidarr music library" /music ro || true
-        service_mount_check lidarr "Lidarr downloads" /downloads rw || true
+        service_mount_check lidarr "Lidarr downloads" "$CONTAINER_DOWNLOADS_ROOT" rw || true
     fi
 }
 

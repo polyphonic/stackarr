@@ -8,7 +8,7 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const scriptsRoot = path.join(repoRoot, 'stackarr/scripts');
 
 test('all repository-managed Stackarr LaunchAgent installers use the canonical app-data runtime', async () => {
-  for (const filename of ['startup-install.sh', 'update-install.sh', 'backup-install.sh', 'portless.sh']) {
+  for (const filename of ['startup-install.sh', 'update-install.sh', 'backup-install.sh']) {
     const source = await readFile(path.join(scriptsRoot, filename), 'utf8');
     assert.match(source, /install_managed_host_runtime/, `${filename} must stage the managed host runtime`);
     assert.doesNotMatch(

@@ -8,10 +8,33 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { changedEnvironmentKeys, composeServicesAffectedByEnvironment } from '../../core/src/composeRuntime.ts';
+import type { StackarrEnv } from '../../core/src/env.ts';
+import { directPortlessBrowserUrl, servicesFromEnv } from '../../core/src/services.ts';
 
 const execFile = promisify(execFileCallback);
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const tsxLoader = path.join(repoRoot, 'packages/integration-tests/node_modules/tsx/dist/loader.mjs');
+
+test('controller identity matches rendered Compose and service registry', async () => {
+  const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
+  assert.match(compose, /^  stackarr:\n    profiles:\n      - stackarr\n    container_name: stackarr$/m);
+  assert.match(compose, /^      STACKARR_CONTAINER_NAME: stackarr$/m);
+  assert.doesNotMatch(compose, /^  app:$/m);
+  const service = servicesFromEnv({ STACKARR_WEB_PORT: '7777' } as StackarrEnv).find(
+    (item) => item.name === 'stackarr'
+  );
+  assert.equal(service?.dockerService, 'stackarr');
+  assert.match(compose, /^  app-updater:$/m);
+});
+
+test('Stackarr Portless alias stays app while its Docker service remains stackarr', () => {
+  assert.equal(directPortlessBrowserUrl('stackarr'), 'https://app.stack');
+  assert.equal(
+    servicesFromEnv({ STACKARR_WEB_PORT: '7777' } as StackarrEnv).find((service) => service.name === 'stackarr')
+      ?.dockerService,
+    'stackarr'
+  );
+});
 
 test('new installs default to Portless links without duplicating global link settings on each app', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
@@ -499,90 +522,11 @@ test('Docker runtime service URLs use reachable hosts and skip non-network helpe
   }
 });
 
-test('Portless script registers configured tld aliases before host sync', async () => {
+test('Portless uses public CLI reconciliation, not private proxy state or forced takeovers', async () => {
   const script = await readFile(path.join(repoRoot, 'stackarr/scripts/portless.sh'), 'utf8');
-
-  assert.match(script, /ensure_route_file_alias "\$name" "\$port"/);
-  assert.match(script, /STACKARR_PORTLESS_TLD="\$tld"/);
-  assert.match(script, /PORTLESS_TLD="\$tld" portless hosts sync/);
-});
-
-test('Portless apply restarts a mismatched proxy and keeps the configured suffix', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-services-test-'));
-  const binDir = path.join(root, 'bin');
-  const homeDir = path.join(root, 'home');
-  const routesDir = path.join(homeDir, '.portless');
-  const routesFile = path.join(routesDir, 'routes.json');
-  const fakePortless = path.join(binDir, 'portless');
-  const callsFile = path.join(root, 'portless-calls.log');
-
-  try {
-    await mkdir(binDir, { recursive: true });
-    await mkdir(routesDir, { recursive: true });
-    await writeFile(
-      routesFile,
-      JSON.stringify(
-        [
-          { hostname: 'app.stackarr', port: 7777, pid: 0 },
-          { hostname: 'maintainerr.stack', port: 6246, pid: 0 },
-          { hostname: 'custom.stackarr', port: 9999, pid: 0 }
-        ],
-        null,
-        2
-      ) + '\n'
-    );
-    await writeFile(path.join(routesDir, 'proxy.tld'), 'stackarr\n');
-    await writeFile(
-      fakePortless,
-      [
-        '#!/bin/sh',
-        'printf "%s\\n" "$*" >> "$PORTLESS_CALLS_FILE"',
-        'if [ "$1" = "proxy" ] && [ "$2" = "start" ]; then exit 0; fi',
-        'if [ "$1" = "alias" ]; then exit 0; fi',
-        'if [ "$1" = "hosts" ] && [ "$2" = "sync" ]; then exit 0; fi',
-        'if [ "$1" = "list" ]; then exit 0; fi',
-        'exit 0',
-        ''
-      ].join('\n')
-    );
-    await chmod(fakePortless, 0o755);
-
-    await execFile('bash', ['stackarr/scripts/portless.sh', 'apply'], {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        PATH: `${binDir}:${process.env.PATH}`,
-        HOME: homeDir,
-        APP_ROOT: path.join(root, 'app'),
-        CONFIG_ROOT: path.join(root, 'app/config'),
-        STATE_ROOT: path.join(root, 'app/state'),
-        LOG_ROOT: path.join(root, 'app/logs'),
-        STACKARR_DATABASE_FILE: path.join(root, 'missing-stackarr.db'),
-        PORTLESS_CALLS_FILE: callsFile,
-        STACKARR_SERVICE_URL_MODE: 'portless',
-        STACKARR_SERVICE_URL_SCHEME: 'https',
-        STACKARR_SERVICE_URL_HOST_SUFFIX: 'stack',
-        STACKARR_WEB_ENABLED: 'true',
-        ENABLE_MAINTAINERR: 'false',
-        ENABLE_TRACEARR: 'false',
-        ENABLE_SEERR: 'false',
-        ENABLE_TIDARR: 'false'
-      }
-    });
-
-    const routes = JSON.parse(await readFile(routesFile, 'utf8'));
-    const hostnames = routes.map((route: { hostname: string }) => route.hostname).sort();
-    const calls = await readFile(callsFile, 'utf8');
-
-    assert.ok(hostnames.includes('app.stack'));
-    assert.ok(hostnames.includes('custom.stackarr'));
-    assert.ok(!hostnames.includes('app.stackarr'));
-    assert.ok(!hostnames.includes('maintainerr.stack'));
-    assert.match(calls, /^proxy stop$/m);
-    assert.match(calls, /^proxy start --tld stack$/m);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+  const reconciler = await readFile(path.join(repoRoot, 'stackarr/scripts/portless-routes.cjs'), 'utf8');
+  assert.match(script, /portless-routes\.cjs/);
+  assert.doesNotMatch(script + reconciler, /routes\.json|proxy\.tld|--force|proxy stop/);
 });
 
 test('Cloudflare route normalization accepts download clients', async () => {
@@ -732,9 +676,9 @@ test('host MCP commands use the authoritative running Stackarr controller', asyn
   assert.match(bin, /ensure_docker_runtime <\/dev\/null/);
   assert.match(bin, /stackarr_compose ps --services --status running <\/dev\/null/);
   assert.match(bin, /while IFS= read -r service/);
-  assert.match(bin, /\[\[ "\$service" == "app" \]\] && app_is_running=true/);
+  assert.match(bin, /\[\[ "\$service" == "stackarr" \]\] && app_is_running=true/);
   assert.doesNotMatch(bin, /grep -Fxq app/);
-  assert.match(bin, /stackarr_compose exec -T app node packages\/mcp\/dist\/index\.js/);
+  assert.match(bin, /stackarr_compose exec -T stackarr node packages\/mcp\/dist\/index\.js/);
 });
 
 test('Cloudflare route apply uses route-only command outside host-only runner gate', async () => {
@@ -931,7 +875,7 @@ test('dashboard settings recreate only Compose services affected by changed envi
   assert.match(directory, /Container update queued for/);
   assert.match(script, /write_compose_env_file/);
   assert.match(script, /up -d --wait --wait-timeout 180 --force-recreate --no-deps "\$service"/);
-  assert.match(script, /app\|database\|transmission/);
+  assert.match(script, /stackarr\|database\|transmission/);
 });
 
 test('security credential apply leaves the Stackarr controller running', async () => {
@@ -945,11 +889,11 @@ test('security credential apply leaves the Stackarr controller running', async (
   assert.doesNotMatch(serviceList, /services\+=\("redis"\)/);
   assert.match(script, /Stackarr controller stays online because it reads account credentials from runtime storage/);
   assert.match(script, /STACKARR_TASK_HANDOFF_STARTED/);
-  assert.match(script, /docker inspect "\$\{STACKARR_CONTAINER_NAME:-app\}" --format '\{\{\.Config\.Image\}\}'/);
+  assert.match(script, /docker inspect "\$\{STACKARR_CONTAINER_NAME:-stackarr\}" --format '\{\{\.Config\.Image\}\}'/);
   assert.match(script, /STACKARR_IMAGE="\$worker_image" STACKARR_SECURITY_HANDOFF=true/);
   assert.doesNotMatch(script, /STACKARR_SECURITY_HANDOFF=true stackarr_compose/);
   assert.match(script, /app-updater security apply-worker/);
-  assert.match(script, /up -d --force-recreate --no-deps app/);
+  assert.match(script, /up -d --force-recreate --no-deps stackarr/);
   assert.match(
     script,
     /task_database_url="\$\{STACKARR_DATABASE_URL:-\}"[\s\S]*?start_security_apply_worker "\$task_database_url"/

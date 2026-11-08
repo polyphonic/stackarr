@@ -157,7 +157,7 @@ function locate(input, allowMissingLeaf) {
 function captureRoot(absolutePath, options = {}) {
   const root = locate(absolutePath, options.allowMissingLeaf === true);
   const volume = inspectVolume(root.anchor, options);
-  if (volume.readOnly) throw new Error('volume is read-only');
+  if (volume.readOnly && options.allowReadOnly !== true) throw new Error('volume is read-only');
   const anchor = physicalPath(fs.realpathSync(root.anchor), volume.mountPoint);
   root.realPath =
     options.allowMissingLeaf && !fs.existsSync(root.path)
@@ -211,6 +211,10 @@ function validatePolicy(policy) {
     throw new Error('invalid storage policy project');
   }
   for (const root of policy.roots) validateRecord(root);
+  if (policy.observations !== undefined) {
+    if (!Array.isArray(policy.observations)) throw new Error('invalid storage observations');
+    for (const root of policy.observations) validateRecord(root);
+  }
   return policy;
 }
 

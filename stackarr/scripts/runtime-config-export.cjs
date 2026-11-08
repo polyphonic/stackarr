@@ -7,6 +7,7 @@ const allowed = new Set([
   'PUID',
   'PGID',
   'MEDIA_ROOT',
+  'MEDIA_PATH_LAYOUT',
   'MUSIC_ROOT',
   'DOWNLOADS_ROOT',
   'TORRENT_ARCHIVE_ROOT',

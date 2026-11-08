@@ -299,16 +299,19 @@ fi
 
 PORTLESS_PLIST="$HOME/Library/LaunchAgents/com.stackarr.portless.plist"
 if [[ -f "$PORTLESS_PLIST" ]]; then
-    pass "Portless launch agent installed"
+    pass "Legacy Portless alias login agent present (not the upstream proxy service)"
     MANAGED_STACKARR_BIN="$(managed_host_runtime_bin)"
     if grep -Fq "<string>$MANAGED_STACKARR_BIN</string>" "$PORTLESS_PLIST"; then
         pass "Portless launch agent uses the Stackarr app-data runtime"
     else
-        warning "Portless launch agent does not use the Stackarr app-data runtime. Reinstall it with 'stackarr portless install'."
+        warning "Legacy Portless login agent points outside app-data. Review/remove that obsolete agent explicitly; 'stackarr portless install' intentionally leaves it unchanged."
     fi
     check_launch_agent_state "com.stackarr.portless" "Portless"
 else
-    pass "Portless launch agent is not installed"
+    pass "No legacy Portless login agent. This is expected with the upstream system service."
+fi
+if command -v portless >/dev/null 2>&1; then
+    portless service status || warning "Could not read upstream Portless service status"
 fi
 
 UNSAFE_STACKARR_AGENTS="$(

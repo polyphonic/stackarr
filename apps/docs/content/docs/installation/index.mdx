@@ -21,7 +21,7 @@ You need:
 ```bash
 mkdir -p stackarr && cd stackarr
 curl -fsSL https://stackarr.app/docker-compose.yml -o docker-compose.yml
-docker compose --profile stackarr up -d app
+docker compose --profile stackarr up -d stackarr
 ```
 
 Open [http://127.0.0.1:7777/setup](http://127.0.0.1:7777/setup).
@@ -46,7 +46,7 @@ Stackarr uses Portless links by default for stable, port-free app addresses. If 
 For a chat-led setup, connect an agent with the `admin` profile and ask it to show a dry-run before applying anything:
 
 ```bash
-docker exec app /app/bin/stackarr mcp config codex --profile admin
+docker exec stackarr /app/bin/stackarr mcp config codex --profile admin
 ```
 
 For a manual setup, continue in the browser. Both paths use the same actions and save the same settings.
@@ -54,8 +54,8 @@ For a manual setup, continue in the browser. Both paths use the same actions and
 ## Check the container
 
 ```bash
-docker compose ps app
-docker compose logs --tail=100 app
+docker compose ps stackarr
+docker compose logs --tail=100 stackarr
 ```
 
 Continue to [Docker configuration](/docs/installation/docker) for storage, networking, updates, and the Docker socket security model.

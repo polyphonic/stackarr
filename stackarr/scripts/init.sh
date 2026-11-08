@@ -8,7 +8,25 @@ source "$ROOT_DIR/lib/common.sh"
 print_header "Stackarr Init"
 
 DB_FILE="${STACKARR_DATABASE_FILE:-$(default_stackarr_database_file)}"
+MEDIA_PATH_LAYOUT=shared
 if [[ -f "$DB_FILE" ]]; then
+    # A pre-layout SQLite database is legacy; an explicit saved layout is authoritative.
+    # Read only this SQLite file, not inherited runtime/Compose environment variables.
+    MEDIA_PATH_LAYOUT="$(STACKARR_DATABASE_FILE="$DB_FILE" node - <<'NODE'
+const { DatabaseSync } = require('node:sqlite');
+const db = new DatabaseSync(process.env.STACKARR_DATABASE_FILE, { readOnly: true });
+try {
+  const table = db.prepare("select 1 from sqlite_master where type = 'table' and name = 'app_settings'").get();
+  const row = table && db.prepare('select value from app_settings where key = ?').get('stackarr.runtimeConfig');
+  const config = row && JSON.parse(row.value);
+  const layout = config?.MEDIA_PATH_LAYOUT ?? 'legacy';
+  if (layout !== 'legacy' && layout !== 'shared') throw new Error('Invalid saved MEDIA_PATH_LAYOUT');
+  process.stdout.write(layout);
+} finally {
+  db.close();
+}
+NODE
+)" || fail "Unable to read saved media path layout from $DB_FILE"
     warn "$DB_FILE already exists."
     confirm "Overwrite Stackarr runtime config in SQLite" no || exit 0
 fi
@@ -23,11 +41,13 @@ DEFAULT_PLEX_PREFS="$HOME/Library/Preferences/com.plexapp.plexmediaserver.plist"
 DEFAULT_TZ="Etc/UTC"
 
 MEDIA_ROOT="$(prompt_default 'Media root' "$DEFAULT_MEDIA")"
+if [[ "$MEDIA_PATH_LAYOUT" == shared ]]; then DEFAULT_DOWNLOADS="$MEDIA_ROOT/Downloads"; fi
 DEFAULT_MUSIC="$MEDIA_ROOT/Music"
 MUSIC_ROOT="$(prompt_default 'Music root' "$DEFAULT_MUSIC")"
 DOWNLOADS_ROOT="$(prompt_default 'Downloads root' "$DEFAULT_DOWNLOADS")"
 BACKUP_ROOT="$(prompt_default 'Backup root' "$DEFAULT_BACKUPS")"
 TORRENT_ARCHIVE_ROOT="$(prompt_default 'Torrent archive root' "$DEFAULT_APP_ROOT/state/torrent-archive")"
+export MEDIA_PATH_LAYOUT
 PLEX_CONFIG_PATH="$(prompt_default 'Native Plex config path' "$DEFAULT_PLEX")"
 PLEX_INSTALL_MODE="$(prompt_choice 'Plex install mode (docker, native, disabled)' 'native' 'docker' 'native' 'disabled')"
 JELLYFIN_INSTALL_MODE="$(prompt_choice 'Jellyfin install mode (disabled, docker, native)' 'disabled' 'disabled' 'docker' 'native')"
@@ -558,7 +578,7 @@ node - "$runtime_config_json" <<'NODE'
 const fs = require('node:fs');
 const target = process.argv[2];
 const keys = [
-  'STACKARR_REPO_ROOT','TIMEZONE','PUID','PGID','MEDIA_ROOT','MUSIC_ROOT','DOWNLOADS_ROOT','TORRENT_ARCHIVE_ROOT','BACKUP_ROOT','APP_ROOT','CONFIG_ROOT','STATE_ROOT','LOG_ROOT',
+  'STACKARR_REPO_ROOT','TIMEZONE','PUID','PGID','MEDIA_ROOT','MEDIA_PATH_LAYOUT','MUSIC_ROOT','DOWNLOADS_ROOT','TORRENT_ARCHIVE_ROOT','BACKUP_ROOT','APP_ROOT','CONFIG_ROOT','STATE_ROOT','LOG_ROOT',
   'PLEX_CONFIG_PATH','PLEX_PREFS_PATH','PLEX_INSTALL_MODE','JELLYFIN_INSTALL_MODE','JELLYFIN_CONFIG_PATH',
   'ENABLE_4K_SERVARR','ENABLE_BAZARR','ENABLE_LIDARR','ENABLE_BOOKORBIT','ENABLE_IMMICH','ENABLE_ROMM','ENABLE_TINYMEDIAMANAGER','ENABLE_RECYCLARR','ENABLE_FLARESOLVERR',
   'ENABLE_TIDARR','ENABLE_SEERR','STACKARR_CONFIGURE_SEERR','ENABLE_PULSARR','ENABLE_TDARR','ENABLE_MAINTAINERR','ENABLE_CLEANUPARR','ENABLE_TRACEARR','ENABLE_BACKUP','USERNAME','PASSWORD','USER_EMAIL','PREFERRED_TORRENT_CLIENT',

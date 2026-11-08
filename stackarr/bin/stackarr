@@ -59,7 +59,7 @@ case "$cmd" in
             exec node "$mcp_entrypoint" telemetry "$@"
         fi
         ensure_docker_runtime
-        exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js telemetry "$@"
+        exec docker exec "${STACKARR_CONTAINER_NAME:-stackarr}" node packages/mcp/dist/index.js telemetry "$@"
         ;;
     agregarr)
         shift || true
@@ -71,7 +71,7 @@ case "$cmd" in
             exec node "$mcp_entrypoint" agregarr "$@"
         fi
         ensure_docker_runtime
-        exec docker exec "${STACKARR_CONTAINER_NAME:-app}" node packages/mcp/dist/index.js agregarr "$@"
+        exec docker exec "${STACKARR_CONTAINER_NAME:-stackarr}" node packages/mcp/dist/index.js agregarr "$@"
         ;;
     naming)
         shift || true
@@ -219,10 +219,10 @@ case "$cmd" in
                 ensure_docker_runtime </dev/null >&2
                 app_is_running=false
                 while IFS= read -r service; do
-                    [[ "$service" == "app" ]] && app_is_running=true
+                    [[ "$service" == "stackarr" ]] && app_is_running=true
                 done < <(stackarr_compose ps --services --status running </dev/null 2>/dev/null)
                 if [[ "$app_is_running" == "true" ]]; then
-                    stackarr_compose exec -T app node packages/mcp/dist/index.js "$sub" "$@"
+                    stackarr_compose exec -T stackarr node packages/mcp/dist/index.js "$sub" "$@"
                     exit $?
                 fi
 

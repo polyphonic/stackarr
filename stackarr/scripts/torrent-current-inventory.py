@@ -106,7 +106,7 @@ def integer_id(value):
 
 
 def regular_media(media_root, service, api_path):
-    prefix = '/tv/' if service == 'sonarr' else '/movies/'
+    prefix = (os.environ.get('CONTAINER_TV_ROOT', '/tv') if service == 'sonarr' else os.environ.get('CONTAINER_MOVIES_ROOT', '/movies')).rstrip('/') + '/'
     if not isinstance(api_path, str) or not api_path.startswith(prefix):
         raise Blocked('media-root')
     suffix = api_path[len(prefix):]
@@ -122,7 +122,7 @@ def regular_media(media_root, service, api_path):
 
 def scope_folder(item, service):
     path = item.get('path')
-    prefix = '/tv/' if service == 'sonarr' else '/movies/'
+    prefix = (os.environ.get('CONTAINER_TV_ROOT', '/tv') if service == 'sonarr' else os.environ.get('CONTAINER_MOVIES_ROOT', '/movies')).rstrip('/') + '/'
     if not isinstance(path, str) or not path.startswith(prefix):
         raise Blocked('catalog-path')
     # Native Arr catalogs may include one trailing directory separator.

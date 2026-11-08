@@ -317,9 +317,9 @@ apply_transmission_preset() {
     # Transmission 4.1.3 exposes incomplete-dir only at session scope. Arr's
     # category selects the completed directory, not per-torrent staging.
     # Routing hooks would race active writes and risk displacing the malware hook.
-    local desired_incomplete="/downloads/$DOWNLOAD_INCOMPLETE_NAME"
-    local desired_complete="/downloads/$DOWNLOAD_COMPLETE_NAME"
-    local desired_watch="/downloads/watch"
+    local desired_incomplete="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_INCOMPLETE_NAME"
+    local desired_complete="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME"
+    local desired_watch="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/watch"
 
     if [[ "$(selected_torrent_client)" != "transmission" ]]; then
         warn "Transmission preset skipped because Transmission is not the selected torrent client"
@@ -522,8 +522,8 @@ PY
 apply_qbittorrent_preset() {
     local wait_for_ready="$1"
     local cookie_file bootstrap_password payload
-    local desired_incomplete="/downloads/$DOWNLOAD_INCOMPLETE_NAME"
-    local desired_complete="/downloads/$DOWNLOAD_COMPLETE_NAME"
+    local desired_incomplete="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_INCOMPLETE_NAME"
+    local desired_complete="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME"
 
     if [[ "$(selected_torrent_client)" != "qbittorrent" ]]; then
         warn "qBittorrent preset skipped because qBittorrent is not the selected torrent client"
@@ -583,14 +583,14 @@ apply_qbittorrent_preset() {
         return 1
     fi
 
-    ensure_qbittorrent_category "$cookie_file" "$RADARR_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$RADARR_CATEGORY" || true
-    ensure_qbittorrent_category "$cookie_file" "$SONARR_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$SONARR_CATEGORY" || true
-    ensure_qbittorrent_category "$cookie_file" "$LIDARR_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$LIDARR_CATEGORY" || true
+    ensure_qbittorrent_category "$cookie_file" "$RADARR_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$RADARR_CATEGORY" || true
+    ensure_qbittorrent_category "$cookie_file" "$SONARR_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$SONARR_CATEGORY" || true
+    ensure_qbittorrent_category "$cookie_file" "$LIDARR_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$LIDARR_CATEGORY" || true
     if optional_service_enabled radarr4k; then
-        ensure_qbittorrent_category "$cookie_file" "$RADARR_4K_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$RADARR_4K_CATEGORY" || true
+        ensure_qbittorrent_category "$cookie_file" "$RADARR_4K_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$RADARR_4K_CATEGORY" || true
     fi
     if optional_service_enabled sonarr4k; then
-        ensure_qbittorrent_category "$cookie_file" "$SONARR_4K_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$SONARR_4K_CATEGORY" || true
+        ensure_qbittorrent_category "$cookie_file" "$SONARR_4K_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$SONARR_4K_CATEGORY" || true
     fi
 
     rm -f "$cookie_file"

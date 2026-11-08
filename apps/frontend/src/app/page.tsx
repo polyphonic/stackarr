@@ -1,10 +1,9 @@
 import {
+  getConfiguredStackMetrics,
   getHomelabPerformanceAction,
   getServices,
-  getStackMetrics,
   getSystemStatus,
   listServiceFavoritesAction,
-  readEnv,
   readSettings,
   readTasks
 } from '@stackarr/core';
@@ -21,19 +20,7 @@ export default async function DashboardPage() {
   const status = getSystemStatus();
   const settings = readSettings();
   const services = getServices();
-  const env = readEnv();
-  const metrics = getStackMetrics([
-    env.MEDIA_ROOT ?? '',
-    env.MUSIC_ROOT ?? '',
-    env.DOWNLOADS_ROOT ?? '',
-    env.BACKUP_ROOT ?? '',
-    env.BOOKS_ROOT ?? '',
-    env.IMMICH_UPLOAD_LOCATION ?? '',
-    env.IMMICH_EXTERNAL_LIBRARY_LOCATION ?? '',
-    env.GAMES_ROOT ?? '',
-    env.CONFIG_ROOT ?? '',
-    env.STATE_ROOT ?? ''
-  ]);
+  const metrics = await getConfiguredStackMetrics();
   const tasks = readTasks().slice(0, 5);
   const favoriteNames = listServiceFavoritesAction().map((favorite) => favorite.name);
   const performance = await getHomelabPerformanceAction();

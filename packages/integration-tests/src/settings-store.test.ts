@@ -100,6 +100,35 @@ test('default database resolver keeps runtime state outside the source checkout'
   }
 });
 
+test('media layout defaults to shared only for a truly new runtime database', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-layout-defaults-'));
+  try {
+    for (const existing of [false, true]) {
+      const dbFile = path.join(root, existing ? 'existing.db' : 'fresh.db');
+      const { stdout } = await execFile(
+        process.execPath,
+        [
+          '--import',
+          tsxLoader,
+          '--input-type=module',
+          '-e',
+          `const { writeJsonSetting } = await import('./packages/core/src/database.ts');
+           const { readEnv } = await import('./packages/core/src/env.ts');
+           if (${existing}) writeJsonSetting('existing.setting', { version: 1 });
+           const env = readEnv();
+           console.log(JSON.stringify({ layout: env.MEDIA_PATH_LAYOUT, downloads: env.DOWNLOADS_ROOT, media: env.MEDIA_ROOT }));`
+        ],
+        { cwd: repoRoot, env: { ...process.env, STACKARR_DATABASE_FILE: dbFile, APP_ROOT_DEFAULT_OVERRIDE: root } }
+      );
+      const result = JSON.parse(stdout.trim());
+      assert.equal(result.layout, existing ? 'legacy' : 'shared');
+      assert.equal(result.downloads, existing ? `${root}/downloads` : `${result.media}/Downloads`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('settings reads prefer the active Postgres store over the SQLite bootstrap copy', async () => {
   const fixture = await createFakePostgresFixture('stackarr.settings', { ui: { theme: 'light' } });
   const sqliteValue = JSON.stringify({ ui: { theme: 'dark' } });

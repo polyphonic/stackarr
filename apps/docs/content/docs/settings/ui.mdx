@@ -27,10 +27,43 @@ Choose `light`, `dark`, or `system`. Stackarr applies the preference across the 
 
 ## Service Links
 
-Set service links to `portless` to use local names such as `https://app.stack` and `https://plex.stack`. Dashboard links use direct aliases by default, while Stackarr routes such as `https://app.stack/immich` continue to redirect to the matching direct service URL.
+New installations default to HTTPS `.stack` links, including `https://app.stack` for the controller and `https://plex.stack` for Plex. Existing explicit mode, suffix, scheme and service-port choices remain unchanged. Choose `localhost` or `loopback` when you do not want friendly names. Direct HTTP service ports remain available even if Portless is not ready. Stackarr paths such as `https://app.stack/immich` redirect to the direct service URL.
 
-Portless requires a helper installed directly on the Docker host because clean `.stack` names need host access for port `443`, certificate trust, and `/etc/hosts`. The Stackarr container cannot approve those operating-system changes. Container-only installations can keep the default localhost links or use an existing reverse proxy instead.
+Until host enrollment succeeds, open the controller at `http://localhost:7777` (or your configured `STACKARR_WEB_PORT`) and select `localhost` service links in UI settings. Selecting that mode is preserved across future reapply operations.
 
-The dashboard's **System → Events → Portless** panel provides neutral, copyable host commands instead of showing an action warning or starting a task that cannot succeed in Docker. Run `stackarr portless install` once on the host, and use `stackarr portless apply` after service or alias changes. A one-shot macOS LaunchAgent can show as not running after it exits successfully; use `stackarr portless status` to verify the aliases themselves.
+## Host setup and unattended startup
+
+Install **Node.js 24+** and **Portless 0.15.11 or newer** on the Docker host. Stackarr uses static aliases, not the Portless Docker Compose wrapper: Compose names, fixed published HTTP ports, native Plex and host-reachable MCP URLs do not change.
+
+```sh
+npm install -g portless
+stackarr portless install
+stackarr portless status
+```
+
+The minimum version covers the upstream host-header correction and the service/alias CLI inspected by Stackarr. Portless 0.16 adds options absent in 0.15.11. Stackarr deliberately uses the common CLI contract, not private state files or an assumed JSON list command. It does not automatically upgrade a shared proxy.
+
+On a fresh host, `install` delegates boot startup to **Portless's upstream system service** (launchd on macOS, systemd on Linux). Administrator consent for the service, certificate trust and hosts resolution may be required once. Run this initial enrollment in a trusted host terminal. A container or unattended agent cannot grant that consent. Failed enrollment or hosts synchronization returns a failure, not a false success. Stackarr's Bash host integration supports macOS and Linux, not native Windows, even though Portless itself supports Windows.
+
+An existing service is verified and reused without reinstalling, restarting or changing it. Existing standalone proxies or incompatible suffix/scheme/LAN/multi-TLD settings require explicit operator reconciliation. Stackarr never stops the shared proxy, kills another app, silently falls back to port 1355, or resets ports. Nonstandard proxy ports can be retained with `PORTLESS_PORT`; default dashboard links use standard 443/80, so use the explicit Portless URL or localhost fallback for a nonstandard proxy port.
+
+The upstream service persists static aliases across logout and reboot. No new per-user Stackarr login agent is installed. Legacy `com.stackarr.portless` login agents may remain and safely invoke the installed `apply` command; they are not required for proxy startup. Remove an obsolete login agent only after confirming its ownership. No cold-boot guarantee is inferred merely from a successful status check.
+
+## Reapply and ownership
+
+```sh
+stackarr portless apply
+stackarr portless status
+```
+
+Reapply after enabling/disabling a service or changing its origin port. These commands use the authoritative runtime settings. `status` does not stage or overwrite the host runtime. Aliases are registered through `portless alias`, read back through `portless list`, and resolved through `portless hosts sync`.
+
+`apply`, `install` and `status` also check the discovered proxy mode and make bounded HTTP requests with system `curl`. A DNS, certificate or gateway failure returns nonzero even when registration succeeded. Login redirects and authentication challenges count as reachable, not as authenticated application-health verification. Start the enabled services before checking route readiness.
+
+Stackarr records only aliases it creates in its own `STATE_ROOT/portless/aliases.json` ledger. It removes stale entries only when the current alias still matches that ledger. Pre-existing matching aliases are reused but **not adopted**. Unrelated aliases, changed owners and old-suffix entries are retained. Conflicting names fail closed. This conservative upgrade policy can leave legacy disabled-service aliases for explicit review rather than deleting another installation's routes. Do not run another route editor concurrently: upstream 0.15.11 has no compare-and-swap operation.
+
+`stackarr portless uninstall` removes only verified ledger-owned aliases. It does not uninstall the shared upstream system service or erase unrelated routes. A host owner can separately use upstream `portless service uninstall` when no other applications need it.
+
+The dashboard's **System → Events → Portless** panel supplies host commands rather than attempting privileged work inside Docker.
 
 These settings live in the configured Stackarr runtime settings store. In Postgres mode, Postgres is the source of truth.

@@ -369,7 +369,7 @@ config = result.get("config") if isinstance(result, dict) else {}
 ingress = config.get("ingress") if isinstance(config, dict) else []
 
 ports = {
-    str(os.environ.get("STACKARR_WEB_PORT") or "7777"): "app",
+    str(os.environ.get("STACKARR_WEB_PORT") or "7777"): "stackarr",
     str(os.environ.get("PULSARR_PORT") or "3003"): "pulsarr",
     str(os.environ.get("TDARR_WEB_PORT") or "8265"): "tdarr",
     str(os.environ.get("MAINTAINERR_PORT") or "6246"): "maintainerr",

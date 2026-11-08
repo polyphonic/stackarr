@@ -33,6 +33,8 @@ test('Agregarr configuration promotes New Movies and New Episodes while preservi
     fixtureHub(402, 'Recently Released Episodes', 'tv.recentlyaired', '3', 'TV Shows')
   ];
   const reorders: Array<Record<string, any>> = [];
+  const arrSettings: Array<{ kind: string; body: Record<string, any> }> = [];
+  const placeholderSettings: Array<Record<string, any>> = [];
   const plexRenames: Array<{ libraryId: string; ratingKey: string; title: string }> = [];
   const plexFallbackRenames: Array<{ ratingKey: string; title: string }> = [];
   const plexHubRefreshes: string[] = [];
@@ -112,7 +114,20 @@ test('Agregarr configuration promotes New Movies and New Episodes while preservi
       plexHubRefreshes.push(`visible:${plexHubItem[1]}:${plexHubItem[3]}`);
       response.end('{}');
     } else if (requestPath === '/api/v1/settings/plex' && request.method === 'GET') response.end('{}');
-    else if (requestPath === '/api/v1/settings/plex/libraries') {
+    else if (/^\/api\/v1\/settings\/(radarr|sonarr)\/test$/.test(requestPath)) {
+      const kind = requestPath.split('/')[4];
+      response.end(
+        JSON.stringify({
+          profiles: [{ id: 1, name: 'HD Lite' }],
+          rootFolders: [{ path: kind === 'radarr' ? '/data/Movies Library' : '/data/TV Shows' }]
+        })
+      );
+    } else if (/^\/api\/v1\/settings\/(radarr|sonarr)$/.test(requestPath) && request.method === 'GET') {
+      response.end('[]');
+    } else if (/^\/api\/v1\/settings\/(radarr|sonarr)$/.test(requestPath) && request.method === 'POST') {
+      arrSettings.push({ kind: requestPath.split('/')[4] || '', body });
+      response.end('{}');
+    } else if (requestPath === '/api/v1/settings/plex/libraries') {
       response.end(
         JSON.stringify([
           { key: '2', name: 'Movies', type: 'movie' },
@@ -120,7 +135,10 @@ test('Agregarr configuration promotes New Movies and New Episodes while preservi
         ])
       );
     } else if (requestPath === '/api/v1/settings/main' && request.method === 'GET') response.end('{}');
-    else if (requestPath === '/api/v1/collections' && request.method === 'GET') {
+    else if (requestPath === '/api/v1/settings/main' && request.method === 'POST') {
+      placeholderSettings.push(body);
+      response.end('{}');
+    } else if (requestPath === '/api/v1/collections' && request.method === 'GET') {
       response.end(JSON.stringify({ collectionConfigs: collections }));
     } else if (requestPath === '/api/v1/defaulthubs' && request.method === 'GET') {
       response.end(JSON.stringify(defaultHubs));
@@ -179,7 +197,11 @@ test('Agregarr configuration promotes New Movies and New Episodes while preservi
           AGREGARR_BROWSER_URL: 'https://agregarr.stack',
           PLEX_TOKEN: 'plex-fixture-token',
           ENABLE_MOVIES: 'true',
-          ENABLE_TV_SHOWS: 'true'
+          ENABLE_TV_SHOWS: 'true',
+          RADARR_API_KEY: 'radarr-key',
+          SONARR_API_KEY: 'sonarr-key',
+          CONTAINER_MOVIES_ROOT: '/data/Movies Library',
+          CONTAINER_TV_ROOT: '/data/TV Shows'
         }
       });
 
@@ -188,6 +210,12 @@ test('Agregarr configuration promotes New Movies and New Episodes while preservi
     reorders.length = 0;
     plexHubMoves.length = 0;
     const { stdout } = await runConfigure();
+
+    assert.equal(arrSettings.find((item) => item.kind === 'radarr')?.body.activeDirectory, '/data/Movies Library');
+    assert.equal(arrSettings.find((item) => item.kind === 'sonarr')?.body.activeDirectory, '/data/TV Shows');
+    const placeholders = placeholderSettings.find((body) => body.placeholderMovieRootFolders);
+    assert.deepEqual(placeholders?.placeholderMovieRootFolders, { '2': '/data/Movies Library/_Trailers' });
+    assert.deepEqual(placeholders?.placeholderTVRootFolders, { '3': '/data/TV Shows/_Trailers' });
 
     assert.match(stdout, /2 newest-release collections/);
     for (const [id, expectedName] of [

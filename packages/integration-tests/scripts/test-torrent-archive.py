@@ -65,6 +65,31 @@ class ArchiveTest(unittest.TestCase):
                              radarr_moviefile_path='/movies/Film/Feature.mkv',
                              radarr_release_title='Release', radarr_movie_id='42', **kwargs)
 
+    def test_shared_movie_root_with_spaces_and_wrong_prefix(self):
+        data = torrent('Feature.mkv'); hash_ = self.source(data)
+        result = self.run_hook(CONTAINER_MOVIES_ROOT='/data/Movies Library',
+                               radarr_eventtype='Download', radarr_download_id=hash_,
+                               radarr_moviefile_path='/data/Movies Library/Film/Feature.mkv',
+                               radarr_release_title='Release', radarr_movie_id='42')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.archive / 'Movies/Film/Release.torrent').read_bytes(), data)
+        wrong = self.run_hook(CONTAINER_MOVIES_ROOT='/data/Movies Library',
+                              radarr_eventtype='Download', radarr_download_id=hash_,
+                              radarr_moviefile_path='/movies/Film/Feature.mkv',
+                              radarr_release_title='Other', radarr_movie_id='42')
+        self.assertEqual(wrong.returncode, 0, wrong.stderr)
+        self.assertFalse((self.archive / 'Movies/Film/Other.torrent').exists())
+
+    def test_shared_tv_root_with_spaces(self):
+        data = torrent('Feature.mkv'); hash_ = self.source(data)
+        result = self.run_hook(CONTAINER_TV_ROOT='/data/TV Shows',
+                               sonarr_eventtype='Download', sonarr_download_id=hash_,
+                               sonarr_episodefile_path='/data/TV Shows/Series/Season 01/Feature.mkv',
+                               sonarr_episodefile_seasonnumber='1',
+                               sonarr_release_title='Release', sonarr_series_id='12')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.archive / 'TV Shows/Series/Season 01/Release.torrent').read_bytes(), data)
+
     def test_grab_stub_metadata_download_recovers_private_bytes(self):
         data = torrent('Feature.mkv'); hash_ = infohash(data)
         stub = b'd8:announce4:stub4:infodee'

@@ -1,6 +1,7 @@
 import type { StackMetrics } from '@stackarr/core';
 import { formatBinaryBytes } from '../lib/formatBinaryBytes';
 import styles from './DashboardOverview.module.css';
+import { StorageVolumes } from './StorageVolumes';
 import { Grid, Panel, Stat } from './ui';
 
 export function DashboardOverview({ metrics }: { metrics: StackMetrics }) {
@@ -58,10 +59,19 @@ export function StorageOverview({ metrics }: { metrics: StackMetrics }) {
   const used = Math.max(0, total - free);
 
   return (
-    <Panel
-      title="Storage"
-      description="Filesystem free space on mounted drives; Finder may include reclaimable space in Available"
-    >
+    <details className={styles.storageAccordion}>
+      <summary className={styles.storageAccordionSummary}>
+        <strong>Storage</strong>
+        <span>
+          {measurable.length > 0
+            ? `${formatBinaryBytes(free)} available of ${formatBinaryBytes(total)}`
+            : 'Capacity unavailable'}{' '}
+          · {mounted.length} mounted drives
+        </span>
+      </summary>
+      <p className={styles.storageNote}>
+        Filesystem free space on mounted drives; Finder may include reclaimable space in Available.
+      </p>
       <div className={styles.storageSummary}>
         <div>
           <span>Total capacity</span>
@@ -80,28 +90,8 @@ export function StorageOverview({ metrics }: { metrics: StackMetrics }) {
           <strong>{mounted.length}</strong>
         </div>
       </div>
-      <div className={styles.disks}>
-        {metrics.disks.length === 0 && <p>No storage paths configured yet.</p>}
-        {metrics.disks.map((disk) => (
-          <div key={`${disk.filesystem}-${disk.mountPoint}`} className={styles.diskRow}>
-            <div>
-              <strong>{disk.label}</strong>
-              <span>
-                {disk.usedPercent === null
-                  ? 'Capacity unavailable · Verify host mount'
-                  : `${formatBinaryBytes((disk.totalSpace ?? 0) - (disk.freeSpace ?? 0))} of ${formatBinaryBytes(
-                      disk.totalSpace ?? 0
-                    )} used · ${formatBinaryBytes(disk.freeSpace ?? 0)} available${
-                      disk.paths.length > 1 ? ` · ${disk.paths.length} Stackarr locations` : ''
-                    }`}
-              </span>
-            </div>
-            <strong className={styles.diskPercent}>{disk.usedPercent === null ? '—' : `${disk.usedPercent}%`}</strong>
-            <Bar value={disk.usedPercent ?? 0} />
-          </div>
-        ))}
-      </div>
-    </Panel>
+      <StorageVolumes disks={metrics.disks} />
+    </details>
   );
 }
 
@@ -133,14 +123,6 @@ function Sparkline({ label, values }: { label: string; values: number[] }) {
       <svg viewBox="0 0 100 52" preserveAspectRatio="none">
         <polyline className={styles.sparklineLine} points={points} fill="none" strokeWidth="3" />
       </svg>
-    </div>
-  );
-}
-
-function Bar({ value }: { value: number }) {
-  return (
-    <div className={`${styles.bar} ${value > 95 ? styles.barBad : value > 90 ? styles.barWarn : styles.barGood}`}>
-      <span style={{ width: `${Math.min(value, 100)}%` }} />
     </div>
   );
 }

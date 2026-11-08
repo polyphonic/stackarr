@@ -4,6 +4,10 @@ title: Settings Storage
 
 # Settings Storage
 
+**Media Management** shows the host Media folder. In the shared layout, `Movies` and `TV Shows` are relative folders inside it. The container path `/data` is an internal mount, not a host folder. Existing installations without a shared layout retain their saved paths and mounts. Changing a field saves a path; it does not migrate existing files or convert the layout.
+
+Downloads may be a `Downloads` folder inside Media or a separately chosen host folder. If downloads and Media are on different filesystems, imports copy files rather than hardlinking. Review mounted paths and data before applying any storage changes. Music, archive, and backup paths remain separately configurable.
+
 Stackarr uses a split similar to the arr apps' app-data approach.
 
 | Location | Purpose |

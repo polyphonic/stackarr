@@ -9,7 +9,7 @@
         "STACKARR_MCP_PROFILE=manage",
         "-e",
         "STACKARR_MCP_CLIENT=openclaw",
-        "app",
+        "stackarr",
         "/app/bin/stackarr",
         "mcp",
         "serve"
