@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0-alpha.26](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.25...v0.3.0-alpha.26) (2026-11-08)
+
+
+### Added
+
+* **storage:** integrate direct paths and owned Portless routes ([c2bbcc1](https://github.com/polyphonic/stackarr/commit/c2bbcc1a99fd62558ae34faa52a552abb07266ca))
+* **storage:** integrate direct paths and owned Portless routes ([0c201c4](https://github.com/polyphonic/stackarr/commit/0c201c4ac96cd3d54fa2605ca0a26135a19170d4))
+
+
+### Fixed
+
+* **web:** restore native Vercel deployment and rate limiting ([#107](https://github.com/polyphonic/stackarr/issues/107)) ([2683726](https://github.com/polyphonic/stackarr/commit/26837260adfac7af1e259e1b4c9ea9f624cb3673))
+
+
+### Continuous integration
+
+* **release:** test host routing on supported Node runtime ([16d098b](https://github.com/polyphonic/stackarr/commit/16d098bfa164c3ff96599543c988ef05a5f4ecda))
+
 ## [0.3.0-alpha.25](https://github.com/polyphonic/stackarr/compare/v0.3.0-alpha.24...v0.3.0-alpha.25) (2026-10-28)
 
 
