@@ -163,7 +163,7 @@ test('host runtime reload reads current PostgreSQL settings through the Stackarr
       [
         '#!/bin/sh',
         'case " $* " in',
-        '  *" exec -T app sh -lc "*)',
+        '  *" exec -T stackarr sh -lc "*)',
         '    printf "%s\\n" "export USERNAME=\u0027fresh-user\u0027" "export PASSWORD=\u0027fresh-password\u0027" "export TRANSMISSION_PASSWORD=\u0027fresh-password\u0027"',
         '    exit 0',
         '    ;;',
@@ -304,7 +304,7 @@ test('host runtime reload reads PostgreSQL through the database container socket
       [
         '#!/bin/sh',
         'case " $* " in',
-        '  *" exec -T app "*) exit 1 ;;',
+        '  *" exec -T stackarr "*) exit 1 ;;',
         '  *" exec -T database psql "*)',
         '    printf "%s\\n" "{\\"APP_ROOT\\":\\"/app/stackarr/.stackarr\\",\\"USERNAME\\":\\"socket-user\\",\\"RECYCLARR_IMAGE\\":\\"ghcr.io/recyclarr/recyclarr:8\\"}"',
         '    exit 0',
@@ -623,7 +623,7 @@ test('Questarr inherits RomM IGDB credentials and portable game paths at runtime
     assert.match(content, /^QUESTARR_ROMM_LIBRARY_MOUNT_MODE="ro"$/m);
 
     const compose = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
-    const appService = compose.match(/\n  app:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+    const appService = compose.match(/\n  stackarr:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
     assert.match(appService, /:\/stackarr-romm-library:\$\{QUESTARR_ROMM_LIBRARY_MOUNT_MODE:-ro\}"/);
     assert.match(appService, /:\/Steam:ro"/);
     assert.match(appService, /:\/SteamWindows:ro"/);
@@ -880,7 +880,7 @@ test('PostgreSQL mode reaches the controller and cannot silently fall back to SQ
   const composeSource = await readFile(path.join(repoRoot, 'stackarr/docker-compose.yml'), 'utf8');
   const databaseSource = await readFile(path.join(repoRoot, 'packages/core/src/database.ts'), 'utf8');
   const wizardSource = await readFile(path.join(repoRoot, 'apps/frontend/src/components/SetupWizard.tsx'), 'utf8');
-  const appService = composeSource.match(/\n  app:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
+  const appService = composeSource.match(/\n  stackarr:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
   const updaterService = composeSource.match(/\n  app-updater:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n)/)?.[1] ?? '';
 
   assert.match(appService, /STACKARR_DATABASE_MODE: \$\{STACKARR_DATABASE_MODE:-app-default\}/);

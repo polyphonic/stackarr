@@ -587,7 +587,7 @@ apply_security() {
 start_security_apply_worker() {
     local task_database_url="${1:-}"
     local worker_image=""
-    worker_image="$(docker inspect "${STACKARR_CONTAINER_NAME:-app}" --format '{{.Config.Image}}' 2>/dev/null || true)"
+    worker_image="$(docker inspect "${STACKARR_CONTAINER_NAME:-stackarr}" --format '{{.Config.Image}}' 2>/dev/null || true)"
     [[ -n "$worker_image" ]] || fail "Could not resolve the running Stackarr image for security apply"
     local -a run_args=(--profile maintenance run --quiet-pull -d --rm)
     if [[ -n "${STACKARR_TASK_ID:-}" ]]; then
@@ -625,8 +625,8 @@ apply_security_worker() {
     apply_security
 
     update_security_task_note "Recreating the Stackarr controller with current database credentials"
-    stackarr_compose --profile stackarr up -d --force-recreate --no-deps app
-    wait_for_http "Stackarr" "http://app:${STACKARR_WEB_PORT:-7777}/api/v1/health"
+    stackarr_compose --profile stackarr up -d --force-recreate --no-deps stackarr
+    wait_for_http "Stackarr" "http://stackarr:${STACKARR_WEB_PORT:-7777}/api/v1/health"
 
     update_security_task_note "Security credentials applied and Stackarr is healthy"
     finish_security_task completed 0

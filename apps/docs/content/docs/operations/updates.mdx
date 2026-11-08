@@ -21,7 +21,7 @@ Ask an admin-profile agent to back up and update the managed apps, use
 **System → Updates → Update apps**, or run:
 
 ```bash
-docker exec app /app/bin/stackarr update services
+docker exec stackarr /app/bin/stackarr update services
 ```
 
 The app workflow targets managed services explicitly, leaves the Stackarr
@@ -71,7 +71,7 @@ runtime-configurable when an installation needs a deliberate version pin.
 Use **System → Updates → Update Stackarr**, or run:
 
 ```console
-docker exec app /app/bin/stackarr update app
+docker exec stackarr /app/bin/stackarr update app
 ```
 
 The running controller hands this operation to a one-shot maintenance worker.
@@ -79,9 +79,22 @@ That worker pulls only the Stackarr image, reconciles database access, recreates
 only the controller, waits for its health endpoint, and records the result in
 Activity. Other services stay online.
 
+For older installations whose controller service is named `app`, a scoped
+update verifies its Compose project, controller identity, configuration mount and
+named-state mount before stopping it. The old container and image are retained until the new
+`stackarr` controller responds to its health check. If creation or readiness
+fails, the updater removes only its replacement and restores the original
+controller's running state and restart policy. It never prunes unrelated orphans
+or persistent volumes. Ambiguous identities or changed storage stop the upgrade
+before the old controller is touched. An interrupted worker or unavailable Docker
+engine can require manual recovery from the retained old container. Do not start
+both controller generations against the same data.
+
 When `STACKARR_IMAGE` ends in `:local`, Stackarr keeps that image and explains
-that it must be rebuilt from its source checkout. Managed app updates still run
-normally.
+that it must be rebuilt from its source checkout. Retain an immutable candidate
+tag for provenance, but use a `:local` alias for the active runtime setting while
+testing unpublished builds. Other tag suffixes are treated as registry images.
+Managed app updates still run normally.
 
 The legacy `stackarr update run` command remains an alias for
 `stackarr update services`.

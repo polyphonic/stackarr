@@ -223,7 +223,7 @@ export function mcpServerCard() {
       {
         type: 'stdio',
         command: 'docker',
-        args: ['exec', '-i', '-e', 'STACKARR_MCP_PROFILE=manage', 'app', '/app/bin/stackarr', 'mcp', 'serve']
+        args: ['exec', '-i', '-e', 'STACKARR_MCP_PROFILE=manage', 'stackarr', '/app/bin/stackarr', 'mcp', 'serve']
       },
       {
         type: 'streamable-http',
@@ -232,7 +232,7 @@ export function mcpServerCard() {
         disabledByDefault: true
       }
     ],
-    connectionGenerator: 'docker exec app /app/bin/stackarr mcp config <client> --profile <profile>',
+    connectionGenerator: 'docker exec stackarr /app/bin/stackarr mcp config <client> --profile <profile>',
     capabilities: {
       tools: true,
       resources: false,

@@ -1873,6 +1873,29 @@ ensure_seerr_service() {
 
     existing_id="$(json_id_by_name "$list_url" "$api_key" "$name" || true)"
     if [[ -n "$existing_id" ]]; then
+        # Existing roots are handled by the separate inventory migration.
+        local existing
+        existing="$(curl -fsS "$list_url" -H "X-Api-Key: $api_key" 2>/dev/null || true)"
+        if [[ -z "$existing" ]]; then
+            warn "$label existing roots could not be read; update skipped"
+            return 1
+        fi
+        payload="$(SEERR_PAYLOAD="$payload" SEERR_EXISTING="$existing" python3 - "$existing_id" <<'PY'
+import json
+import os
+import sys
+
+payload = json.loads(os.environ['SEERR_PAYLOAD'])
+items = json.loads(os.environ['SEERR_EXISTING'])
+current = next((item for item in items if str(item.get('id')) == sys.argv[1]), None)
+if current is None:
+    raise SystemExit('Existing Seerr service disappeared; refusing root update')
+for key in ('activeDirectory', 'activeAnimeDirectory'):
+    if current.get(key) and key in payload:
+        payload[key] = current[key]
+print(json.dumps(payload))
+PY
+)"
         api_put_json "$label" "$update_base_url/$existing_id" "$api_key" "$payload" || true
     else
         api_post_json "$label" "$create_url" "$api_key" "$payload" || true
@@ -2265,8 +2288,8 @@ ensure_qbittorrent_category() {
 
 configure_qbittorrent_settings() {
     local cookie_file bootstrap_password payload config_result
-    local desired_incomplete="/downloads/$DOWNLOAD_INCOMPLETE_NAME"
-    local desired_complete="/downloads/$DOWNLOAD_COMPLETE_NAME"
+    local desired_incomplete="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_INCOMPLETE_NAME"
+    local desired_complete="${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME"
     local config_file="$CONFIG_ROOT/qbittorrent/qBittorrent/qBittorrent.conf"
 
     ensure_dir "$DOWNLOADS_ROOT/$DOWNLOAD_INCOMPLETE_NAME"
@@ -2447,14 +2470,14 @@ PY
         return 1
     fi
 
-    ensure_qbittorrent_category "$cookie_file" "$RADARR_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$RADARR_CATEGORY" || true
-    ensure_qbittorrent_category "$cookie_file" "$SONARR_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$SONARR_CATEGORY" || true
-    ensure_qbittorrent_category "$cookie_file" "$LIDARR_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$LIDARR_CATEGORY" || true
+    ensure_qbittorrent_category "$cookie_file" "$RADARR_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$RADARR_CATEGORY" || true
+    ensure_qbittorrent_category "$cookie_file" "$SONARR_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$SONARR_CATEGORY" || true
+    ensure_qbittorrent_category "$cookie_file" "$LIDARR_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$LIDARR_CATEGORY" || true
     if optional_service_enabled radarr4k; then
-        ensure_qbittorrent_category "$cookie_file" "$RADARR_4K_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$RADARR_4K_CATEGORY" || true
+        ensure_qbittorrent_category "$cookie_file" "$RADARR_4K_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$RADARR_4K_CATEGORY" || true
     fi
     if optional_service_enabled sonarr4k; then
-        ensure_qbittorrent_category "$cookie_file" "$SONARR_4K_CATEGORY" "/downloads/$DOWNLOAD_COMPLETE_NAME/$SONARR_4K_CATEGORY" || true
+        ensure_qbittorrent_category "$cookie_file" "$SONARR_4K_CATEGORY" "${CONTAINER_DOWNLOADS_ROOT:-/downloads}/$DOWNLOAD_COMPLETE_NAME/$SONARR_4K_CATEGORY" || true
     fi
 
     rm -f "$cookie_file"
@@ -2871,7 +2894,7 @@ seerr_radarr_payload() {
     local is_default="$8"
     local external_url="$9"
     cat <<EOF
-{"name":"$name","hostname":"$hostname","port":${service_port},"apiKey":"$api_key","useSsl":false,"baseUrl":"","activeProfileId":${profile_id},"activeProfileName":"$profile_name","activeDirectory":"/movies","is4k":${is_4k},"minimumAvailability":"inCinemas","isDefault":${is_default},"externalUrl":"$external_url","syncEnabled":true,"preventSearch":false}
+{"name":"$name","hostname":"$hostname","port":${service_port},"apiKey":"$api_key","useSsl":false,"baseUrl":"","activeProfileId":${profile_id},"activeProfileName":"$profile_name","activeDirectory":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${CONTAINER_MOVIES_ROOT:-/movies}"),"is4k":${is_4k},"minimumAvailability":"inCinemas","isDefault":${is_default},"externalUrl":"$external_url","syncEnabled":true,"preventSearch":false}
 EOF
 }
 
@@ -2900,7 +2923,7 @@ seerr_sonarr_payload() {
     local season_folders
     season_folders="$(season_folders_enabled_json)"
     cat <<EOF
-{"name":"$name","hostname":"$hostname","port":${service_port},"apiKey":"$api_key","useSsl":false,"baseUrl":"","activeProfileId":${profile_id},"activeProfileName":"$profile_name","activeDirectory":"/tv","activeAnimeProfileId":${profile_id},"activeAnimeProfileName":"$profile_name","activeAnimeDirectory":"/tv","is4k":${is_4k},"enableSeasonFolders":${season_folders},"isDefault":${is_default},"externalUrl":"$external_url","syncEnabled":true,"preventSearch":false}
+{"name":"$name","hostname":"$hostname","port":${service_port},"apiKey":"$api_key","useSsl":false,"baseUrl":"","activeProfileId":${profile_id},"activeProfileName":"$profile_name","activeDirectory":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${CONTAINER_TV_ROOT:-/tv}"),"activeAnimeProfileId":${profile_id},"activeAnimeProfileName":"$profile_name","activeAnimeDirectory":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${CONTAINER_TV_ROOT:-/tv}"),"is4k":${is_4k},"enableSeasonFolders":${season_folders},"isDefault":${is_default},"externalUrl":"$external_url","syncEnabled":true,"preventSearch":false}
 EOF
 }
 
@@ -3056,6 +3079,7 @@ def upsert_instance(service, payload):
     matching = [item for item in items if item.get('baseUrl') == payload['baseUrl'] and item.get('apiKey') == payload['apiKey']]
     existing = next((item for item in matching if item.get('name') == payload['name']), None) or (matching[0] if matching else None)
     if existing:
+        payload['rootFolder'] = existing.get('rootFolder') or payload['rootFolder']
         request('PUT', f"/v1/{service}/instances/{existing['id']}", payload, ok=(200, 204))
         for item in items:
             if item.get('id') != existing.get('id') and item.get('baseUrl') == payload['baseUrl'] and str(item.get('name', '')).lower().startswith('stackarr'):
@@ -3242,7 +3266,7 @@ try:
         'name': 'Radarr',
         'baseUrl': 'http://radarr:7878',
         'apiKey': radarr_key,
-        'rootFolder': '/movies',
+        'rootFolder': os.environ.get('CONTAINER_MOVIES_ROOT') or '/movies',
         'qualityProfile': RADARR_DEFAULT_PROFILE,
         'bypassIgnored': False,
         'searchOnAdd': True,
@@ -3255,7 +3279,7 @@ try:
         'name': 'Sonarr',
         'baseUrl': 'http://sonarr:8989',
         'apiKey': sonarr_key,
-        'rootFolder': '/tv',
+        'rootFolder': os.environ.get('CONTAINER_TV_ROOT') or '/tv',
         'qualityProfile': SONARR_DEFAULT_PROFILE,
         'bypassIgnored': False,
         'seasonMonitoring': 'all',
@@ -4207,14 +4231,14 @@ if optional_service_enabled lidarr; then
     LIDARR_METADATA_PROFILE_ID="${LIDARR_METADATA_PROFILE_ID:-1}"
 fi
 
-ensure_root_folder "Radarr root folder set" "$RADARR_URL/api/v3/rootfolder" "$RADARR_URL/api/v3/rootfolder" "$RADARR_KEY" "/movies" '{"path":"/movies"}'
-ensure_root_folder "Sonarr root folder set" "$SONARR_URL/api/v3/rootfolder" "$SONARR_URL/api/v3/rootfolder" "$SONARR_KEY" "/tv" '{"path":"/tv"}'
+ensure_root_folder "Radarr root folder set" "$RADARR_URL/api/v3/rootfolder" "$RADARR_URL/api/v3/rootfolder" "$RADARR_KEY" "${CONTAINER_MOVIES_ROOT:-/movies}" "$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "${CONTAINER_MOVIES_ROOT:-/movies}")"
+ensure_root_folder "Sonarr root folder set" "$SONARR_URL/api/v3/rootfolder" "$SONARR_URL/api/v3/rootfolder" "$SONARR_KEY" "${CONTAINER_TV_ROOT:-/tv}" "$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "${CONTAINER_TV_ROOT:-/tv}")"
 ensure_root_folder "Lidarr root folder set" "$LIDARR_URL/api/v1/rootfolder" "$LIDARR_URL/api/v1/rootfolder" "$LIDARR_KEY" "/music" "$(lidarr_rootfolder_payload "$LIDARR_QUALITY_PROFILE_ID" "$LIDARR_METADATA_PROFILE_ID")"
 if optional_service_enabled radarr4k; then
-    ensure_root_folder "Radarr 4K root folder set" "$RADARR_4K_URL/api/v3/rootfolder" "$RADARR_4K_URL/api/v3/rootfolder" "$RADARR_4K_KEY" "/movies" '{"path":"/movies"}'
+    ensure_root_folder "Radarr 4K root folder set" "$RADARR_4K_URL/api/v3/rootfolder" "$RADARR_4K_URL/api/v3/rootfolder" "$RADARR_4K_KEY" "${CONTAINER_MOVIES_ROOT:-/movies}" "$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "${CONTAINER_MOVIES_ROOT:-/movies}")"
 fi
 if optional_service_enabled sonarr4k; then
-    ensure_root_folder "Sonarr 4K root folder set" "$SONARR_4K_URL/api/v3/rootfolder" "$SONARR_4K_URL/api/v3/rootfolder" "$SONARR_4K_KEY" "/tv" '{"path":"/tv"}'
+    ensure_root_folder "Sonarr 4K root folder set" "$SONARR_4K_URL/api/v3/rootfolder" "$SONARR_4K_URL/api/v3/rootfolder" "$SONARR_4K_KEY" "${CONTAINER_TV_ROOT:-/tv}" "$(python3 -c 'import json,sys; print(json.dumps({"path":sys.argv[1]}))' "${CONTAINER_TV_ROOT:-/tv}")"
 fi
 
 ensure_notification "Radarr torrent archive notification configured" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_URL/api/v3/notification" "$RADARR_KEY" "Stackarr Torrent Archive" "$(radarr_torrent_archive_notification_payload)"

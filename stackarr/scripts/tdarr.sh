@@ -41,14 +41,16 @@ if os.environ.get('TDARR_AUTH', 'true') != 'false':
 status, nodes = request('/api/v2/get-nodes')
 if status != 200: raise SystemExit('Tdarr API key verification failed.')
 print('Tdarr API authenticated; connected nodes:', len(nodes))
-print('Media is available at /media; transcode cache is /temp. Existing library settings are preserved.')
+print('Media is available at ' + (os.environ.get('CONTAINER_TDARR_MEDIA_ROOT') or '/media') +
+      '; transcode cache is ' + (os.environ.get('CONTAINER_TDARR_CACHE_ROOT') or '/temp') +
+      '. Existing library settings are preserved.')
 PY
 }
 
 case "${1:-help}" in
     status)
         if optional_service_enabled tdarr; then ok "Tdarr is enabled"; else warn "Tdarr is disabled"; fi
-        printf 'URL: %s\nMedia: %s -> /media\nCache: %s -> /temp\n' "$TDARR_URL" "$TDARR_MEDIA_ROOT" "$TDARR_CACHE_ROOT"
+        printf 'URL: %s\nMedia: %s -> %s\nCache: %s -> %s\n' "$TDARR_URL" "$TDARR_MEDIA_ROOT" "${CONTAINER_TDARR_MEDIA_ROOT:-/media}" "$TDARR_CACHE_ROOT" "${CONTAINER_TDARR_CACHE_ROOT:-/temp}"
         stackarr_compose --profile tdarr ps tdarr
         ;;
     url) printf '%s\n' "$TDARR_URL" ;;

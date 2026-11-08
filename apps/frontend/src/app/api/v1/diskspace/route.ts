@@ -9,5 +9,5 @@ export async function GET(request: NextRequest) {
     return auth;
   }
 
-  return json(configuredDiskUsages(readEnv()));
+  return json(await configuredDiskUsages(readEnv()));
 }

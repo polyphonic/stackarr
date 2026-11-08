@@ -17,10 +17,10 @@ import { BackupRecoveryKey } from '../../../components/BackupRecoveryKey';
 import { CommandButton } from '../../../components/CommandButton';
 import { PortlessHostCommands } from '../../../components/PortlessHostCommands';
 import { ServerLogViewer } from '../../../components/ServerLogViewer';
+import { StorageVolumes } from '../../../components/StorageVolumes';
 import { SubNav } from '../../../components/SubNav';
 import { TaskProgressView } from '../../../components/TaskProgress';
 import { ActionGrid, Badge, Grid, Panel, Stat, Table } from '../../../components/ui';
-import { formatBinaryBytes } from '../../../lib/formatBinaryBytes';
 import { requireDashboardAuth } from '../../../lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
@@ -314,28 +314,7 @@ export default async function SystemSectionPage({ params }: { params: Promise<{ 
             title="Disk Space"
             description="Filesystem free space; Finder may also count reclaimable capacity as available"
           >
-            <Table>
-              <thead>
-                <tr>
-                  <th>Path</th>
-                  <th>Stackarr Paths</th>
-                  <th>Used</th>
-                  <th>Total</th>
-                  <th>Free</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.disks.map((disk) => (
-                  <tr key={disk.path}>
-                    <td>{disk.label}</td>
-                    <td>{disk.paths.length}</td>
-                    <td>{disk.usedPercent === null ? 'Unavailable' : `${disk.usedPercent}%`}</td>
-                    <td>{disk.totalSpace === null ? '' : formatBinaryBytes(disk.totalSpace)}</td>
-                    <td>{disk.freeSpace === null ? '' : formatBinaryBytes(disk.freeSpace)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <StorageVolumes disks={metrics.disks} />
           </Panel>
         )}
         {section === 'logs' && (

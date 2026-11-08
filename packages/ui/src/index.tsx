@@ -45,6 +45,7 @@ import {
 } from 'nucleo-glass';
 import { type ComponentType, type SVGProps, useId } from 'react';
 
+export { Accordion } from '@heroui/react/accordion';
 export { Button } from '@heroui/react/button';
 export { Chip } from '@heroui/react/chip';
 export { CloseButton } from '@heroui/react/close-button';

@@ -15,6 +15,8 @@ import { Description, Label, Switch } from '@stackarr/ui';
 import { toast } from '@stackarr/ui/toast';
 import { useMemo, useState } from 'react';
 import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
+import { MediaLocationSummary } from './MediaLocationSummary';
+import { MediaSubfolderInput, rebaseMediaSubfolder } from './MediaSubfolderInput';
 import { PathInput } from './PathPicker';
 import styles from './SetupWizard.module.css';
 import { TaskProgressView, useLiveTasks } from './TaskProgress';
@@ -52,6 +54,9 @@ const rommMetadataProviderLinks = {
 
 type SetupState = {
   mediaRoot: string;
+  mediaPathLayout?: string;
+  appDataRoot?: string;
+  tdarrCacheRoot?: string;
   musicRoot: string;
   downloadsRoot: string;
   torrentArchiveRoot: string;
@@ -237,6 +242,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
     const rommPlaymatchEnabled = rommPreset === 'twitch' || (rommPreset === 'custom' && state.rommPlaymatchApiEnabled);
     const config: Record<string, string> = {
       MEDIA_ROOT: state.mediaRoot,
+      ...(state.mediaPathLayout ? { MEDIA_PATH_LAYOUT: state.mediaPathLayout } : {}),
       MUSIC_ROOT: state.musicRoot,
       DOWNLOADS_ROOT: state.downloadsRoot,
       TORRENT_ARCHIVE_ROOT: state.torrentArchiveRoot,
@@ -464,7 +470,13 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
 
   const reviewItems = useMemo(
     () => [
-      ['Media library', state.mediaRoot],
+      ['Media folder on host', state.mediaRoot],
+      ...(state.mediaPathLayout === 'shared'
+        ? ([
+            ['Movie folder', 'Movies'],
+            ['TV folder', 'TV Shows']
+          ] as [string, string][])
+        : []),
       ['Music library', state.musicRoot],
       ['Downloads', state.downloadsRoot],
       ['Backups', state.backupRoot],
@@ -548,7 +560,14 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
   );
 
   function update<K extends keyof SetupState>(key: K, value: SetupState[K]) {
-    setState((currentState) => ({ ...currentState, [key]: value }));
+    setState((currentState) => {
+      const next = { ...currentState, [key]: value };
+      if (key === 'mediaRoot' && typeof value === 'string' && currentState.mediaPathLayout === 'shared') {
+        next.downloadsRoot = rebaseMediaSubfolder(currentState.mediaRoot, value, currentState.downloadsRoot);
+        next.musicRoot = rebaseMediaSubfolder(currentState.mediaRoot, value, currentState.musicRoot);
+      }
+      return next;
+    });
   }
 
   function toggleMaintainerrCleanupPreset(preset: string, checked: boolean) {
@@ -926,18 +945,52 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
         )}
         {current === 'Storage' && (
           <div className={styles.form}>
+            <p>
+              Choose the Media folder on your host.{' '}
+              {state.mediaPathLayout === 'shared'
+                ? 'Movies and TV Shows live inside it.'
+                : 'Existing installations keep their current library layout.'}
+            </p>
             <label>
-              Media Root
+              Media folder on host
               <PathInput value={state.mediaRoot} onChange={(value) => update('mediaRoot', value)} />
             </label>
-            <label>
-              Music Root
-              <PathInput value={state.musicRoot} onChange={(value) => update('musicRoot', value)} />
-            </label>
-            <label>
-              Downloads Root
-              <PathInput value={state.downloadsRoot} onChange={(value) => update('downloadsRoot', value)} />
-            </label>
+            {state.mediaPathLayout === 'shared' ? (
+              <>
+                <MediaSubfolderInput
+                  label="Music"
+                  root={state.mediaRoot}
+                  value={state.musicRoot}
+                  defaultFolder="Music"
+                  onChange={(value) => update('musicRoot', value)}
+                />
+                <MediaSubfolderInput
+                  label="Downloads"
+                  root={state.mediaRoot}
+                  value={state.downloadsRoot}
+                  defaultFolder="Downloads"
+                  onChange={(value) => update('downloadsRoot', value)}
+                />
+              </>
+            ) : (
+              <>
+                <label>
+                  Music folder on host
+                  <PathInput value={state.musicRoot} onChange={(value) => update('musicRoot', value)} />
+                </label>
+                <label>
+                  Downloads folder on host
+                  <PathInput value={state.downloadsRoot} onChange={(value) => update('downloadsRoot', value)} />
+                </label>
+              </>
+            )}
+            <MediaLocationSummary
+              media={state.mediaRoot}
+              downloads={state.downloadsRoot}
+              scratch={state.tdarrCacheRoot || `${state.downloadsRoot}/transcodes`}
+              appData={state.appDataRoot}
+              shared={state.mediaPathLayout === 'shared'}
+            />
             <label>
               Torrent Archive Root
               <PathInput value={state.torrentArchiveRoot} onChange={(value) => update('torrentArchiveRoot', value)} />
@@ -1437,7 +1490,7 @@ export function SetupWizard({ initialDefaults = {} }: { initialDefaults?: Partia
               Connect Codex, Claude, Hermes, OpenClaw, LM Studio, or another MCP client from the Docker host after
               setup. Every client receives the same actions and safety policy.
             </p>
-            <pre>{`docker exec app /app/bin/stackarr mcp config codex --profile admin`}</pre>
+            <pre>{`docker exec stackarr /app/bin/stackarr mcp config codex --profile admin`}</pre>
             <p>Use the admin profile while setting up infrastructure, then switch to manage for everyday use.</p>
           </div>
         )}

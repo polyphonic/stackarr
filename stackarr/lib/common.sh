@@ -329,7 +329,7 @@ load_postgres_runtime_config_through_app() {
     stackarr_runtime_is_container && return 1
 
     local exports
-    if ! exports="$(stackarr_compose exec -T app sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
+    if ! exports="$(stackarr_compose exec -T stackarr sh -lc 'node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-export.cjs"' 2>/dev/null)"; then
         return 1
     fi
 
@@ -477,7 +477,7 @@ import sys
 
 env_file = sys.argv[1]
 include = re.compile(
-    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
+    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MEDIA_PATH_LAYOUT|CONTAINER_.*|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
     r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
@@ -551,7 +551,7 @@ load_browser_link_runtime_settings() {
     db_file="$(default_stackarr_database_file)"
     local exporter="$ROOT_DIR/scripts/settings-export.cjs"
 
-    : "${STACKARR_SERVICE_URL_MODE:=localhost}"
+    : "${STACKARR_SERVICE_URL_MODE:=portless}"
     : "${STACKARR_SERVICE_URL_SCHEME:=https}"
     : "${STACKARR_SERVICE_URL_HOST_SUFFIX:=stack}"
     : "${STACKARR_UNIFY_SERVICE_URLS:=false}"
@@ -604,23 +604,15 @@ browser_service_url() {
 }
 
 apply_browser_link_runtime_defaults() {
+    # Browser callback URLs are distinct from host-reachable API/MCP origins.
+    # Never rewrite BOOKORBIT_URL or IMMICH_URL when choosing friendly links.
     local public_bookorbit_url
-    local public_immich_url
-
     public_bookorbit_url="$(browser_service_url bookorbit || true)"
-    public_immich_url="$(browser_service_url immich || true)"
-
-    if [[ -n "$public_bookorbit_url" ]] && is_loopback_url "${BOOKORBIT_URL:-}"; then
-        BOOKORBIT_URL="$public_bookorbit_url"
-    fi
     if [[ -n "$public_bookorbit_url" ]] && is_loopback_url "${BOOKORBIT_APP_URL:-}"; then
         BOOKORBIT_APP_URL="$public_bookorbit_url"
     fi
     if [[ -n "$public_bookorbit_url" ]] && is_loopback_url "${BOOKORBIT_CLIENT_URL:-}"; then
         BOOKORBIT_CLIENT_URL="$public_bookorbit_url"
-    fi
-    if [[ -n "$public_immich_url" ]] && is_loopback_url "${IMMICH_URL:-}"; then
-        IMMICH_URL="$public_immich_url"
     fi
 }
 
@@ -686,9 +678,14 @@ load_env() {
     : "${TIMEZONE:=Etc/UTC}"
     : "${PUID:=$(id -u)}"
     : "${PGID:=$(id -g)}"
+    : "${MEDIA_PATH_LAYOUT:=legacy}"
     : "${MEDIA_ROOT:=$APP_ROOT/media}"
     : "${MUSIC_ROOT:=$MEDIA_ROOT/Music}"
-    : "${DOWNLOADS_ROOT:=$APP_ROOT/downloads}"
+    if [[ "${MEDIA_PATH_LAYOUT:-legacy}" == shared ]]; then
+        : "${DOWNLOADS_ROOT:=$MEDIA_ROOT/Downloads}"
+    else
+        : "${DOWNLOADS_ROOT:=$APP_ROOT/downloads}"
+    fi
     : "${CONFIG_ROOT:=$APP_ROOT/config}"
     : "${STATE_ROOT:=$APP_ROOT/state}"
     : "${TORRENT_ARCHIVE_ROOT:=$STATE_ROOT/torrent-archive}"
@@ -740,7 +737,11 @@ load_env() {
     : "${TDARR_INTERNAL_NODE:=true}"
     : "${TDARR_START_PAUSED:=true}"
     : "${TDARR_NODE_NAME:=stackarr-node}"
-    : "${TDARR_CACHE_ROOT:=$APP_ROOT/cache/tdarr}"
+    if [[ "${MEDIA_PATH_LAYOUT:-legacy}" == shared ]]; then
+        : "${TDARR_CACHE_ROOT:=$DOWNLOADS_ROOT/transcodes}"
+    else
+        : "${TDARR_CACHE_ROOT:=$APP_ROOT/cache/tdarr}"
+    fi
     : "${TDARR_MEDIA_ROOT:=$MEDIA_ROOT}"
     if flag_enabled "$ENABLE_TDARR" && [[ -z "$TDARR_API_KEY" ]]; then
         TDARR_API_KEY="tapi_$(random_hex_secret 24)"
@@ -1295,7 +1296,7 @@ load_env() {
             PREFERRED_TORRENT_CLIENT="transmission"
             ;;
     esac
-    export TORRENT_ARCHIVE_ROOT
+    export TORRENT_ARCHIVE_ROOT MEDIA_PATH_LAYOUT
     export STACKARR_REPO_ROOT STACKARR_DATABASE_FILE STACKARR_DATABASE_DIR STACKARR_DATABASE_MODE STACKARR_DATABASE_URL STACKARR_LOG_DATABASE_URL STACKARR_POSTGRES_DATABASE STACKARR_POSTGRES_MAIN_DATABASE STACKARR_POSTGRES_LOG_DATABASE STACKARR_POSTGRES_USER STACKARR_POSTGRES_PASSWORD COMPOSE_PROJECT_NAME TIMEZONE PUID PGID MEDIA_ROOT MUSIC_ROOT DOWNLOADS_ROOT APP_ROOT CONFIG_ROOT STATE_ROOT LOG_ROOT PLEX_CONFIG_PATH PLEX_PREFS_PATH PLEX_INSTALL_MODE JELLYFIN_INSTALL_MODE JELLYFIN_CONFIG_PATH ENABLE_MOVIES ENABLE_TV_SHOWS ENABLE_4K_SERVARR ENABLE_BAZARR ENABLE_LIDARR ENABLE_BOOKORBIT ENABLE_IMMICH ENABLE_ROMM BOOKORBIT_JWT_SECRET BOOKORBIT_SETUP_TOKEN BOOKORBIT_DATABASE_URL BOOKORBIT_POSTGRES_DATABASE BOOKORBIT_POSTGRES_USER BOOKORBIT_POSTGRES_PASSWORD BOOKORBIT_IMAGE BOOKORBIT_BIND_IP BOOKORBIT_WEB_PORT BOOKORBIT_CONTAINER_PORT BOOKORBIT_URL BOOKORBIT_APP_URL BOOKORBIT_CLIENT_URL BOOKS_ROOT DATABASE_IMAGE DATABASE_PGDATA DATABASE_BIND_IP DATABASE_HOST_PORT DATABASE_NAME DATABASE_SUPERUSER DATABASE_SUPERUSER_PASSWORD REDIS_IMAGE SEERR_DB_TYPE SEERR_POSTGRES_DATABASE SEERR_POSTGRES_USER SEERR_POSTGRES_PASSWORD PULSARR_DB_TYPE PULSARR_DB_PATH PULSARR_DB_HOST PULSARR_DB_PORT PULSARR_DB_NAME PULSARR_DB_USER PULSARR_DB_PASSWORD PULSARR_POSTGRES_DATABASE PULSARR_POSTGRES_USER PULSARR_POSTGRES_PASSWORD BAZARR_POSTGRES_ENABLED BAZARR_POSTGRES_HOST BAZARR_POSTGRES_PORT BAZARR_POSTGRES_DATABASE BAZARR_POSTGRES_USER BAZARR_POSTGRES_PASSWORD PROWLARR_POSTGRES_HOST PROWLARR_POSTGRES_PORT PROWLARR_POSTGRES_MAIN_DATABASE PROWLARR_POSTGRES_LOG_DATABASE PROWLARR_POSTGRES_USER PROWLARR_POSTGRES_PASSWORD RADARR_POSTGRES_HOST RADARR_POSTGRES_PORT RADARR_POSTGRES_MAIN_DATABASE RADARR_POSTGRES_LOG_DATABASE RADARR_POSTGRES_USER RADARR_POSTGRES_PASSWORD RADARR4K_POSTGRES_HOST RADARR4K_POSTGRES_PORT RADARR4K_POSTGRES_MAIN_DATABASE RADARR4K_POSTGRES_LOG_DATABASE RADARR4K_POSTGRES_USER RADARR4K_POSTGRES_PASSWORD SONARR_POSTGRES_HOST SONARR_POSTGRES_PORT SONARR_POSTGRES_MAIN_DATABASE SONARR_POSTGRES_LOG_DATABASE SONARR_POSTGRES_USER SONARR_POSTGRES_PASSWORD SONARR4K_POSTGRES_HOST SONARR4K_POSTGRES_PORT SONARR4K_POSTGRES_MAIN_DATABASE SONARR4K_POSTGRES_LOG_DATABASE SONARR4K_POSTGRES_USER SONARR4K_POSTGRES_PASSWORD LIDARR_POSTGRES_HOST LIDARR_POSTGRES_PORT LIDARR_POSTGRES_MAIN_DATABASE LIDARR_POSTGRES_LOG_DATABASE LIDARR_POSTGRES_USER LIDARR_POSTGRES_PASSWORD ENABLE_TINYMEDIAMANAGER ENABLE_RECYCLARR ENABLE_FLARESOLVERR ENABLE_TIDARR ENABLE_SEERR STACKARR_CONFIGURE_SEERR ENABLE_PULSARR ENABLE_TRACEARR STACKARR_MOVIE_PROFILE_PRESET STACKARR_MOVIE_4K_PROFILE_PRESET STACKARR_TV_PROFILE_PRESET STACKARR_TV_4K_PROFILE_PRESET STACKARR_MUSIC_PROFILE_PRESET STACKARR_MOVIE_DEFAULT_PROFILE STACKARR_MOVIE_4K_DEFAULT_PROFILE STACKARR_TV_DEFAULT_PROFILE STACKARR_TV_4K_DEFAULT_PROFILE STACKARR_MUSIC_DEFAULT_PROFILE ENABLE_BACKUP STACKARR_API_KEY STACKARR_DOCKER_CONTEXT USERNAME PASSWORD USER_EMAIL TRANSMISSION_URL QBITTORRENT_URL PROWLARR_URL RADARR_URL RADARR_4K_URL RADARR4K_URL SONARR_URL SONARR_4K_URL SONARR4K_URL LIDARR_URL BAZARR_URL SEERR_URL PULSARR_URL TRACEARR_URL PLEX_URL JELLYFIN_URL TINYMEDIAMANAGER_URL FLARESOLVERR_URL TRANSMISSION_IMAGE QBITTORRENT_IMAGE RADARR_IMAGE SONARR_IMAGE PROWLARR_IMAGE BAZARR_IMAGE SEERR_IMAGE RECYCLARR_IMAGE FLARESOLVERR_IMAGE LIDARR_IMAGE TIDARR_IMAGE TINYMEDIAMANAGER_IMAGE TRANSMISSION_BIND_IP TRANSMISSION_TORRENT_PORT QBITTORRENT_BIND_IP QBITTORRENT_WEBUI_PORT QBITTORRENT_TORRENT_PORT PLEX_IMAGE PLEX_DOCKER_PORT JELLYFIN_IMAGE JELLYFIN_DOCKER_PORT STACKARR_WEB_ENABLED STACKARR_IMAGE STACKARR_BIND_IP STACKARR_WEB_PORT STACKARR_TELEMETRY_FEATURE_ENABLED STACKARR_TELEMETRY_ENABLED STACKARR_TELEMETRY_ENDPOINT STACKARR_TELEMETRY_CHANNEL STACKARR_TELEMETRY_INGEST_KEY PULSARR_IMAGE SEERR_BIND_IP PULSARR_BIND_IP PULSARR_PORT PULSARR_AUTHENTICATION_METHOD PULSARR_COOKIE_SECURED PREFERRED_TORRENT_CLIENT BACKUP_ROOT BACKUP_STAGING_ROOT BACKUP_TIME BACKUP_SCHEDULE BACKUP_WEEKDAY BACKUP_RETENTION_COUNT BACKUP_ENCRYPTION ENABLE_SCHEDULED_UPDATES UPDATE_TIME UPDATE_WEEKDAY DOWNLOAD_INCOMPLETE_NAME DOWNLOAD_COMPLETE_NAME RADARR_CATEGORY RADARR_4K_CATEGORY SONARR_CATEGORY SONARR_4K_CATEGORY LIDARR_CATEGORY PLEX_BACKUP_MODE CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID CLOUDFLARED_TUNNEL_NAME CLOUDFLARED_TUNNEL_ID CLOUDFLARED_METRICS_PORT CLOUDFLARED_BIN CLOUDFLARED_TOKEN_FILE CLOUDFLARED_KEEP_LAN CLOUDFLARE_ROUTE_MANAGED CLOUDFLARE_TUNNEL_ROUTES CLOUDFLARE_ACCESS_ENABLED CLOUDFLARE_ACCESS_ALLOWED_EMAILS CLOUDFLARE_ACCESS_SESSION_DURATION SEERR_ORIGIN_URL STACKARR_SERVICE_URL_MODE STACKARR_SERVICE_URL_SCHEME STACKARR_SERVICE_URL_HOST_SUFFIX STACKARR_UNIFY_SERVICE_URLS
     export STACKARR_PG_BACKUP_ENABLED STACKARR_PG_BACKUP_URL STACKARR_PG_BACKUP_SCHEDULE STACKARR_PG_BACKUP_TIME STACKARR_PG_BACKUP_WEEKDAY STACKARR_PG_BACKUP_TIMEZONE
     export ENABLE_TDARR TDARR_URL TDARR_API_URL TDARR_IMAGE TDARR_BIND_IP TDARR_WEB_PORT TDARR_SERVER_PORT TDARR_API_KEY TDARR_AUTH TDARR_INTERNAL_NODE TDARR_START_PAUSED TDARR_NODE_NAME TDARR_CACHE_ROOT TDARR_MEDIA_ROOT
@@ -1313,6 +1314,20 @@ load_env() {
     export TRACEARR_URL TRACEARR_API_KEY TRACEARR_IMAGE TRACEARR_BIND_IP TRACEARR_PORT TRACEARR_DB_PASSWORD TRACEARR_POSTGRES_DATABASE TRACEARR_POSTGRES_USER TRACEARR_POSTGRES_PASSWORD TRACEARR_DATABASE_URL TRACEARR_JWT_SECRET TRACEARR_COOKIE_SECRET TRACEARR_LOG_LEVEL TRACEARR_CORS_ORIGIN
     export PULSARR_API_KEY BOOKORBIT_TOKEN BAZARR_API_KEY TINYMEDIAMANAGER_API_KEY TIDARR_URL TIDARR_API_KEY
     export TRANSMISSION_PASSWORD QBITTORRENT_PASSWORD PROWLARR_PASSWORD RADARR_PASSWORD RADARR4K_PASSWORD SONARR_PASSWORD SONARR4K_PASSWORD LIDARR_PASSWORD BAZARR_PASSWORD PULSARR_PASSWORD BOOKORBIT_PASSWORD TINYMEDIAMANAGER_PASSWORD
+    # Legacy commands must not acquire a Node dependency merely by loading env.
+    # The shared layout needs the canonical path resolver before configurators run.
+    if [[ "${MEDIA_PATH_LAYOUT:-legacy}" == shared ]]; then
+        local media_path_exports
+        media_path_exports="$(node "$ROOT_DIR/scripts/media-paths.cjs" exports)" || fail 'Invalid media path layout'
+        eval "$media_path_exports"
+    elif [[ "$MEDIA_PATH_LAYOUT" == legacy ]]; then
+        # Do not reuse exported shared paths after a legacy rollback or reload.
+        export CONTAINER_MEDIA_ROOT=/media CONTAINER_MOVIES_ROOT=/movies CONTAINER_TV_ROOT=/tv
+        export CONTAINER_DOWNLOADS_ROOT=/downloads CONTAINER_TORRENT_ARCHIVE_ROOT=/torrent-archive
+        export CONTAINER_TDARR_MEDIA_ROOT=/media CONTAINER_TDARR_CACHE_ROOT=/temp
+    else
+        fail 'Invalid media path layout'
+    fi
 }
 
 write_compose_env_file() {
@@ -1334,7 +1349,7 @@ from pathlib import Path
 
 target = Path(sys.argv[1])
 include = re.compile(
-    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
+    r"^(APP_ROOT|CONFIG_ROOT|STATE_ROOT|LOG_ROOT|MEDIA_ROOT|MEDIA_PATH_LAYOUT|CONTAINER_.*|MUSIC_ROOT|DOWNLOADS_ROOT|TORRENT_ARCHIVE_ROOT|BOOKS_ROOT|GAMES_ROOT|BACKUP_ROOT|BACKUP_STAGING_ROOT|"
     r"COMPOSE_PROJECT_NAME|TIMEZONE|PUID|PGID|USERNAME|PASSWORD|USER_EMAIL|PREFERRED_TORRENT_CLIENT|"
     r"STACKARR_.*|ENABLE_.*|PLEX_.*|JELLYFIN_.*|BOOKORBIT_.*|IMMICH_.*|ROMM_.*|QUESTARR_.*|YOUTARR_.*|DATABASE_.*|SEERR_.*|PULSARR_.*|TDARR_.*|MAINTAINERR_.*|CLEANUPARR_.*|MOSQUITTO_.*|HOMEASSISTANT_.*|FRIGATE_.*|AGREGARR_.*|TRACEARR_.*|BAZARR_.*|"
     r"PROWLARR_.*|RADARR.*|SONARR.*|LIDARR_.*|TIDARR_.*|TINYMEDIAMANAGER_.*|"
@@ -2443,7 +2458,10 @@ prepare_compose_runtime_file() {
         cp "$agregarr_guard_source" "$agregarr_guard_target"
     fi
     chmod 0644 "$agregarr_guard_target"
-    prepare_storage_compose_override "$project_dir" "$source_file"
+    if [[ "${MEDIA_PATH_LAYOUT:-legacy}" == shared ]]; then
+        node "$ROOT_DIR/scripts/media-paths.cjs" compose "$compose_file" || fail 'Cannot generate media mounts'
+    fi
+    prepare_storage_compose_override "$project_dir" "$compose_file"
 }
 
 migrate_legacy_image_volume() {
@@ -2529,21 +2547,26 @@ migrate_legacy_image_volumes() {
 }
 
 stackarr_compose() {
-    local project_dir compose_file argument migrate_volumes=false
+    local project_dir compose_file argument migrate_volumes=false check_mounts=false
     local storage_args=()
 
     configure_docker_environment
     for argument in "$@"; do
         if [[ "$argument" == up || "$argument" == create ]]; then
             migrate_volumes=true
-            break
+            check_mounts=true
+        elif [[ "$argument" == run ]]; then
+            check_mounts=true
         fi
     done
-    if [[ "$migrate_volumes" == true ]]; then
+    if [[ "$check_mounts" == true ]]; then
         # Read-only Compose commands (including restore's ps probe) must not
         # mistake a retained archive tree for an attempted bind cutover.
         stackarr_storage_guard
         stackarr_verify_legacy_compose_mounts
+        if [[ "${MEDIA_PATH_LAYOUT:-legacy}" == shared ]]; then
+            node "$ROOT_DIR/scripts/media-paths.cjs" activate-new || fail 'Media path migration is required before applying mounts'
+        fi
     fi
     prepare_compose_runtime_file
     project_dir="$(stackarr_compose_project_dir)"
@@ -2556,7 +2579,14 @@ stackarr_compose() {
         migrate_legacy_image_volumes
     fi
 
-    docker compose \
+    local controller_wrapper=() seen_up=false
+    for argument in "$@"; do
+        [[ "$argument" != up ]] || seen_up=true
+    done
+    if [[ "$seen_up" == true && "${!#}" == stackarr ]]; then
+        controller_wrapper=(node "$ROOT_DIR/scripts/controller-upgrade.cjs" "${COMPOSE_PROJECT_NAME:-stackarr}")
+    fi
+    ${controller_wrapper[@]+"${controller_wrapper[@]}"} docker compose \
         --project-name "${COMPOSE_PROJECT_NAME:-stackarr}" \
         --project-directory "$project_dir" \
         -f "$compose_file" \
@@ -2646,7 +2676,7 @@ refresh_stackarr_web_storage_mounts() {
     local path
     local missing=()
 
-    if ! stackarr_compose "${compose_args[@]}" ps --services --status running 2>/dev/null | grep -qx 'app'; then
+    if ! stackarr_compose "${compose_args[@]}" ps --services --status running 2>/dev/null | grep -qx 'stackarr'; then
         return 0
     fi
 
@@ -2654,7 +2684,7 @@ refresh_stackarr_web_storage_mounts() {
         [[ -n "$path" ]] || continue
         [[ -e "$path" ]] || continue
 
-        if ! stackarr_compose "${compose_args[@]}" exec -T app test -e "$path" >/dev/null 2>&1; then
+        if ! stackarr_compose "${compose_args[@]}" exec -T stackarr test -e "$path" >/dev/null 2>&1; then
             missing+=("$path")
         fi
     done
@@ -2663,7 +2693,7 @@ refresh_stackarr_web_storage_mounts() {
 
     warn "Stackarr web storage mount stale, recreating UI container for: ${missing[*]}"
     write_compose_env_file
-    stackarr_compose "${compose_args[@]}" up -d --force-recreate --no-deps app
+    stackarr_compose "${compose_args[@]}" up -d --force-recreate --no-deps stackarr
 }
 
 canonical_dir() {
@@ -2705,7 +2735,7 @@ set_env_value() {
     command -v node >/dev/null 2>&1 || fail "Missing command: node"
 
     if [[ -n "${STACKARR_DATABASE_URL:-}" ]] && ! stackarr_runtime_is_container; then
-        if stackarr_compose exec -T app bash -lc '
+        if stackarr_compose exec -T stackarr bash -lc '
             node "$STACKARR_REPO_ROOT/stackarr/scripts/runtime-config-write.cjs" "$1" "$2"
             source "$STACKARR_REPO_ROOT/stackarr/lib/common.sh"
             load_env

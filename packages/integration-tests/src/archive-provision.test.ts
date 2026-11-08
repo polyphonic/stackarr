@@ -11,6 +11,43 @@ const execFile = promisify(execFileCallback);
 const repo = fileURLToPath(new URL('../../../', import.meta.url));
 const script = path.join(repo, 'stackarr/scripts/archive-hooks-configure.sh');
 
+test('archive hook snapshots quoted shared paths without overriding explicit environment', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackarr-archive-paths-'));
+  try {
+    const config = path.join(root, 'config');
+    await execFile('bash', [script, 'install'], {
+      env: {
+        ...process.env,
+        APP_ROOT: root,
+        CONFIG_ROOT: config,
+        STATE_ROOT: path.join(root, 'state'),
+        STACKARR_DATABASE_FILE: path.join(root, 'empty.db'),
+        MEDIA_PATH_LAYOUT: 'shared',
+        MEDIA_ROOT: path.join(root, 'Media'),
+        TORRENT_ARCHIVE_ROOT: path.join(root, "Media/Archive's Torrents")
+      }
+    });
+    const snapshot = path.join(config, 'hooks', 'media-paths.env');
+    const { stdout } = await execFile('sh', [
+      '-c',
+      '. "$1"; printf "%s\\n" "$CONTAINER_MOVIES_ROOT" "$CONTAINER_TV_ROOT" "$CONTAINER_TORRENT_ARCHIVE_ROOT"',
+      'sh',
+      snapshot
+    ]);
+    assert.deepEqual(stdout.trimEnd().split('\n'), ['/data/Movies', '/data/TV Shows', "/data/Archive's Torrents"]);
+    const { stdout: overridden } = await execFile(
+      'sh',
+      ['-c', '. "$1"; printf "%s" "$CONTAINER_MOVIES_ROOT"', 'sh', snapshot],
+      {
+        env: { ...process.env, CONTAINER_MOVIES_ROOT: '/override' }
+      }
+    );
+    assert.equal(overridden, '/override');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('rendered downloader config and Arr torrent-state mounts share independent CONFIG_ROOT', async () => {
   const config = '/fixture/relocated/config';
   const { stdout } = await execFile(

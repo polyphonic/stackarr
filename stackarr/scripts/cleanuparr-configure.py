@@ -160,8 +160,8 @@ def upsert_download_client(token: str) -> None:
             "password": os.environ.get("QBITTORRENT_PASSWORD", PASSWORD),
             "urlBase": "",
             "externalUrl": None,
-            "downloadDirectorySource": "/downloads",
-            "downloadDirectoryTarget": "/downloads",
+            "downloadDirectorySource": os.environ.get('CONTAINER_DOWNLOADS_ROOT', '/downloads'),
+            "downloadDirectoryTarget": os.environ.get('CONTAINER_DOWNLOADS_ROOT', '/downloads'),
         }
     else:
         name = "Transmission"
@@ -175,8 +175,8 @@ def upsert_download_client(token: str) -> None:
             "password": os.environ.get("TRANSMISSION_PASSWORD", PASSWORD),
             "urlBase": "/transmission/",
             "externalUrl": None,
-            "downloadDirectorySource": "/downloads",
-            "downloadDirectoryTarget": "/downloads",
+            "downloadDirectorySource": os.environ.get('CONTAINER_DOWNLOADS_ROOT', '/downloads'),
+            "downloadDirectoryTarget": os.environ.get('CONTAINER_DOWNLOADS_ROOT', '/downloads'),
         }
     _, current = request("GET", "/api/configuration/download_client", token=token)
     existing = next((item for item in items(current) if str(item.get("name", "")).lower() == name.lower()), None)

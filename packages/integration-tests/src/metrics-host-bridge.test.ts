@@ -37,6 +37,7 @@ test('enrolled metrics use bounded host bridge, not a Docker probe', async () =>
   );
   const oldPath = process.env.PATH;
   const oldPolicy = process.env.STACKARR_STORAGE_POLICY;
+  const oldRuntime = process.env.STACKARR_RUNTIME;
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
   try {
     await new Promise<void>((resolve, reject) => {
@@ -46,6 +47,7 @@ test('enrolled metrics use bounded host bridge, not a Docker probe', async () =>
     });
     process.env.PATH = `${bin}:${oldPath}`;
     process.env.STACKARR_STORAGE_POLICY = policyFile;
+    process.env.STACKARR_RUNTIME = 'docker';
     Object.defineProperty(process, 'platform', { ...platform, value: 'linux' });
     const disk = diskUsages([state])[0];
     assert.equal(disk.totalSpace, hostTotal);
@@ -57,6 +59,8 @@ test('enrolled metrics use bounded host bridge, not a Docker probe', async () =>
     else process.env.PATH = oldPath;
     if (oldPolicy === undefined) delete process.env.STACKARR_STORAGE_POLICY;
     else process.env.STACKARR_STORAGE_POLICY = oldPolicy;
+    if (oldRuntime === undefined) delete process.env.STACKARR_RUNTIME;
+    else process.env.STACKARR_RUNTIME = oldRuntime;
     child.kill();
     fs.rmSync(dir, { recursive: true, force: true });
   }

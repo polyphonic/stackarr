@@ -51,6 +51,7 @@ export * from './safety/redaction';
 export * from './safety/scopes';
 export * from './serviceCatalog';
 export * from './serviceFavorites';
+export * from './serviceStorage';
 export * from './services';
 export * from './settings';
 export * from './streamrip/config';

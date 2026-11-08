@@ -232,8 +232,11 @@ def configure_servarr(kind: str, api_key_value: str, desired_profile: str, direc
     profiles = tested.get("profiles", []) if isinstance(tested, dict) else []
     folders = tested.get("rootFolders", tested.get("rootfolders", [])) if isinstance(tested, dict) else []
     profile = choose(profiles, desired_profile, "id")
-    folder = next((item for item in folders if item.get("path") == directory), None) or (folders[0] if folders else {})
-    if not profile.get("id") or not folder.get("path"):
+    existing = request(f"/settings/{kind}")
+    current = existing[0] if isinstance(existing, list) and existing else None
+    selected_directory = (current.get("activeDirectory") if current else None) or directory
+    folder = next((item for item in folders if item.get("path") == selected_directory), None)
+    if not profile.get("id") or not folder or not folder.get("path"):
         raise RuntimeError(f"Agregarr could not resolve a {kind.title()} quality profile and root folder")
 
     payload: dict[str, Any] = {
@@ -263,9 +266,9 @@ def configure_servarr(kind: str, api_key_value: str, desired_profile: str, direc
             }
         )
 
-    existing = request(f"/settings/{kind}")
-    current = existing[0] if isinstance(existing, list) and existing else None
     if current and current.get("id") is not None:
+        # Normal configure must not migrate an established request manager's
+        # inventory; a separate migration handles existing root assignments.
         request(f"/settings/{kind}/{current['id']}", method="PUT", body=payload)
     else:
         request(f"/settings/{kind}", method="POST", body=payload)
@@ -736,8 +739,10 @@ request(
     },
 )
 
-configure_servarr("radarr", env("RADARR_API_KEY"), env("RADARR_DEFAULT_PROFILE", "HD Lite"), "/movies")
-configure_servarr("sonarr", env("SONARR_API_KEY"), env("SONARR_DEFAULT_PROFILE", "HD Lite"), "/tv")
+movie_root = env("CONTAINER_MOVIES_ROOT", "/movies")
+tv_root = env("CONTAINER_TV_ROOT", "/tv")
+configure_servarr("radarr", env("RADARR_API_KEY"), env("RADARR_DEFAULT_PROFILE", "HD Lite"), movie_root)
+configure_servarr("sonarr", env("SONARR_API_KEY"), env("SONARR_DEFAULT_PROFILE", "HD Lite"), tv_root)
 
 available_libraries = request("/settings/plex/libraries")
 libraries = [
@@ -750,17 +755,17 @@ if not libraries:
     raise RuntimeError("Agregarr could not find an enabled Plex movie or TV library")
 
 # Keep Agregarr's trailer-backed placeholders inside each Plex library but out
-# of the actual Arr-managed title folders. If placeholders share /movies or
-# /tv directly, Radarr/Sonarr can import the trailers as downloaded media and
+# of the actual Arr-managed title folders. If placeholders share the Arr roots
+# directly, Radarr/Sonarr can import the trailers as downloaded media and
 # the next Coming Soon sync will incorrectly exclude those titles.
 main_settings = request("/settings/main")
 movie_placeholder_roots = dict(main_settings.get("placeholderMovieRootFolders") or {})
 tv_placeholder_roots = dict(main_settings.get("placeholderTVRootFolders") or {})
 for library in libraries:
     if library.get("type") == "movie":
-        movie_placeholder_roots[library_key(library)] = f"/movies/{placeholder_folder}"
+        movie_placeholder_roots[library_key(library)] = f"{movie_root.rstrip('/')}/{placeholder_folder}"
     elif library.get("type") == "show":
-        tv_placeholder_roots[library_key(library)] = f"/tv/{placeholder_folder}"
+        tv_placeholder_roots[library_key(library)] = f"{tv_root.rstrip('/')}/{placeholder_folder}"
 
 request(
     "/settings/main",

@@ -61,30 +61,34 @@
   margin-top: 12px;
 }
 
-.disks {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.diskRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px 14px;
-  padding: 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
+.storageAccordion {
+  padding: 16px;
+  border: 1px solid var(--borderColor);
+  border-radius: 18px;
   background: var(--glass-subtle);
 }
 
-.diskRow strong,
-.diskRow span {
-  display: block;
+.storageAccordionSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 44px;
+  cursor: pointer;
 }
 
-.diskPercent {
-  align-self: start;
-  font-size: 14px;
+.storageAccordionSummary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.storageAccordionSummary span,
+.storageNote {
+  color: var(--mutedTextColor);
+}
+
+.storageNote {
+  font-size: 12px;
 }
 
 .storageSummary {
@@ -112,40 +116,6 @@
 
 .storageSummary strong {
   font-size: 17px;
-}
-
-.diskRow strong {
-  overflow-wrap: anywhere;
-  font-weight: 500;
-  font-size: 13px;
-}
-
-.diskRow span {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.bar {
-  grid-column: 1 / -1;
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--track-bg);
-}
-
-.bar span {
-  display: block;
-  height: 100%;
-  background: var(--success);
-  transition: width 0.2s;
-}
-
-.barWarn span {
-  background: var(--warning);
-}
-
-.barBad span {
-  background: var(--danger);
 }
 
 .sparklineLine {

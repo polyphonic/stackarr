@@ -24,7 +24,7 @@ The database listens inside Docker on port `5432` and is published to `127.0.0.1
 To initialize or repair the configured databases:
 
 ```bash
-docker exec app /app/bin/stackarr database ensure
+docker exec stackarr /app/bin/stackarr database ensure
 ```
 
 Use the Stackarr dashboard to view redacted connection details. Enter database credentials only through authenticated settings or setup surfaces.

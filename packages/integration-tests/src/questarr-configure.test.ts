@@ -182,6 +182,25 @@ test('Questarr configuration shares IGDB and wires Prowlarr plus downloads witho
     assert.equal(downloader?.body.postImportCategory, '');
     assert.equal(downloader?.body.removeCompleted, false);
 
+    await execFile(process.execPath, [configureScript], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        QUESTARR_WEB_PORT: String(address.port),
+        PROWLARR_CONFIGURE_URL: serverBaseUrl,
+        USERNAME: 'stackarr-user',
+        PASSWORD: 'stackarr-password',
+        PROWLARR_API_KEY: 'prowlarr-key',
+        PREFERRED_TORRENT_CLIENT: 'qbittorrent',
+        CONTAINER_DOWNLOADS_ROOT: '/data/Downloads Library',
+        DOWNLOAD_COMPLETE_NAME: 'finished files'
+      }
+    });
+    const sharedDownloader = requests
+      .filter((request) => request.path === '/api/downloaders' && request.method === 'POST')
+      .at(-1);
+    assert.equal(sharedDownloader?.body.downloadPath, '/data/Downloads Library/finished files');
+
     assert.equal(
       requests.some((request) => request.path === '/api/settings'),
       false

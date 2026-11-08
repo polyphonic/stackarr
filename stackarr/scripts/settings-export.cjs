@@ -25,15 +25,20 @@ try {
   if (!value) process.exit(0);
   const settings = JSON.parse(value);
   const ui = settings.ui && typeof settings.ui === 'object' ? settings.ui : {};
-  const mode = ['localhost', 'loopback', 'portless'].includes(ui.serviceUrlMode) ? ui.serviceUrlMode : 'localhost';
-  const scheme = ui.serviceUrlScheme === 'http' ? 'http' : 'https';
-  const suffix = normalizeHostSuffix(ui.serviceUrlHostSuffix);
-  const unify = ui.unifyServiceUrls === true ? 'true' : 'false';
-
-  console.log('export STACKARR_SERVICE_URL_MODE=' + quote(mode));
-  console.log('export STACKARR_SERVICE_URL_SCHEME=' + quote(scheme));
-  console.log('export STACKARR_SERVICE_URL_HOST_SUFFIX=' + quote(suffix));
-  console.log('export STACKARR_UNIFY_SERVICE_URLS=' + quote(unify));
+  // Missing fields inherit the caller's configured values/defaults. An unrelated
+  // saved UI preference must not reset an explicit browser-link override.
+  if (['localhost', 'loopback', 'portless'].includes(ui.serviceUrlMode)) {
+    console.log('export STACKARR_SERVICE_URL_MODE=' + quote(ui.serviceUrlMode));
+  }
+  if (['http', 'https'].includes(ui.serviceUrlScheme)) {
+    console.log('export STACKARR_SERVICE_URL_SCHEME=' + quote(ui.serviceUrlScheme));
+  }
+  if (typeof ui.serviceUrlHostSuffix === 'string' && ui.serviceUrlHostSuffix.trim()) {
+    console.log('export STACKARR_SERVICE_URL_HOST_SUFFIX=' + quote(normalizeHostSuffix(ui.serviceUrlHostSuffix)));
+  }
+  if (typeof ui.unifyServiceUrls === 'boolean') {
+    console.log('export STACKARR_UNIFY_SERVICE_URLS=' + quote(String(ui.unifyServiceUrls)));
+  }
 } catch {
   // Keep values already loaded from the generated Compose environment when the
   // host cannot connect to a container-only PostgreSQL hostname. Callers set

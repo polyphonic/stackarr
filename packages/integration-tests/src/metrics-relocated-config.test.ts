@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { diskUsages, hostMountPoint } from '../../core/src/metrics';
 
-test('verified volume capacity wins over an unavailable sibling path in either order', () => {
+test('an unverified sibling cannot borrow another root’s capacity merely by sharing a label', () => {
   const volume = '/Volumes/Portable';
   const backup = `${volume}/Backups`;
   const config = '/opt/stackarr/config';
@@ -23,12 +23,15 @@ test('verified volume capacity wins over an unavailable sibling path in either o
       totalSpace: diskPath === config ? 1000000 : null,
       usedPercent: diskPath === config ? 40 : null
     }));
-    assert.equal(disks.length, 1);
-    assert.equal(disks[0].totalSpace, 1000000);
-    assert.equal(disks[0].freeSpace, 600000);
-    assert.equal(disks[0].filesystem, '/dev/verified');
-    assert.equal(disks[0].mountPoint, volume);
-    assert.deepEqual(disks[0].paths, paths);
+    assert.equal(disks.length, 2);
+    const verified = disks.find((disk) => disk.totalSpace !== null);
+    const unavailable = disks.find((disk) => disk.totalSpace === null);
+    assert.equal(verified?.totalSpace, 1000000);
+    assert.equal(verified?.freeSpace, 600000);
+    assert.equal(verified?.filesystem, '/dev/verified');
+    assert.equal(verified?.mountPoint, volume);
+    assert.deepEqual(verified?.paths, [config]);
+    assert.deepEqual(unavailable?.paths, [backup]);
   }
 });
 

@@ -178,10 +178,10 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  app:
+  stackarr:
     profiles:
       - stackarr
-    container_name: app
+    container_name: stackarr
     image: ${STACKARR_IMAGE:-polyphonic/stackarr:alpha}
     group_add:
       - "${STACKARR_DOCKER_GID:-0}"
@@ -205,7 +205,7 @@ services:
       STACKARR_POSTGRES_MAIN_DATABASE: ${STACKARR_POSTGRES_MAIN_DATABASE:-stackarr-main}
       STACKARR_POSTGRES_LOG_DATABASE: ${STACKARR_POSTGRES_LOG_DATABASE:-stackarr-log}
       STACKARR_RUNTIME: docker
-      STACKARR_CONTAINER_NAME: app
+      STACKARR_CONTAINER_NAME: stackarr
       STACKARR_SCHEDULER_ENABLED: ${STACKARR_SCHEDULER_ENABLED:-true}
       STACKARR_MCP_HTTP_ENABLED: ${STACKARR_MCP_HTTP_ENABLED:-false}
       STACKARR_MCP_HTTP_PORT: ${STACKARR_MCP_HTTP_PORT:-7780}
@@ -264,10 +264,10 @@ services:
       TZ: ${TIMEZONE:-Etc/UTC}
       USER: ${USERNAME:-admin}
       PASS: ${TRANSMISSION_PASSWORD:-${PASSWORD:-stackarr}}
-      TRANSMISSION_DOWNLOAD_DIR: /downloads/${DOWNLOAD_COMPLETE_NAME:-complete}
-      TRANSMISSION_INCOMPLETE_DIR: /downloads/${DOWNLOAD_INCOMPLETE_NAME:-incomplete}
+      TRANSMISSION_DOWNLOAD_DIR: ${CONTAINER_DOWNLOADS_ROOT:-/downloads}/${DOWNLOAD_COMPLETE_NAME:-complete}
+      TRANSMISSION_INCOMPLETE_DIR: ${CONTAINER_DOWNLOADS_ROOT:-/downloads}/${DOWNLOAD_INCOMPLETE_NAME:-incomplete}
       TRANSMISSION_INCOMPLETE_DIR_ENABLED: "true"
-      TRANSMISSION_WATCH_DIR: /downloads/watch
+      TRANSMISSION_WATCH_DIR: ${CONTAINER_DOWNLOADS_ROOT:-/downloads}/watch
       TRANSMISSION_WATCH_DIR_ENABLED: "false"
       TRANSMISSION_RPC_AUTHENTICATION_REQUIRED: "true"
       TRANSMISSION_RPC_HOST_WHITELIST_ENABLED: "false"

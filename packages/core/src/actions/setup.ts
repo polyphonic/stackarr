@@ -1,7 +1,14 @@
 import { execFile } from 'node:child_process';
 import * as nodeCrypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { defaultStackarrAppRoot, type InstallMode, type StackarrEnv, type TorrentClient, writeEnvConfig } from '../env';
+import {
+  defaultStackarrAppRoot,
+  type InstallMode,
+  readEnv,
+  type StackarrEnv,
+  type TorrentClient,
+  writeEnvConfig
+} from '../env';
 import {
   accountUsernameValidationError,
   portablePasswordValidationError,
@@ -570,6 +577,9 @@ export async function setupMediaServerAction(input: MediaServerSetupInput = {}) 
   if (input.musicDefaultProfile === undefined)
     merged.musicDefaultProfile = musicProfileNameFromPreset(merged.musicProfilePreset);
   if (input.musicRoot === undefined) merged.musicRoot = `${merged.mediaRoot}/Music`;
+  const mediaPathLayout = readEnv().MEDIA_PATH_LAYOUT || 'legacy';
+  if (input.downloadsRoot === undefined && mediaPathLayout === 'shared')
+    merged.downloadsRoot = `${merged.mediaRoot}/Downloads`;
   const plexEnabled = merged.plexInstallMode !== 'disabled';
   const jellyfinEnabled = merged.jellyfinInstallMode !== 'disabled';
   const mediaServerEnabled = plexEnabled || jellyfinEnabled;
@@ -769,6 +779,7 @@ function buildSetupEnv(input: ResolvedMediaServerSetupInput) {
   const rommPlaymatchEnabled = rommPreset === 'twitch' || (rommPreset === 'custom' && input.rommPlaymatchApiEnabled);
   const env: StackarrEnv = {
     MEDIA_ROOT: input.mediaRoot,
+    MEDIA_PATH_LAYOUT: readEnv().MEDIA_PATH_LAYOUT || 'legacy',
     MUSIC_ROOT: input.musicRoot,
     DOWNLOADS_ROOT: input.downloadsRoot,
     TORRENT_ARCHIVE_ROOT: input.torrentArchiveRoot,

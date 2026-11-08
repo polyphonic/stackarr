@@ -8,9 +8,10 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { DockerContainerOverview } from '../../core/src/actions/containers';
-import { applySafeFixAction, containerHealthFindings } from '../../core/src/actions/health';
+import { applySafeFixAction, containerHealthFindings, healthComposeProject } from '../../core/src/actions/health';
+import type { StackarrEnv } from '../../core/src/env';
 import { getMcpToolCatalog } from '../../core/src/mcp/controlPlane';
-import type { ServiceSummary } from '../../core/src/services';
+import { type ServiceSummary, servicesFromEnv } from '../../core/src/services';
 
 test('health report is available in the default MCP profile without service gating', () => {
   assert.ok(
@@ -60,6 +61,71 @@ test('enabled absent and unhealthy containers are findings, never unrelated comp
   assert.ok(findings.some((finding) => finding.service === 'tdarr' && finding.message.includes('restart policy')));
   assert.equal(applySafeFixAction({ fixId: 'refresh-status-cache' }).applied, false);
   assert.equal(applySafeFixAction({ fixId: 'none' }).applied, false);
+});
+
+test('managed database and Redis are Docker-owned by default; external engines are not missing containers', () => {
+  const overview = { dockerAvailable: true, containers: [] } as unknown as DockerContainerOverview;
+  const infrastructure = (env: StackarrEnv) =>
+    servicesFromEnv({ ENABLE_IMMICH: 'true', ...env }).filter(
+      (service) => service.name === 'database' || service.name === 'redis'
+    );
+  const managed = infrastructure({} as StackarrEnv);
+  assert.deepEqual(
+    managed.map(({ name, mode, dockerService }) => [name, mode, dockerService]),
+    [
+      ['database', 'docker', 'database'],
+      ['redis', 'docker', 'redis']
+    ]
+  );
+  assert.deepEqual(
+    containerHealthFindings(managed, overview).map(({ service }) => service),
+    ['database', 'redis']
+  );
+
+  for (const deploymentMode of ['external', 'independent']) {
+    const external = infrastructure({
+      POSTGRES_DEPLOYMENT_MODE: deploymentMode,
+      REDIS_DEPLOYMENT_MODE: deploymentMode
+    } as StackarrEnv);
+    assert.deepEqual(
+      external.map(({ name, mode, dockerService }) => [name, mode, dockerService]),
+      [
+        ['database', 'native', undefined],
+        ['redis', 'native', undefined]
+      ]
+    );
+    assert.deepEqual(containerHealthFindings(external, overview), []);
+  }
+  const disabledRedis = infrastructure({
+    ENABLE_IMMICH: 'false',
+    REDIS_DEPLOYMENT_MODE: 'external'
+  } as StackarrEnv).find((service) => service.name === 'redis');
+  assert.equal(disabledRedis?.mode, 'disabled');
+});
+
+test('Recyclarr and report use the authoritative Compose project, not a same-named foreign container', () => {
+  const env = { STACKARR_COMPOSE_PROJECT_NAME: 'installed', COMPOSE_PROJECT_NAME: 'legacy' } as StackarrEnv;
+  assert.equal(healthComposeProject(env), 'installed');
+  assert.equal(healthComposeProject({ COMPOSE_PROJECT_NAME: 'legacy' } as StackarrEnv), 'legacy');
+  const overview = {
+    dockerAvailable: true,
+    containers: [
+      {
+        composeProject: 'foreign',
+        composeService: 'recyclarr',
+        running: true,
+        status: 'Up (healthy)',
+        restartPolicy: 'unless-stopped'
+      }
+    ]
+  } as DockerContainerOverview;
+  assert.deepEqual(
+    containerHealthFindings([enabled('recyclarr')], overview, healthComposeProject(env)).map(({ service, message }) => [
+      service,
+      message
+    ]),
+    [['recyclarr', 'Enabled Docker container is absent.']]
+  );
 });
 
 test('HTTP auth challenge is reachable but never fully authenticated healthy, and 502 is unavailable', async () => {

@@ -213,6 +213,7 @@ async function restrictQuestarrToGameIndexers(headers, prowlarrKey) {
 function downloaderConfig() {
   const client = String(process.env.PREFERRED_TORRENT_CLIENT || 'transmission').toLowerCase();
   const completeName = process.env.DOWNLOAD_COMPLETE_NAME || 'complete';
+  const downloadPath = `${(process.env.CONTAINER_DOWNLOADS_ROOT || '/downloads').replace(/\/$/, '')}/${completeName}`;
   if (client === 'qbittorrent') {
     return {
       name: 'Stackarr qBittorrent',
@@ -225,7 +226,7 @@ function downloaderConfig() {
       password: process.env.QBITTORRENT_PASSWORD || process.env.PASSWORD || '',
       enabled: true,
       priority: 1,
-      downloadPath: `/downloads/${completeName}`,
+      downloadPath,
       category: 'games',
       label: 'Questarr',
       addStopped: false,
@@ -245,7 +246,7 @@ function downloaderConfig() {
     password: process.env.TRANSMISSION_PASSWORD || process.env.PASSWORD || '',
     enabled: true,
     priority: 1,
-    downloadPath: `/downloads/${completeName}`,
+    downloadPath,
     category: 'games',
     label: 'Questarr',
     addStopped: false,

@@ -15,6 +15,9 @@ export default async function SetupPage() {
         <SetupWizard
           initialDefaults={{
             mediaRoot: env.MEDIA_ROOT,
+            appDataRoot: env.CONFIG_ROOT,
+            tdarrCacheRoot: env.TDARR_CACHE_ROOT,
+            mediaPathLayout: env.MEDIA_PATH_LAYOUT,
             musicRoot: env.MUSIC_ROOT,
             downloadsRoot: env.DOWNLOADS_ROOT,
             torrentArchiveRoot: env.TORRENT_ARCHIVE_ROOT,

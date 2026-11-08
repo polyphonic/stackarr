@@ -16,6 +16,8 @@ import type React from 'react';
 import { useId, useState } from 'react';
 import { CloudflareEmailAllowlist } from './CloudflareEmailAllowlist';
 import { stackarrFetch, storeStackarrApiKeyFromBody } from './clientApi';
+import { MediaLocationSummary } from './MediaLocationSummary';
+import { MediaSubfolderInput, rebaseMediaSubfolder } from './MediaSubfolderInput';
 import { PathInput } from './PathPicker';
 import styles from './SettingsEditor.module.css';
 
@@ -291,7 +293,16 @@ export function SettingsEditor({ section, env, settings }: Props) {
   }
 
   function updateEnv(key: string, value: string) {
-    setDraftEnv((current) => ({ ...current, [key]: value }));
+    setDraftEnv((current) =>
+      key === 'MEDIA_ROOT' && current.MEDIA_PATH_LAYOUT === 'shared'
+        ? {
+            ...current,
+            MEDIA_ROOT: value,
+            MUSIC_ROOT: rebaseMediaSubfolder(current.MEDIA_ROOT || '', value, current.MUSIC_ROOT || ''),
+            DOWNLOADS_ROOT: rebaseMediaSubfolder(current.MEDIA_ROOT || '', value, current.DOWNLOADS_ROOT || '')
+          }
+        : { ...current, [key]: value }
+    );
   }
 
   function updateEnvBool(key: string, value: boolean) {
@@ -744,19 +755,52 @@ export function SettingsEditor({ section, env, settings }: Props) {
       {section === 'mediamanagement' && (
         <FormGrid>
           <Path
-            label="Media Root"
+            label="Media folder on host"
             value={envValue('MEDIA_ROOT')}
             onChange={(value) => updateEnv('MEDIA_ROOT', value)}
           />
-          <Path
-            label="Music Root"
-            value={envValue('MUSIC_ROOT')}
-            onChange={(value) => updateEnv('MUSIC_ROOT', value)}
-          />
-          <Path
-            label="Downloads Root"
-            value={envValue('DOWNLOADS_ROOT')}
-            onChange={(value) => updateEnv('DOWNLOADS_ROOT', value)}
+          <p>
+            {envValue('MEDIA_PATH_LAYOUT') === 'shared'
+              ? 'Movies and TV Shows are folders inside Media. Changing this host path does not move files.'
+              : 'This installation uses its existing media paths. Changing the host folder does not migrate files or switch the library layout.'}
+          </p>
+          {envValue('MEDIA_PATH_LAYOUT') === 'shared' ? (
+            <>
+              <MediaSubfolderInput
+                label="Music"
+                root={envValue('MEDIA_ROOT')}
+                value={envValue('MUSIC_ROOT')}
+                defaultFolder="Music"
+                onChange={(value) => updateEnv('MUSIC_ROOT', value)}
+              />
+              <MediaSubfolderInput
+                label="Downloads"
+                root={envValue('MEDIA_ROOT')}
+                value={envValue('DOWNLOADS_ROOT')}
+                defaultFolder="Downloads"
+                onChange={(value) => updateEnv('DOWNLOADS_ROOT', value)}
+              />
+            </>
+          ) : (
+            <>
+              <Path
+                label="Music folder on host"
+                value={envValue('MUSIC_ROOT')}
+                onChange={(value) => updateEnv('MUSIC_ROOT', value)}
+              />
+              <Path
+                label="Downloads folder on host"
+                value={envValue('DOWNLOADS_ROOT')}
+                onChange={(value) => updateEnv('DOWNLOADS_ROOT', value)}
+              />
+            </>
+          )}
+          <MediaLocationSummary
+            media={envValue('MEDIA_ROOT')}
+            downloads={envValue('DOWNLOADS_ROOT')}
+            scratch={envValue('TDARR_CACHE_ROOT')}
+            appData={envValue('CONFIG_ROOT')}
+            shared={envValue('MEDIA_PATH_LAYOUT') === 'shared'}
           />
           <Path
             label="Torrent Archive Root"
@@ -768,9 +812,9 @@ export function SettingsEditor({ section, env, settings }: Props) {
             Migrate and verify existing archives first; then, on the authoritative host runtime, run{' '}
             <code>stackarr service apply radarr sonarr</code> (and separately apply enabled radarr4k, sonarr4k and
             lidarr). The controller's archive bind must also be updated for custom-root backup coverage with a
-            separately planned <code>stackarr service apply app</code>; this may recreate the controller. Service apply
-            can reconcile the shared database; inspect the plan and health before proceeding. Do not use Start stack as
-            an archive migration.
+            separately planned <code>stackarr service apply stackarr</code>; this may recreate the controller. Service
+            apply can reconcile the shared database; inspect the plan and health before proceeding. Do not use Start
+            stack as an archive migration.
           </p>
           <Path
             label="Backup Root"
