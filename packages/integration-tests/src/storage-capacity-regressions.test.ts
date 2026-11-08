@@ -11,6 +11,35 @@ const capacityPath = require.resolve('../../../stackarr/scripts/storage-capacity
 const capacity = require(capacityPath);
 const scratch = () => fs.mkdtempSync(path.join(process.env.TMPDIR ?? os.tmpdir(), 'capacity-regression-'));
 
+async function fixtureRequest(bridge: string) {
+  for (let i = 0; i < 30; i++) {
+    const names = fs.readdirSync(bridge).filter((v) => v.endsWith('.request'));
+    if (names.length === 1) {
+      try {
+        return { name: names[0], request: JSON.parse(fs.readFileSync(path.join(bridge, names[0]), 'utf8')) };
+      } catch (error) {
+        // Creation can precede completion of the asynchronous request write.
+        if (!(error instanceof SyntaxError) && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Timed out waiting for the fixture request');
+}
+
+test('proof fixture waits for a complete asynchronously written request', async () => {
+  const dir = scratch();
+  const file = path.join(dir, 'fixture.request');
+  fs.writeFileSync(file, '');
+  const writer = setTimeout(() => fs.writeFileSync(file, '{"nonce":"fixture"}'), 30);
+  try {
+    assert.deepEqual(await fixtureRequest(dir), { name: 'fixture.request', request: { nonce: 'fixture' } });
+  } finally {
+    clearTimeout(writer);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('missing child gets only a stable, independently inspected enclosing mount, never capacity', () => {
   const dir = scratch();
   try {
@@ -261,14 +290,7 @@ for (const mutation of ['nonce', 'digest', 'stale', 'future', 'policy-change', '
       const bridge = path.join(dir, 'storage-bridge');
       fs.mkdirSync(bridge);
       const result = readHostCapacityReport(file, 1000);
-      let names: string[] = [];
-      for (let i = 0; i < 30; i++) {
-        names = fs.readdirSync(bridge).filter((v) => v.endsWith('.request'));
-        if (names.length) break;
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-      assert.equal(names.length, 1);
-      const request = JSON.parse(fs.readFileSync(path.join(bridge, names[0]), 'utf8'));
+      const { name, request } = await fixtureRequest(bridge);
       const reply: any = {
         nonce: request.nonce,
         digest: request.digest,
@@ -285,7 +307,7 @@ for (const mutation of ['nonce', 'digest', 'stale', 'future', 'policy-change', '
       if (mutation === 'policy-change') fs.writeFileSync(file, '{"changed":true}');
       if (mutation === 'injected-path') reply.entries[0].path = '/unrelated-sd';
       if (mutation === 'duplicate') reply.entries.push(reply.entries[0]);
-      fs.writeFileSync(path.join(bridge, names[0].replace('.request', '.response')), JSON.stringify(reply));
+      fs.writeFileSync(path.join(bridge, name.replace('.request', '.response')), JSON.stringify(reply));
       assert.equal(await result, null);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
