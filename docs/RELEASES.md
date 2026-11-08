@@ -67,6 +67,26 @@ A source change merged into `production` is not a published container image. A G
 
 If any stage is pending or does not match, report it as such instead of treating a merge, release record, image pull, or running container alone as rollout completion. A source-only correction can remain queued for the next approved release; it does not require an immediate publication or local installation.
 
+## Recover an interrupted image publication
+
+Maintainers can resume publication if a GitHub Release exists but its container
+publication stopped. Do not delete or move the release tag, and do not deploy a
+local build as if it were the published image. Do not intentionally rebuild an
+already completed immutable image version.
+
+Dispatch the repository's **Release** workflow on `production` with both
+`publish_tag` and `publish_revision`. Select the existing current-version tag and
+its full commit SHA. The workflow rejects draft or missing releases, a different
+product version, mismatched tags and commits outside production ancestry. It
+tests the exact released commit again and uses that commit for the image, OCI
+revision label and SHA tag, not the newer workflow dispatch commit.
+
+Recovery uses the existing multi-platform publishing and manifest-verification
+steps. It does not create another GitHub Release or change the channel policy:
+`latest` includes prereleases. Wait for the complete workflow to succeed, verify
+both registry digests, then use the normal controller-only update. A GitHub
+Release page alone does not prove that its images were published.
+
 ## Release checklist
 
 - [ ] The release PR has the intended SemVer alpha version and generated changelog.

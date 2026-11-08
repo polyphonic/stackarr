@@ -19,7 +19,10 @@ test('release metadata intentionally moves latest for prereleases without alteri
   assert.doesNotMatch(text, /type=raw,value=latest,enable=/);
   assert.match(text, /type=raw,value=alpha,enable=\$\{\{ contains\(/);
   assert.match(text, /type=raw,value=beta,enable=\$\{\{ contains\(/);
-  assert.match(text, /type=sha,format=long,prefix=sha-/);
+  assert.match(text, /type=raw,value=sha-\$\{\{ env\.RELEASE_REVISION \}\},priority=100/);
+  assert.match(text, /org\.opencontainers\.image\.revision=\$\{\{ env\.RELEASE_REVISION \}\}/);
+  assert.match(text, /RELEASE_REVISION: \$\{\{ needs\.target\.outputs\.revision \}\}/);
+  assert.match(text, /ref: \$\{\{ needs\.target\.outputs\.revision \}\}/);
   assert.match(text, /type=semver,pattern=\{\{version\}\}/);
   assert.match(text, /type=semver,pattern=\{\{major\}\}\.\{\{minor\}\},enable=\$\{\{ !contains\(/);
   assert.match(text, /type=semver,pattern=\{\{major\}\},enable=\$\{\{ !contains\(/);

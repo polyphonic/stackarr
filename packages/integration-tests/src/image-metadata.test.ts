@@ -71,7 +71,12 @@ test('release manifest targets the repository root and keeps shipped versions al
   }
 
   const releaseWorkflow = await readFile(path.join(repoRoot, '.github/workflows/release.yml'), 'utf8');
-  assert.match(releaseWorkflow, /release-please:\n\s+name: Prepare release\n\s+needs: verify/);
+  assert.match(releaseWorkflow, /release-please:\n\s+name: Prepare release\n\s+needs: \[target, verify\]/);
+  assert.match(releaseWorkflow, /needs\.verify\.result == 'success'/);
+  assert.match(
+    releaseWorkflow,
+    /needs\.target\.outputs\.recover == 'true' \|\| needs\.release-please\.outputs\.release_created == 'true'/
+  );
   assert.doesNotMatch(releaseWorkflow, /\n\s+docker-smoke:/);
   assert.doesNotMatch(releaseWorkflow, /name: Build release candidate image/);
   assert.match(releaseWorkflow, /cache-to: type=gha,mode=max,scope=stackarr-multiplatform/);
