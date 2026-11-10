@@ -10,13 +10,13 @@
     "@prisma/client-runtime-utils": "7.10.0",
     "@t3-oss/env-nextjs": "^0.13.11",
     "pg": "8.23.0",
-    "ws": "8.21.3",
+    "ws": "8.22.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
     "@types/pg": "8.23.1",
-    "@types/ws": "8.18.1",
+    "@types/ws": "8.18.2",
     "prisma": "7.10.0",
     "typescript": "^6.0.3"
   },
